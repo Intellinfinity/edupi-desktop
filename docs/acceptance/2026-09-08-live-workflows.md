@@ -371,3 +371,20 @@ Core9af123d启动后，无需再保存摘录，旧任务已回planned、当前�
 - 实际打开 `view=teaching&item=teaching:knowledge`，页面显示“Core 教学依据”“移项符号仍需练习”“林晓 · 错因模式 · 数学 · 方程”和“下节课采用”；连续展开事实及来源后显示原始教师话语“林晓移项时容易忘记变号，需要在下一节课安排针对性练习。”
 - 实际打开学生档案，显示同一条“Core 事实”、已确认状态、谓词、学科、主题和来源入口。两处使用相同 Core 事实 ID，没有由 Desktop 重新推断。
 - 共享弹窗栈定向测试覆盖任务详情、教学上下文、聊天、材料、日历和学生抽屉的 Escape、焦点约束与焦点返回。该证据不包含事实写入/修改/审核/删除/恢复，也不替代安装版或真实课堂内容验收。
+
+# 2026-09-14 老师自建教学任务受管执行
+
+环境：Desktop 当前开发工作树；Core PR [#69](https://github.com/PIGU-PPPgu/edupi/pull/69) merge commit `2be918baed1102133d7f22f2292a2bb41edb9781`；隔离数据、Pi 配置与 localhost 流式模型，验收后全部删除。
+
+- 后端 E2 通过正式 `POST /api/edupi/tasks` 创建 source-backed 教学任务，再经 `POST /api/edupi/preparation` 进入 Core Runtime。任务、work candidate、work case 和两份 generated artifact 使用同一 `task_id`；首次模型调用一次，重复准备不增加调用。
+- 删除所选课表 slot 后再次准备返回 `source_unavailable`，模型调用数保持不变；恢复相同 slot 后，Core 在新 source revision 下重新生成一次。关闭并重启 Runtime 后再次准备返回 ready，模型调用数保持 2，未重复生成。
+- 页面实际操作填写“教师自建单元检测”、截止日期和备注，勾选“由 Core 准备教学产物”，选择数学/703/第2节、上课日期、已接入材料，并把产物改为“检测卷、参考答案”。提交后页面显示“任务已创建，Core 正在准备教学产物”，任务板只有1项，没有同课次自动任务；随后自动进入“待我确认/已准备”。
+- 双击任务后，详情显示进入队列、开始准备、准备完成三条 Core 流转，以及两份独立可点击产物。页面分别打开检测卷正文“解方程 2x + 3 = 7”和参考答案“移项得 2x = 4，所以 x = 2；代入检验成立”。
+- 首次打开产物真实复现 `/api/files` 403 `Access denied`；将经过 Core 校验的 education data root 加入共享只读白名单后，同一路径重试返回 200，两个文件都可预览。测试未向真实教师、学生或正式模型写入数据。
+
+# 2026-09-14 Core 事实稳定身份复核
+
+- Core PR [#71](https://github.com/PIGU-PPPgu/edupi/pull/71) merge commit `145875575245335f82297a46c70fd3746a4fe9f3` 将实体的受限外部引用纳入事实投影，不暴露 alias 展示值或内部来源字段。Core `npm test` 全量通过。
+- 隔离 E2 中名单学生 ID 为 `student-roster-e2`，事实实体 ID 为 `entity_67494bb94ad4ffb3c99de27e5115f41a`，两者不同；Desktop API 通过 `school-roster` 引用得到唯一映射，服务端渲染仍显示事实及原始教师话语。
+- 页面复核使用另一组不同 ID：URL/名单选择为 `student-roster-ui`，Core entity 与 student view 均为 `entity_411bafd9fcea085b81b050a48a97e8db`。学生档案显示1条已确认 Core 事实“移项符号仍需练习”，证明不再依赖碰巧相同的 ID 或姓名匹配。
+- Desktop 对学生视图事实归属、教学/by-subject、下节课引用、冲突实体和实体外部引用做原子校验；任何交叉引用错误只令可选 `factSpine` 为空。生产 snapshot consumer 只在基础 workspace 仍通过完整 schema 时隔离坏 fact spine，任务、日历和学生名单继续可读；其他字段错误仍拒绝整个 envelope。

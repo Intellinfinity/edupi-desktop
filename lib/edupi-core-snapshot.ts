@@ -135,7 +135,7 @@ export async function readEduPiEducationSnapshot({
     || !sameCapabilityList(response.supported_projections, identity.contract.supported_projections)) {
     throw new EduPiSnapshotError("capability_mismatch", "Core education projection capability mismatch");
   }
-  const consumed = consumeCoreEnvelope(response.envelope);
+  const consumed = consumeCoreEnvelope(response.envelope, { allowInvalidFactSpine: true });
   if (!consumed.ok) throw new EduPiSnapshotError(consumed.code, bridgeErrorMessage(consumed.code));
   if (consumed.kind !== "snapshot") throw new EduPiSnapshotError("unsupported_command", "Core returned an unsupported education receipt");
   const payload = consumed.value as CoreEducationSnapshotPayload;

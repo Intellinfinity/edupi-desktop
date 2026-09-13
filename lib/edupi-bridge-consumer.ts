@@ -1,4 +1,4 @@
-import { validateCoreEnvelopeSchema, validateReceiptSemantics, validateSnapshotSemantics, type BridgeErrorCode } from "./edupi-bridge-contract";
+import { validateCoreEnvelopeSchema, validateCoreEnvelopeSchemaWithFactIsolation, validateReceiptSemantics, validateSnapshotSemantics, type BridgeErrorCode } from "./edupi-bridge-contract";
 import { activeBridgeIdentity } from "./edupi-bridge-manifest";
 
 type ConsumeError = { ok: false; code: BridgeErrorCode; recovery: "refresh" | "update" | "unavailable" };
@@ -9,12 +9,12 @@ function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-export function consumeCoreEnvelope(value: unknown, options: { currentSnapshotId?: string } = {}): ConsumeError | ConsumeSnapshot | ConsumeReceipt {
+export function consumeCoreEnvelope(value: unknown, options: { currentSnapshotId?: string; allowInvalidFactSpine?: boolean } = {}): ConsumeError | ConsumeSnapshot | ConsumeReceipt {
   const envelope = record(value);
   const identity = activeBridgeIdentity();
   if (envelope?.contract_version !== identity.contract.contract_version) return { ok: false, code: "unknown_version", recovery: "update" };
   if (envelope.schema_hash !== identity.contract.schema_hash) return { ok: false, code: "unknown_schema_hash", recovery: "update" };
-  if (!validateCoreEnvelopeSchema(envelope)) return { ok: false, code: "invalid_envelope", recovery: "refresh" };
+  if (!validateCoreEnvelopeSchema(envelope) && !(options.allowInvalidFactSpine && validateCoreEnvelopeSchemaWithFactIsolation(envelope))) return { ok: false, code: "invalid_envelope", recovery: "refresh" };
   if (envelope.producer !== "edupi-core" || envelope.external_send !== false || typeof envelope.message_id !== "string" || typeof envelope.request_id !== "string" || typeof envelope.snapshot_id !== "string") return { ok: false, code: "invalid_envelope", recovery: "refresh" };
   if (!Array.isArray(envelope.provenance) || envelope.provenance.length === 0 || !record(envelope.teacher_review)) return { ok: false, code: "invalid_envelope", recovery: "refresh" };
   const payload = record(envelope.payload);

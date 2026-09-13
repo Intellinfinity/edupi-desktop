@@ -56,6 +56,7 @@ import { readEduPiTeachingSkills, type EduPiTeachingSkillLifecycle } from "@/lib
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 import { normalizeKernelState, readEduPiKernel, type EduPiKernelState } from "@/lib/edupi-kernel-client";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
+import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 
 type Props = {
   initialModule?: EducationModule;
@@ -692,12 +693,28 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setTaskDetailTask(null);
   }, []);
 
-  const createBoardTask = useCallback(async (input: { title: string; dueDate: string | null; note: string | null }) => {
+  const createBoardTask = useCallback(async (input: CreateTeacherTaskInput): Promise<CreateTeacherTaskOutcome> => {
     const response = await fetch("/api/edupi/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-    const result = await response.json() as { error?: string; data?: EducationContract };
+    const result = await response.json() as { error?: string; data?: EducationContract; receipt?: { target?: { target_id?: string } } };
     if (!response.ok || !result.data) throw new Error(result.error || `任务创建失败（HTTP ${response.status}）`);
     setEducation(result.data);
-  }, []);
+    if (!input.preparationSource) return { preparationState: null, preparationError: null };
+    const taskId = result.receipt?.target?.target_id;
+    if (!taskId) return { preparationState: "error", preparationError: "任务标识读取失败，请打开任务后重试" };
+    try {
+      const preparationResponse = await fetch("/api/edupi/preparation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "run", taskId }) });
+      const preparation = await preparationResponse.json() as { state?: string; error?: string; taskId?: string | null };
+      await loadWorkspace();
+      if (!preparationResponse.ok || preparation.taskId !== taskId || !["running", "ready"].includes(preparation.state || "")) {
+        return { preparationState: "error", preparationError: preparation.error || "请打开任务后重试" };
+      }
+      window.dispatchEvent(new Event("edupi-preparation-updated"));
+      return { preparationState: preparation.state as "running" | "ready", preparationError: null };
+    } catch (error) {
+      try { await loadWorkspace(); } catch { /* The task remains stored even when the refresh is unavailable. */ }
+      return { preparationState: "error", preparationError: error instanceof Error ? error.message : "请打开任务后重试" };
+    }
+  }, [loadWorkspace]);
 
   const moveBoardTask = useCallback(async (task: TeacherTask, stage: TaskBoardLaneId) => {
     if (!task.id) throw new Error("任务缺少可写标识。");
@@ -895,7 +912,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
           {inspectorAvailable ? <EduPiInspector open={inspectorOpen} data={education} task={activeTask} onClose={toggleInspector} onOpenAgent={openAgent} onStage={selectStage} /> : null}
         </div>
       </div>
-      {taskDetail ? <EduPiTaskDetailDrawer task={taskDetail} workCase={workCaseForTask(education, taskDetail.id)} workspace={education.workspace} onClose={closeTaskDetail} onOpenFile={openTaskFile} onOpenTask={selectTask} onOpenAgent={openAgentForTask} onDelete={(task) => { if (task.id) void deleteEntity("task", task.id, task.title).catch(() => {}); }} deleteBusy={deleteBusy === `task:${taskDetail.id}`} /> : null}
+      {taskDetail ? <EduPiTaskDetailDrawer task={taskDetail} workCase={workCaseForTask(education, taskDetail.id)} files={education.generatedArtifacts} workspace={education.workspace} onClose={closeTaskDetail} onOpenFile={openTaskFile} onOpenTask={selectTask} onOpenAgent={openAgentForTask} onDelete={(task) => { if (task.id) void deleteEntity("task", task.id, task.title).catch(() => {}); }} deleteBusy={deleteBusy === `task:${taskDetail.id}`} /> : null}
       <EduPiQuickEntry open={quickEntryOpen} education={education} onClose={onCloseQuickEntry} onSelect={selectQuickEntry} />
       {deleteLabel ? <EduPiDeleteConfirmation label={deleteLabel} onResolve={resolveDeleteConfirmation} /> : null}
       {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? (() => { const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation" && file.available !== false && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === previewPath.replaceAll("\\", "/")); const preview = renderFilePreview(previewPath); return artifact ? <EduPiPreparationArtifactEditor key={artifact.artifact_id} artifactId={artifact.artifact_id} preview={preview} onSaved={value => { openFile(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }} onAgent={prompt => { closeDrawer(); startAgent(prompt, "replace"); }} /> : preview; })() : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}

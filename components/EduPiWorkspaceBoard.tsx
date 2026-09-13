@@ -7,18 +7,34 @@ import { projectTaskBoard, taskBoardLane, taskBoardTargets, type TaskBoardLaneId
 import { taskCategory, TASK_CATEGORY_CONFIG, type TaskCategoryId } from "@/lib/edupi-task-category";
 import type { TaskSessionBinding } from "@/lib/edupi-task-sessions";
 import { taskContentStatusLabel, taskDisplayTitle, taskPresentation, taskStatusLabel, taskTypeLabel } from "@/lib/edupi-workbench";
+import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 
-type CreateTaskInput = { title: string; dueDate: string | null; note: string | null };
 type Props = {
   data: EducationContract;
   query: string;
   onTaskDetail: (task: TeacherTask) => void;
-  onCreateTask: (input: CreateTaskInput) => Promise<void>;
+  onCreateTask: (input: CreateTeacherTaskInput) => Promise<CreateTeacherTaskOutcome>;
   onMoveTask: (task: TeacherTask, stage: TaskBoardLaneId) => Promise<void>;
   mergeSuggestions?: ReactNode;
 };
 
 const stageLabels: Record<TaskBoardLaneId, string> = { todo: "待处理", progress: "进行中", review: "待我确认", done: "已完成" };
+const DEFAULT_PREPARATION_DELIVERABLES = ["本节教案", "学生学案", "练习与参考答案", "材料准备清单"];
+
+function rawText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function slotId(slot: Record<string, unknown>): string {
+  return rawText(slot.slot_id ?? slot.id);
+}
+
+function dateBefore(value: string): string {
+  const date = new Date(`${value}T12:00:00.000Z`);
+  if (Number.isNaN(date.valueOf())) return "";
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
 
 function taskDate(task: TeacherTask): string {
   return task.dueDate || task.triggerDate || task.sourceEventDate || "日期待确认";
@@ -95,6 +111,11 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
+  const [managedPreparation, setManagedPreparation] = useState(false);
+  const [timetableSlotId, setTimetableSlotId] = useState("");
+  const [lessonDate, setLessonDate] = useState("");
+  const [materialIds, setMaterialIds] = useState<string[]>([]);
+  const [deliverables, setDeliverables] = useState(DEFAULT_PREPARATION_DELIVERABLES.join("\n"));
   const draggedTaskIdRef = useRef<string | null>(null);
   const dragStartRef = useRef<{ id: string; x: number; y: number; offX: number; offY: number; width: number } | null>(null);
   const suppressClickRef = useRef(false);
@@ -110,6 +131,13 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
   const candidateByTask = new Map(data.workCandidates.map((candidate) => [candidate.taskId, candidate]));
   const taskById = new Map(data.tasks.filter((task) => task.id).map((task) => [task.id!, task]));
   const visibleCount = columns.reduce((total, column) => total + column.tasks.length, 0);
+  const usableSlots = data.timetable.filter((slot) => slotId(slot) && rawText(slot.subject) && rawText(slot.class_name));
+  const activeSlotId = timetableSlotId || slotId(usableSlots[0] || {});
+  const activeSlot = usableSlots.find((slot) => slotId(slot) === activeSlotId) || null;
+  const compatibleMaterials = (data.teacherMaterials || []).filter((material) => material.available !== false && activeSlot
+    && material.subject === rawText(activeSlot.subject) && material.class_id === rawText(activeSlot.class_name));
+  const requestedDeliverables = deliverables.split("\n").map((item) => item.trim()).filter(Boolean);
+  const canCreate = Boolean(title.trim()) && (!managedPreparation || Boolean(activeSlot && lessonDate && materialIds.length > 0 && requestedDeliverables.length > 0));
 
   const stopDragging = () => {
     draggedTaskIdRef.current = null;
@@ -167,12 +195,24 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
     setCreating(true);
     setMessage(null);
     try {
-      await onCreateTask({ title: title.trim(), dueDate: dueDate || null, note: note.trim() || null });
+      const result = await onCreateTask({
+        title: title.trim(),
+        dueDate: dueDate || null,
+        note: note.trim() || null,
+        preparationSource: managedPreparation ? { kind: "teaching_before_class", timetableSlotId: activeSlotId, lessonDate, materialIds, deliverables: requestedDeliverables } : null,
+      });
       setTitle("");
       setDueDate("");
       setNote("");
+      setManagedPreparation(false);
+      setTimetableSlotId("");
+      setLessonDate("");
+      setMaterialIds([]);
+      setDeliverables(DEFAULT_PREPARATION_DELIVERABLES.join("\n"));
       setCreateOpen(false);
-      setMessage({ tone: "success", text: "任务已创建到“待处理”。" });
+      setMessage(result.preparationState === "error"
+        ? { tone: "error", text: `任务已创建；Core 尚未启动：${result.preparationError || "请打开任务后重试"}` }
+        : { tone: "success", text: result.preparationState ? "任务已创建，Core 正在准备教学产物。" : "任务已创建到“待处理”。" });
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof Error ? error.message : "任务创建失败。" });
     } finally {
@@ -196,7 +236,14 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
         <label><span>任务</span><input autoFocus required maxLength={240} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：准备第一次单元检测" /></label>
         <label><span>截止日期</span><input type="date" value={dueDate} onInput={(event) => setDueDate(event.currentTarget.value)} /></label>
         <label><span>备注</span><input maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选" /></label>
-        <div><button type="button" disabled={creating} onClick={() => setCreateOpen(false)}>取消</button><button type="submit" className="is-primary" disabled={creating || !title.trim()}>{creating ? "创建中…" : "创建任务"}</button></div>
+        <label className="edupi-task-board-create__managed"><input type="checkbox" checked={managedPreparation} onChange={(event) => { setManagedPreparation(event.target.checked); if (event.target.checked && !timetableSlotId) setTimetableSlotId(slotId(usableSlots[0] || {})); }} /><span>由 Core 准备教学产物</span></label>
+        {managedPreparation ? <div className="edupi-task-board-create__source">
+          <label><span>课次</span><select value={activeSlotId} onChange={(event) => { setTimetableSlotId(event.target.value); setMaterialIds([]); }}><option value="">选择课次</option>{usableSlots.map((slot) => <option key={slotId(slot)} value={slotId(slot)}>{rawText(slot.subject)} · {rawText(slot.class_name)} · 第 {String(slot.period ?? "?")} 节</option>)}</select></label>
+          <label><span>上课日期</span><input type="date" value={lessonDate} onChange={(event) => { setLessonDate(event.target.value); if (!dueDate) setDueDate(dateBefore(event.target.value)); }} /></label>
+          <fieldset><legend>材料</legend>{compatibleMaterials.map((material) => <label key={material.material_id}><input type="checkbox" aria-label={material.title} checked={materialIds.includes(material.material_id)} onChange={(event) => setMaterialIds((current) => event.target.checked ? [...new Set([...current, material.material_id])] : current.filter((id) => id !== material.material_id))} /><span>{material.title}</span></label>)}{activeSlot && compatibleMaterials.length === 0 ? <p>请先接入同班同学科材料</p> : null}</fieldset>
+          <label><span>产物</span><textarea rows={4} maxLength={4800} value={deliverables} onChange={(event) => setDeliverables(event.target.value)} /></label>
+        </div> : null}
+        <div className="edupi-task-board-create__actions"><button type="button" disabled={creating} onClick={() => setCreateOpen(false)}>取消</button><button type="submit" className="is-primary" disabled={creating || !canCreate}>{creating ? "创建中…" : managedPreparation ? "创建并准备" : "创建任务"}</button></div>
       </form> : null}
       {message ? <p className={`edupi-task-board-message is-${message.tone}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p> : null}
       <div className="edupi-task-board-scroll">

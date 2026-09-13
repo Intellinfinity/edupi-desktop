@@ -694,7 +694,18 @@ html.dark .edupi-teacher-shell {
 .edupi-task-board-create label { display: flex; min-width: 0; flex-direction: column; gap: 5px; color: var(--ep-muted); font-size: 10px; }
 .edupi-task-board-create input { width: 100%; height: 32px; min-width: 0; padding: 0 9px; border: 1px solid var(--ep-border); border-radius: 6px; outline: 0; background: var(--ep-surface-soft); color: var(--ep-text); font-size: 12px; }
 .edupi-task-board-create input:focus { border-color: var(--ep-blue); background: var(--ep-surface); }
-.edupi-task-board-create > div { display: flex; gap: 6px; }
+.edupi-task-board-create > .edupi-task-board-create__actions { display: flex; gap: 6px; }
+.edupi-task-board-create > .edupi-task-board-create__managed { grid-column: 1 / -1; flex-direction: row; align-items: center; }
+.edupi-task-board-create > .edupi-task-board-create__managed input { width: 14px; height: 14px; }
+.edupi-task-board-create__source { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(220px, 1fr) 160px minmax(220px, 1fr) minmax(220px, 1fr); gap: 10px; padding-top: 10px; border-top: 1px solid var(--ep-border); }
+.edupi-task-board-create__source select,
+.edupi-task-board-create__source textarea { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--ep-border); border-radius: 6px; outline: 0; background: var(--ep-surface-soft); color: var(--ep-text); font: inherit; }
+.edupi-task-board-create__source fieldset { display: grid; min-width: 0; margin: 0; padding: 0; gap: 5px; border: 0; }
+.edupi-task-board-create__source fieldset legend { margin-bottom: 5px; color: var(--ep-muted); font-size: 10px; }
+.edupi-task-board-create__source fieldset label { flex-direction: row; align-items: center; }
+.edupi-task-board-create__source fieldset input { width: 14px; height: 14px; }
+.edupi-task-board-create__source fieldset p { margin: 0; color: var(--ep-danger); font-size: 10px; }
+.edupi-task-detail-artifacts li > button { display: flex; width: 100%; padding: 0; align-items: center; justify-content: space-between; gap: 10px; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .edupi-task-board-create button { height: 32px; padding: 0 10px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-muted); cursor: pointer; font-size: 11px; }
 .edupi-task-board-create button.is-primary { border-color: var(--ep-blue); background: var(--ep-blue); color: white; }
 .edupi-task-board-create button:disabled { cursor: not-allowed; opacity: .45; }

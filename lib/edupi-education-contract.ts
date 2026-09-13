@@ -96,7 +96,7 @@ export type EducationWorkCase = {
 };
 
 export type EducationFactConfidence = { basis: "explicit" | "model_assisted" | "inferred"; score: number };
-export type EducationFactEntity = { id: string; kind: "teacher" | "term" | "class" | "student" | "parent" | "subject" | "topic" | "lesson_occurrence" | "calendar_event" | "material" | "artifact"; name: string; revision: number };
+export type EducationFactEntity = { id: string; kind: "teacher" | "term" | "class" | "student" | "parent" | "subject" | "topic" | "lesson_occurrence" | "calendar_event" | "material" | "artifact"; name: string; externalRefs: Array<{ namespace: string; externalId: string }>; revision: number };
 export type EducationFactObservation = { id: string; sourceKind: "teacher_utterance" | "material" | "calendar" | "timetable" | "legacy"; sourceId: string; sourceRevision: string; text: string; contentHash: string; observedAt: string; actorRef: string; entityIds: string[]; status: "active" | "stale"; revision: number };
 export type EducationFact = { id: string; entityId: string; kind: "error_pattern" | "progress" | "behavior" | "general" | "safety" | "academic" | "material" | "evidence"; predicate: string; value: string; subjectRef: string | null; topicRef: string | null; confidence: EducationFactConfidence; status: "candidate" | "pending_review" | "held" | "accepted"; sourceIds: string[]; observationIds: string[]; conflictIds: string[]; revision: number };
 export type EducationFactSpine = {
@@ -113,6 +113,13 @@ export type EducationFactSpine = {
   nextLessonFactIds: string[];
   uses: Array<{ id: string; key: string; consumerKind: "student_projection" | "teaching_projection" | "next_lesson"; consumerRef: string; factIds: string[]; usedAt: string }>;
 };
+
+export function factEntityIdForRosterStudent(factSpine: EducationFactSpine, rosterStudentId: string): string | null {
+  const mapped = factSpine.entities.find((entity) => entity.kind === "student"
+    && entity.externalRefs.some((ref) => ref.namespace === "school-roster" && ref.externalId === rosterStudentId));
+  if (mapped) return mapped.id;
+  return factSpine.entities.some((entity) => entity.kind === "student" && entity.id === rosterStudentId) ? rosterStudentId : null;
+}
 
 export type EducationMemoryCategory = "semester" | "class" | "teaching" | "preferences" | "school";
 
@@ -986,17 +993,29 @@ function normalizeFact(value: unknown): EducationFact | null {
   return { id, entityId, kind: item.fact_kind as EducationFact["kind"], predicate, value: factValue, subjectRef, topicRef, confidence, status: item.status as EducationFact["status"], sourceIds, observationIds, conflictIds, revision: Number(item.revision) };
 }
 
+function isBoundedFactRecordArray(value: unknown, maxItems = 500): value is RawRecord[] {
+  return Array.isArray(value) && value.length <= maxItems && value.every((item) => strictRecord(item) !== null);
+}
+
 function normalizeFactSpine(value: unknown): EducationFactSpine | null {
   const spine = strictRecord(value);
   if (!spine || !hasExactKeys(spine, ["projection_kind", "projection_version", "state_hash", "generated_at", "entities", "observations", "accepted_facts", "fact_candidates", "hypotheses", "conflicts", "student_views", "teaching_view", "next_lesson_fact_ids", "uses", "legacy_shadow", "external_send"])
-    || spine.projection_kind !== "education_fact_v1" || spine.projection_version !== "1.0" || spine.external_send !== false) return null;
+    || spine.projection_kind !== "education_fact_v1" || spine.projection_version !== "1.0" || spine.external_send !== false
+    || ![spine.entities, spine.observations, spine.accepted_facts, spine.fact_candidates, spine.hypotheses, spine.conflicts, spine.student_views, spine.uses, spine.legacy_shadow].every((items) => isBoundedFactRecordArray(items))) return null;
   const stateHash = strictText(spine.state_hash, 71);
   const generatedAt = strictTimestamp(spine.generated_at);
   const entities = objectArray(spine.entities).flatMap((item): EducationFactEntity[] => {
     const id = strictText(item.entity_id, 160);
     const name = strictText(item.canonical_name, 240);
-    return id && name && FACT_ENTITY_KINDS.has(item.entity_kind as EducationFactEntity["kind"]) && item.status === "active" && Number.isInteger(item.revision) && Number(item.revision) >= 0 && item.external_send === false
-      ? [{ id, kind: item.entity_kind as EducationFactEntity["kind"], name, revision: Number(item.revision) }]
+    const refs = objectArray(item.external_refs).flatMap((entry): EducationFactEntity["externalRefs"] => {
+      const namespace = strictText(entry.namespace, 80);
+      const externalId = strictText(entry.external_id, 160);
+      return namespace && externalId && hasExactKeys(entry, ["namespace", "external_id"]) ? [{ namespace, externalId }] : [];
+    });
+    return id && name && hasExactKeys(item, ["entity_id", "entity_kind", "canonical_name", "external_refs", "status", "revision", "external_send"])
+      && Array.isArray(item.external_refs) && item.external_refs.length <= 100 && refs.length === item.external_refs.length
+      && FACT_ENTITY_KINDS.has(item.entity_kind as EducationFactEntity["kind"]) && item.status === "active" && Number.isInteger(item.revision) && Number(item.revision) >= 0 && item.external_send === false
+      ? [{ id, kind: item.entity_kind as EducationFactEntity["kind"], name, externalRefs: refs, revision: Number(item.revision) }]
       : [];
   });
   const observations = objectArray(spine.observations).flatMap((item): EducationFactObservation[] => {
@@ -1008,7 +1027,7 @@ function normalizeFactSpine(value: unknown): EducationFactSpine | null {
     const observedAt = strictTimestamp(item.observed_at);
     const actorRef = strictText(item.actor_ref, 160);
     const entityIds = boundedUniqueStrings(item.entity_ids, "fact.observation.entity_ids", 50);
-    return id && sourceId && sourceRevision && rawText && contentHash && /^sha256:[a-f0-9]{64}$/.test(contentHash) && observedAt && actorRef && entityIds
+    return id && sourceId && sourceRevision && rawText && contentHash && hasExactKeys(item, ["observation_id", "source_kind", "source_id", "source_revision", "raw_text", "content_hash", "observed_at", "actor_ref", "entity_ids", "status", "revision", "external_send"]) && /^sha256:[a-f0-9]{64}$/.test(contentHash) && observedAt && actorRef && entityIds
       && ["teacher_utterance", "material", "calendar", "timetable", "legacy"].includes(String(item.source_kind)) && ["active", "stale"].includes(String(item.status))
       && Number.isInteger(item.revision) && Number(item.revision) >= 0 && item.external_send === false
       ? [{ id, sourceKind: item.source_kind as EducationFactObservation["sourceKind"], sourceId, sourceRevision, text: rawText, contentHash, observedAt, actorRef, entityIds, status: item.status as EducationFactObservation["status"], revision: Number(item.revision) }]
@@ -1019,31 +1038,71 @@ function normalizeFactSpine(value: unknown): EducationFactSpine | null {
   const hypotheses = objectArray(spine.hypotheses).flatMap((item): EducationFactSpine["hypotheses"] => {
     const id = strictText(item.hypothesis_id, 160); const statement = strictText(item.statement, 4000); const confidence = factConfidence(item.confidence);
     const entityIds = boundedUniqueStrings(item.entity_ids, "fact.hypothesis.entity_ids", 50); const sourceIds = boundedUniqueStrings(item.source_ids, "fact.hypothesis.source_ids", 500); const observationIds = boundedUniqueStrings(item.observation_ids, "fact.hypothesis.observation_ids", 500);
-    return id && statement && confidence && entityIds && sourceIds && observationIds && ["pending_review", "held"].includes(String(item.status)) && Number.isInteger(item.revision) && Number(item.revision) >= 0 && item.external_send === false
+    return id && statement && confidence && entityIds && sourceIds && observationIds && hasExactKeys(item, ["hypothesis_id", "statement", "entity_ids", "source_ids", "observation_ids", "confidence", "status", "revision", "external_send"]) && ["pending_review", "held"].includes(String(item.status)) && Number.isInteger(item.revision) && Number(item.revision) >= 0 && item.external_send === false
       ? [{ id, statement, entityIds, sourceIds, observationIds, confidence, status: item.status as "pending_review" | "held", revision: Number(item.revision) }] : [];
   });
   const conflicts = objectArray(spine.conflicts).flatMap((item): EducationFactSpine["conflicts"] => {
     const id = strictText(item.conflict_id, 160); const entityId = strictText(item.entity_id, 160); const predicate = strictText(item.predicate, 160); const factIds = boundedUniqueStrings(item.fact_ids, "fact.conflict.fact_ids", 2); const sourceIds = boundedUniqueStrings(item.source_ids, "fact.conflict.source_ids", 500);
-    return id && entityId && predicate && factIds?.length === 2 && sourceIds && item.status === "pending_review" && Number.isInteger(item.revision) && Number(item.revision) >= 0 && item.external_send === false
+    return id && entityId && predicate && factIds?.length === 2 && sourceIds && hasExactKeys(item, ["conflict_id", "entity_id", "predicate", "fact_ids", "source_ids", "status", "revision", "external_send"]) && item.status === "pending_review" && Number.isInteger(item.revision) && Number(item.revision) >= 0 && item.external_send === false
       ? [{ id, entityId, predicate, factIds: factIds as [string, string], sourceIds, revision: Number(item.revision) }] : [];
   });
   const studentViews = objectArray(spine.student_views).flatMap((item): EducationFactSpine["studentViews"] => {
     const studentId = strictText(item.student_id, 160); const name = strictText(item.name, 240); const acceptedFactIds = boundedUniqueStrings(item.accepted_fact_ids, "fact.student.accepted", 500); const pendingFactIds = boundedUniqueStrings(item.pending_fact_ids, "fact.student.pending", 500);
-    return studentId && name && acceptedFactIds && pendingFactIds && item.external_send === false ? [{ studentId, name, acceptedFactIds, pendingFactIds }] : [];
+    return studentId && name && acceptedFactIds && pendingFactIds && hasExactKeys(item, ["student_id", "name", "accepted_fact_ids", "pending_fact_ids", "external_send"]) && item.external_send === false ? [{ studentId, name, acceptedFactIds, pendingFactIds }] : [];
   });
   const rawTeaching = strictRecord(spine.teaching_view);
   const teachingAccepted = boundedUniqueStrings(rawTeaching?.accepted_fact_ids, "fact.teaching.accepted", 500);
   const bySubject = objectArray(rawTeaching?.by_subject).flatMap((item): EducationFactSpine["teachingView"]["bySubject"] => {
     const subjectRef = strictText(item.subject_ref, 160); const factIds = boundedUniqueStrings(item.fact_ids, "fact.teaching.subject", 500);
-    return subjectRef && factIds ? [{ subjectRef, factIds }] : [];
+    return subjectRef && factIds && hasExactKeys(item, ["subject_ref", "fact_ids"]) ? [{ subjectRef, factIds }] : [];
   });
   const nextLessonFactIds = boundedUniqueStrings(spine.next_lesson_fact_ids, "fact.next_lesson", 500);
   const uses = objectArray(spine.uses).flatMap((item): EducationFactSpine["uses"] => {
     const id = strictText(item.use_id, 160); const key = strictText(item.use_key, 160); const consumerRef = strictText(item.consumer_ref, 160); const factIds = boundedUniqueStrings(item.fact_ids, "fact.use.fact_ids", 500); const usedAt = strictTimestamp(item.used_at);
-    return id && key && consumerRef && factIds && usedAt && ["student_projection", "teaching_projection", "next_lesson"].includes(String(item.consumer_kind)) && item.external_send === false
+    return id && key && consumerRef && factIds && usedAt && hasExactKeys(item, ["use_id", "use_key", "consumer_kind", "consumer_ref", "fact_ids", "used_at", "external_send"]) && ["student_projection", "teaching_projection", "next_lesson"].includes(String(item.consumer_kind)) && item.external_send === false
       ? [{ id, key, consumerKind: item.consumer_kind as EducationFactSpine["uses"][number]["consumerKind"], consumerRef, factIds, usedAt }] : [];
   });
-  if (!stateHash || !/^sha256:[a-f0-9]{64}$/.test(stateHash) || !generatedAt || !rawTeaching || rawTeaching.external_send !== false || !teachingAccepted || !nextLessonFactIds || !Array.isArray(spine.legacy_shadow)) return null;
+  const legacyShadow = objectArray(spine.legacy_shadow);
+  const entityById = new Map(entities.map((entity) => [entity.id, entity]));
+  const observationById = new Map(observations.map((observation) => [observation.id, observation]));
+  const acceptedById = new Map(acceptedFacts.map((fact) => [fact.id, fact]));
+  const candidateById = new Map(factCandidates.map((fact) => [fact.id, fact]));
+  const factById = new Map([...acceptedById, ...candidateById]);
+  const externalRefKeys = entities.flatMap((entity) => entity.externalRefs.map((ref) => `${ref.namespace}\u0000${ref.externalId}`));
+  const sameSubject = (fact: EducationFact, subjectRef: string) => fact.subjectRef === subjectRef || fact.subjectRef === null && subjectRef === "unscoped";
+  const validReferences = entities.length === (spine.entities as unknown[]).length
+    && observations.length === (spine.observations as unknown[]).length
+    && acceptedFacts.length === (spine.accepted_facts as unknown[]).length
+    && factCandidates.length === (spine.fact_candidates as unknown[]).length
+    && hypotheses.length === (spine.hypotheses as unknown[]).length
+    && conflicts.length === (spine.conflicts as unknown[]).length
+    && studentViews.length === (spine.student_views as unknown[]).length
+    && uses.length === (spine.uses as unknown[]).length
+    && entityById.size === entities.length
+    && observationById.size === observations.length
+    && factById.size === acceptedFacts.length + factCandidates.length
+    && new Set(externalRefKeys).size === externalRefKeys.length
+    && observations.every((item) => item.entityIds.every((id) => entityById.has(id)))
+    && [...factById.values()].every((fact) => entityById.has(fact.entityId)
+      && fact.observationIds.every((id) => !observationById.has(id) || observationById.get(id)!.entityIds.includes(fact.entityId)))
+    && new Set(studentViews.map((item) => item.studentId)).size === studentViews.length
+    && studentViews.every((view) => entityById.get(view.studentId)?.kind === "student"
+      && entityById.get(view.studentId)?.name === view.name
+      && view.acceptedFactIds.every((id) => acceptedById.get(id)?.entityId === view.studentId)
+      && view.pendingFactIds.every((id) => candidateById.get(id)?.entityId === view.studentId))
+    && teachingAccepted?.every((id) => acceptedById.has(id))
+    && bySubject.length === (Array.isArray(rawTeaching?.by_subject) ? rawTeaching.by_subject.length : -1)
+    && bySubject.every((group) => group.factIds.every((id) => Boolean(acceptedById.get(id) && sameSubject(acceptedById.get(id)!, group.subjectRef))))
+    && nextLessonFactIds?.every((id) => acceptedById.has(id))
+    && hypotheses.every((item) => item.entityIds.every((id) => entityById.has(id)))
+    && conflicts.every((item) => entityById.has(item.entityId) && item.factIds.every((id) => factById.get(id)?.entityId === item.entityId))
+    && legacyShadow.length === (spine.legacy_shadow as unknown[]).length
+    && legacyShadow.every((item) => hasExactKeys(item, ["legacy_id", "student", "content", "state", "source_kind", "read_only", "external_send"])
+      && Boolean(strictText(item.legacy_id, 160)) && (item.student === null || Boolean(strictText(item.student, 120))) && Boolean(strictText(item.content, 1000))
+      && ["active", "superseded"].includes(String(item.state)) && item.source_kind === "legacy_class_memory" && item.read_only === true && item.external_send === false);
+  if (!stateHash || !/^sha256:[a-f0-9]{64}$/.test(stateHash) || !generatedAt || !rawTeaching
+    || !hasExactKeys(rawTeaching, ["accepted_fact_ids", "by_subject", "external_send"]) || !isBoundedFactRecordArray(rawTeaching.by_subject)
+    || rawTeaching.external_send !== false || !teachingAccepted || !nextLessonFactIds || !validReferences) return null;
   return { stateHash, generatedAt, entities, observations, acceptedFacts, factCandidates, hypotheses, conflicts, studentViews, teachingView: { acceptedFactIds: teachingAccepted, bySubject }, nextLessonFactIds, uses };
 }
 

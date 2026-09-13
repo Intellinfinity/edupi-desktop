@@ -15,10 +15,12 @@ import {
   taskStatusTone,
   type AgentStep,
 } from "@/lib/edupi-workbench";
+import type { GeneratedArtifact } from "@/lib/edupi-generated-artifacts";
 
 type Props = {
   task: TeacherTask;
   workCase: EducationWorkCase | null;
+  files?: GeneratedArtifact[];
   workspace: string;
   onClose: () => void;
   onOpenFile: (path: string) => void;
@@ -53,7 +55,7 @@ function flowTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOpenFile, onOpenTask, onOpenAgent, onDelete, deleteBusy = false }: Props) {
+export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, onClose, onOpenFile, onOpenTask, onOpenAgent, onDelete, deleteBusy = false }: Props) {
   const drawerRef = useModalDismiss<HTMLElement>(onClose);
   const title = taskDisplayTitle(task);
   const source = taskSourceLabel(task);
@@ -61,6 +63,8 @@ export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOp
   const statusTone = taskStatusTone(task);
   const steps = taskAgentSteps(task);
   const artifacts = taskArtifacts(task);
+  const workspaceRoot = workspace.replace(/[\\/]$/, "");
+  const preparedFiles = files.filter(item => item.task_id === task.id && item.available !== false);
   const contentReady = taskContentReady(task);
   const plans = contentReady ? [] : task.deliverables;
   const file = contentReady ? taskArtifactFile(task, workspace) : null;
@@ -103,9 +107,9 @@ export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOp
 
           <section className="edupi-task-detail-section" aria-labelledby="edupi-task-detail-ready">
             <header><h3 id="edupi-task-detail-ready">已准备</h3><span>{artifacts.length} 项</span></header>
-            {artifacts.length > 0 ? <ul className="edupi-task-detail-artifacts">{artifacts.map((artifact) => <li key={artifact.id}><div><strong>{artifact.title}</strong><small>{artifact.state === "confirmed" ? "已确认" : "候选"}</small></div></li>)}</ul> : <p className="edupi-task-detail-empty">暂无已准备内容</p>}
+            {preparedFiles.length > 0 ? <ul className="edupi-task-detail-artifacts">{preparedFiles.map((artifact) => <li key={artifact.artifact_id}><button type="button" onClick={() => { onClose(); onOpenFile(`${workspaceRoot}/${artifact.relative_path}`); }}><strong>{artifact.title}</strong><small>{task.status === "accepted" || task.status === "modified" ? "已确认" : "候选"}</small></button></li>)}</ul> : artifacts.length > 0 ? <ul className="edupi-task-detail-artifacts">{artifacts.map((artifact) => <li key={artifact.id}><div><strong>{artifact.title}</strong><small>{artifact.state === "confirmed" ? "已确认" : "候选"}</small></div></li>)}</ul> : <p className="edupi-task-detail-empty">暂无已准备内容</p>}
             {plans.length > 0 ? <div className="edupi-task-detail-plans"><strong>计划交付</strong><ul>{plans.map((plan) => <li key={plan}>{plan}</li>)}</ul></div> : null}
-            {file ? <div className="edupi-task-detail-file"><span aria-hidden="true">文</span><div><strong>{fileName(file.path)}</strong><small>{fileHasVerification ? "文件已核验" : "文件已留存"}</small></div><button type="button" onClick={() => { onClose(); onOpenFile(file.path); }}>打开产物</button></div> : null}
+            {file && preparedFiles.length === 0 ? <div className="edupi-task-detail-file"><span aria-hidden="true">文</span><div><strong>{fileName(file.path)}</strong><small>{fileHasVerification ? "文件已核验" : "文件已留存"}</small></div><button type="button" onClick={() => { onClose(); onOpenFile(file.path); }}>打开产物</button></div> : null}
           </section>
 
           <section className="edupi-task-detail-section" aria-labelledby="edupi-task-detail-evidence">

@@ -79,6 +79,8 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(panel, /durableTaskIdsRef\.current\.add\(result\.taskId\)/);
   assert.match(panel, /hasEveryTrackedTask\(nextEducation, durableTaskIdsRef\.current\)/);
   assert.match(panel, /durableTaskIdsRef\.current\.delete\(taskId\)/);
+  assert.match(panel, /sequence < workspaceMinimumApplySequenceRef\.current/);
+  assert.match(panel, /workspaceLoadSequenceRef\.current \+ 1/);
   assert.match(panel, /result\.preparation\?\.taskId !== result\.taskId/);
   assert.match(panel, /!result\.data\?\.tasks\.some/);
   assert.match(taskWorkspace, /props\.task\.trigger === "teaching_before_class"/);

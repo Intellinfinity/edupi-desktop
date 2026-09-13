@@ -173,6 +173,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const preparationPollsRef = useRef(new Map<string, AbortController>());
   const taskRefreshesRef = useRef(new Map<string, AbortController>());
   const durableTaskIdsRef = useRef(new Set<string>());
+  const workspaceLoadSequenceRef = useRef(0);
+  const workspaceMinimumApplySequenceRef = useRef(0);
   const objectSider = useEduPiContentSiderCollapse(false);
   const navigationRail = useEduPiContentSiderCollapse(false, APP_PREF_KEYS.edupiNavigationRailCollapsed);
 
@@ -183,6 +185,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, []);
 
   const loadWorkspace = useCallback(async (signal?: AbortSignal) => {
+    const sequence = ++workspaceLoadSequenceRef.current;
     const [workspace, scopeResponse, nextTeachingSkills, nextKernelState] = await Promise.all([
       readEduPiWorkspace({ signal }),
       fetch("/api/edupi/memory-scopes", { cache: "no-store", signal })
@@ -192,7 +195,9 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       readEduPiKernel(signal),
     ]);
     const { context: nextContext, data: nextEducation } = workspace;
+    if (sequence < workspaceMinimumApplySequenceRef.current) return null;
     if (!hasEveryTrackedTask(nextEducation, durableTaskIdsRef.current)) return null;
+    durableTaskIdsRef.current.clear();
     setContext(nextContext);
     setEducation(nextEducation);
     setMemoryScopes(scopeResponse?.projection?.projection_kind === "scoped_education_memory" ? scopeResponse.projection : null);
@@ -228,7 +233,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
               }
               if (next.taskId === taskId && next.state === "idle") {
                 const refreshed = await loadWorkspace(controller.signal).catch(() => null);
-                if (refreshed && !refreshed.tasks.some((task) => task.id === taskId)) return;
+                if (refreshed && !refreshed.tasks.some((task) => task.id === taskId)) { stopTaskTracking(taskId); return; }
               }
             }
           } catch (error) {
@@ -241,7 +246,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       }
     };
     void poll();
-  }, [loadWorkspace]);
+  }, [loadWorkspace, stopTaskTracking]);
 
   const refreshCommittedTask = useCallback((taskId: string) => {
     if (taskRefreshesRef.current.has(taskId)) return;
@@ -763,7 +768,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const result = await response.json() as { error?: string; taskId?: string; data?: EducationContract | null; refreshPending?: boolean; preparation?: { state?: string; error?: string; taskId?: string | null } | null };
     if (!response.ok || !result.taskId) throw new Error(result.error || `任务创建失败（HTTP ${response.status}）`);
     durableTaskIdsRef.current.add(result.taskId);
-    if (result.data && hasEveryTrackedTask(result.data, durableTaskIdsRef.current)) setEducation(result.data);
+    workspaceMinimumApplySequenceRef.current = Math.max(workspaceMinimumApplySequenceRef.current, workspaceLoadSequenceRef.current + 1);
+    if (result.data && hasEveryTrackedTask(result.data, durableTaskIdsRef.current)) { durableTaskIdsRef.current.clear(); setEducation(result.data); }
     if (!result.data?.tasks.some((task) => task.id === result.taskId)) refreshCommittedTask(result.taskId);
     if (!input.preparationSource) return { preparationState: null, preparationError: null };
     if (!result.taskId || result.preparation?.taskId !== result.taskId || !["running", "ready"].includes(result.preparation?.state || "")) {

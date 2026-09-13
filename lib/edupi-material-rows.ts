@@ -2,6 +2,7 @@ import type { EducationContract, TeacherTask } from "./edupi-education-contract"
 import { MATERIAL_CATEGORIES, materialCategory, type MaterialCategoryId } from "./edupi-domain-navigation";
 import { taskArtifactFile, taskArtifacts, taskDisplayTitle, taskKey, taskStatusLabel } from "./edupi-workbench";
 export type MaterialRow = { id: string; title: string; category: Exclude<MaterialCategoryId, "all">; type: string; subject: string; source: string; date: string | null; status: string; summary: string; task: TeacherTask | null; filePath: string | null; deleteKind: "task" | "material" | "generated" | null };
+export type MaterialIntakeMetadata = { title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string; classId: string };
 
 function workspaceFile(workspace: string, relative: string): string {
   const separator = workspace.includes("\\") ? "\\" : "/";
@@ -45,7 +46,7 @@ export function buildMaterialRows(data: EducationContract, query = ""): Material
     return [...unique.values()].filter((item) => !query || `${item.title} ${item.type} ${item.subject} ${item.source} ${item.summary}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((left, right) => String(right.date || "").localeCompare(String(left.date || "")));
 }
 
-export function materialUploadScope(context: { subject?: string; classes?: string[] } | null | undefined) {
+export function defaultMaterialIntakeMetadata(title: string, context: { subject?: string; classes?: string[] } | null | undefined): MaterialIntakeMetadata {
   const classes = [...new Set((context?.classes || []).map(value => value.trim()).filter(Boolean))];
-  return { subject: context?.subject?.trim() || null, classId: classes.length === 1 ? classes[0] : null };
+  return { title, materialKind: "other", subject: context?.subject?.trim() || "", classId: classes.length === 1 ? classes[0] : "" };
 }

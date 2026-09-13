@@ -8,3 +8,11 @@ test("the desktop cold start ensures the DingTalk Stream runtime without blockin
   assert.match(source, /\/api\/edupi\/connectors\/dingtalk\/runtime/);
   assert.match(source, /JSON\.stringify\(\{ action: "ensure" \}\)/);
 });
+
+test("desktop startup, reconnect, visibility, and native resume share one Core catch-up", () => {
+  assert.match(source, /listenDesktopResumeNative\(\(\) => catchUp\(true\)\)/);
+  assert.match(source, /window\.addEventListener\("online", recoverOnline\)/);
+  assert.match(source, /document\.addEventListener\("visibilitychange", refreshVisible\)/);
+  assert.match(source, /now - lastStartedAt < 30_000/);
+  assert.match(source, /\/api\/edupi\/preparation/);
+});

@@ -2,6 +2,11 @@ import type { EducationContract } from "./edupi-education-contract";
 
 export const TASK_REFRESH_DELAYS_MS = [0, 250, 750, 1_500, 3_000] as const;
 
+export function hasEveryTrackedTask(data: Pick<EducationContract, "tasks">, taskIds: ReadonlySet<string>): boolean {
+  const visible = new Set(data.tasks.map((task) => task.id).filter((id): id is string => Boolean(id)));
+  return [...taskIds].every((taskId) => visible.has(taskId));
+}
+
 export async function refreshUntilTaskVisible({
   taskId,
   read,

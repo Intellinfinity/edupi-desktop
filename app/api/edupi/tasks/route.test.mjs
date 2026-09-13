@@ -45,4 +45,5 @@ test("a post-commit refresh gap returns accepted-pending instead of a false crea
   assert.match(source, /refreshPending: refreshed === null/);
   assert.match(source, /status: refreshed \? 200 : 202/);
   assert.match(source, /task and preparation result are already durable/i);
+  assert.doesNotMatch(source, /validatePreparationContext|lessonDateMatchesSlot/, "a durable retry must reach Core before mutable source validation");
 });

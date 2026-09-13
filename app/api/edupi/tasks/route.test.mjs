@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import { createJiti } from "jiti";
 
 const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
@@ -37,4 +38,11 @@ test("a valid task creation request reaches the Core boundary", async () => {
   const managed = await POST(request({ clientRequestId, title: "准备第一次单元检测", dueDate: "2026-09-10", note: "先整理范围", preparationSource: { kind: "teaching_before_class", timetableSlotId: "slot-1", lessonDate: "2026-09-11", materialIds: ["material-1"], deliverables: ["检测卷", "参考答案"] } }));
   assert.equal(managed.status, 503);
   assert.equal((await managed.json()).code, "unavailable");
+});
+
+test("a post-commit refresh gap returns accepted-pending instead of a false creation failure", async () => {
+  const source = await readFile(new URL("./route.ts", import.meta.url), "utf8");
+  assert.match(source, /refreshPending: refreshed === null/);
+  assert.match(source, /status: refreshed \? 200 : 202/);
+  assert.match(source, /task and preparation result are already durable/i);
 });

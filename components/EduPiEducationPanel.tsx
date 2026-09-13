@@ -695,16 +695,17 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
 
   const createBoardTask = useCallback(async (input: CreateTeacherTaskInput): Promise<CreateTeacherTaskOutcome> => {
     const response = await fetch("/api/edupi/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-    const result = await response.json() as { error?: string; taskId?: string; data?: EducationContract; preparation?: { state?: string; error?: string; taskId?: string | null } | null };
-    if (!response.ok || !result.data) throw new Error(result.error || `任务创建失败（HTTP ${response.status}）`);
-    setEducation(result.data);
+    const result = await response.json() as { error?: string; taskId?: string; data?: EducationContract | null; refreshPending?: boolean; preparation?: { state?: string; error?: string; taskId?: string | null } | null };
+    if (!response.ok || !result.taskId) throw new Error(result.error || `任务创建失败（HTTP ${response.status}）`);
+    if (result.data) setEducation(result.data);
+    else void loadWorkspace().catch(() => {});
     if (!input.preparationSource) return { preparationState: null, preparationError: null };
     if (!result.taskId || result.preparation?.taskId !== result.taskId || !["running", "ready"].includes(result.preparation?.state || "")) {
       return { preparationState: "error", preparationError: result.preparation?.error || "请打开任务后重试" };
     }
     window.dispatchEvent(new Event("edupi-preparation-updated"));
     return { preparationState: result.preparation.state as "running" | "ready", preparationError: null };
-  }, []);
+  }, [loadWorkspace]);
 
   const moveBoardTask = useCallback(async (task: TeacherTask, stage: TaskBoardLaneId) => {
     if (!task.id) throw new Error("任务缺少可写标识。");

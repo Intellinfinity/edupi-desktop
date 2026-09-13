@@ -1095,7 +1095,7 @@ function normalizeFactSpine(value: unknown): EducationFactSpine | null {
     && bySubject.every((group) => group.factIds.every((id) => Boolean(acceptedById.get(id) && sameSubject(acceptedById.get(id)!, group.subjectRef))))
     && nextLessonFactIds?.every((id) => acceptedById.has(id))
     && hypotheses.every((item) => item.entityIds.every((id) => entityById.has(id))
-      && item.observationIds.every((id) => !observationById.has(id) || observationById.get(id)!.entityIds.every((entityId) => item.entityIds.includes(entityId))))
+      && item.observationIds.every((id) => observationById.has(id) && observationById.get(id)!.entityIds.every((entityId) => item.entityIds.includes(entityId))))
     && conflicts.every((item) => entityById.has(item.entityId) && item.factIds.every((id) => factById.get(id)?.entityId === item.entityId))
     && uses.every((item) => item.factIds.every((id) => acceptedById.has(id))
       && (item.consumerKind !== "student_projection" || entityById.get(item.consumerRef)?.kind === "student" && item.factIds.every((id) => acceptedById.get(id)?.entityId === item.consumerRef)))

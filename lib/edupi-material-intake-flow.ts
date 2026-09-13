@@ -7,6 +7,7 @@ type RawRecord = Record<string, unknown>;
 
 type FlowInput = {
   descriptor: MaterialStagingDescriptor;
+  title?: string;
   materialKind: MaterialIntake["kind"];
   subject: string | null;
   classId: string | null;
@@ -48,7 +49,7 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
       source_hash: input.descriptor.source_hash,
       expected_size_bytes: input.descriptor.expected_size_bytes,
       kind: input.materialKind,
-      title: input.descriptor.original_name,
+      title: input.title?.trim() || input.descriptor.original_name,
       subject: input.subject,
       class_id: input.classId,
       source_scope: "desktop_staging",

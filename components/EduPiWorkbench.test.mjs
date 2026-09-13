@@ -69,8 +69,10 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(panel, /pollBoardPreparation/);
   assert.match(panel, /fetch\(`\/api\/edupi\/preparation\?taskId=/);
   assert.doesNotMatch(panel, /fetch\("\/api\/edupi\/preparation"[^\n]+method: "POST"/);
+  assert.match(panel, /refreshCommittedTask/);
+  assert.match(panel, /refreshUntilTaskVisible/);
   assert.match(panel, /result\.preparation\?\.taskId !== result\.taskId/);
-  assert.match(panel, /else void loadWorkspace\(\)\.catch/);
+  assert.match(panel, /!result\.data\?\.tasks\.some/);
   assert.match(taskWorkspace, /props\.task\.trigger === "teaching_before_class"/);
   assert.match(taskBoard, /onPointerDown/);
   assert.match(taskBoard, /onPointerMove/);

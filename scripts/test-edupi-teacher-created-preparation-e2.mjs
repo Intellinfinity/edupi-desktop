@@ -159,8 +159,8 @@ try {
   const wrongLessonDate = dateInShanghai(new Date(new Date(`${lessonDate}T12:00:00+08:00`).getTime() + 86_400_000));
   const wrongDateResponse = await taskRoute.POST(apiRequest("/api/edupi/tasks", { ...createInput, clientRequestId: "22222222-2222-4222-8222-222222222223", preparationSource: { ...createInput.preparationSource, lessonDate: wrongLessonDate } }));
   const wrongDate = await wrongDateResponse.json();
-  assert.equal(wrongDateResponse.status, 400, JSON.stringify(wrongDate));
-  assert.equal(wrongDate.code, "invalid_envelope");
+  assert.equal(wrongDateResponse.status, 409, JSON.stringify(wrongDate));
+  assert.equal(wrongDate.code, "invalid_preparation_context");
 
   const replayResponse = await preparationRoute.POST(apiRequest("/api/edupi/preparation", { action: "run", taskId }));
   const replay = await replayResponse.json();
@@ -190,6 +190,13 @@ try {
   const restarted = await restartedResponse.json();
   assert.equal(restarted.state, "ready");
   assert.equal(modelCalls, 2, "runtime restart replays the same task without duplicate generation");
+  fs.writeFileSync(timetablePath, JSON.stringify({ slots: [] }));
+  const replayAfterSourceRemovalResponse = await taskRoute.POST(apiRequest("/api/edupi/tasks", createInput));
+  const replayAfterSourceRemoval = await replayAfterSourceRemovalResponse.json();
+  assert.equal(replayAfterSourceRemovalResponse.status, 200, JSON.stringify(replayAfterSourceRemoval));
+  assert.equal(replayAfterSourceRemoval.replayed, true, "a durable create replays before current source validation");
+  assert.equal(replayAfterSourceRemoval.taskId, taskId);
+  assert.equal(modelCalls, 2);
   succeeded = true;
   console.log(JSON.stringify({ status: "passed", task_id: taskId, work_case_id: ready.workCase.id, artifacts: artifacts.length, model_calls: modelCalls, source_failure_before_model: true, restart_replay: true, external_send: false }));
 } finally {

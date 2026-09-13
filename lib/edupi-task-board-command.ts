@@ -145,7 +145,12 @@ export async function issueTaskBoardCommand(command: TaskBoardCommand, dependenc
       || !sameList(receipt.applied_ids, []) || !sameList(receipt.rejected_ids, [])) {
       throw new TaskBoardCommandError("invalid_envelope", "Core 任务板失败回执绑定无效。");
     }
-    throw new TaskBoardCommandError(String(receipt.reason_code || status), status === "stale_snapshot" ? "任务数据已更新，请刷新后重试。" : "Core 未接受这次任务板操作。");
+    const reasonCode = String(receipt.reason_code || status);
+    throw new TaskBoardCommandError(reasonCode, status === "stale_snapshot"
+      ? "任务数据已更新，请刷新后重试。"
+      : reasonCode === "invalid_preparation_context"
+        ? "上课日期与所选课次不一致，请重新选择。"
+        : "Core 未接受这次任务板操作。");
   }
   if (!((command.command_type === "create_task" && status === "accepted") || (command.command_type === "move_task_stage" && status === "modified"))
     || typeof receipt.after_snapshot_id !== "string" || typeof receipt.after_state_hash !== "string"

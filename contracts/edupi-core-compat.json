@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "bf42f89227a48cdf2bfd94a636c4268d3da10759",
+    "core_commit": "af38213333bffcda89b3b12c3d85151861328923",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:d5d5d4cd0a893ea7fc2e766db701c1bd1571ff65e5c1c67e2457b43d8af2f12b",
-    "runtime_component_manifest_hash": "sha256:230f8d2b25c31d920d0d85a2f260e5dd12e17503d97c1f5cfb582d9f2161fec8"
+    "component_manifest_hash": "sha256:8872eefd41925a86ffe29b2e51a19969162e5b53b5a254b86d7617fdd8376dd6",
+    "runtime_component_manifest_hash": "sha256:97cc8e46cb7e39318b674b99bc300ada72ce921254da6332bc7beeff0c58eafe"
   },
   "contract_identities": [
     {
@@ -100,7 +100,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/73",
     "https://github.com/PIGU-PPPgu/edupi/pull/74",
     "https://github.com/PIGU-PPPgu/edupi/pull/76",
-    "https://github.com/PIGU-PPPgu/edupi/pull/78"
+    "https://github.com/PIGU-PPPgu/edupi/pull/78",
+    "https://github.com/PIGU-PPPgu/edupi/pull/81"
   ],
-  "change_note": "Paired Core PR #78 makes task retries semantic across transport changes, migrates proven legacy creates, and reopens recurring same-revision source diagnostics."
+  "change_note": "Paired Core PR #81 validates new teaching occurrences inside the Core transaction while allowing durable creates to replay before mutable source checks."
 }

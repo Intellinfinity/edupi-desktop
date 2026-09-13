@@ -6,7 +6,7 @@ import ts from "typescript";
 
 // Execute the component and handlers with deterministic hook scheduling and
 // deferred transport. Browser layout and React DOM behavior remain UI checks.
-function mount() {
+function mount(initialState = "idle") {
   const slots = [], effects = new Map(), requests = [], notifications = [];
   let cursor = 0, dirty = false, props, tree;
   const hooks = {
@@ -17,7 +17,7 @@ function mount() {
   const jsx = (type, props) => ({ type, props });
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(new URL("./EduPiTaskPreparationAction.tsx", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, require: name => name === "react" ? hooks : { jsx, jsxs: jsx }, Event, window: { dispatchEvent: event => notifications.push(event.type), setInterval: () => 1, clearInterval() {} }, fetch: (url, options = {}) => options.method ? new Promise((resolve, reject) => requests.push({ body: JSON.parse(options.body), resolve, reject })) : Promise.resolve(response(new URL(url, "http://localhost").searchParams.get("taskId"), "idle")) });
+  vm.runInNewContext(code, { exports, require: name => name === "react" ? hooks : { jsx, jsxs: jsx }, Event, window: { dispatchEvent: event => notifications.push(event.type), setInterval: () => 1, clearInterval() {} }, fetch: (url, options = {}) => options.method ? new Promise((resolve, reject) => requests.push({ body: JSON.parse(options.body), resolve, reject })) : Promise.resolve(response(new URL(url, "http://localhost").searchParams.get("taskId"), initialState)) });
   function render(next = props) {
     props = next;
     do { dirty = false; cursor = 0; tree = exports.EduPiTaskPreparationAction(props); } while (dirty);
@@ -29,6 +29,18 @@ function mount() {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const response = (taskId, state = "ready") => ({ ok: true, json: async () => ({ taskId, state, prepared: 1, error: null }) });
+
+test("an initially ready task refreshes its artifacts and stays completed", async () => {
+  const component = mount("ready"); let ready = 0;
+  component.render({ taskId: "A", onReady: () => ready++ });
+  await tick();
+  const button = component.render();
+  assert.equal(button.props.disabled, true);
+  assert.equal(button.props.children, "已准备");
+  assert.equal(ready, 1);
+  assert.deepEqual(component.notifications, ["edupi-preparation-updated"]);
+  component.unmount();
+});
 
 test("a late start response cannot replace the current task or clear its pending state", async () => {
   for (const staleOutcome of ["success", "failure"]) {
@@ -43,7 +55,8 @@ test("a late start response cannot replace the current task or clear its pending
     assert.equal(component.render().props.disabled, true, "A finally must not clear B starting");
     assert.equal(readyA + readyB, 0);
     component.requests[1].resolve(response("B")); await tick();
-    assert.equal(component.render().props.disabled, false);
+    assert.equal(component.render().props.disabled, true);
+    assert.equal(component.render().props.children, "已准备");
     assert.equal(readyA, 0); assert.equal(readyB, 1);
     assert.deepEqual(component.notifications, ["edupi-preparation-updated"]);
     component.unmount();

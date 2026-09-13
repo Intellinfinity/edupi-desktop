@@ -23,7 +23,13 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
     const sequence = requestOwner.current.sequence;
     void fetch(`/api/edupi/preparation?taskId=${encodeURIComponent(taskId)}`, { cache: "no-store" }).then(async response => {
       const next = await response.json() as PreparationState;
-      if (active && requestOwner.current.taskId === taskId && requestOwner.current.sequence === sequence && next.taskId === taskId) setStatus(next);
+      if (active && requestOwner.current.taskId === taskId && requestOwner.current.sequence === sequence && next.taskId === taskId) {
+        setStatus(next);
+        if (next.state === "ready") {
+          window.dispatchEvent(new Event("edupi-preparation-updated"));
+          onReadyRef.current();
+        }
+      }
     }).catch(() => {});
     return () => { active = false; };
   }, [taskId]);
@@ -65,7 +71,7 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
     finally { if (current()) setStarting(false); }
   };
   return <div className="edupi-task-preparation-action">
-    <button type="button" disabled={starting || status?.state === "running"} onClick={() => void start()}>{starting ? "正在启动…" : status?.state === "running" ? "正在准备…" : status?.state === "error" ? "重新准备" : "立即准备"}</button>
+    <button type="button" disabled={starting || status?.state === "running" || status?.state === "ready"} onClick={() => void start()}>{starting ? "正在启动…" : status?.state === "running" ? "正在准备…" : status?.state === "ready" ? "已准备" : status?.state === "error" ? "重新准备" : "立即准备"}</button>
     {status?.state === "running" ? <span role="status" aria-live="polite">正在生成教学产物</span> : null}
     {status?.state === "error" ? <span role="alert">{status.error}</span> : null}
   </div>;

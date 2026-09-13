@@ -57,6 +57,7 @@ import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 import { normalizeKernelState, readEduPiKernel, type EduPiKernelState } from "@/lib/edupi-kernel-client";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
+import { refreshUntilTaskVisible } from "@/lib/edupi-task-refresh";
 
 type Props = {
   initialModule?: EducationModule;
@@ -170,6 +171,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const materialUploadInputRef = useRef<HTMLInputElement>(null);
   const activationRequestsRef = useRef(createActivationRequestTracker());
   const preparationPollsRef = useRef(new Map<string, AbortController>());
+  const taskRefreshesRef = useRef(new Map<string, AbortController>());
   const objectSider = useEduPiContentSiderCollapse(false);
   const navigationRail = useEduPiContentSiderCollapse(false, APP_PREF_KEYS.edupiNavigationRailCollapsed);
 
@@ -227,9 +229,21 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     void poll();
   }, [loadWorkspace]);
 
+  const refreshCommittedTask = useCallback((taskId: string) => {
+    if (taskRefreshesRef.current.has(taskId)) return;
+    const controller = new AbortController();
+    taskRefreshesRef.current.set(taskId, controller);
+    void refreshUntilTaskVisible({ taskId, signal: controller.signal, read: loadWorkspace })
+      .finally(() => {
+        if (taskRefreshesRef.current.get(taskId) === controller) taskRefreshesRef.current.delete(taskId);
+      });
+  }, [loadWorkspace]);
+
   useEffect(() => () => {
     for (const controller of preparationPollsRef.current.values()) controller.abort();
     preparationPollsRef.current.clear();
+    for (const controller of taskRefreshesRef.current.values()) controller.abort();
+    taskRefreshesRef.current.clear();
   }, []);
 
   const retryLoadWorkspace = useCallback(() => {
@@ -735,7 +749,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const result = await response.json() as { error?: string; taskId?: string; data?: EducationContract | null; refreshPending?: boolean; preparation?: { state?: string; error?: string; taskId?: string | null } | null };
     if (!response.ok || !result.taskId) throw new Error(result.error || `任务创建失败（HTTP ${response.status}）`);
     if (result.data) setEducation(result.data);
-    else void loadWorkspace().catch(() => {});
+    if (!result.data?.tasks.some((task) => task.id === result.taskId)) refreshCommittedTask(result.taskId);
     if (!input.preparationSource) return { preparationState: null, preparationError: null };
     if (!result.taskId || result.preparation?.taskId !== result.taskId || !["running", "ready"].includes(result.preparation?.state || "")) {
       return { preparationState: "error", preparationError: result.preparation?.error || "请打开任务后重试" };
@@ -743,7 +757,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (result.preparation.state === "running") pollBoardPreparation(result.taskId);
     else window.dispatchEvent(new Event("edupi-preparation-updated"));
     return { preparationState: result.preparation.state as "running" | "ready", preparationError: null };
-  }, [loadWorkspace, pollBoardPreparation]);
+  }, [pollBoardPreparation, refreshCommittedTask]);
 
   const moveBoardTask = useCallback(async (task: TeacherTask, stage: TaskBoardLaneId) => {
     if (!task.id) throw new Error("任务缺少可写标识。");

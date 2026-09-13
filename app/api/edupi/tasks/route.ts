@@ -3,8 +3,6 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import { issueTaskBoardCommand, taskBoardContentHash, TaskBoardCommandError, type TeacherCreatedPreparationSource } from "@/lib/edupi-task-board-command";
 import { readEducationContract } from "@/lib/edupi-education-server";
 import { startPreparation } from "@/lib/edupi-preparation-runtime";
-import type { EducationContract } from "@/lib/edupi-education-contract";
-import { lessonDateMatchesSlot, timetableSlotId } from "@/lib/edupi-teacher-task-form";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 
 export const runtime = "nodejs";
@@ -54,14 +52,8 @@ function preparationSource(value: unknown): TeacherCreatedPreparationSource | nu
 
 function statusFor(code: string): number {
   if (code === "invalid_envelope") return 400;
-  if (["stale_snapshot", "stale_revision", "task_conflict", "idempotency_conflict", "invalid_transition", "stage_unchanged"].includes(code)) return 409;
+  if (["stale_snapshot", "stale_revision", "task_conflict", "idempotency_conflict", "invalid_preparation_context", "invalid_transition", "stage_unchanged"].includes(code)) return 409;
   return 503;
-}
-
-function validatePreparationContext(source: TeacherCreatedPreparationSource, data: EducationContract): void {
-  const slot = data.timetable.find((item) => timetableSlotId(item) === source.timetable_slot_id) || null;
-  if (!slot) throw new TaskBoardCommandError("invalid_envelope", "所选课次已不存在，请重新选择。");
-  if (!lessonDateMatchesSlot(source.lesson_date, slot)) throw new TaskBoardCommandError("invalid_envelope", "上课日期与所选课次不一致。");
 }
 
 export async function POST(request: Request) {
@@ -77,8 +69,6 @@ export async function POST(request: Request) {
     const taskId = `teacher-task-${body.clientRequestId.toLowerCase()}`;
     const task = { task_id: taskId, title: body.title.trim(), due_date: dateOnly(body.dueDate), note: note(body.note), preparation_source: preparationSource(body.preparationSource) };
     const sourceId = `desktop-task-create-${taskId.slice("teacher-task-".length)}`;
-    const data = await readEducationContract();
-    if (task.preparation_source) validatePreparationContext(task.preparation_source, data);
     const commandResult = await issueTaskBoardCommand({
       command_type: "create_task",
       source: { source_id: sourceId, source_kind: "teacher_message", source_hash: taskBoardContentHash(task), evidence_ids: [`evidence-${sourceId}`] },

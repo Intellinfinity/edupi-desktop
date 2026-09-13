@@ -7,7 +7,7 @@ type EduPiStatus = {
   externalSend: boolean;
   requiresTeacherReview: boolean;
   core: {
-    status: "ready" | "unavailable";
+    status: "ready" | "degraded" | "starting" | "draining" | "failed" | "stopped" | "unavailable";
     reason?: string;
     contractVersion?: string;
     schemaHash?: string;
@@ -67,7 +67,7 @@ export function EduPiWorkspace() {
       {status ? (
         <>
           <div className="edupi-metrics">
-            <StatusCard label="Core" value={status.core.status === "ready" ? "已连接" : "不可用"} detail={status.core.reason || "固定进程桥已验证"} ready={status.core.status === "ready"} mark="核" />
+            <StatusCard label="Core" value={status.core.status === "ready" ? "已连接" : status.core.status === "degraded" ? "需处理" : "不可用"} detail={status.core.reason || "Runtime 与自动检查已验证"} ready={status.core.status === "ready"} mark="核" />
             <StatusCard label="合同" value={status.core.contractVersion ? `v${status.core.contractVersion}` : "—"} detail={status.core.schemaHash ? `${status.core.schemaHash.slice(0, 18)}…` : "身份未验证"} ready={Boolean(status.core.contractVersion)} mark="约" />
             <StatusCard label="教育投影" value={status.projection.status === "ready" ? "已启用" : "待启用"} detail={status.projection.reason || "已验证"} ready={status.projection.status === "ready"} mark="映" />
           </div>

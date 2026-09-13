@@ -13,3 +13,9 @@ test("Feishu maximum scopes and DingTalk QR onboarding remain actionable and sec
   assert.match(source, /setAppSecret\(""\)/);
   assert.doesNotMatch(source, /localStorage/);
 });
+
+test("configured and connected remain distinct connector states", () => {
+  assert.match(source, /status === "connected" \? "已连接" : status === "configured" \? "已配置"/);
+  assert.match(source, /飞书应用配置已保存/);
+  assert.doesNotMatch(source, /status === "configured" \|\| status === "connected" \? "已连接"/);
+});

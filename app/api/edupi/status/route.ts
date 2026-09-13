@@ -2,8 +2,19 @@ import { NextResponse } from "next/server";
 import { EduPiCoreProcessError } from "@/lib/edupi-core-process-client";
 import { EduPiSnapshotError, readEduPiCoreHealth, readEduPiEducationSnapshot, readEduPiKernelProjection, resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { loadEduPiCompatManifest } from "@/lib/edupi-bridge-manifest";
+import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
+import { projectCoreRuntimeHealth, type ProjectedCoreRuntimeHealth } from "@/lib/edupi-runtime-health";
 
 export const dynamic = "force-dynamic";
+
+function failureReason(error: unknown, label: string): string {
+  if (error instanceof EduPiCoreProcessError || error instanceof EduPiSnapshotError) return `${label}（${error.code}）`;
+  return label;
+}
+
+function settledValue<T>(result: PromiseSettledResult<T>): T | null {
+  return result.status === "fulfilled" ? result.value : null;
+}
 
 export async function GET(request: Request) {
   const manifest = loadEduPiCompatManifest();
@@ -11,6 +22,7 @@ export async function GET(request: Request) {
   const expectedCompatibility = {
     coreCommit: identity.runtime.core_commit,
     componentManifestHash: identity.runtime.component_manifest_hash,
+    runtimeComponentManifestHash: identity.runtime.runtime_component_manifest_hash,
     contractVersion: identity.contract.contract_version,
     schemaHash: identity.contract.schema_hash,
     fixtureManifestHash: identity.contract.fixture_manifest_hash,
@@ -19,58 +31,12 @@ export async function GET(request: Request) {
     unsupportedCommandReasons: { ...manifest.unsupported_command_reasons },
     unsupportedProjectionReasons: { ...manifest.unsupported_projection_reasons },
   };
+  const summaryOnly = request ? new URL(request.url).searchParams.get("summary") === "1" : false;
+  let roots;
   try {
-    const summaryOnly = request ? new URL(request.url).searchParams.get("summary") === "1" : false;
-    const roots = resolveEduPiBridgeRoots();
-    const { health } = await readEduPiCoreHealth({ roots, requestId: `desktop-status-health-${Date.now().toString(36)}` });
-    const [snapshot, kernel] = await Promise.all([
-      readEduPiEducationSnapshot({ roots, requestId: `desktop-status-snapshot-${Date.now().toString(36)}` }),
-      readEduPiKernelProjection({ roots, requestId: `desktop-status-kernel-${Date.now().toString(36)}` }),
-    ]);
-    const workspace = snapshot.workspace;
-    const counts = {
-      students: Array.isArray(workspace.students) ? workspace.students.length : 0,
-      timetable: Array.isArray(workspace.timetable) ? workspace.timetable.length : 0,
-      calendar: Array.isArray(workspace.calendar) ? workspace.calendar.length : 0,
-      tasks: Array.isArray(workspace.tasks) ? workspace.tasks.length : 0,
-    };
-    const supportedCommands = Array.isArray(health.supported_commands) ? health.supported_commands : [];
-    const supportedProjections = Array.isArray(health.supported_projections) ? health.supported_projections : [];
-    const kernelBody = summaryOnly
-      ? {
-        status: "ready",
-        projection_kind: kernel.projection.projection_kind,
-        state_version: kernel.projection.state_version,
-        updated_at: kernel.projection.updated_at,
-        summary: kernel.projection.summary,
-        runs: [],
-      }
-      : { status: "ready", ...kernel.projection };
-    return NextResponse.json({
-      scope: "teacher_internal",
-      externalSend: false,
-      requiresTeacherReview: true,
-      core: {
-        status: "ready",
-        coreCommit: roots.runtime.coreCommit,
-        validationMode: roots.runtime.validationMode,
-        contractVersion: health.contract_version,
-        schemaHash: health.schema_hash,
-        componentManifestHash: roots.runtime.componentManifestHash,
-        fixtureManifestHash: health.fixture_manifest_hash,
-        supportedCommands,
-        supportedProjections,
-      },
-      compatibility: { expected: expectedCompatibility, actual: { coreCommit: roots.runtime.coreCommit, componentManifestHash: roots.runtime.componentManifestHash, contractVersion: health.contract_version, schemaHash: health.schema_hash, fixtureManifestHash: health.fixture_manifest_hash, supportedCommands, supportedProjections } },
-      projection: { status: "ready", reason: null, projection: "education_workspace", counts },
-      kernel: kernelBody,
-    });
+    roots = resolveEduPiBridgeRoots();
   } catch (error) {
-    const reason = error instanceof EduPiCoreProcessError
-      ? `Core 连接不可用（${error.code}）`
-      : error instanceof EduPiSnapshotError
-        ? `Core 教育投影不可用（${error.code}）`
-        : "Core 连接不可用";
+    const reason = failureReason(error, "Core 配置不可用");
     return NextResponse.json({
       scope: "teacher_internal",
       externalSend: false,
@@ -81,4 +47,76 @@ export async function GET(request: Request) {
       kernel: { status: "unavailable", summary: { total: 0, running: 0, failed: 0, needs_review: 0, succeeded: 0, skipped: 0 }, runs: [] },
     });
   }
+
+  let runtime: ProjectedCoreRuntimeHealth | null = null;
+  let runtimeReason = "Core Runtime 不可用";
+  try {
+    const host = await ensureEduPiRuntime(roots);
+    runtime = projectCoreRuntimeHealth(await host.call("health", null), roots.runtime.coreCommit, identity.runtime.runtime_component_manifest_hash);
+    runtimeReason = runtime.reason || "Core Runtime 已连接";
+  } catch (error) {
+    runtimeReason = failureReason(error, "Core Runtime 不可用");
+  }
+
+  const [healthResult, snapshotResult, kernelResult] = await Promise.allSettled([
+    readEduPiCoreHealth({ roots, requestId: `desktop-status-health-${Date.now().toString(36)}` }),
+    readEduPiEducationSnapshot({ roots, requestId: `desktop-status-snapshot-${Date.now().toString(36)}` }),
+    readEduPiKernelProjection({ roots, requestId: `desktop-status-kernel-${Date.now().toString(36)}` }),
+  ]);
+  const healthValue = settledValue(healthResult);
+  const snapshot = settledValue(snapshotResult);
+  const kernel = settledValue(kernelResult);
+  const health = healthValue?.health;
+  const supportedCommands = Array.isArray(health?.supported_commands) ? health.supported_commands : [];
+  const supportedProjections = Array.isArray(health?.supported_projections) ? health.supported_projections : [];
+  const actualCompatibility = health ? {
+    coreCommit: roots.runtime.coreCommit,
+    componentManifestHash: roots.runtime.componentManifestHash,
+    contractVersion: health.contract_version,
+    schemaHash: health.schema_hash,
+    fixtureManifestHash: health.fixture_manifest_hash,
+    supportedCommands,
+    supportedProjections,
+    runtimeComponentManifestHash: runtime?.component_manifest_hash,
+  } : null;
+  const workspace = snapshot?.workspace;
+  const counts = workspace ? {
+    students: Array.isArray(workspace.students) ? workspace.students.length : 0,
+    timetable: Array.isArray(workspace.timetable) ? workspace.timetable.length : 0,
+    calendar: Array.isArray(workspace.calendar) ? workspace.calendar.length : 0,
+    tasks: Array.isArray(workspace.tasks) ? workspace.tasks.length : 0,
+  } : null;
+  const projectionReason = snapshot ? null : failureReason(snapshotResult.status === "rejected" ? snapshotResult.reason : null, "Core 教育投影不可用");
+  const kernelReason = kernel ? null : failureReason(kernelResult.status === "rejected" ? kernelResult.reason : null, "自动运行内核不可用");
+  const kernelBody = kernel
+    ? summaryOnly
+      ? { status: "ready", projection_kind: kernel.projection.projection_kind, state_version: kernel.projection.state_version, updated_at: kernel.projection.updated_at, summary: kernel.projection.summary, runs: [] }
+      : { status: "ready", ...kernel.projection }
+    : { status: "unavailable", reason: kernelReason, summary: { total: 0, running: 0, failed: 0, needs_review: 0, succeeded: 0, skipped: 0 }, runs: [] };
+
+  return NextResponse.json({
+    scope: "teacher_internal",
+    externalSend: false,
+    requiresTeacherReview: true,
+    core: runtime ? {
+      status: runtime.status,
+      reason: runtime.reason,
+      lifecycle: runtime.lifecycle,
+      coreCommit: roots.runtime.coreCommit,
+      validationMode: roots.runtime.validationMode,
+      contractVersion: health?.contract_version,
+      schemaHash: health?.schema_hash,
+      componentManifestHash: roots.runtime.componentManifestHash,
+      runtimeComponentManifestHash: runtime.component_manifest_hash,
+      fixtureManifestHash: health?.fixture_manifest_hash,
+      supportedCommands,
+      supportedProjections,
+      queue: runtime.queue,
+      capabilities: runtime.capabilities,
+      scheduler: runtime.scheduler,
+    } : { status: "unavailable", reason: runtimeReason, supportedCommands, supportedProjections },
+    compatibility: { expected: expectedCompatibility, actual: actualCompatibility, ...(actualCompatibility ? {} : { reason: failureReason(healthResult.status === "rejected" ? healthResult.reason : null, "Core Bridge 不可用") }) },
+    projection: snapshot ? { status: "ready", reason: null, projection: "education_workspace", counts } : { status: "unavailable", reason: `${projectionReason}；未使用本地 JSON 回退` },
+    kernel: kernelBody,
+  });
 }

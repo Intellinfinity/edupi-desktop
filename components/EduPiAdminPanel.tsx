@@ -10,14 +10,15 @@ import { useDesktopChrome, WindowControls } from "./desktop";
 import { EduPiConnectorSetup } from "./EduPiConnectorSetup";
 import { EduPiBackgroundJobs } from "./EduPiBackgroundJobs";
 import { startWindowDragging } from "@/lib/desktop-window";
-import { formatNextScheduledRun } from "@/lib/edupi-schedule-display";
+import { formatCoreSchedulerStatus } from "@/lib/edupi-schedule-display";
+import type { CoreRuntimeScheduler } from "@/lib/edupi-runtime-health";
 import { EduPiCoreCompatibility, type CoreCompatibilitySnapshot } from "./EduPiCoreCompatibility";
 
 type AdminSnapshot = {
   context: TeacherContextSnapshot | null;
   education: EducationContract | null;
   status: {
-    core?: { status?: string; coreCommit?: string; validationMode?: string; componentManifestHash?: string; contractVersion?: string; schemaHash?: string; fixtureManifestHash?: string; supportedCommands?: string[]; supportedProjections?: string[] };
+    core?: { status?: string; reason?: string | null; lifecycle?: string; coreCommit?: string; validationMode?: string; componentManifestHash?: string; runtimeComponentManifestHash?: string; contractVersion?: string; schemaHash?: string; fixtureManifestHash?: string; supportedCommands?: string[]; supportedProjections?: string[]; scheduler?: CoreRuntimeScheduler | null };
     projection?: { status?: string };
     kernel?: {
       status?: string;
@@ -28,10 +29,11 @@ type AdminSnapshot = {
   compatibility?: CoreCompatibilitySnapshot | null;
   models: { modelList?: Array<{ id: string; provider: string }>; defaultModel?: { provider: string; modelId: string } | null } | null;
   platform: {
-    teachingSkills?: { mutation_enabled?: boolean; summary?: Record<string, number>; skills?: Array<{ skill_id?: string; title?: string; lifecycle_state?: string; trial_count?: number; can_reuse?: boolean }> };
-    connectors?: { connectors?: Array<{ connector_id?: string; label?: string; status?: string; capabilities?: string[] }> };
-    agentComputer?: { summary?: Record<string, number>; jobs?: Array<{ job_id?: string; title?: string; job_type?: string; status?: string }> };
-    platform?: { tenant_count?: number; multi_harness_ready?: boolean; tenants?: Array<{ tenant_id?: string; label?: string; core_mode?: string; device_count?: number; harness_count?: number }> };
+    status?: "ready" | "partial" | "unavailable";
+    teachingSkills?: { mutation_enabled?: boolean; summary?: Record<string, number>; skills?: Array<{ skill_id?: string; title?: string; lifecycle_state?: string; trial_count?: number; can_reuse?: boolean }> } | null;
+    connectors?: { connectors?: Array<{ connector_id?: string; label?: string; status?: string; capabilities?: string[] }> } | null;
+    agentComputer?: { summary?: Record<string, number>; jobs?: Array<{ job_id?: string; title?: string; job_type?: string; status?: string }> } | null;
+    platform?: { tenant_count?: number; multi_harness_ready?: boolean; tenants?: Array<{ tenant_id?: string; label?: string; core_mode?: string; device_count?: number; harness_count?: number }> } | null;
   } | null;
 };
 
@@ -70,6 +72,13 @@ const FALLBACK_CHECKLIST: OnboardingChecklistItem[] = [
   { id: "roster", label: "导入班级名单（可选）", status: "optional", description: "先有名字即可" },
   { id: "material", label: "放入第一份真实材料", status: "optional", description: "作业、错题或课堂记录" },
 ];
+const configurableConnectors = new Set(["feishu", "dingtalk"]);
+function connectorStatusLabel(status: string | undefined): string {
+  if (status === "connected" || status === "conversation_verified") return "已连接";
+  if (status === "configured") return "已配置";
+  if (status === "credentials_verified") return "凭据已验证";
+  return "未接入";
+}
 
 async function readJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
   try {
@@ -195,7 +204,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
       </section> : null}
 
       {activeSection === "automation" ? <section className="edupi-admin-section">
-        <AdminSectionHeader title="自动运行" meta={kernel?.status === "ready" ? `${formatNextScheduledRun()} · 最近 ${kernelRuns.length} 次` : "运行状态不可用"} onRefresh={refresh} />
+        <AdminSectionHeader title="自动运行" meta={snapshot.status?.core?.status === "ready" ? formatCoreSchedulerStatus(snapshot.status.core.scheduler, kernelRuns.length) : snapshot.status?.core?.reason || "运行状态不可用"} onRefresh={refresh} />
         <div className="edupi-admin-metrics"><AdminMetric value={kernelSummary?.running ?? "—"} label="运行中" /><AdminMetric value={kernelSummary?.needs_review ?? "—"} label="待确认" /><AdminMetric value={kernelSummary?.succeeded ?? "—"} label="已完成" /></div>
         <div className="edupi-admin-runtime" role="list" aria-label="最近自动运行">
           {kernelRuns.length > 0 ? kernelRuns.slice(0, 12).map((run) => <div role="listitem" key={run.run_id}>
@@ -216,7 +225,14 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
       {activeSection === "connections" ? <section className="edupi-admin-section">
         <AdminSectionHeader title="连接与后台" meta="飞书 · 钉钉 · 邮箱 · 教务 · 云盘" onRefresh={refresh} />
         <div className="edupi-admin-metrics"><AdminMetric value={snapshot.platform?.connectors?.connectors?.filter((item) => item.status === "configured" || item.status === "connected").length ?? 0} label="已配置连接" /><AdminMetric value={snapshot.platform?.agentComputer?.summary?.running ?? 0} label="后台运行" /><AdminMetric value={snapshot.platform?.agentComputer?.summary?.completed ?? 0} label="完成作业" /></div>
-        <div className="edupi-admin-list">{snapshot.platform?.connectors?.connectors?.map((connector) => { const ready = connector.status === "configured" || connector.status === "connected"; return <button type="button" key={connector.connector_id} onClick={() => setSelectedConnector(connector.connector_id || null)}><span><strong>{connector.label || connector.connector_id}</strong><small>{connector.capabilities?.join(" · ")}</small></span><em className={ready ? "is-ready" : ""}>{ready ? "已连接" : connector.status === "credentials_verified" ? "正在启动" : "设置 ›"}</em></button>; })}</div>
+        <div className="edupi-admin-list">{snapshot.platform?.connectors?.connectors?.map((connector) => {
+          const id = connector.connector_id || "";
+          const connected = connector.status === "connected" || connector.status === "conversation_verified";
+          const content = <><span><strong>{connector.label || id}</strong><small>{connector.capabilities?.join(" · ")}</small></span><em className={connected ? "is-ready" : ""}>{connectorStatusLabel(connector.status)}{configurableConnectors.has(id) ? " ›" : ""}</em></>;
+          return configurableConnectors.has(id)
+            ? <button type="button" key={id} onClick={() => setSelectedConnector(id)}>{content}</button>
+            : <div key={id}>{content}</div>;
+        })}</div>
         {selectedConnector ? <EduPiConnectorSetup connectorId={selectedConnector} status={snapshot.platform?.connectors?.connectors?.find((item) => item.connector_id === selectedConnector)?.status || "not_configured"} onClose={() => setSelectedConnector(null)} onConfigured={refresh} /> : null}
         <EduPiBackgroundJobs data={snapshot.education} onMaterials={() => onNavigate("materials")} />
       </section> : null}
@@ -265,7 +281,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <EduPiCoreCompatibility value={snapshot.compatibility} onNavigate={onNavigate} onOpenContext={onOpenContext} />
         <div className="edupi-admin-list">
           <div><span><strong>EduPi Desktop</strong><small>当前安装版本</small></span><em>v{APP_VERSION_DISPLAY}</em></div>
-          <div><span><strong>EduPi Core</strong><small>{snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreConnected ? "已连接" : "检查"}</em></div>
+          <div><span><strong>EduPi Core</strong><small>{snapshot.status?.core?.reason || snapshot.status?.core?.lifecycle || snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreConnected ? "已连接" : snapshot.status?.core?.status === "degraded" ? "需处理" : "检查"}</em></div>
           <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.status || "不可用"}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
           <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.status || "不可用"}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
           <button type="button" onClick={onOpenSettings}><span><strong>应用与桌面设置</strong><small>外观、桌面行为与更新</small></span><em>打开</em></button>

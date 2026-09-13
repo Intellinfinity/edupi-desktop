@@ -6,6 +6,7 @@ export type CoreCompatibilitySnapshot = {
   expected: {
     coreCommit: string;
     componentManifestHash: string;
+    runtimeComponentManifestHash: string;
     contractVersion: string;
     schemaHash: string;
     fixtureManifestHash: string;
@@ -17,6 +18,7 @@ export type CoreCompatibilitySnapshot = {
   actual: {
     coreCommit?: string;
     componentManifestHash?: string;
+    runtimeComponentManifestHash?: string;
     contractVersion?: string;
     schemaHash?: string;
     fixtureManifestHash?: string;
@@ -74,6 +76,7 @@ function identityMatches(value: CoreCompatibilitySnapshot): boolean {
   if (!actual) return false;
   return actual.coreCommit === value.expected.coreCommit
     && actual.componentManifestHash === value.expected.componentManifestHash
+    && actual.runtimeComponentManifestHash === value.expected.runtimeComponentManifestHash
     && actual.contractVersion === value.expected.contractVersion
     && actual.schemaHash === value.expected.schemaHash
     && actual.fixtureManifestHash === value.expected.fixtureManifestHash;
@@ -97,6 +100,7 @@ export function EduPiCoreCompatibility({ value, onNavigate, onOpenContext }: Pro
       <div><span>Core</span><code title={actual?.coreCommit || value.expected.coreCommit}>{short(actual?.coreCommit || value.expected.coreCommit, 12)}</code></div>
       <div><span>合同</span><code>{actual?.contractVersion || value.expected.contractVersion}</code></div>
       <div><span>组件清单</span><code title={actual?.componentManifestHash || value.expected.componentManifestHash}>{short(actual?.componentManifestHash || value.expected.componentManifestHash, 18)}</code></div>
+      <div><span>Runtime 清单</span><code title={actual?.runtimeComponentManifestHash || value.expected.runtimeComponentManifestHash}>{short(actual?.runtimeComponentManifestHash || value.expected.runtimeComponentManifestHash, 18)}</code></div>
     </div>
     <details open>
       <summary>可交互能力 <span>{actual?.supportedCommands?.length || 0} / {value.expected.supportedCommands.length}</span></summary>

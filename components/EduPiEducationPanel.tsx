@@ -53,7 +53,7 @@ import { EduPiPreparationArtifactEditor } from "./EduPiPreparationArtifactEditor
 import { deleteEducationEntity } from "@/lib/edupi-entity-delete-client";
 import type { EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import { readEduPiTeachingSkills, type EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
-import { materialUploadScope } from "@/lib/edupi-material-rows";
+import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 import { normalizeKernelState, readEduPiKernel, type EduPiKernelState } from "@/lib/edupi-kernel-client";
 
 type Props = {
@@ -256,13 +256,14 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [educationIntakeBusy, loadWorkspace]);
 
-  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor) => {
+  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => {
     const result = await submitEducationIntake({
       kind: "material",
       stagingId: item.staging_id,
-      title: item.original_name,
-      materialKind: "other",
-      ...materialUploadScope(context),
+      title: metadata.title,
+      materialKind: metadata.materialKind,
+      subject: metadata.subject,
+      classId: metadata.classId,
       recognize: true,
     });
     const eventCount = result.recognition?.eventCount || 0;
@@ -270,45 +271,17 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const recognized = eventCount + slotCount > 0 ? `，识别到 ${eventCount} 条日程、${slotCount} 条课表` : "，未发现日程或课表";
     setMaterialStagingMessage({ tone: "success", text: `${item.original_name} 已接入 EduPi${recognized}。` });
     return result;
-  }, [context, submitEducationIntake]);
+  }, [submitEducationIntake]);
 
   const importCalendarEvent = useCallback(async (event: { eventId: string | null; date: string; endDate: string | null; name: string; type: string; notes: string | null }) => {
-    const preservedEvents = education?.calendar.flatMap((item) => !item.id || item.id === event.eventId ? [] : [{
-      eventId: item.id,
-      date: item.date || "",
-      endDate: item.endDate,
-      name: item.name,
-      type: item.type || "custom",
-      confidence: item.confidence === "unknown" ? "inferred" : item.confidence,
-      notes: item.notes,
-    }]) || [];
-    await submitEducationIntake({ kind: "calendar", events: [...preservedEvents, { ...event, confidence: "teacher_confirmed" }] });
+    await submitEducationIntake({ kind: "calendar", events: [{ ...event, confidence: "teacher_confirmed" }] });
     setMaterialStagingMessage({ tone: "success", text: event.eventId ? "日程更改已保存。" : "日程已写入 EduPi 行事历。" });
-  }, [education?.calendar, submitEducationIntake]);
+  }, [submitEducationIntake]);
 
   const importTimetableSlot = useCallback(async (slot: { slotId: string | null; dayOfWeek: number; period: number; subject: string; className: string | null; kind: "class" | "routine"; notes: string | null }) => {
-    const preservedSlots = education?.timetable.flatMap((value) => {
-      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-      const item = value as Record<string, unknown>;
-      const itemSlotId = typeof (item.slot_id ?? item.id) === "string" ? String(item.slot_id ?? item.id) : null;
-      if (itemSlotId === slot.slotId) return [];
-      const dayOfWeek = Number(item.day_of_week ?? item.dayOfWeek);
-      const period = Number(item.period);
-      const subject = typeof item.subject === "string" ? item.subject.trim() : "";
-      if (!itemSlotId || !Number.isInteger(dayOfWeek) || !Number.isInteger(period) || !subject) return [];
-      return [{
-        slotId: itemSlotId,
-        dayOfWeek,
-        period,
-        subject,
-        className: typeof (item.class_name ?? item.className) === "string" ? String(item.class_name ?? item.className) : null,
-        kind: item.kind === "routine" ? "routine" as const : "class" as const,
-        notes: typeof item.notes === "string" ? item.notes : null,
-      }];
-    }) || [];
-    await submitEducationIntake({ kind: "timetable", slots: [...preservedSlots, slot] });
+    await submitEducationIntake({ kind: "timetable", slots: [slot] });
     setMaterialStagingMessage({ tone: "success", text: slot.slotId ? "课程更改已保存。" : "课程安排已写入 EduPi 周视图。" });
-  }, [education?.timetable, submitEducationIntake]);
+  }, [submitEducationIntake]);
 
   useEffect(() => {
     const events = new EventSource("/api/agent/running/events");
@@ -594,19 +567,11 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     });
   }, []);
 
-  const processStagedMaterials = useCallback(async (items: MaterialStagingDescriptor[]) => {
-    let eventCount = 0;
-    let slotCount = 0;
+  const showStagedMaterials = useCallback((items: MaterialStagingDescriptor[]) => {
+    rememberStaged(items);
     selectView("materials");
-    setMaterialStagingMessage({ tone: "success", text: `正在识别 ${items.length} 份材料…` });
-    for (const item of items) {
-      const result = await intakeStagedMaterial(item);
-      eventCount += result.recognition?.eventCount || 0;
-      slotCount += result.recognition?.slotCount || 0;
-    }
-    const recognized = eventCount + slotCount > 0 ? `识别到 ${eventCount} 条日程、${slotCount} 条课表` : "未发现日程或课表";
-    setMaterialStagingMessage({ tone: "success", text: `${items.length} 份材料已接入 EduPi，${recognized}。` });
-  }, [intakeStagedMaterial, selectView]);
+    setMaterialStagingMessage({ tone: "success", text: `${items.length} 份材料已暂存，请确认类型、学科和班级。` });
+  }, [rememberStaged, selectView]);
 
   const stageBrowserFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -620,14 +585,13 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       const staged = isTauriDesktop()
         ? await stageDesktopMaterialFiles(files)
         : await stageBrowserMaterialFiles(files);
-      rememberStaged(staged);
-      await processStagedMaterials(staged);
+      showStagedMaterials(staged);
     } catch (error) {
       setMaterialStagingMessage({ tone: "error", text: error instanceof Error ? error.message : "材料暂存失败。" });
     } finally {
       setMaterialStagingBusy(false);
     }
-  }, [educationIntakeBusy, materialStagingBusy, processStagedMaterials, rememberStaged]);
+  }, [educationIntakeBusy, materialStagingBusy, showStagedMaterials]);
 
   const { isDragOver: educationFileDragOver, handleDragEnter: handleEducationFileDragEnter, handleDragOver: handleEducationFileDragOver, handleDragLeave: handleEducationFileDragLeave, handleDrop: handleEducationFileDrop } = useDragDrop((files) => { void stageBrowserFiles(files); });
   const onEducationDragEnterCapture = useCallback((event: ReactDragEvent) => {
@@ -666,12 +630,11 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }).then(async (paths) => {
       if (paths.length === 0) return;
       const staged = await stageDesktopMaterialPaths(paths);
-      rememberStaged(staged);
-      await processStagedMaterials(staged);
+      showStagedMaterials(staged);
     }).catch((error) => {
       setMaterialStagingMessage({ tone: "error", text: error instanceof Error ? error.message : "材料暂存失败。" });
     }).finally(() => setMaterialStagingBusy(false));
-  }, [educationIntakeBusy, materialStagingBusy, processStagedMaterials, rememberStaged]);
+  }, [educationIntakeBusy, materialStagingBusy, showStagedMaterials]);
 
   const removeStagedMaterialEntry = useCallback(async (item: MaterialStagingDescriptor) => {
     if (materialStagingBusy || educationIntakeBusy) {

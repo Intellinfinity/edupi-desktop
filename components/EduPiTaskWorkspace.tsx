@@ -76,6 +76,7 @@ export function EduPiTaskWorkspace(props: Props) {
           <h2 className="edupi-visually-hidden">{stageLabel}</h2>
           <EduPiTaskStage
           task={props.task}
+          workCase={props.workCase}
           workReview={props.workReview}
           files={props.files?.filter(file => file.task_id === props.task.id)}
           stage={props.stage}

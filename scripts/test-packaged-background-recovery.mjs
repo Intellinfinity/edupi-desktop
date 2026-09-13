@@ -257,11 +257,16 @@ function findJob(projection, jobId) {
 
 try {
   firstServer = await startPackagedServer("attempt-one");
+  const kernelBeforeEnsure = await api(firstServer, "/api/edupi/kernel");
+  const dueRunsBeforeEnsure = kernelBeforeEnsure.projection?.runs?.filter(run => run.trigger_id === "g1_prepare_due").length || 0;
   const initialEnsure = await api(firstServer, "/api/edupi/preparation", {
     method: "POST",
     body: JSON.stringify({ action: "ensure" }),
   });
   assert.notEqual(initialEnsure.state, "error", `packaged Core startup failed: ${JSON.stringify(initialEnsure)}`);
+  const kernelAfterEnsure = await api(firstServer, "/api/edupi/kernel");
+  const dueRunsAfterEnsure = kernelAfterEnsure.projection?.runs?.filter(run => run.trigger_id === "g1_prepare_due").length || 0;
+  assert.equal(dueRunsAfterEnsure, dueRunsBeforeEnsure + 1, "packaged startup did not run one immediate Core due scan");
   const enqueued = await api(firstServer, "/api/edupi/jobs", {
     method: "POST",
     body: JSON.stringify({
@@ -319,6 +324,7 @@ try {
     coreCommit: compatibility.core_runtime.core_commit,
     jobId,
     attemptCount: completed.attempt_count,
+    startupDueScan: true,
     interruptedToolStopped: true,
     artifact: completed.artifacts[0].relative_path,
     artifactRegistered: true,

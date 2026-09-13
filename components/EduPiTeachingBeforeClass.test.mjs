@@ -92,7 +92,7 @@ const task = {
   boardUpdatedAt: null,
 };
 
-const workCase = (artifactIds) => ({
+const workCase = (artifactIds, artifacts = []) => ({
   id: "work_case_44444444444444444444444444444444",
   kind: "teaching_before_class",
   triggerId: task.sourceEventId,
@@ -105,6 +105,7 @@ const workCase = (artifactIds) => ({
   transitionRevision: 0,
   sourceIds: [task.sourceEventId],
   artifactIds,
+  artifacts,
   transitions: [],
   externalSend: false,
 });
@@ -166,6 +167,17 @@ test("artifact stage renders each linked file once and excludes other tasks", ()
   assert.match(html,/<button[^>]*disabled[^>]*>真实学案<\/button>/);
   assert.doesNotMatch(html,/其他任务文件|本次对话文件/);
   assert.match(renderTaskWorkspace(workCase([]),"artifact"),/暂无可打开的产物/);
+});
+
+test("artifact stage opens every Core capability-package file without a generated-artifact fallback", () => {
+  const artifacts = [
+    { id: "summary", title: "安全教育工作总结", relativePath: ".edupi/output/capability/summary.md" },
+    { id: "gaps", title: "材料缺口清单", relativePath: ".edupi/output/capability/gaps.md" },
+  ];
+  const html = renderTaskWorkspace({ ...workCase(artifacts.map(item => item.id), artifacts), kind: "capability_package" }, "artifact");
+  assert.match(html, />安全教育工作总结<\/button>/);
+  assert.match(html, />材料缺口清单<\/button>/);
+  assert.equal((html.match(/\.edupi\/output\/capability\//g) || []).length, 0, "local paths stay in click handlers rather than visible copy");
 });
 
 test("canonical work review only offers supported editing fields", () => {

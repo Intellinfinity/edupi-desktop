@@ -24,3 +24,11 @@ test("opening reminders reads newly available items without waiting for polling"
   assert.equal(requests, 2);
   assert.ok(JSON.stringify(render()).includes("新备课已准备"));
 });
+
+test("notification dismissal is not presented as completing the Core task", () => {
+  const source = fs.readFileSync(new URL("./EduPiReminderInbox.tsx", import.meta.url), "utf8");
+  assert.match(source, /从提醒中移除/);
+  assert.match(source, /只从提醒列表移除，不修改任务/);
+  assert.match(source, /"dismiss"/);
+  assert.doesNotMatch(source, />已处理<\/button>/);
+});

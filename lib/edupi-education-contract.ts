@@ -118,7 +118,8 @@ export function factEntityIdForRosterStudent(factSpine: EducationFactSpine, rost
   const mapped = factSpine.entities.find((entity) => entity.kind === "student"
     && entity.externalRefs.some((ref) => ref.namespace === "school-roster" && ref.externalId === rosterStudentId));
   if (mapped) return mapped.id;
-  return factSpine.entities.some((entity) => entity.kind === "student" && entity.id === rosterStudentId) ? rosterStudentId : null;
+  const legacyDirect = factSpine.entities.find((entity) => entity.kind === "student" && entity.id === rosterStudentId);
+  return legacyDirect && !legacyDirect.externalRefs.some((ref) => ref.namespace === "school-roster") ? rosterStudentId : null;
 }
 
 export type EducationMemoryCategory = "semester" | "class" | "teaching" | "preferences" | "school";

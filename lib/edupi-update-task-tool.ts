@@ -51,7 +51,7 @@ export function createEduPiUpdateTaskTool({ projectRoot, read = async () => (awa
         source: { source_id: sourceId, source_kind: "teacher_message", source_hash: taskBoardContentHash(message || { toolCallId }), evidence_ids: [sourceId, ...(sourceId === toolCallId ? [] : [toolCallId])] },
       });
       // The command layer verifies the receipt and reads the persisted task back.
-      if (result.task.task_id !== task.id || result.task.board_stage !== toStage || result.task.board_revision !== task.boardRevision + 1) throw new Error("任务更新后读取结果不一致。");
+      if (!result.task || result.task.task_id !== task.id || result.task.board_stage !== toStage || result.task.board_revision !== task.boardRevision + 1) throw new Error("任务更新后读取结果不一致。");
       const updated = { ...summarize(task), boardStage: toStage, boardRevision: task.boardRevision + 1 } as ReturnType<typeof summarize>;
       return { content: [{ type: "text", text: `已更新任务：${task.title} → ${stageLabel}。` }], details: { tasks: [updated], updated: true } };
     },

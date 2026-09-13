@@ -1,5 +1,5 @@
-import { join, resolve } from "node:path";
-import { realpathSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { lstatSync, realpathSync } from "node:fs";
 import { buildEducationContractFromWorkspace, type EducationContract } from "./edupi-education-contract";
 import { issueC1Review, type C1ReviewDependencies, type C1ReviewDecision, type C1ReviewTargetKind } from "./edupi-c1-review";
 import { issueTeacherContextReview, type TeacherContextReviewDependencies, type TeacherContextReviewInput } from "./edupi-teacher-context-review";
@@ -34,11 +34,33 @@ export function canonicalEduPiCwd(value: string): string {
 
 type EducationSnapshot = Awaited<ReturnType<typeof readEduPiEducationSnapshot>>;
 
+function containedEducationDirectory(root: string, segments: readonly string[]): string | null {
+  try {
+    const physicalRoot = realpathSync(root);
+    let current = physicalRoot;
+    for (const segment of segments) {
+      const candidate = join(current, segment);
+      const stat = lstatSync(candidate);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
+      current = realpathSync(candidate);
+      const local = relative(physicalRoot, current);
+      if (local === ".." || local.startsWith(`..${sep}`) || isAbsolute(local)) return null;
+    }
+    return current;
+  } catch {
+    return null;
+  }
+}
+
+export function scopedEducationFileRoots(dataRoot: string): string[] {
+  return [
+    containedEducationDirectory(dataRoot, [".edupi", "output"]),
+    containedEducationDirectory(dataRoot, [".edupi", "inbox", "teacher-materials"]),
+  ].filter((value): value is string => value !== null);
+}
+
 export async function projectEducationContract(snapshot: EducationSnapshot): Promise<EducationContract> {
-  setScopedAllowedFileRoots("edupi-education", [
-    join(snapshot.dataRoot.root, ".edupi", "output"),
-    join(snapshot.dataRoot.root, ".edupi", "inbox", "teacher-materials"),
-  ]);
+  setScopedAllowedFileRoots("edupi-education", scopedEducationFileRoots(snapshot.dataRoot.root));
   const [taskSessionStore, scannedSessions] = await Promise.all([
     readTaskSessionFile(taskSessionFile(snapshot.dataRoot.root)),
     listAllSessions(),

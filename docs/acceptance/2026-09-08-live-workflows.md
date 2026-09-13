@@ -388,3 +388,12 @@ Core9af123d启动后，无需再保存摘录，旧任务已回planned、当前�
 - 隔离 E2 中名单学生 ID 为 `student-roster-e2`，事实实体 ID 为 `entity_67494bb94ad4ffb3c99de27e5115f41a`，两者不同；Desktop API 通过 `school-roster` 引用得到唯一映射，服务端渲染仍显示事实及原始教师话语。
 - 页面复核使用另一组不同 ID：URL/名单选择为 `student-roster-ui`，Core entity 与 student view 均为 `entity_411bafd9fcea085b81b050a48a97e8db`。学生档案显示1条已确认 Core 事实“移项符号仍需练习”，证明不再依赖碰巧相同的 ID 或姓名匹配。
 - Desktop 对学生视图事实归属、教学/by-subject、下节课引用、冲突实体和实体外部引用做原子校验；任何交叉引用错误只令可选 `factSpine` 为空。生产 snapshot consumer 只在基础 workspace 仍通过完整 schema 时隔离坏 fact spine，任务、日历和学生名单继续可读；其他字段错误仍拒绝整个 envelope。
+
+# 2026-09-14 R09 历史与学生事件恢复
+
+环境：macOS 开发服务 `30141`，Core `145875575245335f82297a46c70fd3746a4fe9f3`，隔离数据根 `/private/tmp/edupi-r09-ui-20260914`；验收后删除。
+
+- 连续两次通过正式 onboarding API 保存教师资料，第二次将年级从七年级改为八年级。实际教师上下文页面显示当前八年级，并展开“操作历史 2”，两项均为“接受 / 已接受 / 教师手动填写并保存”。
+- 连续两次通过正式 intake API 写入同一 `calendar-r09-ui`，第二次把日期改为 2026-09-17、备注改为“日期已修正”。实际校历详情显示新值，并按两个 receipt 的 `appliedIds` 展开“操作历史 2”；没有错误地用批次 target ID 关联对象。
+- 学生记录初始为 revision 1“当前：移项已经掌握”，历史 revision 0 为“原始：移项仍需练习”。页面切到列表、展开修改历史并点击“恢复此版本”，刷新后正文、知识点和日期变为旧值；API 重读 summary、topic、observed_on 一致，revision 2、history_count 2。
+- `test:edupi-student-events-e2` 另行完成对话捕获、手动修改、历史恢复、删除和来源重放。此批展示的是 Core 已有操作审计与可重放版本；不将没有旧字段值的教师/接入 receipt 宣称为字段恢复能力。

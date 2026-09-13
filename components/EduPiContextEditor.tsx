@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   EducationContract,
   EducationTeacherContextCandidate,
+  EducationTeacherContextReviewHistory,
   TeacherContextReviewCapability,
 } from "@/lib/edupi-education-contract";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
@@ -30,6 +31,7 @@ type Props = {
   initial?: TeacherContextSnapshot | null;
   candidate?: EducationTeacherContextCandidate | null;
   capability?: TeacherContextReviewCapability | null;
+  history?: EducationTeacherContextReviewHistory[];
   reviewer?: string;
   onReviewed?: (result: ReviewResult) => Promise<EducationContract>;
   onAgentRequest?: (prompt: string) => void;
@@ -64,6 +66,7 @@ const BUSY_LABELS: Record<TeacherContextReviewDecision, string> = {
   reject: "正在拒绝…",
   hold: "正在暂缓…",
 };
+const REVIEW_STATUS_LABELS: Record<string, string> = { accepted: "已接受", modified: "已修改", rejected: "已拒绝", held: "已暂缓", failed: "失败" };
 
 function reviewFailureCode(value: unknown): ReviewFailureCode {
   if (value instanceof ReviewFailure) return value.code;
@@ -87,7 +90,7 @@ function changed(current: string | undefined, proposal: string | undefined): boo
   return Boolean(proposal && proposal !== current);
 }
 
-export function EduPiContextEditor({ initial, candidate = null, capability = null, reviewer = "teacher", onReviewed, onAgentRequest, onBusyChange, onClose }: Props) {
+export function EduPiContextEditor({ initial, candidate = null, capability = null, history = [], reviewer = "teacher", onReviewed, onAgentRequest, onBusyChange, onClose }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const trustedAfterSnapshotRef = useRef<TrustedAfterSnapshot | null>(null);
   const currentValues = useMemo(() => currentContextValues(candidate, initial), [candidate, initial]);
@@ -333,6 +336,8 @@ export function EduPiContextEditor({ initial, candidate = null, capability = nul
           })}</tbody>
         </table>
       </div>
+
+      {history.length ? <details className="edupi-context-history"><summary>操作历史 <span>{history.length}</span></summary><ol>{history.slice(-10).reverse().map((item) => <li key={item.reviewId}><div><strong>{ACTION_LABELS[item.decision as TeacherContextReviewDecision] || item.decision}</strong><span>{REVIEW_STATUS_LABELS[item.status] || item.status}</span></div><time>{item.reviewedAt ? new Date(item.reviewedAt).toLocaleString("zh-CN") : "时间未记录"}</time>{item.teacherReview.note ? <p>{item.teacherReview.note}</p> : null}</li>)}</ol></details> : null}
 
       {modifyOpen && canReview ? <div className="edupi-context-editor__modify" aria-label="修改待确认更新">
         <div className="edupi-context-editor__modify-heading"><strong>修改待确认更新</strong><span>只提交非空且有变化的字段</span></div>

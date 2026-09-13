@@ -10,7 +10,8 @@ export type StudentEvent = {
   id:string;kind:"learning"|"interaction";students:string[];summary:string;topic:string|null;observed_on:string|null;
   recorded_at:string;updated_at:string;revision:number;
   source:{session_id:string;message_id:string;text:string};
-  history:Array<{summary:string;revision:number;updated_at:string}>;
+  history:Array<{summary:string;topic:string|null;observed_on:string|null;revision:number;updated_at:string}>;
+  history_count?:number;
 };
 export type StudentEventsResult = {ok:boolean;records?:StudentEvent[];total?:number;record_ids?:string[];revision?:number;replayed?:boolean;code?:string};
 const messages:Record<string,string>={ambiguous_student:"存在同名学生，请指定班级或学生 ID",unknown_student:"名单中找不到该学生，请先核对姓名",stale_event:"记录已更新，请刷新后重试",invalid_event:"记录内容不完整",invalid_date:"日期无效",source_conflict:"这段对话已经记录，请修改原记录",event_not_found:"记录不存在或已删除"};

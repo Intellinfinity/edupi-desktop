@@ -58,7 +58,7 @@ import { normalizeKernelState, readEduPiKernel, type EduPiKernelState } from "@/
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 import { hasEveryTrackedTask, refreshUntilTaskVisible } from "@/lib/edupi-task-refresh";
-import { isTerminalPreparationRead } from "@/lib/edupi-preparation-status";
+import { isTerminalPreparationRead, workspaceHasReadyPreparation } from "@/lib/edupi-preparation-status";
 
 type Props = {
   initialModule?: EducationModule;
@@ -234,9 +234,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
             if (response.ok) {
               const next = await response.json() as BoardPreparationStatus;
               if (next.taskId === taskId && isTerminalPreparationRead(next)) {
-                await loadWorkspace(controller.signal).catch(() => {});
-                if (!controller.signal.aborted) window.dispatchEvent(new Event("edupi-preparation-updated"));
-                return;
+                const refreshed = await loadWorkspace(controller.signal).catch(() => null);
+                if (refreshed && (next.state === "error" || workspaceHasReadyPreparation(refreshed, taskId))) return;
               }
               if (next.taskId === taskId && next.state === "idle") {
                 const refreshed = await loadWorkspace(controller.signal).catch(() => null);

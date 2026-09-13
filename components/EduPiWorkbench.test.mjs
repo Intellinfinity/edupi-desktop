@@ -70,6 +70,7 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(taskBoard, /deliverableValidation\.error/);
   assert.match(panel, /pollBoardPreparation/);
   assert.match(panel, /isTerminalPreparationRead\(next\)/);
+  assert.match(panel, /workspaceHasReadyPreparation\(refreshed, taskId\)/);
   assert.match(panel, /next\.state === "idle"/);
   assert.match(panel, /!refreshed\.tasks\.some\(\(task\) => task\.id === taskId\)/);
   assert.match(panel, /stopTaskTracking\(id\)/);

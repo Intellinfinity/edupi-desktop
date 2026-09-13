@@ -55,6 +55,10 @@ import type { EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import { readEduPiTeachingSkills, type EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 import { normalizeKernelState, readEduPiKernel, type EduPiKernelState } from "@/lib/edupi-kernel-client";
+import { useModalDismiss } from "@/hooks/useModalDismiss";
+import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
+import { hasEveryTrackedTask, refreshUntilTaskVisible } from "@/lib/edupi-task-refresh";
+import { isTerminalPreparationRead, workspaceHasReadyPreparation } from "@/lib/edupi-preparation-status";
 
 type Props = {
   initialModule?: EducationModule;
@@ -92,6 +96,8 @@ type EducationIntakeApiResult = {
   staged?: MaterialStagingDescriptor[];
   recognition?: { eventCount?: number; slotCount?: number };
 };
+
+type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null; retryable?: boolean };
 
 const reviewLabels: Record<TaskReviewAction, string> = {
   accept: "已接受",
@@ -162,11 +168,21 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   };
   useEffect(()=>()=>{deleteResolver.current?.(false);deleteResolver.current=null;},[]);
   const taskSessionOpeningRef = useRef(false);
-  const contextModalRef = useRef<HTMLDivElement>(null);
+  const contextModalRef = useModalDismiss<HTMLDivElement>(() => { if (!contextBusy) setContextOpen(false); }, contextOpen);
   const materialUploadInputRef = useRef<HTMLInputElement>(null);
   const activationRequestsRef = useRef(createActivationRequestTracker());
+  const preparationPollsRef = useRef(new Map<string, AbortController>());
+  const taskRefreshesRef = useRef(new Map<string, AbortController>());
+  const durableTaskIdsRef = useRef(new Set<string>());
+  const workspaceLoadSequenceRef = useRef(0);
+  const workspaceMinimumApplySequenceRef = useRef(0);
   const objectSider = useEduPiContentSiderCollapse(false);
   const navigationRail = useEduPiContentSiderCollapse(false, APP_PREF_KEYS.edupiNavigationRailCollapsed);
+
+  const commitEducationSnapshot = useCallback((nextEducation: EducationContract) => {
+    workspaceMinimumApplySequenceRef.current = Math.max(workspaceMinimumApplySequenceRef.current, workspaceLoadSequenceRef.current + 1);
+    setEducation(nextEducation);
+  }, []);
 
   const cancelActivation = useCallback(() => {
     activationRequestsRef.current.cancel();
@@ -175,6 +191,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, []);
 
   const loadWorkspace = useCallback(async (signal?: AbortSignal) => {
+    const sequence = ++workspaceLoadSequenceRef.current;
     const [workspace, scopeResponse, nextTeachingSkills, nextKernelState] = await Promise.all([
       readEduPiWorkspace({ signal }),
       fetch("/api/edupi/memory-scopes", { cache: "no-store", signal })
@@ -184,6 +201,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       readEduPiKernel(signal),
     ]);
     const { context: nextContext, data: nextEducation } = workspace;
+    if (sequence < workspaceMinimumApplySequenceRef.current) return null;
+    if (!hasEveryTrackedTask(nextEducation, durableTaskIdsRef.current)) return null;
+    durableTaskIdsRef.current.clear();
+    workspaceMinimumApplySequenceRef.current = Math.max(workspaceMinimumApplySequenceRef.current, sequence);
     setContext(nextContext);
     setEducation(nextEducation);
     setMemoryScopes(scopeResponse?.projection?.projection_kind === "scoped_education_memory" ? scopeResponse.projection : null);
@@ -191,6 +212,63 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setKernelState(nextKernelState);
     setRunningKernelCount(nextKernelState.running);
     return nextEducation;
+  }, []);
+
+  const stopTaskTracking = useCallback((taskId: string) => {
+    preparationPollsRef.current.get(taskId)?.abort();
+    preparationPollsRef.current.delete(taskId);
+    taskRefreshesRef.current.get(taskId)?.abort();
+    taskRefreshesRef.current.delete(taskId);
+    durableTaskIdsRef.current.delete(taskId);
+  }, []);
+
+  const pollBoardPreparation = useCallback((taskId: string) => {
+    if (preparationPollsRef.current.has(taskId)) return;
+    const controller = new AbortController();
+    preparationPollsRef.current.set(taskId, controller);
+    const poll = async () => {
+      try {
+        while (!controller.signal.aborted) {
+          try {
+            const response = await fetch(`/api/edupi/preparation?taskId=${encodeURIComponent(taskId)}`, { cache: "no-store", signal: controller.signal });
+            if (response.ok) {
+              const next = await response.json() as BoardPreparationStatus;
+              if (next.taskId === taskId && isTerminalPreparationRead(next)) {
+                const refreshed = await loadWorkspace(controller.signal).catch(() => null);
+                if (refreshed && (next.state === "error" || workspaceHasReadyPreparation(refreshed, taskId))) return;
+              }
+              if (next.taskId === taskId && next.state === "idle") {
+                const refreshed = await loadWorkspace(controller.signal).catch(() => null);
+                if (refreshed && !refreshed.tasks.some((task) => task.id === taskId)) { stopTaskTracking(taskId); return; }
+              }
+            }
+          } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+        }
+      } finally {
+        if (preparationPollsRef.current.get(taskId) === controller) preparationPollsRef.current.delete(taskId);
+      }
+    };
+    void poll();
+  }, [loadWorkspace, stopTaskTracking]);
+
+  const refreshCommittedTask = useCallback((taskId: string) => {
+    if (taskRefreshesRef.current.has(taskId)) return;
+    const controller = new AbortController();
+    taskRefreshesRef.current.set(taskId, controller);
+    void refreshUntilTaskVisible({ taskId, signal: controller.signal, read: async (signal) => await loadWorkspace(signal) ?? { tasks: [] } })
+      .finally(() => {
+        if (taskRefreshesRef.current.get(taskId) === controller) taskRefreshesRef.current.delete(taskId);
+      });
+  }, [loadWorkspace]);
+
+  useEffect(() => () => {
+    for (const controller of preparationPollsRef.current.values()) controller.abort();
+    preparationPollsRef.current.clear();
+    for (const controller of taskRefreshesRef.current.values()) controller.abort();
+    taskRefreshesRef.current.clear();
   }, []);
 
   const retryLoadWorkspace = useCallback(() => {
@@ -376,39 +454,6 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     return () => window.removeEventListener("edupi-close-panel", close);
   }, [cancelActivation, contextBusy]);
 
-  useEffect(() => {
-    if (!contextOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !contextBusy) setContextOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [contextBusy, contextOpen]);
-
-  useEffect(() => {
-    if (!contextOpen) return;
-    const containContextFocus = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !contextModalRef.current) return;
-      const panel = contextModalRef.current;
-      const elements = Array.from(panel.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"));
-      event.preventDefault();
-      if (elements.length === 0) {
-        panel.focus();
-        return;
-      }
-      const active = document.activeElement;
-      const index = elements.indexOf(active as HTMLElement);
-      if (index === -1) {
-        (event.shiftKey ? elements[elements.length - 1] : elements[0]).focus();
-        return;
-      }
-      const nextIndex = event.shiftKey ? (index - 1 + elements.length) % elements.length : (index + 1) % elements.length;
-      elements[nextIndex].focus();
-    };
-    window.addEventListener("keydown", containContextFocus, true);
-    return () => window.removeEventListener("keydown", containContextFocus, true);
-  }, [contextOpen]);
-
   useEffect(() => () => cancelActivation(), [cancelActivation]);
 
   const tasks = useMemo(() => education?.tasks ?? [], [education]);
@@ -527,7 +572,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       if (candidate) {
         if (action === "rollback") throw new Error("请使用修改决定调整审核结果");
         const result = await submitTodayWorkReview({ candidate, decision: action, ...(action === "modify" ? {patch:{title:payload.title,dueAt:payload.dueDate ?? null}} : {}), note:payload.note });
-        setEducation(result.data);
+        commitEducationSnapshot(result.data);
         setReviewMessage(reviewLabels[action]);
         return;
       }
@@ -547,17 +592,17 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       });
       const result = await response.json() as { error?: string; data?: EducationContract };
       if (!response.ok || !result.data) throw new Error(result.error || `审核失败（HTTP ${response.status}）`);
-      setEducation(result.data);
+      commitEducationSnapshot(result.data);
       const nextTask = result.data.tasks.find((task) => task.id === activeTask.id);
       if (nextTask) setSelectedTaskKey(taskKey(nextTask));
       setReviewMessage(reviewLabels[action]);
     } catch (error) {
-      if (error instanceof TodayWorkReviewError && error.data) setEducation(error.data);
+      if (error instanceof TodayWorkReviewError && error.data) commitEducationSnapshot(error.data);
       setReviewMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setReviewBusy(null);
     }
-  }, [activeTask, education]);
+  }, [activeTask, commitEducationSnapshot, education]);
 
   const rememberStaged = useCallback((items: MaterialStagingDescriptor[]) => {
     setStagedMaterials((current) => {
@@ -724,20 +769,30 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setTaskDetailTask(null);
   }, []);
 
-  const createBoardTask = useCallback(async (input: { title: string; dueDate: string | null; note: string | null }) => {
+  const createBoardTask = useCallback(async (input: CreateTeacherTaskInput): Promise<CreateTeacherTaskOutcome> => {
     const response = await fetch("/api/edupi/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-    const result = await response.json() as { error?: string; data?: EducationContract };
-    if (!response.ok || !result.data) throw new Error(result.error || `任务创建失败（HTTP ${response.status}）`);
-    setEducation(result.data);
-  }, []);
+    const result = await response.json() as { error?: string; taskId?: string; data?: EducationContract | null; refreshPending?: boolean; preparation?: { state?: string; error?: string; taskId?: string | null } | null };
+    if (!response.ok || !result.taskId) throw new Error(result.error || `任务创建失败（HTTP ${response.status}）`);
+    durableTaskIdsRef.current.add(result.taskId);
+    workspaceMinimumApplySequenceRef.current = Math.max(workspaceMinimumApplySequenceRef.current, workspaceLoadSequenceRef.current + 1);
+    if (result.data && hasEveryTrackedTask(result.data, durableTaskIdsRef.current)) { durableTaskIdsRef.current.clear(); commitEducationSnapshot(result.data); }
+    if (!result.data?.tasks.some((task) => task.id === result.taskId)) refreshCommittedTask(result.taskId);
+    if (!input.preparationSource) return { preparationState: null, preparationError: null };
+    if (!result.taskId || result.preparation?.taskId !== result.taskId || !["running", "ready"].includes(result.preparation?.state || "")) {
+      return { preparationState: "error", preparationError: result.preparation?.error || "请打开任务后重试" };
+    }
+    if (result.preparation.state === "running") pollBoardPreparation(result.taskId);
+    else window.dispatchEvent(new Event("edupi-preparation-updated"));
+    return { preparationState: result.preparation.state as "running" | "ready", preparationError: null };
+  }, [commitEducationSnapshot, pollBoardPreparation, refreshCommittedTask]);
 
   const moveBoardTask = useCallback(async (task: TeacherTask, stage: TaskBoardLaneId) => {
     if (!task.id) throw new Error("任务缺少可写标识。");
     const response = await fetch(`/api/edupi/tasks/${encodeURIComponent(task.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage, expectedRevision: task.boardRevision, note: null }) });
     const result = await response.json() as { error?: string; data?: EducationContract };
     if (!response.ok || !result.data) throw new Error(result.error || `任务移动失败（HTTP ${response.status}）`);
-    setEducation(result.data);
-  }, []);
+    commitEducationSnapshot(result.data);
+  }, [commitEducationSnapshot]);
 
   const deleteEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, label: string): Promise<boolean> => {
     const key = `${kind}:${id}`;
@@ -749,10 +804,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setMaterialStagingMessage({ tone: "success", text: "删除中…" });
     try {
       const result = await deleteEducationEntity(kind, id);
-      setEducation(result.data);
+      if (kind === "task") { stopTaskTracking(id); setTaskDetailTask(null); setSelectedTaskKey(null); }
+      commitEducationSnapshot(result.data);
       if (kind === "calendar" || kind === "timetable") setCalendarSelection(null);
       if (kind === "student") setSelectedStudentId(null);
-      if (kind === "task") { setTaskDetailTask(null); setSelectedTaskKey(null); }
       setMaterialStagingMessage({ tone: "success", text: `已删除：${label}` });
       return true;
     } catch (error) {
@@ -761,7 +816,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     } finally {
       setDeleteBusy(null);
     }
-  }, [deleteBusy, education]);
+  }, [commitEducationSnapshot, deleteBusy, education, stopTaskTracking]);
 
   const closeDrawer = useCallback(() => {
     cancelActivation();
@@ -854,7 +909,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }).then(async (response) => {
       const result = await response.json() as { error?: string; data?: EducationContract };
       if (!response.ok) throw new Error(result.error || `任务会话绑定失败（HTTP ${response.status}）`);
-      if (result.data) setEducation(result.data);
+      if (result.data) commitEducationSnapshot(result.data);
       setPendingTaskBinding(null);
     }).catch((error) => {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -863,7 +918,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       if (!controller.signal.aborted) setTaskSessionBusy(false);
     });
     return () => controller.abort();
-  }, [activeAgentSessionId, pendingTaskBinding]);
+  }, [activeAgentSessionId, commitEducationSnapshot, pendingTaskBinding]);
 
   useEffect(() => {
     if (drawer !== "agent" || (activeView !== "tasks" && activeView !== "review") || pendingTaskBinding || !activeTask?.id || !activeAgentSessionId || !education) return;
@@ -917,23 +972,23 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
             {activeView === "review" ? <div className="edupi-review-surface">
             {reviewMode === "board" ? <EduPiReviewBoard data={education} query={query} onTask={(task) => selectTask(task, "review")} onReviewTarget={focusC1Review} /> : null}
             {reviewMode === "task" && activeTask ? <section className="edupi-c1-review-task-bridge"><div className="edupi-c1-review-task-bridge__heading"><h2>任务审核</h2><span>{pendingCount} 项</span></div><EduPiTaskWorkspace workReview={activeWorkReview} files={education.generatedArtifacts} task={activeTask} workCase={workCaseForTask(education, activeTask.id)} stage={taskStage} workspace={education.workspace} context={context} reviewEnabled={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).enabled} reviewReason={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).reason} reviewBusy={reviewBusy} reviewMessage={reviewMessage} agentSession={activeTask.id ? education.taskSessions[activeTask.id] ?? null : null} taskSessionBusy={taskSessionBusy} taskSessionError={taskSessionError} onStage={selectStage} onReview={reviewTask} onOpenAgent={openAgent} onOpenFile={openFile} /></section> : null}
-            {reviewMode === "c1" ? <EduPiC1Review data={education} reviewerId={context?.name || "teacher"} onRefresh={loadWorkspace} query={query} selectedTarget={selectedC1Target} /> : null}
+            {reviewMode === "c1" ? <EduPiC1Review data={education} reviewerId={context?.name || "teacher"} onRefresh={async () => { await loadWorkspace(); }} query={query} selectedTarget={selectedC1Target} /> : null}
             {reviewMode === "task" && !activeTask ? <section className="edupi-c1-review-task-empty"><span>任务审核</span><strong>暂无待审核任务</strong></section> : null}
             </div> : null}
             {activeView === "tasks" && activeTask ? <EduPiTaskWorkspace workReview={activeWorkReview} files={education.generatedArtifacts} task={activeTask} workCase={workCaseForTask(education, activeTask.id)} stage={taskStage} workspace={education.workspace} context={context} reviewEnabled={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).enabled} reviewReason={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).reason} reviewBusy={reviewBusy} reviewMessage={reviewMessage} agentSession={activeTask.id ? education.taskSessions[activeTask.id] ?? null : null} taskSessionBusy={taskSessionBusy} taskSessionError={taskSessionError} onStage={selectStage} onReview={reviewTask} onOpenAgent={openAgent} onOpenFile={openFile} /> : null}
             {activeView === "tasks" && !activeTask ? <main className="edupi-module-workspace"><header className="edupi-module-heading"><div><h1>暂无任务</h1></div><button type="button" onClick={openUpload}>上传材料</button></header></main> : null}
-            {activeView !== "chat" && activeView !== "tasks" && activeView !== "review" ? <EduPiWorkspaceViews view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} kernelState={kernelState} query={query} selectedStudentId={selectedStudentId} selectedObjectId={selectedObjectId} runningAgentCount={runningAgentCount} stagedMaterials={stagedMaterials} stagingBusy={materialStagingBusy || educationIntakeBusy} intakeBusy={educationIntakeBusy} stagingMessage={materialStagingMessage?.text ?? null} calendarSelection={calendarSelection} onCalendarSelection={setCalendarSelection} onTask={selectTask} onTaskDetail={openTaskDetail} onEducation={setEducation} onStudent={selectStudent} onObject={selectObject} onNavigate={selectView} onUpload={openUpload} onIntakeMaterial={intakeStagedMaterial} onRemoveStagedMaterial={removeStagedMaterialEntry} onImportCalendar={importCalendarEvent} onImportTimetable={importTimetableSlot} onOpenContext={() => setContextOpen(true)} onOpenAdmin={onOpenAdmin} onOpenFile={openFile} onStartAgent={(prompt, mode) => startAgent(prompt, mode)} onCreateTask={createBoardTask} onMoveTask={moveBoardTask} onDeleteEntity={deleteEntity} onReviewTarget={focusC1Review} /> : null}
+            {activeView !== "chat" && activeView !== "tasks" && activeView !== "review" ? <EduPiWorkspaceViews view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} kernelState={kernelState} query={query} selectedStudentId={selectedStudentId} selectedObjectId={selectedObjectId} runningAgentCount={runningAgentCount} stagedMaterials={stagedMaterials} stagingBusy={materialStagingBusy || educationIntakeBusy} intakeBusy={educationIntakeBusy} stagingMessage={materialStagingMessage?.text ?? null} calendarSelection={calendarSelection} onCalendarSelection={setCalendarSelection} onTask={selectTask} onTaskDetail={openTaskDetail} onEducation={commitEducationSnapshot} onStudent={selectStudent} onObject={selectObject} onNavigate={selectView} onUpload={openUpload} onIntakeMaterial={intakeStagedMaterial} onRemoveStagedMaterial={removeStagedMaterialEntry} onImportCalendar={importCalendarEvent} onImportTimetable={importTimetableSlot} onOpenContext={() => setContextOpen(true)} onOpenAdmin={onOpenAdmin} onOpenFile={openFile} onStartAgent={(prompt, mode) => startAgent(prompt, mode)} onCreateTask={createBoardTask} onMoveTask={moveBoardTask} onDeleteEntity={deleteEntity} onReviewTarget={focusC1Review} /> : null}
           </div>
           {inspectorAvailable ? <EduPiInspector open={inspectorOpen} data={education} task={activeTask} onClose={toggleInspector} onOpenAgent={openAgent} onStage={selectStage} /> : null}
         </div>
       </div>
-      {taskDetail ? <EduPiTaskDetailDrawer task={taskDetail} workCase={workCaseForTask(education, taskDetail.id)} workspace={education.workspace} onClose={closeTaskDetail} onOpenFile={openTaskFile} onOpenTask={selectTask} onOpenAgent={openAgentForTask} onDelete={(task) => { if (task.id) void deleteEntity("task", task.id, task.title).catch(() => {}); }} deleteBusy={deleteBusy === `task:${taskDetail.id}`} /> : null}
+      {taskDetail ? <EduPiTaskDetailDrawer task={taskDetail} workCase={workCaseForTask(education, taskDetail.id)} files={education.generatedArtifacts} workspace={education.workspace} onClose={closeTaskDetail} onOpenFile={openTaskFile} onOpenTask={selectTask} onOpenAgent={openAgentForTask} onDelete={(task) => { if (task.id) void deleteEntity("task", task.id, task.title).catch(() => {}); }} deleteBusy={deleteBusy === `task:${taskDetail.id}`} /> : null}
       <EduPiQuickEntry open={quickEntryOpen} education={education} onClose={onCloseQuickEntry} onSelect={selectQuickEntry} />
       {deleteLabel ? <EduPiDeleteConfirmation label={deleteLabel} onResolve={resolveDeleteConfirmation} /> : null}
       {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? (() => { const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation" && file.available !== false && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === previewPath.replaceAll("\\", "/")); const preview = renderFilePreview(previewPath); return artifact ? <EduPiPreparationArtifactEditor key={artifact.artifact_id} artifactId={artifact.artifact_id} preview={preview} onSaved={value => { openFile(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }} onAgent={prompt => { closeDrawer(); startAgent(prompt, "replace"); }} /> : preview; })() : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}
       <input ref={materialUploadInputRef} type="file" multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void stageBrowserFiles(files); }} />
       {materialStagingMessage && activeView !== "materials" ? <div className={`edupi-material-staging-toast is-${materialStagingMessage.tone}`} role={materialStagingMessage.tone === "error" ? "alert" : "status"} aria-live="polite">{materialStagingMessage.text}</div> : null}
-      {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => loadWorkspace()} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}
+      {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button data-autofocus type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => await loadWorkspace() ?? education} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}
     </section>
   );
 }

@@ -2,26 +2,54 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "7c92b1e6dd7ec35aab7201c5565bd00c10875e51",
+    "core_commit": "9235cb5b577882bbb114ee71a713e01d87efe6c5",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:3e46e118acf493cbb64e24384ac3bc6c2a10733b697a965ef23ce5707642bf42",
-    "runtime_component_manifest_hash": "sha256:5f52b2727926aaadf0e8c3c48c0837839a0bf5a3186d2109a0e66960ec17889f"
+    "component_manifest_hash": "sha256:c79389bef865012af57cca29598e919a166034f7e157b9a57bd223f87345e6e7",
+    "runtime_component_manifest_hash": "sha256:f2523fbf8c35025a2b4b10ce76601003dccaa7733296150dfd306c1dc12c0d9d"
   },
   "contract_identities": [
     {
       "contract_id": "edupi-bridge-v1.1",
       "contract_version": "1.1",
-      "schema_hash": "sha256:41798fb7b5a2b30f09c2dcf07687193a0efbeade93667f47e6fd0c33e70760a3",
+      "schema_hash": "sha256:3116b37914b996ec90dd5da2b946798390617ffb2151c7653dbcda731e27227c",
       "fixture_manifest_path": "fixtures/bridge/v1.1/fixture-manifest.json",
-      "fixture_manifest_hash": "sha256:b2b00ae6252d953c285260e8794b81c7ada3b0bb7132f67802e4bee99ae3bbfb",
-      "supported_commands": ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"],
-      "supported_projections": ["education_workspace"],
+      "fixture_manifest_hash": "sha256:8e95f3896b33323b4b2adeb9b6aa958abb0efdd0337cc4289c75d21fd852c912",
+      "supported_commands": [
+        "review_observation",
+        "review_memory_candidate",
+        "review_teacher_context",
+        "review_work_candidate",
+        "review_task",
+        "import_calendar",
+        "import_timetable",
+        "intake_material",
+        "create_task",
+        "move_task_stage",
+        "update_memory"
+      ],
+      "supported_projections": [
+        "education_workspace"
+      ],
       "depends_on": []
     }
   ],
   "cumulative_projection_manifest": null,
-  "supported_commands": ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"],
-  "supported_projections": ["education_workspace"],
+  "supported_commands": [
+    "review_observation",
+    "review_memory_candidate",
+    "review_teacher_context",
+    "review_work_candidate",
+    "review_task",
+    "import_calendar",
+    "import_timetable",
+    "intake_material",
+    "create_task",
+    "move_task_stage",
+    "update_memory"
+  ],
+  "supported_projections": [
+    "education_workspace"
+  ],
   "unsupported_command_reasons": {
     "review_teaching_adjustment": "Core v1.1 does not expose this command capability in the pinned paired C1 runtime",
     "review_follow_up": "Core v1.1 does not expose this command capability in the pinned paired C1 runtime",
@@ -66,7 +94,15 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/31",
     "https://github.com/PIGU-PPPgu/edupi/pull/32",
     "https://github.com/PIGU-PPPgu/edupi/pull/66",
-    "https://github.com/PIGU-PPPgu/edupi/pull/67"
+    "https://github.com/PIGU-PPPgu/edupi/pull/67",
+    "https://github.com/PIGU-PPPgu/edupi/pull/69",
+    "https://github.com/PIGU-PPPgu/edupi/pull/71",
+    "https://github.com/PIGU-PPPgu/edupi/pull/73",
+    "https://github.com/PIGU-PPPgu/edupi/pull/74",
+    "https://github.com/PIGU-PPPgu/edupi/pull/76",
+    "https://github.com/PIGU-PPPgu/edupi/pull/78",
+    "https://github.com/PIGU-PPPgu/edupi/pull/81",
+    "https://github.com/PIGU-PPPgu/edupi/pull/83"
   ],
-  "change_note": "Pinned Core PR #67 so Desktop reads authoritative Runtime lifecycle, processor activation, timer interval, next check, and timer errors."
+  "change_note": "Paired Core PR #83 rejects deleted, missing, unavailable, cross-subject, and cross-class materials inside new managed task transactions while preserving prior idempotent replays."
 }

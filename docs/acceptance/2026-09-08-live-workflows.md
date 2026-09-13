@@ -1,5 +1,15 @@
 # 实际流程验收
 
+## 2026-09-14 R04 老师自建任务与 Core 托管验收
+
+- Core [#78](https://github.com/PIGU-PPPgu/edupi/pull/78) merge commit `bf42f89227a48cdf2bfd94a636c4268d3da10759`、[#81](https://github.com/PIGU-PPPgu/edupi/pull/81) merge commit `af38213333bffcda89b3b12c3d85151861328923` 与 [#83](https://github.com/PIGU-PPPgu/edupi/pull/83) merge commit `9235cb5b577882bbb114ee71a713e01d87efe6c5` 全量 `npm test` 通过。新传输 envelope 重放同一创建命令会返回原回执；只改变第二项材料返回 `idempotency_conflict`，不创建第二个任务。旧版创建指纹只在完整任务与原来源哈希一致时迁移；新任务的课次、星期及每份材料的删除/文件/班级/学科状态由 Core 事务核对，已提交任务在课表移除后仍先重放。同 revision 来源经历失败、恢复、再次失败时，同一 Kernel run 会再次显示失败并可再次结清，attempt 仍为 1。
+- 隔离浏览器实际打开工作区新建任务。课次显示“周三 · 数学 · 703 · 第 2 节”；填写周四日期时出现“请选择周三对应的上课日期”且提交不可用。有效日期 `2026-09-16` 自动得到截止日期 `2026-09-15`；上课日期改为 `2026-09-23` 后截止日期变为 `2026-09-22`，手动改为 `2026-09-20` 后再切回上课日期，手动值保持不变。
+- 同一表单在 768×900 视口实际展开后，form `clientWidth=scrollWidth=738`、主区与来源区均为单列 `714px`，没有横向裁切，纵向溢出为 `auto`；1000px 以下的两列与 820px 以下的单列规则另有静态回归。
+- 点击“创建并准备”后没有切页或手动刷新。服务端记录同一 task ID 的 3 次状态 GET，任务板从正在准备自动进入待我确认；任务详情显示进入队列、开始准备、准备完成三条 Core 流转和 4 份独立产物。实际打开“练习与参考答案”，正文显示 `2x + 3 = 7，答案 x = 2。`。首次故意让模型只返回 2 份而任务要求 4 份时，Core 显示准备失败，没有伪报完成；改为严格匹配 4 份后通过。隔离数据、模型服务和页面均已清理。
+- `test-edupi-teacher-created-preparation-e2.mjs` 覆盖创建并启动、双产物、完整材料列表冲突、错误星期拒绝、已提交任务在课表移除后重放、来源失败、恢复重生成和 Runtime 重启重放；`test-edupi-task-board-write-e2.mjs` 覆盖三个稳定 UUID 的创建、流转、直接完成、重启读回和提醒去重。Core 外部合同 9 项全部通过。HTTP 202 后的任务读取采用 0/250/750/1500/3000ms 退避并把后续间隔封顶为 3 秒，持续到任务可见或页面卸载；任务已在后台完成后重新打开时直接刷新产物并显示“已准备”。
+- 补充失败边界：Core 回执已接受但首次快照重读失败时，命令层返回 accepted-pending，仍继续启动准备和最终 202 重读；创建、移动、审核、删除、会话绑定和子模块保存统一推进 load sequence floor，先前并发旧快照不能覆盖新状态。已接受 task 首次出现在新快照后即解除额外守卫；显式删除同时取消跟踪并推进代次。任务删除后按 task ID 停止准备与待显示轮询，临时状态读取失败标为 retryable 并继续；ready 状态只有在成功读到带产物的权威 work case 后才停止。受管 output/material 目录逐级拒绝符号链接后才进入共享文件白名单。名单 ID 只对没有 `school-roster` 外部标识的旧实体启用直接 ID 兼容，显式冲突不会串到另一名学生。
+- Desktop 全量 1128 tests 中 1103 passed、25 skipped、0 failed；TypeScript 与 ESLint 通过。该证据仍是源码隔离环境，不替代下一安装版、更多学科样本和真实课堂内容质量验收。
+
 ## 2026-09-14 `v0.3.11` 安装版与 Core 对齐验收
 
 - Release `v0.3.11` workflow `34765761183` 三平台及 manifest 成功；macOS updater SHA-256 与远端 `d90947…a37` 一致，Minisign 公钥验证成功。本机替换安装后原生页面显示 `v0.3.11`，既有教师工作区仍可见。
@@ -362,3 +372,33 @@ Core9af123d启动后，无需再保存摘录，旧任务已回planned、当前�
 - 最终包 loopback 模型配置复核：临时 localhost SSE mock 通过 `/api/models-config/test` 返回 `ok=true`、HTTP 200、`responseText=OK`，未写入持久模型配置，mock 服务已关闭。
 - 同一最终 pin 的 Desktop 全量回归为 1067 tests、1042 passed、0 failed、25 skipped；`tsc --noEmit`、`npm run lint`、定向 C1/C2/C3 与 C6 recognition E2 均通过。C6 真实识别使用隔离材料，得到 3 个校历事件、1 个课表项，暂存目录回到 0。
 - 仍未完成的证据边界：真实系统睡眠/唤醒与安装版自动补跑、系统通知点击、Windows/Linux 实机安装升级、签名/公证、零 API 首次完整备课、安装版后台恢复、真实课堂内容质量和外部连接器账号闭环。当前桌面自动化读取超时，原生页面点击未以接口结果替代。
+
+# 2026-09-14 Core 事实脊柱桌面投影
+
+环境：macOS 本机开发服务 `30141`；Desktop 当前工作树；Core `7c92b1e6dd7ec35aab7201c5565bd00c10875e51`；隔离数据根 `/private/tmp/edupi-fact-ui-20260914`，验收后删除。
+
+- 通过 Core `education_fact_store.mjs` 的受管 writer admission 建立学生实体 `entity_3458cead12d45992685eec845c008852`、教师原话观察和已确认事实 `fact_c49e38d858737637b5a525b04555cba5`。Desktop `/api/edupi/education` 回读 `factSpine=true`、1 个学生视图、1 条教学事实和1个学生档案。
+- 实际打开 `view=teaching&item=teaching:knowledge`，页面显示“Core 教学依据”“移项符号仍需练习”“林晓 · 错因模式 · 数学 · 方程”和“下节课采用”；连续展开事实及来源后显示原始教师话语“林晓移项时容易忘记变号，需要在下一节课安排针对性练习。”
+- 实际打开学生档案，显示同一条“Core 事实”、已确认状态、谓词、学科、主题和来源入口。两处使用相同 Core 事实 ID，没有由 Desktop 重新推断。
+- 共享弹窗栈定向测试覆盖任务详情、教学上下文、聊天、材料、日历和学生抽屉的 Escape、焦点约束与焦点返回。该证据不包含事实写入/修改/审核/删除/恢复，也不替代安装版或真实课堂内容验收。
+
+# 2026-09-14 老师自建教学任务受管执行
+
+环境：Desktop 当前开发工作树；Core PR [#69](https://github.com/PIGU-PPPgu/edupi/pull/69) merge commit `2be918baed1102133d7f22f2292a2bb41edb9781`；隔离数据、Pi 配置与 localhost 流式模型，验收后全部删除。
+
+- 后端 E2 通过正式 `POST /api/edupi/tasks` 创建 source-backed 教学任务，再经 `POST /api/edupi/preparation` 进入 Core Runtime。任务、work candidate、work case 和两份 generated artifact 使用同一 `task_id`；首次模型调用一次，重复准备不增加调用。
+- 复核后改为一个服务端请求完成创建与启动：客户端 UUID `22222222-2222-4222-8222-222222222222` 稳定派生 task ID；原请求再次提交返回 `replayed=true`，任务仍1条、模型调用不增加。伪造为另一 task 的 target/applied IDs 回执在启动前被拒绝。
+- 删除所选课表 slot 后再次准备返回 `source_unavailable`，模型调用数保持不变；恢复相同 slot 后，Core 在新 source revision 下重新生成一次。关闭并重启 Runtime 后再次准备返回 ready，模型调用数保持 2，未重复生成。
+- 缺来源的显式准备现在产生 `g1_prepare_task` Kernel 失败记录；同一 task/revision 立即 GET 状态与关闭 Runtime 后再次 GET 均返回相同教师可读原因。组件初次挂载会主动读取该状态，刷新不再把失败重置成空闲。
+- Core #76 进一步实测同一 candidate revision 下材料文件暂时不可用：连续两次预检只保留 attempt 1；文件原样恢复后，同一 Kernel run 变为 succeeded、error_code 清空。创建与启动已完成但最后一次 workspace 读取失败时返回 HTTP 202，客户端后台刷新，不把持久成功改写成失败文案。
+- 页面实际操作填写“教师自建单元检测”、截止日期和备注，勾选“由 Core 准备教学产物”，选择数学/703/第2节、上课日期、已接入材料，并把产物改为“检测卷、参考答案”。提交后页面显示“任务已创建，Core 正在准备教学产物”，任务板只有1项，没有同课次自动任务；随后自动进入“待我确认/已准备”。
+- 双击任务后，详情显示进入队列、开始准备、准备完成三条 Core 流转，以及两份独立可点击产物。页面分别打开检测卷正文“解方程 2x + 3 = 7”和参考答案“移项得 2x = 4，所以 x = 2；代入检验成立”。
+- 首次打开产物真实复现 `/api/files` 403 `Access denied`；修复后只授权当前数据根内 `.edupi/output` 与 `.edupi/inbox/teacher-materials`，通用数据根和普通文件仍不在 file API allowlist，同一路径重试返回 200。任务详情同时消费 generated index 与 work-case artifact 元数据，两份文件均可预览。测试未向真实教师、学生或正式模型写入数据。
+
+# 2026-09-14 Core 事实稳定身份复核
+
+- Core PR [#71](https://github.com/PIGU-PPPgu/edupi/pull/71) merge commit `145875575245335f82297a46c70fd3746a4fe9f3` 将实体的受限外部引用纳入事实投影，不暴露 alias 展示值或内部来源字段。Core `npm test` 全量通过。
+- 隔离 E2 中名单学生 ID 为 `student-roster-e2`，事实实体 ID 为 `entity_67494bb94ad4ffb3c99de27e5115f41a`，两者不同；Desktop API 通过 `school-roster` 引用得到唯一映射，服务端渲染仍显示事实及原始教师话语。
+- 页面复核使用另一组不同 ID：URL/名单选择为 `student-roster-ui`，Core entity 与 student view 均为 `entity_411bafd9fcea085b81b050a48a97e8db`。学生档案显示1条已确认 Core 事实“移项符号仍需练习”，证明不再依赖碰巧相同的 ID 或姓名匹配。
+- Desktop 对学生视图事实归属、教学/by-subject、下节课引用、冲突实体和实体外部引用做原子校验；任何交叉引用错误只令可选 `factSpine` 为空。生产 snapshot consumer 只在基础 workspace 仍通过完整 schema 时隔离坏 fact spine，任务、日历和学生名单继续可读；其他字段错误仍拒绝整个 envelope。
+- Core #74/#76 过滤已经 superseded/不可见事实的 use，并省略证据 observation 不在当前有界投影中的 hypothesis；Desktop 拒绝 hypothesis 悬空/跨实体引用、未知 use fact，以及 student projection use 指向其他学生事实。普通事实缺少正文但仍有 source ID 的合法截断继续显示 source ID，不将限长当作伪造错误。

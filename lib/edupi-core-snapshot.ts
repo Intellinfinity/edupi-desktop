@@ -40,9 +40,12 @@ const CORE_OPERATIONS = ["health", "snapshot", "workspace-resources", "generated
 export type CoreProactiveWorkRun = {
   run_id: string;
   trigger_id: string;
+  fire_key?: string;
   status: "running" | "awaiting_delivery" | "failed" | "needs_review" | "succeeded" | "skipped";
   updated_at: string;
   result_summary: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
   attempt_count: number;
 };
 
@@ -135,7 +138,7 @@ export async function readEduPiEducationSnapshot({
     || !sameCapabilityList(response.supported_projections, identity.contract.supported_projections)) {
     throw new EduPiSnapshotError("capability_mismatch", "Core education projection capability mismatch");
   }
-  const consumed = consumeCoreEnvelope(response.envelope);
+  const consumed = consumeCoreEnvelope(response.envelope, { allowInvalidFactSpine: true });
   if (!consumed.ok) throw new EduPiSnapshotError(consumed.code, bridgeErrorMessage(consumed.code));
   if (consumed.kind !== "snapshot") throw new EduPiSnapshotError("unsupported_command", "Core returned an unsupported education receipt");
   const payload = consumed.value as CoreEducationSnapshotPayload;

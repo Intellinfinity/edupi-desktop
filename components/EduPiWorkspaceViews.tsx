@@ -27,6 +27,7 @@ import type { MaterialStagingDescriptor } from "@/lib/edupi-material-staging-cli
 import type { TaskBoardLaneId } from "@/lib/edupi-task-board";
 import type { EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import type { EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
+import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 import type { EduPiKernelState } from "@/lib/edupi-kernel-client";
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 
@@ -62,7 +63,7 @@ type Props = {
   onOpenAdmin: () => void;
   onOpenFile: (path: string) => void;
   onStartAgent: (prompt: string, mode?: "insert" | "replace") => void;
-  onCreateTask: (input: { title: string; dueDate: string | null; note: string | null }) => Promise<void>;
+  onCreateTask: (input: CreateTeacherTaskInput) => Promise<CreateTeacherTaskOutcome>;
   onMoveTask: (task: TeacherTask, stage: TaskBoardLaneId) => Promise<void>;
   onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean>;
   onReviewTarget?: (target: { kind: "observation" | "memory_candidate"; id: string }) => void;

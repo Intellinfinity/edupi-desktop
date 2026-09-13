@@ -337,6 +337,13 @@ export async function listenQuickEntryNative(handler: () => void): Promise<() =>
   return listen("edupi://quick-entry", () => handler());
 }
 
+/** Subscribe to the native event-loop resume signal after system sleep. */
+export async function listenDesktopResumeNative(handler: () => void): Promise<() => void> {
+  if (!isTauriDesktop()) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen("edupi://resume", () => handler());
+}
+
 export type ReminderNotificationTarget = { taskId: string; kind: "ready" | "failed" | "due" | "brief" };
 export type ReminderNotificationClaim = { id: string; attemptedAt: string };
 export type NativeReminderNotification = { title: string; body: string; target: ReminderNotificationTarget | null; claims: ReminderNotificationClaim[] };

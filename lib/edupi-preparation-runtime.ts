@@ -88,12 +88,14 @@ export async function startPreparation({ taskId = null }: { taskId?: string | nu
 export async function ensurePreparation(): Promise<PreparationStatus> {
   try {
     const host = await ensureEduPiRuntime(resolveEduPiBridgeRoots());
+    // Agent-computer recovery is independent from the preparation scan. A
+    // malformed calendar source must not leave an unrelated document job stuck.
+    void pumpBackgroundJobs().catch(() => console.warn("[edupi background] startup recovery unavailable"));
     // The Core timer performs the same scan every five minutes. Running it
     // once on Desktop startup/resume closes the sleep gap immediately; Core's
     // source revision and queue replay guards keep this idempotent.
     const catchUp = await host.call("prepare_due", null);
     if (!catchUp.ok) throw failure(catchUp);
-    void pumpBackgroundJobs().catch(() => console.warn("[edupi background] startup recovery unavailable"));
     return preparationStatus();
   } catch {
     return { ...current(), state: "error", error: "备课执行尚未连接" };

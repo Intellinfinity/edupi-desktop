@@ -1,5 +1,13 @@
 # 实际流程验收
 
+## 2026-09-13 `v0.3.9` 发布与安装版复核
+
+- Release workflow `34738213112` 的 macOS、Linux、Windows 和 manifest jobs 全部通过；Release `v0.3.9` 为非草稿、非预发布，三平台安装包、updater 资产、签名文件、`latest.json` 和组件清单均存在。
+- `latest.json` 三个平台均回读 `v0.3.9` 下载 URL 和签名；组件清单回读 Desktop `0.3.9`、Pi `0.84.1`、pi-web `0.8.7`。macOS updater tar.gz 的 SHA-256 与 GitHub asset digest 一致，本机 updater 公钥验证签名成功。
+- 本机安装复核：备份原 `/Applications/EduPi.app` `v0.3.8`，替换并启动 `v0.3.9`；`/api/updates?refresh=1` 返回 current/latest `0.3.9`、`updateAvailable=false`，`/api/edupi/status?summary=1` 返回 Core/projection ready，工作区为 50/237/43/9。
+- 安装版管理中心页面显示 `v0.3.9`；模型接口回读默认 `zai-coding-cn / glm-5.2`，可见 DeepSeek、Z.AI Coding CN 和 `edupi-test` 三个 Provider 来源。保存 Key 后自动加载模型的写入操作仍以隔离源码版记录为准，未向正式账户提交测试 Key。
+- 未验证：Apple 公证、Linux/Windows 应用内升级、系统通知点击、睡眠唤醒和真实课堂内容质量。
+
 ## 2026-09-13 Provider/API Key 自动模型配置
 
 - 代码版本：Desktop `6541524`，源码开发服务 `Next.js 16.3.4`，临时 HOME 和临时数据根；正式用户目录未用于写入验收数据。
@@ -7,7 +15,7 @@
 - 继续点击同一面板的“+ 自定义模型”，页面仍保留 DeepSeek Provider 选择和 API Key 区域，列表变为 3 个并显示“新模型”编辑字段；没有跳回旧的独立模型配置页。模型编辑器中的 models.dev 来源链接可见。
 - 安全边界：临时 Key 只写入临时 HOME 的 AuthStorage；模型配置不保存受管 Provider 的 API Key。验收结束已关闭临时服务、删除临时 HOME/数据根，并复核真实 `~/.pi/agent/models.json` 仍只有原 `edupi-test` Provider，默认仍为 `zai-coding-cn / glm-5.2`。
 - 自动化证据：Provider 路由与元数据投影测试、ModelsConfig onboarding/embedded 测试通过；`npm test` 为 1053 passed、0 failed、25 skipped，`tsc --noEmit` 和 `npm run lint` 通过。
-- 未验证：尚未把该提交打入新安装包，也未完成 Windows/Linux/macOS 安装版从保存 Key 到模型配置的验收；本次页面实际走的是运行时模型目录，`models.dev` 回退和真实 Provider 动态目录仍需独立验证，未把外部账号内容质量当作通过条件。
+- 未验证：`v0.3.9` 已包含该提交，但本次安装版只复核了版本、模型读取和 Core 状态，未在安装版实际提交 Key 并完成保存后的全链路；本次页面实际走的是运行时模型目录，`models.dev` 回退和真实 Provider 动态目录仍需独立验证，未把外部账号内容质量当作通过条件。
 
 ## 2026-09-13 Desktop/Core 匹配与导入交互复核
 

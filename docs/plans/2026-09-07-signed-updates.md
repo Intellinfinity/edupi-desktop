@@ -1,5 +1,14 @@
 # 自动下载安装
 
+## 2026-09-13 `v0.3.9` Provider 模型配置发布与本机包复核
+
+- Release workflow `34738213112` 的 macOS、Linux、Windows build 和 manifest 全部成功；`v0.3.9` 已发布为非草稿、非预发布版本。
+- Release 资产包含 DMG、AppImage、deb、Windows NSIS、macOS updater tar.gz、三平台签名文件、`latest.json` 和 `component-versions.json`。`latest.json` 的 `darwin-aarch64`、`linux-x86_64`、`windows-x86_64` 均指向 `v0.3.9`；组件清单为 Desktop `0.3.9`、Pi `0.84.1`、pi-web `0.8.7`。
+- 本机远端 macOS updater tar.gz SHA-256 为 `39627a85d77d13283358344981bc91bd628df932cbb9cf3eda15b5bb78533c71`，与 GitHub asset digest 一致；使用本机 updater 公钥复核签名为 `valid`。
+- `/Applications/EduPi.app` 已从 `v0.3.8` 备份并替换为签名 `v0.3.9` 包后启动。Info.plist、`/api/updates?refresh=1` 和 `/api/edupi/status?summary=1` 分别回读 `0.3.9`、up-to-date、Core/projection ready；工作区回读 50 名学生、237 个任务、43 个校历、9 个课表。
+- 安装版模型接口回读默认 `zai-coding-cn/glm-5.2`，模型列表包含 DeepSeek、Z.AI Coding CN 和自定义 `edupi-test`；管理中心页面显示 `v0.3.9`。此前隔离源码版已完成保存 Key 后自动加载模型和同面板自定义模型的真实页面验收。
+- 未验证：Apple 公证、Linux/Windows 应用内升级、系统通知点击与睡眠唤醒；未在正式教师数据上输入或替换 API Key。
+
 ## 2026-09-12 本地签名复核（取代“缺少私钥”的当前风险描述）
 
 - 已找到本机永久 updater 密钥对：`~/.config/edupi-release/updater.key` 与 `.pub`。用私钥对临时文件签名成功，确认该私钥未设置密码。

@@ -705,6 +705,7 @@ html.dark .edupi-teacher-shell {
 .edupi-task-board-create__source fieldset label { flex-direction: row; align-items: center; }
 .edupi-task-board-create__source fieldset input { width: 14px; height: 14px; }
 .edupi-task-board-create__source fieldset p { margin: 0; color: var(--ep-danger); font-size: 10px; }
+.edupi-task-board-create__source > p { grid-column: 1 / -1; margin: 0; color: var(--ep-danger); font-size: 10px; }
 .edupi-task-detail-artifacts li > button { display: flex; width: 100%; padding: 0; align-items: center; justify-content: space-between; gap: 10px; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .edupi-operation-history,
 .edupi-context-history { margin: 12px 16px; border-top: 1px solid var(--ep-border); }
@@ -1621,6 +1622,9 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-teacher-rail button.is-active { box-shadow: inset 3px 0 var(--ep-blue); }
   .edupi-teacher-rail__text > small { display: block; font-size: 10px; }
   .edupi-teacher-rail button em { position: absolute; top: 1px; right: 1px; }
+  .edupi-task-board-create { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .edupi-task-board-create__source { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .edupi-task-board-create > .edupi-task-board-create__actions { grid-column: 1 / -1; justify-content: flex-end; }
   .edupi-dashboard-board,
   .edupi-today-layout,
   .edupi-domain-grid,
@@ -1724,7 +1728,8 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-memory-groups { grid-template-columns: 1fr; }
   .edupi-workspace-board { padding: 18px 14px 16px; }
   .edupi-workspace-board__heading { min-height: 58px; }
-  .edupi-task-board-create { grid-template-columns: minmax(240px, 1fr) 150px minmax(180px, 1fr) auto; min-width: 820px; }
+  .edupi-task-board-create { max-height: calc(100vh - 150px); grid-template-columns: minmax(0, 1fr); min-width: 0; align-items: stretch; overflow-y: auto; }
+  .edupi-task-board-create__source { grid-template-columns: minmax(0, 1fr); }
   .edupi-task-board { min-width: 980px; }
   .edupi-today-work__groups { grid-template-columns: 1fr; }
   .edupi-today-work__group + .edupi-today-work__group { border-top: 1px solid var(--ep-border); border-left: 0; }

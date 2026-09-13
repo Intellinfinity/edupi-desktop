@@ -20,7 +20,8 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.doesNotMatch(admin, /\/api\/edupi\/(?:onboarding|education)/);
   for (const label of ["管理中心", "EduPi 就绪度", "自动运行", "教学能力", "连接与后台", "学校平台", "AI 与模型", "教师与学生", "校历与课表", "上传内容", "任务与产物", "系统"]) assert.match(admin, new RegExp(label));
   for (const label of ["运行中", "待确认", "已完成", "最近自动运行"]) assert.match(admin, new RegExp(label));
-  assert.match(admin, /formatNextScheduledRun/);
+  assert.match(admin, /formatCoreSchedulerStatus/);
+  assert.doesNotMatch(admin, /formatNextScheduledRun/);
   assert.match(admin, /ADMIN_SECTIONS/);
   assert.match(admin, /has-desktop-drag-region/);
   assert.match(admin, /edupi-window-drag-region/);
@@ -37,6 +38,7 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /coreConnected && projectionConnected/);
   assert.match(admin, /EduPiCoreCompatibility/);
   assert.match(admin, /snapshot\.compatibility/);
+  assert.match(compatibility, /runtimeComponentManifestHash/);
   assert.match(admin, /await readJson<AdminSnapshot\["models"\]>\("\/api\/models", controller\.signal\)/);
   assert.match(admin, /Boolean\(snapshot\.context && snapshot\.education && snapshot\.status\)/);
   assert.match(admin, /className="edupi-admin-sidebar"/);
@@ -61,6 +63,8 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.doesNotMatch(admin, /education\?\.[a-zA-Z]+\.length \|\| 0/);
   assert.doesNotMatch(admin, /snapshot\.models\?\.modelList\?\.length \|\| 0/);
   assert.doesNotMatch(admin, /配置模块即将接入/);
+  assert.match(admin, /configurableConnectors = new Set\(\["feishu", "dingtalk"\]\)/);
+  assert.match(admin, /status === "configured"\) return "已配置"/);
 
   assert.match(rail, /APP_VERSION_DISPLAY/);
   assert.match(rail, /当前版本 v/);

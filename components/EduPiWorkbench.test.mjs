@@ -69,6 +69,9 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(taskBoard, /current\.filter\(\(id\) => compatibleMaterialIds\.has\(id\)\)/);
   assert.match(taskBoard, /deliverableValidation\.error/);
   assert.match(panel, /pollBoardPreparation/);
+  assert.match(panel, /next\.state === "idle"/);
+  assert.match(panel, /!refreshed\.tasks\.some\(\(task\) => task\.id === taskId\)/);
+  assert.match(panel, /stopTaskTracking\(id\)/);
   assert.match(panel, /fetch\(`\/api\/edupi\/preparation\?taskId=/);
   assert.doesNotMatch(panel, /fetch\("\/api\/edupi\/preparation"[^\n]+method: "POST"/);
   assert.match(panel, /refreshCommittedTask/);

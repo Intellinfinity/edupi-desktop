@@ -200,6 +200,13 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     return nextEducation;
   }, []);
 
+  const stopTaskTracking = useCallback((taskId: string) => {
+    preparationPollsRef.current.get(taskId)?.abort();
+    preparationPollsRef.current.delete(taskId);
+    taskRefreshesRef.current.get(taskId)?.abort();
+    taskRefreshesRef.current.delete(taskId);
+  }, []);
+
   const pollBoardPreparation = useCallback((taskId: string) => {
     if (preparationPollsRef.current.has(taskId)) return;
     const controller = new AbortController();
@@ -215,6 +222,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
                 await loadWorkspace(controller.signal).catch(() => {});
                 if (!controller.signal.aborted) window.dispatchEvent(new Event("edupi-preparation-updated"));
                 return;
+              }
+              if (next.taskId === taskId && next.state === "idle") {
+                const refreshed = await loadWorkspace(controller.signal).catch(() => null);
+                if (refreshed && !refreshed.tasks.some((task) => task.id === taskId)) return;
               }
             }
           } catch (error) {
@@ -780,7 +791,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       setEducation(result.data);
       if (kind === "calendar" || kind === "timetable") setCalendarSelection(null);
       if (kind === "student") setSelectedStudentId(null);
-      if (kind === "task") { setTaskDetailTask(null); setSelectedTaskKey(null); }
+      if (kind === "task") { stopTaskTracking(id); setTaskDetailTask(null); setSelectedTaskKey(null); }
       setMaterialStagingMessage({ tone: "success", text: `已删除：${label}` });
       return true;
     } catch (error) {
@@ -789,7 +800,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     } finally {
       setDeleteBusy(null);
     }
-  }, [deleteBusy, education]);
+  }, [deleteBusy, education, stopTaskTracking]);
 
   const closeDrawer = useCallback(() => {
     cancelActivation();

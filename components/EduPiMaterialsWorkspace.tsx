@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { EducationContract, EducationEntityDeleteKind, TeacherTask } from "@/lib/edupi-education-contract";
 import { MATERIAL_CATEGORIES, routePart, type MaterialCategoryId } from "@/lib/edupi-domain-navigation";
 import type { MaterialStagingDescriptor } from "@/lib/edupi-material-staging-client";
+import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
-import { buildMaterialRows, type MaterialRow } from "@/lib/edupi-material-rows";
+import { buildMaterialRows, defaultMaterialIntakeMetadata, type MaterialIntakeMetadata, type MaterialRow } from "@/lib/edupi-material-rows";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import { EduPiMaterialExcerpt } from "./EduPiMaterialExcerpt";
@@ -19,7 +20,7 @@ function shortDate(value: string | null): string {
 }
 
 
-export function EduPiMaterialsWorkspace({ data, query, selectedObjectId, stagedMaterials, stagingBusy, stagingMessage, onTask, onUpload, onIntakeMaterial, onRemoveStagedMaterial, onOpenFile, onStartAgent, onDeleteEntity }: { data: EducationContract; query: string; selectedObjectId: string | null; stagedMaterials: MaterialStagingDescriptor[]; stagingBusy: boolean; stagingMessage: string | null; onTask: (task: TeacherTask) => void; onUpload: () => void; onIntakeMaterial: (item: MaterialStagingDescriptor) => Promise<unknown>; onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>; onOpenFile: (path: string) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
+export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId, stagedMaterials, stagingBusy, stagingMessage, onTask, onUpload, onIntakeMaterial, onRemoveStagedMaterial, onOpenFile, onStartAgent, onDeleteEntity }: { data: EducationContract; context: TeacherContextSnapshot | null; query: string; selectedObjectId: string | null; stagedMaterials: MaterialStagingDescriptor[]; stagingBusy: boolean; stagingMessage: string | null; onTask: (task: TeacherTask) => void; onUpload: () => void; onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => Promise<unknown>; onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>; onOpenFile: (path: string) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
   const category = routePart(selectedObjectId, "materials", "all") as MaterialCategoryId;
   const categoryLabel = MATERIAL_CATEGORIES.find((item) => item.id === category)?.label || "全部材料";
   const [page, setPage] = useState(0);
@@ -28,10 +29,15 @@ export function EduPiMaterialsWorkspace({ data, query, selectedObjectId, stagedM
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [archivedId, setArchivedId] = useState<string | null>(null);
   const [operationError, setOperationError] = useState("");
+  const [intakeDraft, setIntakeDraft] = useState<(MaterialIntakeMetadata & { stagingId: string }) | null>(null);
+  const classes = useMemo(() => [...new Set((context?.classes || []).map(value => value.trim()).filter(Boolean))], [context?.classes]);
   const generatedError = data.generatedArtifactsUnavailable;
   const materialIntakeReady = data.capabilities.materialIntake.enabled;
   const rows = useMemo(() => buildMaterialRows(data, query).filter(item => category === "all" || item.category === category), [data, query, category]);
   useEffect(() => { setPage(0); setSelected(null); }, [category, query]);
+  useEffect(() => {
+    if (intakeDraft && !stagedMaterials.some(item => item.staging_id === intakeDraft.stagingId)) setIntakeDraft(null);
+  }, [intakeDraft, stagedMaterials]);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const visible = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const materialSource = data.dataSources.materials;
@@ -74,10 +80,26 @@ export function EduPiMaterialsWorkspace({ data, query, selectedObjectId, stagedM
     else await desktop.revealItemInDirNative(selected.filePath);
   };
   const canDeleteSelected = selected?.deleteKind === "generated" || Boolean(selected?.deleteKind && data.capabilities.entityDelete.enabled && data.capabilities.entityDelete.targetKinds.includes(selected.deleteKind) && (selected.deleteKind !== "task" || selected.task?.id));
+  const beginIntake = (item: MaterialStagingDescriptor) => {
+    setOperationError("");
+    setIntakeDraft({ stagingId: item.staging_id, ...defaultMaterialIntakeMetadata(item.original_name, context) });
+  };
+  const submitIntake = async (event: FormEvent, item: MaterialStagingDescriptor) => {
+    event.preventDefault();
+    if (!intakeDraft || intakeDraft.stagingId !== item.staging_id || !intakeDraft.title.trim() || !intakeDraft.subject.trim() || !intakeDraft.classId.trim()) {
+      setOperationError("请填写材料名称、学科和班级");
+      return;
+    }
+    setOperationError("");
+    try {
+      await onIntakeMaterial(item, { ...intakeDraft, title: intakeDraft.title.trim(), subject: intakeDraft.subject.trim(), classId: intakeDraft.classId.trim() });
+      setIntakeDraft(null);
+    } catch { /* Parent surface reports the bounded intake error. */ }
+  };
 
   return <main className="edupi-module-workspace edupi-database-workspace">
     <header className="edupi-module-heading"><div><span>材料</span><h1>{categoryLabel}</h1><p>{materialSource.present ? "数据已连接" : "材料索引尚未接入"} · {rows.length} 份材料 · {stagedMaterials.length} 份待接入</p></div><button type="button" disabled={stagingBusy} onClick={onUpload}>{stagingBusy ? "处理中…" : "上传材料"}</button></header>
-    {stagedMaterials.length > 0 ? <details className="edupi-material-inbox" open><summary>待接入材料 <span>{stagedMaterials.length}</span></summary><div>{stagedMaterials.map((item) => <div key={item.staging_id}><strong>{item.original_name}</strong><span>{Math.ceil(item.expected_size_bytes / 1024)} KB</span><button type="button" disabled={stagingBusy || !materialIntakeReady} title={!materialIntakeReady ? data.capabilities.materialIntake.reason : undefined} onClick={() => void onIntakeMaterial(item).catch(() => {})}>接入 EduPi</button><button type="button" disabled={stagingBusy} onClick={() => void onRemoveStagedMaterial(item)}>移除</button></div>)}</div>{!materialIntakeReady ? <p className="edupi-material-capability-note" role="status">{data.capabilities.materialIntake.reason}</p> : null}</details> : null}
+    {stagedMaterials.length > 0 ? <details className="edupi-material-inbox" open><summary>待接入材料 <span>{stagedMaterials.length}</span></summary><div>{stagedMaterials.map((item) => <div className="edupi-material-inbox__item" key={item.staging_id}><div className="edupi-material-inbox__row"><strong>{item.original_name}</strong><span>{Math.ceil(item.expected_size_bytes / 1024)} KB</span><button type="button" disabled={stagingBusy || !materialIntakeReady} title={!materialIntakeReady ? data.capabilities.materialIntake.reason : undefined} onClick={() => intakeDraft?.stagingId === item.staging_id ? setIntakeDraft(null) : beginIntake(item)}>{intakeDraft?.stagingId === item.staging_id ? "取消" : "接入 EduPi"}</button><button type="button" disabled={stagingBusy} onClick={() => void onRemoveStagedMaterial(item)}>移除</button></div>{intakeDraft?.stagingId === item.staging_id ? <form className="edupi-material-intake-form" onSubmit={(event) => void submitIntake(event, item)}><label>材料名称<input required maxLength={240} value={intakeDraft.title} onChange={(event) => setIntakeDraft({ ...intakeDraft, title: event.target.value })} /></label><label>材料类型<select value={intakeDraft.materialKind} onChange={(event) => setIntakeDraft({ ...intakeDraft, materialKind: event.target.value as MaterialIntakeMetadata["materialKind"] })}><option value="worksheet">学案 / 练习</option><option value="lesson_note">教案 / 备课</option><option value="assessment">测验 / 作业</option><option value="classroom_record">课堂记录</option><option value="other">其他</option></select></label><label>学科<input required maxLength={120} value={intakeDraft.subject} onChange={(event) => setIntakeDraft({ ...intakeDraft, subject: event.target.value })} /></label><label>班级{classes.length ? <select required value={intakeDraft.classId} onChange={(event) => setIntakeDraft({ ...intakeDraft, classId: event.target.value })}><option value="">选择班级</option>{classes.map(item => <option value={item} key={item}>{item}</option>)}</select> : <input required maxLength={160} value={intakeDraft.classId} onChange={(event) => setIntakeDraft({ ...intakeDraft, classId: event.target.value })} />}</label><button type="submit" className="is-primary" disabled={stagingBusy}>确认接入</button></form> : null}</div>)}</div>{!materialIntakeReady ? <p className="edupi-material-capability-note" role="status">{data.capabilities.materialIntake.reason}</p> : null}</details> : null}
     {stagingMessage ? <p className="edupi-material-message" role="status">{stagingMessage}</p> : null}
     {generatedError ? <p className="edupi-material-message" role="status">对话生成文件索引暂不可用</p> : null}
     {operationError ? <p role="alert">{operationError}</p> : null}

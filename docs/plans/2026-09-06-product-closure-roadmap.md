@@ -8,6 +8,7 @@
 - Core [#76](https://github.com/PIGU-PPPgu/edupi/pull/76) merge commit `ab0717f04cbfc747e8172cc7fcf033943622d36b` 让同 revision 来源恢复后结清原 Kernel 失败；重复失败只记一次，不耗尽重试。任务创建/启动已经持久化但最终页面刷新失败时，服务端返回 HTTP 202 与真实 preparation 状态，页面后台重读，不再谎报“任务创建失败”。
 - Core [#78](https://github.com/PIGU-PPPgu/edupi/pull/78) merge commit `bf42f89227a48cdf2bfd94a636c4268d3da10759` 将任务幂等判断改为稳定命令语义：请求 ID、时间和快照变化仍可返回原回执，第二项及后续材料变化会返回冲突；旧版创建记录只在完整持久任务与原来源哈希一致时迁移。同 revision 来源“失败→恢复→再次失败”会重新打开同一 Kernel 诊断，恢复后再次结清且不增加执行次数。
 - Core [#81](https://github.com/PIGU-PPPgu/edupi/pull/81) merge commit `af38213333bffcda89b3b12c3d85151861328923` 将课次存在性和星期校验放进 Core 新建事务，并位于幂等重放之后。新任务无法绕过当前课表约束；已提交任务即使随后课表被修改或移除，丢失响应后的重试仍返回原任务，不会误报创建失败。
+- Core [#83](https://github.com/PIGU-PPPgu/edupi/pull/83) merge commit `9235cb5b577882bbb114ee71a713e01d87efe6c5` 在同一新建事务中逐项核对材料仍未删除、文件可读且班级/学科匹配；依赖在提交前再次比对。桌面表单刷新时同步剔除已失效的隐藏选择，不能把旧 material ID 带进新任务。
 - 同一课次由老师明确创建后会取代该课次的自动候选。G1 继续核对班级、学科、已确认材料摘录和 source revision；来源移除在模型调用前失败，恢复来源后按新 revision 重生成，随后重启只重放，不重复产物。
 - 实际桌面页面完成“新建任务 → 由 Core 准备教学产物 → 选择课次/日期/材料/产物 → 创建并准备”；课次显示星期，日期必须匹配课表星期，自动截止日期随课次日期变化直到老师手动修改；材料与产物在提交前执行 Core 的 20 项、唯一值和单项长度边界。任务板保持按 task ID 轮询，自动从进行中进入待我确认，无需切页或手动刷新。
 - 教育工作区经过 Core 校验后只替换授权 `.edupi/output` 与 `.edupi/inbox/teacher-materials` 两个受管只读根，旧数据根会撤销；不再授权整个数据目录。任务详情合并 generated index 与权威 work-case artifacts，任一索引暂缺时仍可逐份打开；索引已明确标记不可用的文件不会被 work case 重新伪装成可点击产物。该证据使用隔离 localhost 模型与测试材料；真实教学内容质量和下一安装版仍单独验收。
@@ -15,7 +16,7 @@
 ## 2026-09-14 Core 事实脊柱进入桌面教学流
 
 - Desktop 现在严格读取 Core `education_fact_v1` 投影；无效投影只隔离事实区，不会清空其余教育工作区。学生档案按稳定 `student_id` 显示已确认、待确认和暂缓事实，并保留原始观察与来源；教学重点消费 Core `teaching_view`，同一事实 ID 会标出是否供下一节课采用。
-- Core [#71](https://github.com/PIGU-PPPgu/edupi/pull/71) 已合并，merge commit `145875575245335f82297a46c70fd3746a4fe9f3`。事实实体投影携带受限 `school-roster` 外部标识；Desktop 先由名单 ID 映射到 fact entity ID，再核对每个学生视图、教学视图和下节课引用的事实归属，禁止按姓名猜测或跨学生引用。Core #74/#76 只投影仍指向当前可见事实的 use 与 observation 完整的 hypothesis；Desktop 同时核对实体归属。当前精确 pin 为 Core `af38213333bffcda89b3b12c3d85151861328923`。
+- Core [#71](https://github.com/PIGU-PPPgu/edupi/pull/71) 已合并，merge commit `145875575245335f82297a46c70fd3746a4fe9f3`。事实实体投影携带受限 `school-roster` 外部标识；Desktop 先由名单 ID 映射到 fact entity ID，再核对每个学生视图、教学视图和下节课引用的事实归属，禁止按姓名猜测或跨学生引用。Core #74/#76 只投影仍指向当前可见事实的 use 与 observation 完整的 hypothesis；Desktop 同时核对实体归属。当前精确 pin 为 Core `9235cb5b577882bbb114ee71a713e01d87efe6c5`。
 - 实际页面以名单 ID `student-roster-ui` 打开林晓档案，对应 Core entity `entity_411bafd9fcea085b81b050a48a97e8db`，两者明确不同；页面仍显示该生“移项符号仍需练习”和原始教师观察。缺失的观察投影不再吞掉其他 source ID。
 - 隔离 Core 通过正式 fact store 建立学生、教师原话和已确认错因事实。实际页面在“教学重点”显示“移项符号仍需练习 · 林晓 · 下节课采用”，展开后显示原始教师话语；同一学生档案显示同一事实和来源。测试目录已清理，真实教师数据未改动。
 - R10 的跨模块读取与来源追溯已补齐一段，R14 的任务抽屉和教学上下文弹窗统一使用共享 Escape/焦点恢复栈。事实修改、审核、删除、恢复和后续备课使用回执仍未全部接到桌面端，因此 R09/R10 继续保持部分实现。

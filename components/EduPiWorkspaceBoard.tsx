@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { EducationContract, EducationWorkCandidate, EducationWorkCase, TeacherTask } from "@/lib/edupi-education-contract";
 import { workCaseForTask, workCaseStateLabel } from "@/lib/edupi-work-case";
 import { projectTaskBoard, taskBoardLane, taskBoardTargets, type TaskBoardLaneId } from "@/lib/edupi-task-board";
@@ -127,8 +127,15 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
   const usableSlots = data.timetable.filter((slot) => slotId(slot) && timetableDayOfWeek(slot) && rawText(slot.subject) && rawText(slot.class_name));
   const activeSlotId = timetableSlotId || slotId(usableSlots[0] || {});
   const activeSlot = usableSlots.find((slot) => slotId(slot) === activeSlotId) || null;
-  const compatibleMaterials = (data.teacherMaterials || []).filter((material) => material.available !== false && activeSlot
-    && material.subject === rawText(activeSlot.subject) && material.class_id === rawText(activeSlot.class_name));
+  const activeSubject = rawText(activeSlot?.subject);
+  const activeClass = rawText(activeSlot?.class_name);
+  const compatibleMaterials = useMemo(() => (data.teacherMaterials || []).filter((material) => material.available !== false
+    && material.subject === activeSubject && material.class_id === activeClass), [activeClass, activeSubject, data.teacherMaterials]);
+  const compatibleMaterialIds = useMemo(() => new Set(compatibleMaterials.map((material) => material.material_id)), [compatibleMaterials]);
+  useEffect(() => setMaterialIds((current) => {
+    const next = current.filter((id) => compatibleMaterialIds.has(id));
+    return next.length === current.length ? current : next;
+  }), [compatibleMaterialIds]);
   const deliverableValidation = preparationDeliverables(deliverables);
   const requestedDeliverables = deliverableValidation.items;
   const lessonDateValid = Boolean(activeSlot && lessonDateMatchesSlot(lessonDate, activeSlot));
@@ -137,6 +144,7 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
     : null;
   const canCreate = Boolean(title.trim()) && (!managedPreparation || Boolean(activeSlot && lessonDateValid
     && materialIds.length > 0 && materialIds.length <= MAX_PREPARATION_MATERIALS
+    && materialIds.every((id) => compatibleMaterialIds.has(id))
     && requestedDeliverables.length > 0 && !deliverableValidation.error));
 
   const stopDragging = () => {

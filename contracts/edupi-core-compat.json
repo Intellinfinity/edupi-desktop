@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "af38213333bffcda89b3b12c3d85151861328923",
+    "core_commit": "9235cb5b577882bbb114ee71a713e01d87efe6c5",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:8872eefd41925a86ffe29b2e51a19969162e5b53b5a254b86d7617fdd8376dd6",
-    "runtime_component_manifest_hash": "sha256:97cc8e46cb7e39318b674b99bc300ada72ce921254da6332bc7beeff0c58eafe"
+    "component_manifest_hash": "sha256:c79389bef865012af57cca29598e919a166034f7e157b9a57bd223f87345e6e7",
+    "runtime_component_manifest_hash": "sha256:f2523fbf8c35025a2b4b10ce76601003dccaa7733296150dfd306c1dc12c0d9d"
   },
   "contract_identities": [
     {
@@ -101,7 +101,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/74",
     "https://github.com/PIGU-PPPgu/edupi/pull/76",
     "https://github.com/PIGU-PPPgu/edupi/pull/78",
-    "https://github.com/PIGU-PPPgu/edupi/pull/81"
+    "https://github.com/PIGU-PPPgu/edupi/pull/81",
+    "https://github.com/PIGU-PPPgu/edupi/pull/83"
   ],
-  "change_note": "Paired Core PR #81 validates new teaching occurrences inside the Core transaction while allowing durable creates to replay before mutable source checks."
+  "change_note": "Paired Core PR #83 rejects deleted, missing, unavailable, cross-subject, and cross-class materials inside new managed task transactions while preserving prior idempotent replays."
 }

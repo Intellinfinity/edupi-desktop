@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "a180f1c70bb9c2e6c63bb5a6e2b25499f715130b",
+    "core_commit": "ab0717f04cbfc747e8172cc7fcf033943622d36b",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:53b57dda77e0e70edf41ae6c525a2b24064690d0cd7296b444c201665e9ff816",
-    "runtime_component_manifest_hash": "sha256:a1e3371952f903c5d5ea572775f11edde6a581817d5a913f497eb08d10c54d2f"
+    "component_manifest_hash": "sha256:e52cfce7e16c722cfd42ee7f94072102caaeb265efcc5a5c1e022ef43eded378",
+    "runtime_component_manifest_hash": "sha256:3c3629c8eadb9fc22575e25e77238ba0c015f7f69d1c1329fe5442be30421f7a"
   },
   "contract_identities": [
     {
@@ -98,7 +98,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/69",
     "https://github.com/PIGU-PPPgu/edupi/pull/71",
     "https://github.com/PIGU-PPPgu/edupi/pull/73",
-    "https://github.com/PIGU-PPPgu/edupi/pull/74"
+    "https://github.com/PIGU-PPPgu/edupi/pull/74",
+    "https://github.com/PIGU-PPPgu/edupi/pull/76"
   ],
-  "change_note": "Pinned Core PR #74 so explicit preparation preflight failures survive refresh and current fact-use rows remain referentially complete."
+  "change_note": "Pinned Core PR #76 so recovered preflight diagnostics settle and fact hypotheses retain projected observation evidence."
 }

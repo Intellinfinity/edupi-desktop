@@ -113,8 +113,9 @@ export async function POST(request: Request) {
       }
     }
     const preparation = task.preparation_source ? await startPreparation({ taskId }) : null;
-    data = await readEducationContract();
-    return NextResponse.json({ taskId, replayed, receipt, preparation, data }, { status: 200 });
+    let refreshed = null;
+    try { refreshed = await readEducationContract(); } catch { /* The task and preparation result are already durable. */ }
+    return NextResponse.json({ taskId, replayed, receipt, preparation, data: refreshed, refreshPending: refreshed === null }, { status: refreshed ? 200 : 202 });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Task request is too large", code: "too_large" }, { status: 413 });
     const code = error instanceof TaskBoardCommandError ? error.code : "unavailable";

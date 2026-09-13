@@ -58,10 +58,12 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   for (const label of ["新建任务", "移动到", "创建任务", "取消"]) assert.match(taskBoard, new RegExp(label));
   for (const label of ["由 Core 准备教学产物", "课次", "上课日期", "材料", "产物", "创建并准备"]) assert.match(taskBoard, new RegExp(label));
   assert.match(taskBoard, /preparationSource: managedPreparation/);
+  assert.match(taskBoard, /pendingCreateRef/);
+  assert.match(taskBoard, /clientRequestId: pendingCreateRef\.current\.id/);
   assert.match(taskBoard, /material\.subject === rawText\(activeSlot\.subject\)/);
   assert.match(taskBoard, /material\.class_id === rawText\(activeSlot\.class_name\)/);
-  assert.match(panel, /fetch\("\/api\/edupi\/preparation"/);
-  assert.match(panel, /await loadWorkspace\(\)/);
+  assert.doesNotMatch(panel, /fetch\("\/api\/edupi\/preparation"/);
+  assert.match(panel, /result\.preparation\?\.taskId !== result\.taskId/);
   assert.match(taskWorkspace, /props\.task\.trigger === "teaching_before_class"/);
   assert.match(taskBoard, /onPointerDown/);
   assert.match(taskBoard, /onPointerMove/);
@@ -345,8 +347,9 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   for (const label of ["任务进度", "已准备", "计划交付", "依据", "教师反馈", "打开产物", "进入任务", "继续让 EduPi 做"]) assert.match(drawer, new RegExp(label));
   assert.match(drawer, /taskAgentSteps\(task\)/);
   assert.match(drawer, /taskArtifacts\(task\)/);
-  assert.match(drawer, /preparedFiles\.map/);
-  assert.match(drawer, /artifact\.relative_path/);
+  assert.match(drawer, /preparedFilesById/);
+  assert.match(drawer, /workCase\?\.artifacts/);
+  assert.match(drawer, /artifact\.relativePath/);
   assert.match(drawer, /taskEvidenceRows\(task\)/);
   assert.match(drawer, /taskStatusLabel\(task\)/);
   assert.match(drawer, /taskContentReady\(task\)/);

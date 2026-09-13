@@ -9,7 +9,7 @@ export type TaskBoardStage = "todo" | "progress" | "review" | "done";
 export type TaskBoardSource = { source_id: string; source_kind: "teacher_message"; source_hash: string; evidence_ids: string[] };
 export type TeacherCreatedPreparationSource = { kind: "teaching_before_class"; timetable_slot_id: string; lesson_date: string; material_ids: string[]; deliverables: string[] };
 export type TeacherCreatedPreparationInput = { kind: "teaching_before_class"; timetableSlotId: string; lessonDate: string; materialIds: string[]; deliverables: string[] };
-export type CreateTeacherTaskInput = { title: string; dueDate: string | null; note: string | null; preparationSource: TeacherCreatedPreparationInput | null };
+export type CreateTeacherTaskInput = { clientRequestId: string; title: string; dueDate: string | null; note: string | null; preparationSource: TeacherCreatedPreparationInput | null };
 export type CreateTeacherTaskOutcome = { preparationState: "running" | "ready" | "error" | null; preparationError: string | null };
 export type CreateTaskCommand = { command_type: "create_task"; source: TaskBoardSource; task: { task_id: string; title: string; due_date: string | null; note: string | null; preparation_source?: TeacherCreatedPreparationSource | null } };
 export type MoveTaskStageCommand = { command_type: "move_task_stage"; source: TaskBoardSource; task_id: string; expected_revision: number; to_stage: TaskBoardStage; note: string | null };
@@ -86,6 +86,7 @@ type Dependencies = {
   readSnapshot?: () => Promise<SnapshotResult>;
   dispatch?: (envelope: RawRecord, roots: EduPiBridgeRoots) => Promise<unknown>;
   refreshSnapshot?: (roots: EduPiBridgeRoots) => Promise<CoreEducationSnapshotPayload>;
+  envelopeOptions?: { requestId?: string; messageId?: string; idempotencyKey?: string; issuedAt?: string };
 };
 
 async function productionSnapshot(): Promise<SnapshotResult> {
@@ -107,7 +108,7 @@ export async function issueTaskBoardCommand(command: TaskBoardCommand, dependenc
   const initial = await (dependencies.readSnapshot || productionSnapshot)();
   const snapshotId = String(initial.payload.snapshot_id || "");
   if (!snapshotId) throw new TaskBoardCommandError("unavailable", "Core 教育快照不可用。");
-  const envelope = buildTaskBoardCommandEnvelope({ snapshotId, command });
+  const envelope = buildTaskBoardCommandEnvelope({ snapshotId, command, ...dependencies.envelopeOptions });
   const dispatch = dependencies.dispatch || ((nextEnvelope, roots) => callEduPiCore({ operation: "command", requestId: String(nextEnvelope.request_id), runtime: roots.runtime, dataRoot: roots.dataRoot, envelope: nextEnvelope }));
   let rawResponse: unknown;
   try {
@@ -123,29 +124,32 @@ export async function issueTaskBoardCommand(command: TaskBoardCommand, dependenc
   }
   const receiptEnvelope = record(response.receipt);
   const receipt = record(receiptEnvelope?.payload);
+  const taskId = command.command_type === "create_task" ? command.task.task_id : command.task_id;
+  const target = record(receipt?.target);
   if (!receiptEnvelope || !receipt || !validateCoreEnvelopeSchema(receiptEnvelope)
     || receiptEnvelope.producer !== "edupi-core" || receiptEnvelope.external_send !== false
     || receiptEnvelope.request_id !== envelope.request_id || receipt.command_id !== envelope.message_id
     || receipt.command_type !== command.command_type || receipt.before_snapshot_id !== snapshotId
+    || target?.target_kind !== "task" || target.target_id !== taskId || target.command_type !== command.command_type
     || receipt.external_send !== false || receipt.decision !== null) {
     throw new TaskBoardCommandError("invalid_envelope", "Core 任务板回执绑定无效。");
   }
   const status = String(receipt.status || "");
   if (status === "failed" || status === "stale_snapshot") {
-    if (receipt.after_snapshot_id !== null || receipt.after_state_hash !== null || receiptEnvelope.snapshot_id !== receipt.before_snapshot_id) {
+    if (receipt.after_snapshot_id !== null || receipt.after_state_hash !== null || receiptEnvelope.snapshot_id !== receipt.before_snapshot_id
+      || !sameList(receipt.applied_ids, []) || !sameList(receipt.rejected_ids, [])) {
       throw new TaskBoardCommandError("invalid_envelope", "Core 任务板失败回执绑定无效。");
     }
     throw new TaskBoardCommandError(String(receipt.reason_code || status), status === "stale_snapshot" ? "任务数据已更新，请刷新后重试。" : "Core 未接受这次任务板操作。");
   }
   if (!((command.command_type === "create_task" && status === "accepted") || (command.command_type === "move_task_stage" && status === "modified"))
     || typeof receipt.after_snapshot_id !== "string" || typeof receipt.after_state_hash !== "string"
-    || receiptEnvelope.snapshot_id !== receipt.after_snapshot_id) {
+    || receiptEnvelope.snapshot_id !== receipt.after_snapshot_id || !sameList(receipt.applied_ids, [taskId]) || !sameList(receipt.rejected_ids, [])) {
     throw new TaskBoardCommandError("invalid_envelope", "Core 任务板成功回执无效。");
   }
   const refresh = dependencies.refreshSnapshot || (async (roots) => (await readEduPiEducationSnapshot({ roots })).payload);
   const data = await refresh(initial.roots);
   if (data.snapshot_id !== receipt.after_snapshot_id || data.state_hash !== receipt.after_state_hash) throw new TaskBoardCommandError("invalid_envelope", "Core 任务板快照与回执不一致。");
-  const taskId = command.command_type === "create_task" ? command.task.task_id : command.task_id;
   const task = taskFromPayload(data as unknown as RawRecord, taskId);
   const expectedStage = command.command_type === "create_task" ? "todo" : command.to_stage;
   const expectedRevision = command.command_type === "create_task" ? 0 : command.expected_revision + 1;

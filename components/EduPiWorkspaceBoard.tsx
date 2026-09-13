@@ -117,6 +117,7 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
   const [materialIds, setMaterialIds] = useState<string[]>([]);
   const [deliverables, setDeliverables] = useState(DEFAULT_PREPARATION_DELIVERABLES.join("\n"));
   const draggedTaskIdRef = useRef<string | null>(null);
+  const pendingCreateRef = useRef<{ fingerprint: string; id: string } | null>(null);
   const dragStartRef = useRef<{ id: string; x: number; y: number; offX: number; offY: number; width: number } | null>(null);
   const suppressClickRef = useRef(false);
   const ghostFrameRef = useRef(0);
@@ -195,12 +196,16 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
     setCreating(true);
     setMessage(null);
     try {
-      const result = await onCreateTask({
+      const requested: Omit<CreateTeacherTaskInput, "clientRequestId"> = {
         title: title.trim(),
         dueDate: dueDate || null,
         note: note.trim() || null,
         preparationSource: managedPreparation ? { kind: "teaching_before_class", timetableSlotId: activeSlotId, lessonDate, materialIds, deliverables: requestedDeliverables } : null,
-      });
+      };
+      const fingerprint = JSON.stringify(requested);
+      if (pendingCreateRef.current?.fingerprint !== fingerprint) pendingCreateRef.current = { fingerprint, id: crypto.randomUUID() };
+      const result = await onCreateTask({ clientRequestId: pendingCreateRef.current.id, ...requested });
+      pendingCreateRef.current = null;
       setTitle("");
       setDueDate("");
       setNote("");

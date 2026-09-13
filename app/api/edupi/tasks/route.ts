@@ -3,13 +3,15 @@ import { NextResponse } from "next/server";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { issueTaskBoardCommand, taskBoardContentHash, TaskBoardCommandError, type TeacherCreatedPreparationSource } from "@/lib/edupi-task-board-command";
 import { readEducationContract } from "@/lib/edupi-education-server";
+import { startPreparation } from "@/lib/edupi-preparation-runtime";
+import type { TeacherTask } from "@/lib/edupi-education-contract";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 32 * 1024;
-const BODY_KEYS = new Set(["title", "dueDate", "note", "preparationSource"]);
+const BODY_KEYS = new Set(["clientRequestId", "title", "dueDate", "note", "preparationSource"]);
 const PREPARATION_KEYS = new Set(["kind", "timetableSlotId", "lessonDate", "materialIds", "deliverables"]);
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -52,8 +54,28 @@ function preparationSource(value: unknown): TeacherCreatedPreparationSource | nu
 
 function statusFor(code: string): number {
   if (code === "invalid_envelope") return 400;
-  if (["stale_snapshot", "stale_revision", "task_conflict", "invalid_transition", "stage_unchanged"].includes(code)) return 409;
+  if (["stale_snapshot", "stale_revision", "task_conflict", "idempotency_conflict", "invalid_transition", "stage_unchanged"].includes(code)) return 409;
   return 503;
+}
+
+function sourceEventId(source: TeacherCreatedPreparationSource): string {
+  const raw = `timetable:${source.timetable_slot_id}:${source.lesson_date}`;
+  if (raw.length <= 160) return raw;
+  const suffix = `-${crypto.createHash("sha256").update(raw).digest("hex")}`;
+  return `${raw.slice(0, 160 - suffix.length)}${suffix}`;
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+function matchesExistingTask(existing: TeacherTask, task: { title: string; due_date: string | null; note: string | null; preparation_source: TeacherCreatedPreparationSource | null }): boolean {
+  if (existing.title !== task.title || existing.dueDate !== task.due_date) return false;
+  const source = task.preparation_source;
+  if (!source) return existing.trigger === "teacher_created";
+  return existing.trigger === "teaching_before_class" && existing.sourceEventId === sourceEventId(source)
+    && existing.sourceEventDate === source.lesson_date && existing.materialId === source.material_ids[0]
+    && sameStrings(existing.deliverables, source.deliverables);
 }
 
 export async function POST(request: Request) {
@@ -61,18 +83,38 @@ export async function POST(request: Request) {
   if (!hasJsonContentType(request)) return NextResponse.json({ error: "Use application/json", code: "invalid_content_type" }, { status: 415 });
   try {
     const body = record(await parseJsonWithinLimit(request, MAX_BODY_BYTES));
-    if (!body || Object.keys(body).some((key) => !BODY_KEYS.has(key)) || typeof body.title !== "string" || !body.title.trim() || body.title.length > 240) {
+    if (!body || Object.keys(body).some((key) => !BODY_KEYS.has(key)) || typeof body.clientRequestId !== "string"
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.clientRequestId)
+      || typeof body.title !== "string" || !body.title.trim() || body.title.length > 240) {
       throw new TaskBoardCommandError("invalid_envelope", "任务字段无效。");
     }
-    const taskId = `teacher-task-${crypto.randomUUID()}`;
+    const taskId = `teacher-task-${body.clientRequestId.toLowerCase()}`;
     const task = { task_id: taskId, title: body.title.trim(), due_date: dateOnly(body.dueDate), note: note(body.note), preparation_source: preparationSource(body.preparationSource) };
     const sourceId = `desktop-task-create-${taskId.slice("teacher-task-".length)}`;
-    const result = await issueTaskBoardCommand({
-      command_type: "create_task",
-      source: { source_id: sourceId, source_kind: "teacher_message", source_hash: taskBoardContentHash(task), evidence_ids: [`evidence-${sourceId}`] },
-      task,
-    });
-    return NextResponse.json({ receipt: result.receipt, data: await readEducationContract() }, { status: 200 });
+    let data = await readEducationContract();
+    let existing = data.tasks.find((item) => item.id === taskId);
+    let receipt: Record<string, unknown> | null = null;
+    let replayed = Boolean(existing);
+    if (existing && !matchesExistingTask(existing, task)) throw new TaskBoardCommandError("idempotency_conflict", "这次任务重试的内容已经变化，请重新提交。");
+    if (!existing) {
+      try {
+        const result = await issueTaskBoardCommand({
+          command_type: "create_task",
+          source: { source_id: sourceId, source_kind: "teacher_message", source_hash: taskBoardContentHash(task), evidence_ids: [`evidence-${sourceId}`] },
+          task,
+        }, { envelopeOptions: { idempotencyKey: `create-${body.clientRequestId.toLowerCase()}` } });
+        receipt = result.receipt;
+      } catch (error) {
+        if (!(error instanceof TaskBoardCommandError) || error.code !== "task_conflict") throw error;
+        data = await readEducationContract();
+        existing = data.tasks.find((item) => item.id === taskId);
+        if (!existing || !matchesExistingTask(existing, task)) throw error;
+        replayed = true;
+      }
+    }
+    const preparation = task.preparation_source ? await startPreparation({ taskId }) : null;
+    data = await readEducationContract();
+    return NextResponse.json({ taskId, replayed, receipt, preparation, data }, { status: 200 });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Task request is too large", code: "too_large" }, { status: 413 });
     const code = error instanceof TaskBoardCommandError ? error.code : "unavailable";

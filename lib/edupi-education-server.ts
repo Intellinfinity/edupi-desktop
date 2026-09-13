@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { realpathSync } from "node:fs";
 import { buildEducationContractFromWorkspace, type EducationContract } from "./edupi-education-contract";
 import { issueC1Review, type C1ReviewDependencies, type C1ReviewDecision, type C1ReviewTargetKind } from "./edupi-c1-review";
@@ -16,7 +16,7 @@ import { projectTaskSessionBindings } from "./edupi-task-sessions";
 import { getLiveSessionSnapshots, getRpcSession, getRunningRpcSessionIds } from "./rpc-manager";
 import { listAllSessions } from "./session-reader";
 import { workspaceResourcesRequest } from "./edupi-generated-artifacts";
-import { allowFileRoot } from "./file-access";
+import { setScopedAllowedFileRoots } from "./allowed-roots";
 
 
 export { taskSessionFile } from "./edupi-task-session-store";
@@ -35,7 +35,10 @@ export function canonicalEduPiCwd(value: string): string {
 type EducationSnapshot = Awaited<ReturnType<typeof readEduPiEducationSnapshot>>;
 
 export async function projectEducationContract(snapshot: EducationSnapshot): Promise<EducationContract> {
-  allowFileRoot(snapshot.dataRoot.root);
+  setScopedAllowedFileRoots("edupi-education", [
+    join(snapshot.dataRoot.root, ".edupi", "output"),
+    join(snapshot.dataRoot.root, ".edupi", "inbox", "teacher-materials"),
+  ]);
   const [taskSessionStore, scannedSessions] = await Promise.all([
     readTaskSessionFile(taskSessionFile(snapshot.dataRoot.root)),
     listAllSessions(),

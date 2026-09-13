@@ -43,7 +43,7 @@ import { useViewportHeight } from "@/hooks/useViewportHeight";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { copyText } from "@/lib/clipboard";
 import { useDesktopConnection } from "@/lib/desktop-connection";
-import { isTauriDesktop, listenQuickEntryNative, setCloseQuitsNative, showMainWindowNative } from "@/lib/desktop-native";
+import { isTauriDesktop, listenDesktopResumeNative, listenQuickEntryNative, setCloseQuitsNative, showMainWindowNative } from "@/lib/desktop-native";
 import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
 import { PRODUCT_NAME } from "@/lib/branding";
@@ -220,8 +220,34 @@ export function AppShell() {
   }, []);
   useEffect(() => {
     if (!desktopMode) return;
-    void fetch("/api/edupi/connectors/dingtalk/runtime", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ensure" }) }).catch(() => {});
-    void fetch("/api/edupi/preparation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ensure" }) }).catch(() => {});
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+    let active: Promise<void> | null = null;
+    let lastStartedAt = 0;
+    const catchUp = (force = false) => {
+      const now = Date.now();
+      if (disposed || active || !force && now - lastStartedAt < 30_000) return;
+      lastStartedAt = now;
+      active = Promise.allSettled([
+        fetch("/api/edupi/connectors/dingtalk/runtime", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ensure" }) }),
+        fetch("/api/edupi/preparation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ensure" }) }),
+      ]).then(() => {}).finally(() => { active = null; });
+    };
+    const refreshVisible = () => { if (document.visibilityState === "visible") catchUp(); };
+    const recoverOnline = () => catchUp(true);
+    catchUp(true);
+    void listenDesktopResumeNative(() => catchUp(true)).then((next) => {
+      if (disposed) next();
+      else unlisten = next;
+    }).catch(() => {});
+    window.addEventListener("online", recoverOnline);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      disposed = true;
+      unlisten?.();
+      window.removeEventListener("online", recoverOnline);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
   }, [desktopMode]);
   useEffect(() => {
     if (!rightPanelOpen) return;

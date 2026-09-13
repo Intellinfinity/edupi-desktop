@@ -6,6 +6,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import { handleExternalLinkClick, openExternal } from "@/lib/desktop-native";
 import { fetchWithDeadline, fetchWithRetry } from "@/lib/fetch-timeout";
+import { normalizeModelEntry } from "@/lib/model-config-normalize";
 import { ConfirmDangerButton } from "./ConfirmDangerButton";
 import type { ModelCatalogPreset, ModelCatalogRecommendation } from "@/lib/model-catalog";
 import type { DiscoveredModel } from "@/lib/model-discovery";
@@ -136,7 +137,7 @@ interface ModelEntry {
   input?: string[];
   contextWindow?: number;
   maxTokens?: number;
-  cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+  cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; tiers?: Array<{ inputTokensAbove: number; input: number; output: number; cacheRead: number; cacheWrite: number }> };
   compat?: Record<string, unknown>;
 }
 
@@ -184,7 +185,7 @@ function mergeModelEntries(...groups: readonly (readonly ModelEntry[])[]): Model
     for (const model of group) {
       const id = model.id.trim();
       if (!id) continue;
-      const normalized = { ...model, id };
+      const normalized = normalizeModelEntry({ ...model, id });
       const previous = byId.get(id);
       // Keep the first source's explicit edits, while allowing later sources
       // to fill metadata that source did not provide.
@@ -806,10 +807,20 @@ function ModelDetail({
   const catalogRequestIdRef = useRef(0);
   const catalogUndoRef = useRef<ModelEntry | null>(null);
   const set = <K extends keyof ModelEntry>(k: K, v: ModelEntry[K]) => onChange({ ...model, [k]: v });
-  const costVal = (k: keyof NonNullable<ModelEntry["cost"]>) => model.cost?.[k] !== undefined ? String(model.cost[k]) : "";
-  const setCost = (k: keyof NonNullable<ModelEntry["cost"]>, v: string) => {
+  type CostRateKey = "input" | "output" | "cacheRead" | "cacheWrite";
+  const costVal = (k: CostRateKey) => model.cost?.[k] !== undefined ? String(model.cost[k]) : "";
+  const setCost = (k: CostRateKey, v: string) => {
     const n = parseFloat(v);
-    onChange({ ...model, cost: { ...(model.cost ?? {}), [k]: isNaN(n) ? undefined : n } });
+    onChange(normalizeModelEntry({
+      ...model,
+      cost: {
+        input: model.cost?.input ?? 0,
+        output: model.cost?.output ?? 0,
+        cacheRead: model.cost?.cacheRead ?? 0,
+        cacheWrite: model.cost?.cacheWrite ?? 0,
+        [k]: isNaN(n) ? 0 : n,
+      },
+    }));
   };
   const testSummary = (() => {
     if (testState.phase === "idle") return null;
@@ -2255,7 +2266,7 @@ export function ModelsConfig({ onClose, embedded = false, onDirtyChange, onSaved
     setConfig((prev) => {
       const provider = prev.providers?.[providerName] ?? {};
       const models = [...(provider.models ?? [])];
-      models[index] = m;
+      models[index] = normalizeModelEntry(m);
       return { ...prev, providers: { ...(prev.providers ?? {}), [providerName]: { ...provider, models } } };
     });
   }, []);

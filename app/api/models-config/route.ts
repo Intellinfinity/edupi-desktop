@@ -4,6 +4,7 @@ import { dirname, join } from "path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "@/lib/atomic-file";
 import { invalidateModelsCache } from "@/lib/models-cache";
+import { normalizeModelsConfig } from "@/lib/model-config-normalize";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const body = await req.json() as Record<string, unknown>;
-    writeModelsJson(body);
+    writeModelsJson(normalizeModelsConfig(body));
     invalidateModelsCache();
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -18,7 +18,7 @@ function request(body) {
   });
 }
 
-test("loopback custom models can be tested without an API key", async () => {
+test("loopback models with a catalog cost missing cacheWrite can still be tested", async () => {
   let calls = 0;
   const server = http.createServer(async (_req, res) => {
     calls += 1;
@@ -38,7 +38,7 @@ test("loopback custom models can be tested without an API key", async () => {
     const response = await POST(request({
       providerName: "local-e2",
       provider: { api: "openai-completions", baseUrl: `http://127.0.0.1:${port}/v1` },
-      model: { id: "local", name: "local", input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 1000, maxTokens: 16 },
+      model: { id: "local", name: "local", input: ["text"], cost: { input: 0, output: 0, cacheRead: 0 }, contextWindow: 1000, maxTokens: 16 },
     }));
     const body = await response.json();
     assert.equal(response.status, 200, JSON.stringify(body));

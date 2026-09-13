@@ -1,3 +1,5 @@
+import { normalizeModelCost } from "@/lib/model-config-normalize";
+
 /**
  * Project SDK model metadata into the subset that is safe for the Models UI.
  * Authentication state and request headers never cross this boundary.
@@ -21,6 +23,7 @@ function projectSafeMetadata(value: unknown, depth = 0): unknown {
 }
 
 export function projectModel(model: Record<string, unknown>) {
+  const cost = normalizeModelCost(model.cost);
   return {
     id: typeof model.id === "string" ? model.id : "",
     ...(typeof model.name === "string" ? { name: model.name } : {}),
@@ -29,7 +32,7 @@ export function projectModel(model: Record<string, unknown>) {
     ...(Array.isArray(model.input) ? { input: model.input.filter((value): value is string => typeof value === "string") } : {}),
     ...(typeof model.contextWindow === "number" ? { contextWindow: model.contextWindow } : {}),
     ...(typeof model.maxTokens === "number" ? { maxTokens: model.maxTokens } : {}),
-    ...(model.cost && typeof model.cost === "object" && !Array.isArray(model.cost) ? { cost: projectSafeMetadata(model.cost) } : {}),
+    ...(cost ? { cost } : {}),
     ...(model.thinkingLevelMap && typeof model.thinkingLevelMap === "object" && !Array.isArray(model.thinkingLevelMap) ? { thinkingLevelMap: projectSafeMetadata(model.thinkingLevelMap) } : {}),
     ...(model.compat && typeof model.compat === "object" && !Array.isArray(model.compat) ? { compat: projectSafeMetadata(model.compat) } : {}),
   };

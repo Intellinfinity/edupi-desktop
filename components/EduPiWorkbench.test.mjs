@@ -64,6 +64,7 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(taskBoard, /material\.class_id === rawText\(activeSlot\.class_name\)/);
   assert.doesNotMatch(panel, /fetch\("\/api\/edupi\/preparation"/);
   assert.match(panel, /result\.preparation\?\.taskId !== result\.taskId/);
+  assert.match(panel, /else void loadWorkspace\(\)\.catch/);
   assert.match(taskWorkspace, /props\.task\.trigger === "teaching_before_class"/);
   assert.match(taskBoard, /onPointerDown/);
   assert.match(taskBoard, /onPointerMove/);

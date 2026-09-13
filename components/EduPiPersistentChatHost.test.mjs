@@ -24,12 +24,13 @@ test("the persistent chat host renders one stable child for every presentation m
 
 test("modal focus containment recovers outside and empty focus states", async () => {
   const panel = await read("./EduPiEducationPanel.tsx");
+  const modal = await read("../hooks/useModalDismiss.ts");
   assert.match(panel, /tabIndex=\{-1\}/);
-  assert.match(panel, /window\.addEventListener\("keydown", containContextFocus, true\)/);
-  assert.match(panel, /const index = elements\.indexOf\(active as HTMLElement\)/);
-  assert.match(panel, /if \(index === -1\)[\s\S]*elements\[elements\.length - 1\][\s\S]*elements\[0\]/);
-  assert.match(panel, /if \(elements\.length === 0\) \{[\s\S]*panel\.focus\(\)/);
-  assert.match(panel, /event\.preventDefault\(\)/);
+  assert.match(panel, /useModalDismiss<HTMLDivElement>/);
+  assert.match(modal, /const activeInside = active !== null && panel\.contains\(active\)/);
+  assert.match(modal, /if \(!activeInside \|\| active === first\)/);
+  assert.match(modal, /if \(!activeInside \|\| active === last\)/);
+  assert.match(modal, /focusables\.length === 0[\s\S]*event\.preventDefault\(\)/);
   assert.doesNotMatch(panel, /handleContextModalKeyDown/);
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { EducationWorkCase, TeacherTask } from "@/lib/edupi-education-contract";
+import { useModalDismiss } from "@/hooks/useModalDismiss";
 import { workCaseStateLabel, workCaseTransitionLabel } from "@/lib/edupi-work-case";
 import {
   taskAgentSteps,
@@ -54,9 +54,7 @@ function flowTime(value: string): string {
 }
 
 export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOpenFile, onOpenTask, onOpenAgent, onDelete, deleteBusy = false }: Props) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const drawerRef = useRef<HTMLElement>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const drawerRef = useModalDismiss<HTMLElement>(onClose);
   const title = taskDisplayTitle(task);
   const source = taskSourceLabel(task);
   const status = taskStatusLabel(task);
@@ -76,50 +74,12 @@ export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOp
     ["时间", task.reviewedAt || nonempty(latestReview?.reviewed_at)],
   ].flatMap(([label, value]) => value ? [{ label, value }] : []);
   const flowTransitions = workCase ? workCase.transitions.slice(-12) : [];
-  useEffect(() => {
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeButtonRef.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !drawerRef.current) return;
-      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
-      if (focusable.length === 0) {
-        event.preventDefault();
-        drawerRef.current.focus();
-        return;
-      }
-      const active = document.activeElement as HTMLElement | null;
-      const index = active ? focusable.indexOf(active) : -1;
-      if (index === -1) {
-        event.preventDefault();
-        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
-        return;
-      }
-      const next = event.shiftKey
-        ? (index - 1 + focusable.length) % focusable.length
-        : (index + 1) % focusable.length;
-      event.preventDefault();
-      focusable[next].focus();
-    };
-    window.addEventListener("keydown", closeOnEscape, true);
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape, true);
-      const previouslyFocused = previouslyFocusedRef.current;
-      if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
-    };
-  }, [onClose]);
-
   return (
     <div className="edupi-task-detail-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <aside ref={drawerRef} className="edupi-task-detail-drawer" role="dialog" aria-modal="true" aria-labelledby="edupi-task-detail-title" tabIndex={-1}>
         <header className="edupi-task-detail-drawer__header">
           <div><span>教师任务</span><h2 id="edupi-task-detail-title">{title}</h2></div>
-          <button ref={closeButtonRef} type="button" className="edupi-task-detail-drawer__close" onClick={onClose} aria-label="关闭任务详情">×</button>
+          <button data-autofocus type="button" className="edupi-task-detail-drawer__close" onClick={onClose} aria-label="关闭任务详情">×</button>
         </header>
         <div className="edupi-task-detail-drawer__body">
           <section className="edupi-task-detail-summary" aria-label="任务概览">

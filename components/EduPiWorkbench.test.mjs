@@ -343,12 +343,10 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(drawer, /onOpenTask\(task\)/);
   assert.match(drawer, /onOpenAgent\(task\)/);
   assert.doesNotMatch(drawer, /onStartAgent/);
-  assert.match(drawer, /event\.key === "Escape"/);
-  assert.match(drawer, /event\.stopPropagation\(\)/);
+  assert.match(drawer, /useModalDismiss<HTMLElement>\(onClose\)/);
+  assert.match(drawer, /data-autofocus/);
   assert.match(drawer, /event\.target === event\.currentTarget/);
-  assert.match(drawer, /previouslyFocusedRef/);
-  assert.match(drawer, /querySelectorAll/);
-  assert.match(drawer, /document\.contains\(previouslyFocused\)/);
+  assert.doesNotMatch(drawer, /addEventListener\("keydown"/);
   assert.doesNotMatch(drawer, /file_sha256|sha256|复制/i);
   assert.match(drawer, /disabled=\{deleteBusy \|\| !task\.id\}/);
   assert.doesNotMatch(drawer, /artifact\.revision|版本/);

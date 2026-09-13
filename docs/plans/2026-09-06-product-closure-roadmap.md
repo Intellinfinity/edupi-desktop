@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-14 Core 事实脊柱进入桌面教学流
+
+- Desktop 现在严格读取 Core `education_fact_v1` 投影；无效投影只隔离事实区，不会清空其余教育工作区。学生档案按稳定 `student_id` 显示已确认、待确认和暂缓事实，并保留原始观察与来源；教学重点消费 Core `teaching_view`，同一事实 ID 会标出是否供下一节课采用。
+- 隔离 Core 通过正式 fact store 建立学生、教师原话和已确认错因事实。实际页面在“教学重点”显示“移项符号仍需练习 · 林晓 · 下节课采用”，展开后显示原始教师话语；同一学生档案显示同一事实和来源。测试目录已清理，真实教师数据未改动。
+- R10 的跨模块读取与来源追溯已补齐一段，R14 的任务抽屉和教学上下文弹窗统一使用共享 Escape/焦点恢复栈。事实修改、审核、删除、恢复和后续备课使用回执仍未全部接到桌面端，因此 R09/R10 继续保持部分实现。
+
 ## 2026-09-14 `v0.3.11` 安装验收与 Core Runtime 对齐
 
 - `v0.3.11` Release workflow `34765761183` 的 macOS、Linux、Windows 和 manifest 全部成功；macOS updater SHA-256 为 `d90947b7cf3bd0b2d6907020e45e6f521e3eca9b072265c75eb3698ae7438a37`，与 Release digest 一致，本机 updater 公钥复核 Minisign 签名成功。

@@ -474,6 +474,32 @@ html.dark .edupi-teacher-shell {
 .edupi-student-drawer__scroll > details em { color: var(--ep-muted); font-size: 9px; font-style: normal; }
 .edupi-student-drawer__scroll > details p button { justify-self: start; padding: 0; border: 0; background: transparent; color: var(--ep-blue); cursor: pointer; font-size: 9px; }
 .edupi-student-drawer__scroll > details > div > button { display: grid; width: 100%; min-height: 42px; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 0; border: 0; border-top: 1px solid var(--ep-border); background: transparent; color: var(--ep-text); text-align: left; }
+.edupi-student-core-facts article { padding: 10px 0; border-top: 1px solid var(--ep-border); }
+.edupi-student-core-facts article > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.edupi-student-core-facts article > header strong { font-size: 10px; }
+.edupi-student-core-facts article > header span,
+.edupi-student-core-facts article > small { color: var(--ep-muted); font-size: 9px; }
+.edupi-student-core-facts article > p { border: 0; font-size: 10px; line-height: 1.55; }
+.edupi-student-core-facts article details { margin-top: 7px; }
+.edupi-student-core-facts article details > summary { cursor: pointer; color: var(--ep-blue); font-size: 9px; }
+.edupi-student-core-facts article details > div { padding: 7px 0 0 10px; }
+.edupi-student-core-facts article code { display: block; overflow: hidden; padding-top: 5px; color: var(--ep-dim); font-size: 8px; text-overflow: ellipsis; }
+.edupi-teaching-core-facts { border: 1px solid var(--ep-border); border-radius: 12px; background: var(--ep-surface); }
+.edupi-teaching-core-facts > header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--ep-border); }
+.edupi-teaching-core-facts > header h2 { margin: 0; font-size: 13px; }
+.edupi-teaching-core-facts > header span { color: var(--ep-muted); font-size: 11px; }
+.edupi-teaching-core-facts > div > details { border-bottom: 1px solid var(--ep-border); }
+.edupi-teaching-core-facts > div > details:last-child { border-bottom: 0; }
+.edupi-teaching-core-facts > div > details > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; cursor: pointer; list-style: none; }
+.edupi-teaching-core-facts > div > details > summary span { display: grid; gap: 4px; }
+.edupi-teaching-core-facts > div > details > summary small,
+.edupi-teaching-core-facts > div > details > summary em { color: var(--ep-muted); font-size: 10px; font-style: normal; }
+.edupi-teaching-core-facts > div > details > div { padding: 0 16px 14px; }
+.edupi-teaching-core-facts article { padding: 8px 0 0 12px; }
+.edupi-teaching-core-facts article p { margin: 4px 0; }
+.edupi-teaching-core-facts article time,
+.edupi-teaching-core-facts code { color: var(--ep-dim); font-size: 9px; }
+.edupi-teaching-core-facts > div > p { margin: 0; padding: 16px; color: var(--ep-muted); }
 .edupi-student-profile-editor { display: grid; gap: 10px; margin: 14px; padding: 12px; border: 1px solid var(--ep-border); border-radius: 7px; background: var(--ep-surface-soft); }
 .edupi-student-profile-editor > header { display: flex; align-items: center; justify-content: space-between; }
 .edupi-student-profile-editor h3 { margin: 0; font-size: 11px; }

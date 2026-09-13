@@ -25,6 +25,7 @@ test("context editor is a compact five-field comparison sheet", async () => {
 test("context actions are receipt-bound, strict, and keep Chat as a draft handoff", async () => {
   const source = await read("./EduPiContextEditor.tsx");
   const panel = await read("./EduPiEducationPanel.tsx");
+  const modal = await read("../hooks/useModalDismiss.ts");
   const home = await read("./EduPiEducationHome.tsx");
   assert.match(source, /verifyTeacherContextReview/);
   assert.match(source, /expectedStateHash: candidate\.stateHash/);
@@ -46,9 +47,9 @@ test("context actions are receipt-bound, strict, and keep Chat as a draft handof
   assert.match(panel, /teacherContextPendingCount/);
   assert.match(panel, /pendingCount \+ c1PendingCount \+ teacherContextPendingCount/);
   assert.match(panel, /ref=\{contextModalRef\}/);
-  assert.match(panel, /window\.addEventListener\("keydown", containContextFocus, true\)/);
+  assert.match(panel, /useModalDismiss<HTMLDivElement>/);
   assert.match(panel, /tabIndex=\{-1\}/);
-  assert.match(panel, /elements\.length === 0[\s\S]*panel\.focus\(\)/);
+  assert.match(modal, /focusables\.length === 0[\s\S]*event\.preventDefault\(\)/);
   assert.doesNotMatch(panel, /onKeyDown=\{handleContextModalKeyDown\}/);
   assert.match(panel, /role="dialog" aria-modal="true"/);
   assert.match(panel, /candidate=\{education\?\.teacherContextCandidates\[0\]/);

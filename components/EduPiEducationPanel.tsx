@@ -55,6 +55,7 @@ import type { EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import { readEduPiTeachingSkills, type EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 import { normalizeKernelState, readEduPiKernel, type EduPiKernelState } from "@/lib/edupi-kernel-client";
+import { useModalDismiss } from "@/hooks/useModalDismiss";
 
 type Props = {
   initialModule?: EducationModule;
@@ -162,7 +163,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   };
   useEffect(()=>()=>{deleteResolver.current?.(false);deleteResolver.current=null;},[]);
   const taskSessionOpeningRef = useRef(false);
-  const contextModalRef = useRef<HTMLDivElement>(null);
+  const contextModalRef = useModalDismiss<HTMLDivElement>(() => { if (!contextBusy) setContextOpen(false); }, contextOpen);
   const materialUploadInputRef = useRef<HTMLInputElement>(null);
   const activationRequestsRef = useRef(createActivationRequestTracker());
   const objectSider = useEduPiContentSiderCollapse(false);
@@ -375,39 +376,6 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     window.addEventListener("edupi-close-panel", close);
     return () => window.removeEventListener("edupi-close-panel", close);
   }, [cancelActivation, contextBusy]);
-
-  useEffect(() => {
-    if (!contextOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !contextBusy) setContextOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [contextBusy, contextOpen]);
-
-  useEffect(() => {
-    if (!contextOpen) return;
-    const containContextFocus = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !contextModalRef.current) return;
-      const panel = contextModalRef.current;
-      const elements = Array.from(panel.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"));
-      event.preventDefault();
-      if (elements.length === 0) {
-        panel.focus();
-        return;
-      }
-      const active = document.activeElement;
-      const index = elements.indexOf(active as HTMLElement);
-      if (index === -1) {
-        (event.shiftKey ? elements[elements.length - 1] : elements[0]).focus();
-        return;
-      }
-      const nextIndex = event.shiftKey ? (index - 1 + elements.length) % elements.length : (index + 1) % elements.length;
-      elements[nextIndex].focus();
-    };
-    window.addEventListener("keydown", containContextFocus, true);
-    return () => window.removeEventListener("keydown", containContextFocus, true);
-  }, [contextOpen]);
 
   useEffect(() => () => cancelActivation(), [cancelActivation]);
 
@@ -933,7 +901,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? (() => { const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation" && file.available !== false && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === previewPath.replaceAll("\\", "/")); const preview = renderFilePreview(previewPath); return artifact ? <EduPiPreparationArtifactEditor key={artifact.artifact_id} artifactId={artifact.artifact_id} preview={preview} onSaved={value => { openFile(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }} onAgent={prompt => { closeDrawer(); startAgent(prompt, "replace"); }} /> : preview; })() : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}
       <input ref={materialUploadInputRef} type="file" multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void stageBrowserFiles(files); }} />
       {materialStagingMessage && activeView !== "materials" ? <div className={`edupi-material-staging-toast is-${materialStagingMessage.tone}`} role={materialStagingMessage.tone === "error" ? "alert" : "status"} aria-live="polite">{materialStagingMessage.text}</div> : null}
-      {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => loadWorkspace()} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}
+      {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button data-autofocus type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => loadWorkspace()} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}
     </section>
   );
 }

@@ -362,3 +362,12 @@ Core9af123d启动后，无需再保存摘录，旧任务已回planned、当前�
 - 最终包 loopback 模型配置复核：临时 localhost SSE mock 通过 `/api/models-config/test` 返回 `ok=true`、HTTP 200、`responseText=OK`，未写入持久模型配置，mock 服务已关闭。
 - 同一最终 pin 的 Desktop 全量回归为 1067 tests、1042 passed、0 failed、25 skipped；`tsc --noEmit`、`npm run lint`、定向 C1/C2/C3 与 C6 recognition E2 均通过。C6 真实识别使用隔离材料，得到 3 个校历事件、1 个课表项，暂存目录回到 0。
 - 仍未完成的证据边界：真实系统睡眠/唤醒与安装版自动补跑、系统通知点击、Windows/Linux 实机安装升级、签名/公证、零 API 首次完整备课、安装版后台恢复、真实课堂内容质量和外部连接器账号闭环。当前桌面自动化读取超时，原生页面点击未以接口结果替代。
+
+# 2026-09-14 Core 事实脊柱桌面投影
+
+环境：macOS 本机开发服务 `30141`；Desktop 当前工作树；Core `7c92b1e6dd7ec35aab7201c5565bd00c10875e51`；隔离数据根 `/private/tmp/edupi-fact-ui-20260914`，验收后删除。
+
+- 通过 Core `education_fact_store.mjs` 的受管 writer admission 建立学生实体 `entity_3458cead12d45992685eec845c008852`、教师原话观察和已确认事实 `fact_c49e38d858737637b5a525b04555cba5`。Desktop `/api/edupi/education` 回读 `factSpine=true`、1 个学生视图、1 条教学事实和1个学生档案。
+- 实际打开 `view=teaching&item=teaching:knowledge`，页面显示“Core 教学依据”“移项符号仍需练习”“林晓 · 错因模式 · 数学 · 方程”和“下节课采用”；连续展开事实及来源后显示原始教师话语“林晓移项时容易忘记变号，需要在下一节课安排针对性练习。”
+- 实际打开学生档案，显示同一条“Core 事实”、已确认状态、谓词、学科、主题和来源入口。两处使用相同 Core 事实 ID，没有由 Desktop 重新推断。
+- 共享弹窗栈定向测试覆盖任务详情、教学上下文、聊天、材料、日历和学生抽屉的 Escape、焦点约束与焦点返回。该证据不包含事实写入/修改/审核/删除/恢复，也不替代安装版或真实课堂内容验收。

@@ -15,7 +15,10 @@ export async function refreshUntilTaskVisible({
   delays?: readonly number[];
   wait?: (milliseconds: number) => Promise<void>;
 }): Promise<boolean> {
-  for (const delay of delays) {
+  if (delays.length === 0) return false;
+  let attempt = 0;
+  while (!signal.aborted) {
+    const delay = delays[Math.min(attempt, delays.length - 1)];
     if (signal.aborted) return false;
     if (delay > 0) await wait(delay);
     if (signal.aborted) return false;
@@ -25,6 +28,7 @@ export async function refreshUntilTaskVisible({
     } catch (error) {
       if (signal.aborted || error instanceof DOMException && error.name === "AbortError") return false;
     }
+    attempt += 1;
   }
   return false;
 }

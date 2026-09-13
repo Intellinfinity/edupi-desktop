@@ -4,10 +4,11 @@
 
 - Core [#78](https://github.com/PIGU-PPPgu/edupi/pull/78) merge commit `bf42f89227a48cdf2bfd94a636c4268d3da10759`、[#81](https://github.com/PIGU-PPPgu/edupi/pull/81) merge commit `af38213333bffcda89b3b12c3d85151861328923` 与 [#83](https://github.com/PIGU-PPPgu/edupi/pull/83) merge commit `9235cb5b577882bbb114ee71a713e01d87efe6c5` 全量 `npm test` 通过。新传输 envelope 重放同一创建命令会返回原回执；只改变第二项材料返回 `idempotency_conflict`，不创建第二个任务。旧版创建指纹只在完整任务与原来源哈希一致时迁移；新任务的课次、星期及每份材料的删除/文件/班级/学科状态由 Core 事务核对，已提交任务在课表移除后仍先重放。同 revision 来源经历失败、恢复、再次失败时，同一 Kernel run 会再次显示失败并可再次结清，attempt 仍为 1。
 - 隔离浏览器实际打开工作区新建任务。课次显示“周三 · 数学 · 703 · 第 2 节”；填写周四日期时出现“请选择周三对应的上课日期”且提交不可用。有效日期 `2026-09-16` 自动得到截止日期 `2026-09-15`；上课日期改为 `2026-09-23` 后截止日期变为 `2026-09-22`，手动改为 `2026-09-20` 后再切回上课日期，手动值保持不变。
+- 同一表单在 768×900 视口实际展开后，form `clientWidth=scrollWidth=738`、主区与来源区均为单列 `714px`，没有横向裁切，纵向溢出为 `auto`；1000px 以下的两列与 820px 以下的单列规则另有静态回归。
 - 点击“创建并准备”后没有切页或手动刷新。服务端记录同一 task ID 的 3 次状态 GET，任务板从正在准备自动进入待我确认；任务详情显示进入队列、开始准备、准备完成三条 Core 流转和 4 份独立产物。实际打开“练习与参考答案”，正文显示 `2x + 3 = 7，答案 x = 2。`。首次故意让模型只返回 2 份而任务要求 4 份时，Core 显示准备失败，没有伪报完成；改为严格匹配 4 份后通过。隔离数据、模型服务和页面均已清理。
 - `test-edupi-teacher-created-preparation-e2.mjs` 覆盖创建并启动、双产物、完整材料列表冲突、错误星期拒绝、已提交任务在课表移除后重放、来源失败、恢复重生成和 Runtime 重启重放；`test-edupi-task-board-write-e2.mjs` 覆盖三个稳定 UUID 的创建、流转、直接完成、重启读回和提醒去重。Core 外部合同 9 项全部通过。HTTP 202 后的任务读取采用 0/250/750/1500/3000ms 退避并把后续间隔封顶为 3 秒，持续到任务可见或页面卸载；任务已在后台完成后重新打开时直接刷新产物并显示“已准备”。
-- 补充失败边界：Core 回执已接受但首次快照重读失败时，命令层返回 accepted-pending，仍继续启动准备和最终 202 重读；已接受的 task ID 与 load sequence floor 会拒绝先前并发旧快照，首次包含该任务的新快照应用后即解除守卫，显式删除也会取消跟踪；任务删除后按 task ID 停止准备与待显示轮询。受管 output/material 目录逐级拒绝符号链接后才进入共享文件白名单。名单 ID 只对没有 `school-roster` 外部标识的旧实体启用直接 ID 兼容，显式冲突不会串到另一名学生。
-- Desktop 全量 1125 tests 中 1100 passed、25 skipped、0 failed；TypeScript 与 ESLint 通过。该证据仍是源码隔离环境，不替代下一安装版、更多学科样本和真实课堂内容质量验收。
+- 补充失败边界：Core 回执已接受但首次快照重读失败时，命令层返回 accepted-pending，仍继续启动准备和最终 202 重读；已接受的 task ID 与 load sequence floor 会拒绝先前并发旧快照，首次包含该任务的新快照应用后即解除守卫，显式删除也会取消跟踪；任务删除后按 task ID 停止准备与待显示轮询，临时状态读取失败标为 retryable 并继续。受管 output/material 目录逐级拒绝符号链接后才进入共享文件白名单。名单 ID 只对没有 `school-roster` 外部标识的旧实体启用直接 ID 兼容，显式冲突不会串到另一名学生。
+- Desktop 全量 1127 tests 中 1102 passed、25 skipped、0 failed；TypeScript 与 ESLint 通过。该证据仍是源码隔离环境，不替代下一安装版、更多学科样本和真实课堂内容质量验收。
 
 ## 2026-09-14 `v0.3.11` 安装版与 Core 对齐验收
 

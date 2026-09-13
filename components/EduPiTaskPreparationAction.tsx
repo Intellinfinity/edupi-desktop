@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type PreparationState = { taskId?: string | null; state: "idle" | "running" | "ready" | "error"; prepared: number; error: string | null };
+type PreparationState = { taskId?: string | null; state: "idle" | "running" | "ready" | "error"; prepared: number; error: string | null; retryable?: boolean };
 
 export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string; onReady: () => void }) {
   const [status, setStatus] = useState<PreparationState | null>(null);
@@ -41,7 +41,7 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
       try {
         const response = await fetch(`/api/edupi/preparation?taskId=${encodeURIComponent(taskId)}`, { cache: "no-store" });
         const next = await response.json() as PreparationState;
-        if (!active || next.state === "running") return;
+        if (!active || next.state === "running" || next.state === "error" && next.retryable === true) return;
         if (next.taskId !== taskId) {
           setStatus({ taskId, state: "error", prepared: 0, error: "运行状态已切换，请重试" });
           return;

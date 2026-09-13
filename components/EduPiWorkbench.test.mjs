@@ -69,6 +69,7 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(taskBoard, /current\.filter\(\(id\) => compatibleMaterialIds\.has\(id\)\)/);
   assert.match(taskBoard, /deliverableValidation\.error/);
   assert.match(panel, /pollBoardPreparation/);
+  assert.match(panel, /isTerminalPreparationRead\(next\)/);
   assert.match(panel, /next\.state === "idle"/);
   assert.match(panel, /!refreshed\.tasks\.some\(\(task\) => task\.id === taskId\)/);
   assert.match(panel, /stopTaskTracking\(id\)/);
@@ -485,6 +486,9 @@ test("the CSS defines a harness workspace with an optional object browser and re
   assert.match(css, /\.edupi-semester-ledger/);
   assert.match(css, /\.edupi-task-inspector/);
   assert.match(css, /@media \(max-width: 820px\)/);
+  assert.match(css, /@media \(max-width: 1000px\)[\s\S]*\.edupi-task-board-create\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.edupi-task-board-create\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*overflow-y:\s*auto/);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.edupi-task-board-create__source\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.doesNotMatch(css, /Notion-inspired surface language/);
 });
 

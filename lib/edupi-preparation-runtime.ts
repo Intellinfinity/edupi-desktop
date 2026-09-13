@@ -3,7 +3,7 @@ import { readEducationContract } from "./edupi-education-server";
 import { ensureEduPiRuntime, getPendingEduPiRuntime } from "./edupi-runtime-supervisor";
 import { pumpBackgroundJobs } from "./edupi-background-jobs";
 
-type PreparationStatus = { state: "idle" | "running" | "ready" | "error"; updatedAt: string | null; prepared: number; error: string | null; taskId?: string | null };
+type PreparationStatus = { state: "idle" | "running" | "ready" | "error"; updatedAt: string | null; prepared: number; error: string | null; taskId?: string | null; retryable?: boolean };
 const shared = globalThis as typeof globalThis & { __edupiPreparationStatus?: PreparationStatus };
 const current = () => shared.__edupiPreparationStatus ??= { state: "idle", updatedAt: null, prepared: 0, error: null };
 
@@ -49,9 +49,9 @@ export async function preparationStatus(taskId?: string): Promise<PreparationSta
     else if (work?.currentState === "failed") Object.assign(status, { state: "error", error: "备课未完成，请重试", prepared });
     else if (work?.artifactIds.length || !status.taskId && prepared > 0) Object.assign(status, { state: "ready", error: null, prepared });
     else Object.assign(status, { state: "idle", error: null, prepared });
-    return { ...status };
+    return { ...status, retryable: false };
   } catch {
-    return { ...status, state: "error", error: "备课状态暂不可用" };
+    return { ...status, state: "error", error: "备课状态暂不可用", retryable: true };
   }
 }
 
@@ -83,12 +83,12 @@ export async function startPreparation({ taskId = null }: { taskId?: string | nu
     const batch = result.result as { tasks?: unknown[]; failures?: Array<{ code: string }> } | undefined;
     if (!taskId && !batch?.tasks?.length && batch?.failures?.length) throw failure({ error_code: batch.failures[0].code });
     const state = taskId && acknowledgement?.state === "completed" ? "ready" : "running";
-    Object.assign(status, { taskId, state, updatedAt: new Date().toISOString(), error: null });
+    Object.assign(status, { taskId, state, updatedAt: new Date().toISOString(), error: null, retryable: false });
     return { ...status };
   } catch (error) {
     const code = (error as { code?: unknown })?.code;
     if (typeof code === "string" && /^[a-z_]{1,64}$/.test(code)) console.warn("[edupi preparation]", code);
-    Object.assign(status, { taskId, state: "error", updatedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "备课暂不可用" });
+    Object.assign(status, { taskId, state: "error", updatedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "备课暂不可用", retryable: false });
     return { ...status };
   }
 }

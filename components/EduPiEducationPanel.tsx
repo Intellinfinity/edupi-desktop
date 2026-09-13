@@ -58,6 +58,7 @@ import { normalizeKernelState, readEduPiKernel, type EduPiKernelState } from "@/
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 import { hasEveryTrackedTask, refreshUntilTaskVisible } from "@/lib/edupi-task-refresh";
+import { isTerminalPreparationRead } from "@/lib/edupi-preparation-status";
 
 type Props = {
   initialModule?: EducationModule;
@@ -96,7 +97,7 @@ type EducationIntakeApiResult = {
   recognition?: { eventCount?: number; slotCount?: number };
 };
 
-type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null };
+type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null; retryable?: boolean };
 
 const reviewLabels: Record<TaskReviewAction, string> = {
   accept: "已接受",
@@ -226,7 +227,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
             const response = await fetch(`/api/edupi/preparation?taskId=${encodeURIComponent(taskId)}`, { cache: "no-store", signal: controller.signal });
             if (response.ok) {
               const next = await response.json() as BoardPreparationStatus;
-              if (next.taskId === taskId && (next.state === "ready" || next.state === "error")) {
+              if (next.taskId === taskId && isTerminalPreparationRead(next)) {
                 await loadWorkspace(controller.signal).catch(() => {});
                 if (!controller.signal.aborted) window.dispatchEvent(new Event("edupi-preparation-updated"));
                 return;

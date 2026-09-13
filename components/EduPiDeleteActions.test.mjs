@@ -58,7 +58,7 @@ test("delete controls require an explicit named confirmation and show progress",
   assert.match(students, /if \(!deleted\) return/);
   assert.match(panel, /setDeleteBusy/);
   assert.match(panel, /删除中/);
-  assert.match(panel, /setEducation\(result\.data\)/);
+  assert.match(panel, /commitEducationSnapshot\(result\.data\)/);
   assert.match(panel, /setTimeout\(\(\) => setMaterialStagingMessage\(null\)/);
   assert.match(panel, /STATUS_MESSAGE_MS = 4_000/);
 });

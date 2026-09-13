@@ -87,7 +87,12 @@ export async function startPreparation({ taskId = null }: { taskId?: string | nu
 
 export async function ensurePreparation(): Promise<PreparationStatus> {
   try {
-    await ensureEduPiRuntime(resolveEduPiBridgeRoots());
+    const host = await ensureEduPiRuntime(resolveEduPiBridgeRoots());
+    // The Core timer performs the same scan every five minutes. Running it
+    // once on Desktop startup/resume closes the sleep gap immediately; Core's
+    // source revision and queue replay guards keep this idempotent.
+    const catchUp = await host.call("prepare_due", null);
+    if (!catchUp.ok) throw failure(catchUp);
     void pumpBackgroundJobs().catch(() => console.warn("[edupi background] startup recovery unavailable"));
     return preparationStatus();
   } catch {

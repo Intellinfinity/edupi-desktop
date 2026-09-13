@@ -2113,6 +2113,12 @@ pub fn run() {
         .expect("failed to build Pi Agent desktop app");
 
     app.run(|app_handle, event| match event {
+        RunEvent::Resumed => {
+            // Waking the WebView causes it to run one bounded Core due scan.
+            // The initial Resumed event is harmless because the mount path
+            // performs the same idempotent catch-up.
+            let _ = app_handle.emit("edupi://resume", ());
+        }
         RunEvent::Exit => {
             if let Some(server) = app_handle.try_state::<DesktopServer>() {
                 server.stop();

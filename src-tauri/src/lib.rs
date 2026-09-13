@@ -5,9 +5,12 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Component, Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 #[cfg(unix)]
@@ -57,6 +60,8 @@ const DEV_SERVER_URL: &str = "http://127.0.0.1:30141";
 const DESKTOP_SERVER_PORT: u16 = 38471;
 #[cfg(feature = "custom-protocol")]
 const SERVER_START_TIMEOUT: Duration = Duration::from_secs(30);
+const RESUME_MONITOR_INTERVAL: Duration = Duration::from_secs(15);
+const RESUME_GAP_THRESHOLD: Duration = Duration::from_secs(45);
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -65,6 +70,51 @@ const DARK_WINDOW_BG: Color = Color(28, 28, 30, 255);
 
 struct DesktopServer {
     child: Mutex<Option<Child>>,
+}
+
+struct DesktopResumeMonitor {
+    stopped: Arc<AtomicBool>,
+}
+
+impl DesktopResumeMonitor {
+    fn stop(&self) {
+        self.stopped.store(true, Ordering::Relaxed);
+    }
+}
+
+impl Drop for DesktopResumeMonitor {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+fn resume_gap_detected(previous: SystemTime, current: SystemTime, threshold: Duration) -> bool {
+    current
+        .duration_since(previous)
+        .map(|elapsed| elapsed >= threshold)
+        .unwrap_or(false)
+}
+
+fn start_desktop_resume_monitor(app_handle: AppHandle) -> io::Result<DesktopResumeMonitor> {
+    let stopped = Arc::new(AtomicBool::new(false));
+    let thread_stopped = stopped.clone();
+    thread::Builder::new()
+        .name("edupi-resume-monitor".into())
+        .spawn(move || {
+            let mut previous = SystemTime::now();
+            while !thread_stopped.load(Ordering::Relaxed) {
+                thread::sleep(RESUME_MONITOR_INTERVAL);
+                if thread_stopped.load(Ordering::Relaxed) {
+                    break;
+                }
+                let current = SystemTime::now();
+                if resume_gap_detected(previous, current, RESUME_GAP_THRESHOLD) {
+                    let _ = app_handle.emit("edupi://resume", ());
+                }
+                previous = current;
+            }
+        })?;
+    Ok(DesktopResumeMonitor { stopped })
 }
 
 /// When true, closing the main window quits the app; otherwise it hides to tray.
@@ -198,8 +248,14 @@ fn open_external(url: &Url) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        let status = Command::new("/usr/bin/open").arg(url.as_str()).status().map_err(|error| error.to_string())?;
-        return status.success().then_some(()).ok_or_else(|| "System URL opener failed".into());
+        let status = Command::new("/usr/bin/open")
+            .arg(url.as_str())
+            .status()
+            .map_err(|error| error.to_string())?;
+        return status
+            .success()
+            .then_some(())
+            .ok_or_else(|| "System URL opener failed".into());
     }
 
     #[cfg(target_os = "windows")]
@@ -214,7 +270,10 @@ fn open_external(url: &Url) -> Result<(), String> {
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        Command::new("xdg-open").arg(url.as_str()).spawn().map_err(|error| error.to_string())?;
+        Command::new("xdg-open")
+            .arg(url.as_str())
+            .spawn()
+            .map_err(|error| error.to_string())?;
         return Ok(());
     }
 
@@ -1443,17 +1502,39 @@ mod tests {
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
-        response_has_instance_id, should_reconcile_webview_cache, update_server_port_in_prefs,
-        validate_selected_data_root, write_last_version_to_path, WebviewCacheLayout,
-        FALLBACK_PERSISTED_CORRUPT, FALLBACK_PERSISTED_MISSING, FALLBACK_PERSISTED_NON_OBJECT,
-        FALLBACK_PERSISTED_NOT_DIRECTORY, FALLBACK_PERSISTED_NO_KEY, FALLBACK_PERSISTED_SYMLINK,
+        response_has_instance_id, resume_gap_detected, should_reconcile_webview_cache,
+        update_server_port_in_prefs, validate_selected_data_root, write_last_version_to_path,
+        WebviewCacheLayout, FALLBACK_PERSISTED_CORRUPT, FALLBACK_PERSISTED_MISSING,
+        FALLBACK_PERSISTED_NON_OBJECT, FALLBACK_PERSISTED_NOT_DIRECTORY, FALLBACK_PERSISTED_NO_KEY,
+        FALLBACK_PERSISTED_SYMLINK,
     };
     use std::fs;
     use std::io;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, SystemTime};
 
     static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn detects_a_long_system_clock_gap_without_treating_a_normal_poll_as_resume() {
+        let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
+        assert!(!resume_gap_detected(
+            start,
+            start + Duration::from_secs(15),
+            Duration::from_secs(45)
+        ));
+        assert!(resume_gap_detected(
+            start,
+            start + Duration::from_secs(60),
+            Duration::from_secs(45)
+        ));
+        assert!(!resume_gap_detected(
+            start,
+            SystemTime::UNIX_EPOCH,
+            Duration::from_secs(45)
+        ));
+    }
 
     struct TempRoot(PathBuf);
 
@@ -2045,6 +2126,7 @@ pub fn run() {
             let (url, server) = start_development_server(app.handle())?;
 
             app.manage(server);
+            app.manage(start_desktop_resume_monitor(app.handle().clone())?);
             // Reconcile stale hashed web assets before the first window load.
             let webview_cache_reconciled = reconcile_webview_cache_for_version(app.handle());
             build_window(app.handle(), url)?;
@@ -2113,13 +2195,10 @@ pub fn run() {
         .expect("failed to build Pi Agent desktop app");
 
     app.run(|app_handle, event| match event {
-        RunEvent::Resumed => {
-            // Waking the WebView causes it to run one bounded Core due scan.
-            // The initial Resumed event is harmless because the mount path
-            // performs the same idempotent catch-up.
-            let _ = app_handle.emit("edupi://resume", ());
-        }
         RunEvent::Exit => {
+            if let Some(monitor) = app_handle.try_state::<DesktopResumeMonitor>() {
+                monitor.stop();
+            }
             if let Some(server) = app_handle.try_state::<DesktopServer>() {
                 server.stop();
             }

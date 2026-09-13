@@ -13,10 +13,14 @@ const serverEntry = path.join(serverDir, "desktop-server.cjs");
 const nodeBinary = path.join(resources, "Pi Agent Server.app", "Contents", "MacOS", "node");
 const coreRoot = path.join(resources, "edupi-core");
 const infoPlist = path.join(appRoot, "Contents", "Info.plist");
+const expectedVersion = process.env.EDUPI_EXPECTED_VERSION?.trim() || null;
 
 for (const required of [serverEntry, nodeBinary, coreRoot, infoPlist]) {
   assert.equal(fs.existsSync(required), true, `missing packaged resource: ${required}`);
 }
+const plist = fs.readFileSync(infoPlist, "utf8");
+const appVersion = plist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/)?.[1] || "unknown";
+if (expectedVersion) assert.equal(appVersion, expectedVersion, "installed package version does not match EDUPI_EXPECTED_VERSION");
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-packaged-background-"));
 const dataRoot = path.join(temporaryRoot, "teacher-data");
@@ -203,11 +207,17 @@ async function startPackagedServer(label) {
   child.stderr.on("data", collect);
   child.once("error", collect);
   const baseUrl = `http://127.0.0.1:${port}`;
-  await waitFor(`${label} packaged server`, async () => {
-    const response = await fetch(`${baseUrl}/api/home`);
-    return response.status;
-  }, status => status === 200, 45_000);
-  return { child, baseUrl };
+  const packagedServer = { child, baseUrl };
+  try {
+    await waitFor(`${label} packaged server`, async () => {
+      const response = await fetch(`${baseUrl}/api/home`, { signal: AbortSignal.timeout(5_000) });
+      return response.status;
+    }, status => status === 200, 45_000);
+    return packagedServer;
+  } catch (error) {
+    await stopPackagedServer(packagedServer);
+    throw error;
+  }
 }
 
 async function stopPackagedServer(server) {
@@ -228,6 +238,7 @@ async function stopPackagedServer(server) {
 async function api(server, pathname, init = {}) {
   const response = await fetch(`${server.baseUrl}${pathname}`, {
     ...init,
+    signal: init.signal || AbortSignal.timeout(30_000),
     headers: {
       ...(init.body ? { "content-type": "application/json" } : {}),
       ...(init.headers || {}),
@@ -300,12 +311,11 @@ try {
   assert.ok(registered, "completed file was not registered in Core artifacts");
   assert.equal(registered.available, true);
 
-  const plist = fs.readFileSync(infoPlist, "utf8");
-  const version = plist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/)?.[1] || "unknown";
   const compatibility = JSON.parse(fs.readFileSync(path.join(serverDir, "contracts", "edupi-core-compat.json"), "utf8"));
   process.stdout.write(`${JSON.stringify({
     ok: true,
-    version,
+    scope: "packaged-server-recovery",
+    version: appVersion,
     coreCommit: compatibility.core_runtime.core_commit,
     jobId,
     attemptCount: completed.attempt_count,

@@ -10,9 +10,10 @@ test("the desktop cold start ensures the DingTalk Stream runtime without blockin
 });
 
 test("desktop startup, reconnect, visibility, and native resume share one Core catch-up", () => {
-  assert.match(source, /listenDesktopResumeNative\(\(\) => catchUp\(true\)\)/);
+  assert.match(source, /createDesktopCatchUpCoordinator/);
+  assert.match(source, /listenDesktopResumeNative\(\(\) => catchUp\.trigger\(true\)\)/);
   assert.match(source, /window\.addEventListener\("online", recoverOnline\)/);
   assert.match(source, /document\.addEventListener\("visibilitychange", refreshVisible\)/);
-  assert.match(source, /now - lastStartedAt < 30_000/);
+  assert.match(source, /catchUp\.dispose\(\)/);
   assert.match(source, /\/api\/edupi\/preparation/);
 });

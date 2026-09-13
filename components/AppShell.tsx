@@ -43,6 +43,7 @@ import { useViewportHeight } from "@/hooks/useViewportHeight";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { copyText } from "@/lib/clipboard";
 import { useDesktopConnection } from "@/lib/desktop-connection";
+import { createDesktopCatchUpCoordinator } from "@/lib/desktop-catch-up";
 import { isTauriDesktop, listenDesktopResumeNative, listenQuickEntryNative, setCloseQuitsNative, showMainWindowNative } from "@/lib/desktop-native";
 import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
@@ -222,21 +223,14 @@ export function AppShell() {
     if (!desktopMode) return;
     let disposed = false;
     let unlisten: (() => void) | null = null;
-    let active: Promise<void> | null = null;
-    let lastStartedAt = 0;
-    const catchUp = (force = false) => {
-      const now = Date.now();
-      if (disposed || active || !force && now - lastStartedAt < 30_000) return;
-      lastStartedAt = now;
-      active = Promise.allSettled([
+    const catchUp = createDesktopCatchUpCoordinator(() => Promise.allSettled([
         fetch("/api/edupi/connectors/dingtalk/runtime", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ensure" }) }),
         fetch("/api/edupi/preparation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ensure" }) }),
-      ]).then(() => {}).finally(() => { active = null; });
-    };
-    const refreshVisible = () => { if (document.visibilityState === "visible") catchUp(); };
-    const recoverOnline = () => catchUp(true);
-    catchUp(true);
-    void listenDesktopResumeNative(() => catchUp(true)).then((next) => {
+      ]));
+    const refreshVisible = () => { if (document.visibilityState === "visible") catchUp.trigger(); };
+    const recoverOnline = () => catchUp.trigger(true);
+    catchUp.trigger(true);
+    void listenDesktopResumeNative(() => catchUp.trigger(true)).then((next) => {
       if (disposed) next();
       else unlisten = next;
     }).catch(() => {});
@@ -244,6 +238,7 @@ export function AppShell() {
     document.addEventListener("visibilitychange", refreshVisible);
     return () => {
       disposed = true;
+      catchUp.dispose();
       unlisten?.();
       window.removeEventListener("online", recoverOnline);
       document.removeEventListener("visibilitychange", refreshVisible);

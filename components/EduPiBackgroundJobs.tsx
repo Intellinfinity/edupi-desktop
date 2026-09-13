@@ -5,7 +5,7 @@ import { buildMaterialRows } from "@/lib/edupi-material-rows";
 import { openPathNative } from "@/lib/desktop-native";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 
-type Job = { job_id: string; title: string; status: string; error?: string; artifacts?: Array<{ relative_path: string }> };
+type Job = { job_id: string; title: string; status: string; attempt_count?: number; error?: string; progress?: { phase: string; message: string; updated_at: string }; artifacts?: Array<{ relative_path: string }> };
 const labels: Record<string, string> = { queued: "排队中", running: "处理中", completed: "已完成", failed: "失败", canceled: "已取消" };
 
 function workspaceFile(workspace: string, relativePath: string): string {
@@ -17,8 +17,11 @@ function artifactLabel(relativePath: string, index: number): string {
   return relativePath.split(/[\\/]/).filter(Boolean).at(-1) || `产物 ${index + 1}`;
 }
 
-export function backgroundJobStatusText(job: Pick<Job, "status" | "error">) {
-  return `${labels[job.status] || job.status}${job.status === "failed" && job.error ? ` · ${job.error}` : ""}`;
+export function backgroundJobStatusText(job: Pick<Job, "status" | "attempt_count" | "error" | "progress">) {
+  const attempt = job.status === "running" && (job.attempt_count || 0) > 1 ? ` · 第${job.attempt_count}次尝试` : "";
+  const progress = ["queued", "running"].includes(job.status) && job.progress?.message ? ` · ${job.progress.message}` : "";
+  const error = job.status === "failed" && job.error ? ` · ${job.error}` : "";
+  return `${labels[job.status] || job.status}${attempt}${progress}${error}`;
 }
 
 export function EduPiBackgroundJobs({ data, onMaterials }: { data: EducationContract | null; onMaterials: () => void }) {

@@ -24,7 +24,8 @@ export async function POST(request: Request) {
     if (body.taskId !== undefined) {
       if (typeof body.taskId !== "string" || !body.taskId || body.taskId.length > 160 || /[\r\n]/.test(body.taskId)) return NextResponse.json({ error: "任务标识无效" }, { status: 400 });
       const data = await readEducationContract();
-      const executable = data.workCases.some((item) => item.taskId === body.taskId && ["teaching_before_class", "calendar_preparation"].includes(item.kind));
+      const executable = data.workCases.some((item) => item.taskId === body.taskId && ["teaching_before_class", "calendar_preparation"].includes(item.kind))
+        || data.tasks.some((item) => item.id === body.taskId && item.trigger === "teaching_before_class" && Boolean(item.sourceEventId && item.sourceEventDate && item.materialId && item.deliverables.length));
       if (!executable) return NextResponse.json({ error: "该任务尚不支持自动准备" }, { status: 404 });
       return NextResponse.json(await startPreparation({ taskId: body.taskId }));
     }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { EducationWorkCase, TeacherTask } from "@/lib/edupi-education-contract";
+import { useModalDismiss } from "@/hooks/useModalDismiss";
 import { workCaseStateLabel, workCaseTransitionLabel } from "@/lib/edupi-work-case";
 import {
   taskAgentSteps,
@@ -15,10 +15,12 @@ import {
   taskStatusTone,
   type AgentStep,
 } from "@/lib/edupi-workbench";
+import type { GeneratedArtifact } from "@/lib/edupi-generated-artifacts";
 
 type Props = {
   task: TeacherTask;
   workCase: EducationWorkCase | null;
+  files?: GeneratedArtifact[];
   workspace: string;
   onClose: () => void;
   onOpenFile: (path: string) => void;
@@ -53,16 +55,16 @@ function flowTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOpenFile, onOpenTask, onOpenAgent, onDelete, deleteBusy = false }: Props) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const drawerRef = useRef<HTMLElement>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, onClose, onOpenFile, onOpenTask, onOpenAgent, onDelete, deleteBusy = false }: Props) {
+  const drawerRef = useModalDismiss<HTMLElement>(onClose);
   const title = taskDisplayTitle(task);
   const source = taskSourceLabel(task);
   const status = taskStatusLabel(task);
   const statusTone = taskStatusTone(task);
   const steps = taskAgentSteps(task);
   const artifacts = taskArtifacts(task);
+  const workspaceRoot = workspace.replace(/[\\/]$/, "");
+  const preparedFiles = files.filter(item => item.task_id === task.id && item.available !== false);
   const contentReady = taskContentReady(task);
   const plans = contentReady ? [] : task.deliverables;
   const file = contentReady ? taskArtifactFile(task, workspace) : null;
@@ -76,50 +78,12 @@ export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOp
     ["时间", task.reviewedAt || nonempty(latestReview?.reviewed_at)],
   ].flatMap(([label, value]) => value ? [{ label, value }] : []);
   const flowTransitions = workCase ? workCase.transitions.slice(-12) : [];
-  useEffect(() => {
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeButtonRef.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !drawerRef.current) return;
-      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
-      if (focusable.length === 0) {
-        event.preventDefault();
-        drawerRef.current.focus();
-        return;
-      }
-      const active = document.activeElement as HTMLElement | null;
-      const index = active ? focusable.indexOf(active) : -1;
-      if (index === -1) {
-        event.preventDefault();
-        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0]).focus();
-        return;
-      }
-      const next = event.shiftKey
-        ? (index - 1 + focusable.length) % focusable.length
-        : (index + 1) % focusable.length;
-      event.preventDefault();
-      focusable[next].focus();
-    };
-    window.addEventListener("keydown", closeOnEscape, true);
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape, true);
-      const previouslyFocused = previouslyFocusedRef.current;
-      if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
-    };
-  }, [onClose]);
-
   return (
     <div className="edupi-task-detail-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <aside ref={drawerRef} className="edupi-task-detail-drawer" role="dialog" aria-modal="true" aria-labelledby="edupi-task-detail-title" tabIndex={-1}>
         <header className="edupi-task-detail-drawer__header">
           <div><span>教师任务</span><h2 id="edupi-task-detail-title">{title}</h2></div>
-          <button ref={closeButtonRef} type="button" className="edupi-task-detail-drawer__close" onClick={onClose} aria-label="关闭任务详情">×</button>
+          <button data-autofocus type="button" className="edupi-task-detail-drawer__close" onClick={onClose} aria-label="关闭任务详情">×</button>
         </header>
         <div className="edupi-task-detail-drawer__body">
           <section className="edupi-task-detail-summary" aria-label="任务概览">
@@ -143,9 +107,9 @@ export function EduPiTaskDetailDrawer({ task, workCase, workspace, onClose, onOp
 
           <section className="edupi-task-detail-section" aria-labelledby="edupi-task-detail-ready">
             <header><h3 id="edupi-task-detail-ready">已准备</h3><span>{artifacts.length} 项</span></header>
-            {artifacts.length > 0 ? <ul className="edupi-task-detail-artifacts">{artifacts.map((artifact) => <li key={artifact.id}><div><strong>{artifact.title}</strong><small>{artifact.state === "confirmed" ? "已确认" : "候选"}</small></div></li>)}</ul> : <p className="edupi-task-detail-empty">暂无已准备内容</p>}
+            {preparedFiles.length > 0 ? <ul className="edupi-task-detail-artifacts">{preparedFiles.map((artifact) => <li key={artifact.artifact_id}><button type="button" onClick={() => { onClose(); onOpenFile(`${workspaceRoot}/${artifact.relative_path}`); }}><strong>{artifact.title}</strong><small>{task.status === "accepted" || task.status === "modified" ? "已确认" : "候选"}</small></button></li>)}</ul> : artifacts.length > 0 ? <ul className="edupi-task-detail-artifacts">{artifacts.map((artifact) => <li key={artifact.id}><div><strong>{artifact.title}</strong><small>{artifact.state === "confirmed" ? "已确认" : "候选"}</small></div></li>)}</ul> : <p className="edupi-task-detail-empty">暂无已准备内容</p>}
             {plans.length > 0 ? <div className="edupi-task-detail-plans"><strong>计划交付</strong><ul>{plans.map((plan) => <li key={plan}>{plan}</li>)}</ul></div> : null}
-            {file ? <div className="edupi-task-detail-file"><span aria-hidden="true">文</span><div><strong>{fileName(file.path)}</strong><small>{fileHasVerification ? "文件已核验" : "文件已留存"}</small></div><button type="button" onClick={() => { onClose(); onOpenFile(file.path); }}>打开产物</button></div> : null}
+            {file && preparedFiles.length === 0 ? <div className="edupi-task-detail-file"><span aria-hidden="true">文</span><div><strong>{fileName(file.path)}</strong><small>{fileHasVerification ? "文件已核验" : "文件已留存"}</small></div><button type="button" onClick={() => { onClose(); onOpenFile(file.path); }}>打开产物</button></div> : null}
           </section>
 
           <section className="edupi-task-detail-section" aria-labelledby="edupi-task-detail-evidence">

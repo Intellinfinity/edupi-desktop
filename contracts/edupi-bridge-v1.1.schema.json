@@ -1647,6 +1647,30 @@
                               }
                             ]
                           },
+                          "external_refs": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "external_id": {
+                                  "maxLength": 160,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "namespace": {
+                                  "maxLength": 80,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "namespace",
+                                "external_id"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 100,
+                            "type": "array"
+                          },
                           "external_send": {
                             "const": false,
                             "type": "boolean"
@@ -1664,6 +1688,7 @@
                           "entity_id",
                           "entity_kind",
                           "canonical_name",
+                          "external_refs",
                           "status",
                           "revision",
                           "external_send"
@@ -13278,6 +13303,61 @@
                             {
                               "maxLength": 1000,
                               "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "preparation_source": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "deliverables": {
+                                  "items": {
+                                    "maxLength": 240,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "maxItems": 20,
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "teaching_before_class",
+                                  "type": "string"
+                                },
+                                "lesson_date": {
+                                  "maxLength": 10,
+                                  "minLength": 10,
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "material_ids": {
+                                  "items": {
+                                    "maxLength": 160,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "maxItems": 20,
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "timetable_slot_id": {
+                                  "maxLength": 160,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "timetable_slot_id",
+                                "lesson_date",
+                                "material_ids",
+                                "deliverables"
+                              ],
+                              "type": "object"
                             },
                             {
                               "type": "null"

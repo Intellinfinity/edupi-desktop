@@ -21,6 +21,10 @@ test("rejects cross-site, non-JSON, malformed and unknown task creation fields",
     const response = await POST(request(body));
     assert.equal(response.status, 400);
   }
+  const source = { kind: "teaching_before_class", timetableSlotId: "slot-1", lessonDate: "2026-09-11", materialIds: ["material-1"], deliverables: ["检测卷"] };
+  for (const preparationSource of [{ ...source, lessonDate: "2026-02-31" }, { ...source, materialIds: [] }, { ...source, deliverables: [] }, { ...source, materialIds: ["material-1", "material-1"] }, { ...source, admin: true }]) {
+    assert.equal((await POST(request({ title: "准备检测", preparationSource }))).status, 400);
+  }
 });
 
 test("a valid task creation request reaches the Core boundary", async () => {
@@ -28,4 +32,8 @@ test("a valid task creation request reaches the Core boundary", async () => {
   assert.equal(response.status, 503);
   const body = await response.json();
   assert.equal(body.code, "unavailable");
+
+  const managed = await POST(request({ title: "准备第一次单元检测", dueDate: "2026-09-10", note: "先整理范围", preparationSource: { kind: "teaching_before_class", timetableSlotId: "slot-1", lessonDate: "2026-09-11", materialIds: ["material-1"], deliverables: ["检测卷", "参考答案"] } }));
+  assert.equal(managed.status, 503);
+  assert.equal((await managed.json()).code, "unavailable");
 });

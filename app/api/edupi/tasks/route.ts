@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
-import { issueTaskBoardCommand, taskBoardContentHash, TaskBoardCommandError } from "@/lib/edupi-task-board-command";
+import { issueTaskBoardCommand, taskBoardContentHash, TaskBoardCommandError, type TeacherCreatedPreparationSource } from "@/lib/edupi-task-board-command";
 import { readEducationContract } from "@/lib/edupi-education-server";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 
@@ -9,7 +9,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 32 * 1024;
-const BODY_KEYS = new Set(["title", "dueDate", "note"]);
+const BODY_KEYS = new Set(["title", "dueDate", "note", "preparationSource"]);
+const PREPARATION_KEYS = new Set(["kind", "timetableSlotId", "lessonDate", "materialIds", "deliverables"]);
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -29,6 +30,26 @@ function note(value: unknown): string | null {
   return value.trim() || null;
 }
 
+function boundedUniqueStrings(value: unknown, maxItems: number, maxLength: number): string[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > maxItems) return null;
+  const rows = value.map((item) => typeof item === "string" ? item.trim() : "");
+  if (rows.some((item) => !item || item.length > maxLength) || new Set(rows).size !== rows.length) return null;
+  return rows;
+}
+
+function preparationSource(value: unknown): TeacherCreatedPreparationSource | null {
+  if (value === undefined || value === null) return null;
+  const source = record(value);
+  const materialIds = boundedUniqueStrings(source?.materialIds, 20, 160);
+  const deliverables = boundedUniqueStrings(source?.deliverables, 20, 240);
+  if (!source || Object.keys(source).some((key) => !PREPARATION_KEYS.has(key)) || Object.keys(source).length !== PREPARATION_KEYS.size
+    || source.kind !== "teaching_before_class" || typeof source.timetableSlotId !== "string" || !source.timetableSlotId || source.timetableSlotId.length > 160
+    || !materialIds || !deliverables) throw new TaskBoardCommandError("invalid_envelope", "教学准备来源无效。");
+  const lessonDate = dateOnly(source.lessonDate);
+  if (!lessonDate) throw new TaskBoardCommandError("invalid_envelope", "上课日期无效。");
+  return { kind: "teaching_before_class", timetable_slot_id: source.timetableSlotId, lesson_date: lessonDate, material_ids: materialIds, deliverables };
+}
+
 function statusFor(code: string): number {
   if (code === "invalid_envelope") return 400;
   if (["stale_snapshot", "stale_revision", "task_conflict", "invalid_transition", "stage_unchanged"].includes(code)) return 409;
@@ -44,7 +65,7 @@ export async function POST(request: Request) {
       throw new TaskBoardCommandError("invalid_envelope", "任务字段无效。");
     }
     const taskId = `teacher-task-${crypto.randomUUID()}`;
-    const task = { task_id: taskId, title: body.title.trim(), due_date: dateOnly(body.dueDate), note: note(body.note) };
+    const task = { task_id: taskId, title: body.title.trim(), due_date: dateOnly(body.dueDate), note: note(body.note), preparation_source: preparationSource(body.preparationSource) };
     const sourceId = `desktop-task-create-${taskId.slice("teacher-task-".length)}`;
     const result = await issueTaskBoardCommand({
       command_type: "create_task",

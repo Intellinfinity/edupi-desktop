@@ -52,6 +52,17 @@ export function validateCoreEnvelopeSchema(value: unknown): boolean {
   }
 }
 
+export function validateCoreEnvelopeSchemaWithFactIsolation(value: unknown): boolean {
+  if (validateCoreEnvelopeSchema(value)) return true;
+  const envelope = record(value);
+  const payload = record(envelope?.payload);
+  const workspace = record(payload?.education_workspace);
+  if (!envelope || !payload || !workspace || !Object.hasOwn(workspace, "fact_spine")) return false;
+  const sanitizedWorkspace = { ...workspace };
+  delete sanitizedWorkspace.fact_spine;
+  return validateCoreEnvelopeSchema({ ...envelope, payload: { ...payload, education_workspace: sanitizedWorkspace } });
+}
+
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }

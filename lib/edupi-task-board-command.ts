@@ -7,7 +7,11 @@ import { readEduPiEducationSnapshot, type CoreEducationSnapshotPayload, type Edu
 type RawRecord = Record<string, unknown>;
 export type TaskBoardStage = "todo" | "progress" | "review" | "done";
 export type TaskBoardSource = { source_id: string; source_kind: "teacher_message"; source_hash: string; evidence_ids: string[] };
-export type CreateTaskCommand = { command_type: "create_task"; source: TaskBoardSource; task: { task_id: string; title: string; due_date: string | null; note: string | null } };
+export type TeacherCreatedPreparationSource = { kind: "teaching_before_class"; timetable_slot_id: string; lesson_date: string; material_ids: string[]; deliverables: string[] };
+export type TeacherCreatedPreparationInput = { kind: "teaching_before_class"; timetableSlotId: string; lessonDate: string; materialIds: string[]; deliverables: string[] };
+export type CreateTeacherTaskInput = { title: string; dueDate: string | null; note: string | null; preparationSource: TeacherCreatedPreparationInput | null };
+export type CreateTeacherTaskOutcome = { preparationState: "running" | "ready" | "error" | null; preparationError: string | null };
+export type CreateTaskCommand = { command_type: "create_task"; source: TaskBoardSource; task: { task_id: string; title: string; due_date: string | null; note: string | null; preparation_source?: TeacherCreatedPreparationSource | null } };
 export type MoveTaskStageCommand = { command_type: "move_task_stage"; source: TaskBoardSource; task_id: string; expected_revision: number; to_stage: TaskBoardStage; note: string | null };
 export type TaskBoardCommand = CreateTaskCommand | MoveTaskStageCommand;
 

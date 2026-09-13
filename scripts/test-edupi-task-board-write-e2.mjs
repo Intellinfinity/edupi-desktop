@@ -28,7 +28,7 @@ function request(url, method, body) {
 }
 
 try {
-  const createdResponse = await POST(request("http://localhost/api/edupi/tasks", "POST", { title: "准备第一次单元检测", dueDate: "2026-09-10", note: "先整理范围" }));
+  const createdResponse = await POST(request("http://localhost/api/edupi/tasks", "POST", { clientRequestId: "10000000-0000-4000-8000-000000000001", title: "准备第一次单元检测", dueDate: "2026-09-10", note: "先整理范围" }));
   const created = await createdResponse.json();
   assert.equal(createdResponse.status, 200, JSON.stringify(created));
   const task = created.data.tasks.find((item) => item.title === "准备第一次单元检测");
@@ -47,7 +47,7 @@ try {
     assert.equal(updated.boardRevision, revision);
   }
 
-  const secondResponse = await POST(request("http://localhost/api/edupi/tasks", "POST", { title: "不可跳过流程的任务", dueDate: null, note: null }));
+  const secondResponse = await POST(request("http://localhost/api/edupi/tasks", "POST", { clientRequestId: "10000000-0000-4000-8000-000000000002", title: "不可跳过流程的任务", dueDate: null, note: null }));
   const second = await secondResponse.json();
   assert.equal(secondResponse.status, 200, JSON.stringify(second));
   const secondTask = second.data.tasks.find((item) => item.title === "不可跳过流程的任务");
@@ -77,7 +77,7 @@ try {
   assert.ok(reloaded.tasks.some((item) => item.id === chatTask.id));
   const reminders = await jiti.import("../app/api/edupi/reminders/route.ts");
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const reminderTaskResponse = await POST(request("http://localhost/api/edupi/tasks", "POST", { title: "提醒接口验收", dueDate: today, note: "隔离测试" }));
+  const reminderTaskResponse = await POST(request("http://localhost/api/edupi/tasks", "POST", { clientRequestId: "10000000-0000-4000-8000-000000000003", title: "提醒接口验收", dueDate: today, note: "隔离测试" }));
   assert.equal(reminderTaskResponse.status, 200);
   const inboxResponse = await reminders.GET();
   assert.equal(inboxResponse.status, 200);

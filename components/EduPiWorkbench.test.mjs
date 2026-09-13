@@ -62,7 +62,13 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(taskBoard, /clientRequestId: pendingCreateRef\.current\.id/);
   assert.match(taskBoard, /material\.subject === rawText\(activeSlot\.subject\)/);
   assert.match(taskBoard, /material\.class_id === rawText\(activeSlot\.class_name\)/);
-  assert.doesNotMatch(panel, /fetch\("\/api\/edupi\/preparation"/);
+  assert.match(taskBoard, /lessonDateMatchesSlot/);
+  assert.match(taskBoard, /dueDateManuallyEditedRef/);
+  assert.match(taskBoard, /MAX_PREPARATION_MATERIALS/);
+  assert.match(taskBoard, /deliverableValidation\.error/);
+  assert.match(panel, /pollBoardPreparation/);
+  assert.match(panel, /fetch\(`\/api\/edupi\/preparation\?taskId=/);
+  assert.doesNotMatch(panel, /fetch\("\/api\/edupi\/preparation"[^\n]+method: "POST"/);
   assert.match(panel, /result\.preparation\?\.taskId !== result\.taskId/);
   assert.match(panel, /else void loadWorkspace\(\)\.catch/);
   assert.match(taskWorkspace, /props\.task\.trigger === "teaching_before_class"/);

@@ -1,10 +1,10 @@
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { issueTaskBoardCommand, taskBoardContentHash, TaskBoardCommandError, type TeacherCreatedPreparationSource } from "@/lib/edupi-task-board-command";
 import { readEducationContract } from "@/lib/edupi-education-server";
 import { startPreparation } from "@/lib/edupi-preparation-runtime";
-import type { TeacherTask } from "@/lib/edupi-education-contract";
+import type { EducationContract } from "@/lib/edupi-education-contract";
+import { lessonDateMatchesSlot, timetableSlotId } from "@/lib/edupi-teacher-task-form";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 
 export const runtime = "nodejs";
@@ -58,24 +58,10 @@ function statusFor(code: string): number {
   return 503;
 }
 
-function sourceEventId(source: TeacherCreatedPreparationSource): string {
-  const raw = `timetable:${source.timetable_slot_id}:${source.lesson_date}`;
-  if (raw.length <= 160) return raw;
-  const suffix = `-${crypto.createHash("sha256").update(raw).digest("hex")}`;
-  return `${raw.slice(0, 160 - suffix.length)}${suffix}`;
-}
-
-function sameStrings(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((item, index) => item === right[index]);
-}
-
-function matchesExistingTask(existing: TeacherTask, task: { title: string; due_date: string | null; note: string | null; preparation_source: TeacherCreatedPreparationSource | null }): boolean {
-  if (existing.title !== task.title || existing.dueDate !== task.due_date) return false;
-  const source = task.preparation_source;
-  if (!source) return existing.trigger === "teacher_created";
-  return existing.trigger === "teaching_before_class" && existing.sourceEventId === sourceEventId(source)
-    && existing.sourceEventDate === source.lesson_date && existing.materialId === source.material_ids[0]
-    && sameStrings(existing.deliverables, source.deliverables);
+function validatePreparationContext(source: TeacherCreatedPreparationSource, data: EducationContract): void {
+  const slot = data.timetable.find((item) => timetableSlotId(item) === source.timetable_slot_id) || null;
+  if (!slot) throw new TaskBoardCommandError("invalid_envelope", "所选课次已不存在，请重新选择。");
+  if (!lessonDateMatchesSlot(source.lesson_date, slot)) throw new TaskBoardCommandError("invalid_envelope", "上课日期与所选课次不一致。");
 }
 
 export async function POST(request: Request) {
@@ -91,27 +77,15 @@ export async function POST(request: Request) {
     const taskId = `teacher-task-${body.clientRequestId.toLowerCase()}`;
     const task = { task_id: taskId, title: body.title.trim(), due_date: dateOnly(body.dueDate), note: note(body.note), preparation_source: preparationSource(body.preparationSource) };
     const sourceId = `desktop-task-create-${taskId.slice("teacher-task-".length)}`;
-    let data = await readEducationContract();
-    let existing = data.tasks.find((item) => item.id === taskId);
-    let receipt: Record<string, unknown> | null = null;
-    let replayed = Boolean(existing);
-    if (existing && !matchesExistingTask(existing, task)) throw new TaskBoardCommandError("idempotency_conflict", "这次任务重试的内容已经变化，请重新提交。");
-    if (!existing) {
-      try {
-        const result = await issueTaskBoardCommand({
-          command_type: "create_task",
-          source: { source_id: sourceId, source_kind: "teacher_message", source_hash: taskBoardContentHash(task), evidence_ids: [`evidence-${sourceId}`] },
-          task,
-        }, { envelopeOptions: { idempotencyKey: `create-${body.clientRequestId.toLowerCase()}` } });
-        receipt = result.receipt;
-      } catch (error) {
-        if (!(error instanceof TaskBoardCommandError) || error.code !== "task_conflict") throw error;
-        data = await readEducationContract();
-        existing = data.tasks.find((item) => item.id === taskId);
-        if (!existing || !matchesExistingTask(existing, task)) throw error;
-        replayed = true;
-      }
-    }
+    const data = await readEducationContract();
+    if (task.preparation_source) validatePreparationContext(task.preparation_source, data);
+    const commandResult = await issueTaskBoardCommand({
+      command_type: "create_task",
+      source: { source_id: sourceId, source_kind: "teacher_message", source_hash: taskBoardContentHash(task), evidence_ids: [`evidence-${sourceId}`] },
+      task,
+    }, { envelopeOptions: { idempotencyKey: `create-${body.clientRequestId.toLowerCase()}` } });
+    const receipt = commandResult.receipt;
+    const replayed = commandResult.replayed;
     const preparation = task.preparation_source ? await startPreparation({ taskId }) : null;
     let refreshed = null;
     try { refreshed = await readEducationContract(); } catch { /* The task and preparation result are already durable. */ }

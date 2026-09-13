@@ -40,9 +40,12 @@ const CORE_OPERATIONS = ["health", "snapshot", "workspace-resources", "generated
 export type CoreProactiveWorkRun = {
   run_id: string;
   trigger_id: string;
+  fire_key?: string;
   status: "running" | "awaiting_delivery" | "failed" | "needs_review" | "succeeded" | "skipped";
   updated_at: string;
   result_summary: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
   attempt_count: number;
 };
 

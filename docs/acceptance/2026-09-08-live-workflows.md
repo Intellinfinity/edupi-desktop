@@ -379,6 +379,7 @@ Core9af123d启动后，无需再保存摘录，旧任务已回planned、当前�
 - 后端 E2 通过正式 `POST /api/edupi/tasks` 创建 source-backed 教学任务，再经 `POST /api/edupi/preparation` 进入 Core Runtime。任务、work candidate、work case 和两份 generated artifact 使用同一 `task_id`；首次模型调用一次，重复准备不增加调用。
 - 复核后改为一个服务端请求完成创建与启动：客户端 UUID `22222222-2222-4222-8222-222222222222` 稳定派生 task ID；原请求再次提交返回 `replayed=true`，任务仍1条、模型调用不增加。伪造为另一 task 的 target/applied IDs 回执在启动前被拒绝。
 - 删除所选课表 slot 后再次准备返回 `source_unavailable`，模型调用数保持不变；恢复相同 slot 后，Core 在新 source revision 下重新生成一次。关闭并重启 Runtime 后再次准备返回 ready，模型调用数保持 2，未重复生成。
+- 缺来源的显式准备现在产生 `g1_prepare_task` Kernel 失败记录；同一 task/revision 立即 GET 状态与关闭 Runtime 后再次 GET 均返回相同教师可读原因。组件初次挂载会主动读取该状态，刷新不再把失败重置成空闲。
 - 页面实际操作填写“教师自建单元检测”、截止日期和备注，勾选“由 Core 准备教学产物”，选择数学/703/第2节、上课日期、已接入材料，并把产物改为“检测卷、参考答案”。提交后页面显示“任务已创建，Core 正在准备教学产物”，任务板只有1项，没有同课次自动任务；随后自动进入“待我确认/已准备”。
 - 双击任务后，详情显示进入队列、开始准备、准备完成三条 Core 流转，以及两份独立可点击产物。页面分别打开检测卷正文“解方程 2x + 3 = 7”和参考答案“移项得 2x = 4，所以 x = 2；代入检验成立”。
 - 首次打开产物真实复现 `/api/files` 403 `Access denied`；修复后只授权当前数据根内 `.edupi/output` 与 `.edupi/inbox/teacher-materials`，通用数据根和普通文件仍不在 file API allowlist，同一路径重试返回 200。任务详情同时消费 generated index 与 work-case artifact 元数据，两份文件均可预览。测试未向真实教师、学生或正式模型写入数据。
@@ -389,6 +390,7 @@ Core9af123d启动后，无需再保存摘录，旧任务已回planned、当前�
 - 隔离 E2 中名单学生 ID 为 `student-roster-e2`，事实实体 ID 为 `entity_67494bb94ad4ffb3c99de27e5115f41a`，两者不同；Desktop API 通过 `school-roster` 引用得到唯一映射，服务端渲染仍显示事实及原始教师话语。
 - 页面复核使用另一组不同 ID：URL/名单选择为 `student-roster-ui`，Core entity 与 student view 均为 `entity_411bafd9fcea085b81b050a48a97e8db`。学生档案显示1条已确认 Core 事实“移项符号仍需练习”，证明不再依赖碰巧相同的 ID 或姓名匹配。
 - Desktop 对学生视图事实归属、教学/by-subject、下节课引用、冲突实体和实体外部引用做原子校验；任何交叉引用错误只令可选 `factSpine` 为空。生产 snapshot consumer 只在基础 workspace 仍通过完整 schema 时隔离坏 fact spine，任务、日历和学生名单继续可读；其他字段错误仍拒绝整个 envelope。
+- Core #74 过滤已经 superseded/不可见事实的 use；Desktop 拒绝 hypothesis 引用属于其他实体的已投影 observation、未知 use fact，以及 student projection use 指向其他学生事实。缺少正文但仍有 source ID 的合法截断继续显示 source ID，不将限长当作伪造错误。
 
 # 2026-09-14 R09 历史与学生事件恢复
 

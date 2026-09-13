@@ -160,6 +160,10 @@ try {
   assert.equal(missingSource.state, "error");
   assert.match(missingSource.error, /材料|准备|课程|关联/);
   assert.equal(modelCalls, 1, "missing source fails before the model");
+  const statusRequest = () => new Request(`http://localhost/api/edupi/preparation?taskId=${encodeURIComponent(taskId)}`);
+  assert.equal((await (await preparationRoute.GET(statusRequest())).json()).error, missingSource.error, "Core preflight failure survives a status reread");
+  await closeAllEduPiRuntimes();
+  assert.equal((await (await preparationRoute.GET(statusRequest())).json()).error, missingSource.error, "Core preflight failure survives a Runtime restart");
 
   fs.writeFileSync(timetablePath, JSON.stringify({ slots: [slot] }));
   const restoredResponse = await preparationRoute.POST(apiRequest("/api/edupi/preparation", { action: "run", taskId }));

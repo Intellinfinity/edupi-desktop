@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-13 Windows 修复与 `v0.3.10` 发布收口
+
+- `v0.3.10` 已发布并完成三平台签名构建；Windows published-install 与二次启动单实例验收均通过。
+- 模型配置现在清理缺失 `cacheWrite` 的价格对象，保存和连接测试不再生成无效 `models.json`；Tauri 单实例插件阻止重复启动客户端。
+- 本机安装版已验证缺失 `cacheWrite` 的模型测试返回 OK，正式账户和真实 Provider Key 未被测试。
+
 ## 2026-09-13 `v0.3.9` 发布与安装版收口
 
 - Provider/API Key 自动模型配置已合并主线并进入 `v0.3.9`；Release workflow `34738213112` 三平台和 manifest 全部通过，安装资源与签名元数据完整。

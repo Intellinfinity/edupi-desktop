@@ -1,5 +1,13 @@
 # 自动下载安装
 
+## 2026-09-13 `v0.3.10` Windows 修复发布与验收
+
+- Release workflow `34754561484` 的 macOS、Linux、Windows 和 manifest 全部成功；`v0.3.10` 已发布为非草稿、非预发布版本，三平台资产、签名文件、`latest.json` 和组件清单齐全。
+- Windows published-install workflow `34757893517` 成功：从 `v0.3.10` NSIS 安装包安装并启动，工作区服务可用，Tauri native source check 通过。
+- Windows acceptance workflow `34758285479` 成功：同一已安装可执行文件第二次启动后退出，运行中的 `pi-agent-desktop` 保持单个，覆盖单实例回归。
+- 本机 `v0.3.10` 安装包模型测试实际提交缺失 `cacheWrite` 的 cost 对象，返回 HTTP 200 / `OK`；说明 Windows 报错的 schema 路径已在包内修复。单实例插件 Rust 编译和本机 Tauri 21 项测试通过。
+- 未验证：Apple 公证、Linux/Windows 应用内升级、系统通知点击与睡眠唤醒；真实 Provider Key 仍未写入正式账户。
+
 ## 2026-09-13 `v0.3.9` Provider 模型配置发布与本机包复核
 
 - Release workflow `34738213112` 的 macOS、Linux、Windows build 和 manifest 全部成功；`v0.3.9` 已发布为非草稿、非预发布版本。

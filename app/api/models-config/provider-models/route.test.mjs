@@ -28,6 +28,7 @@ test("provider-models never returns credentials or request headers", async () =>
     api: "openai-completions",
     compat: { thinkingFormat: "deepseek" },
   });
+  assert.equal("cost" in projectModel({ id: "incomplete", cost: { input: 1, output: 2 } }), false);
   const source = await readFile(new URL("./route.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /apiKey|headers\s*:/);
   assert.match(source, /runtime\.getModels\(/);

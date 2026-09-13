@@ -1,5 +1,15 @@
 # 实际流程验收
 
+## 2026-09-14 `v0.3.11` 安装版与 Core 对齐验收
+
+- Release `v0.3.11` workflow `34765761183` 三平台及 manifest 成功；macOS updater SHA-256 与远端 `d90947…a37` 一致，Minisign 公钥验证成功。本机替换安装后原生页面显示 `v0.3.11`，既有教师工作区仍可见。
+- Windows run `34770908602` 与 Ubuntu run `34770910836` 从公开 Release 安装并启动成功。未把首次安装写成应用内升级。
+- `EDUPI_EXPECTED_VERSION=0.3.11 npm run test:packaged-background-recovery` 使用临时 HOME/数据根和包内 Node、Pi、Core：启动 ensure 前无 due-scan，ensure 后恰好新增一次；job `agent_job_735c579f2501b8cc03247b197de56338` 在 bash 工具运行中断开，旧工具 PID 消失，重启后 attempt 2 完成并登记 `.edupi/output/agent-computer/.../recovery.txt`。临时数据成功后自动清理，正式教师数据未写入。
+- 新 Core `7c92b1e6dd7ec35aab7201c5565bd00c10875e51` 的隔离开发 Runtime 实际返回 lifecycle `ready`、G1 active、timer active、interval `300000`、next check 和空 error；状态接口分别返回 Core/projection/Kernel ready。浏览器管理中心实际显示“下次课程准备检查”，不再显示旧静态八项计划。
+- 隔离页面暂存一张 68-byte 测试 PNG 后，材料页显示名称、类型、学科、班级和“确认接入”；未提交到模型。另向 Core 写入三条不同来源的测试日历，编辑第二条后第一、第三条逐字段不变。所有临时数据和页面均已清理。
+- Core #66/#67 全量测试通过；Desktop #102/#103 全量 1098 tests 中 1073 passed、25 skipped、0 failed，TypeScript、ESLint、Rust 22 tests 通过。跳过项不计通过。
+- 未验证：下一安装版的真实系统睡眠唤醒、干净安装 OCR、系统通知点击、真实课堂内容、Apple 公证和 Windows/Linux 应用内升级；外部连接器与学校部署仍需要目标账号和环境。
+
 ## 2026-09-13 `v0.3.10` Windows 修复验收
 
 - Windows published-install run `34757893517` 从 `v0.3.10` Release 下载 NSIS，静默安装并启动成功；native source check 通过。

@@ -1,5 +1,13 @@
 # 自动下载安装
 
+## 2026-09-14 `v0.3.11` 发布与三平台安装复核
+
+- Release workflow `34765761183` 的三平台构建和 manifest 全部成功；`v0.3.11` 为正式 Release，DMG、macOS updater、AppImage、deb、NSIS、三平台签名、`latest.json` 与组件清单齐全。
+- macOS updater tar.gz 的 SHA-256 为 `d90947b7cf3bd0b2d6907020e45e6f521e3eca9b072265c75eb3698ae7438a37`，与远端 digest 一致；将本机 Base64 公钥和 `.sig` 解码后，`minisign-verify 0.2.5` 校验成功。解码文件仅用于临时验收。
+- 本机已安装并启动 `v0.3.11`，原生导航显示版本正确，既有教师工作区仍可读；安装包内置 server 的隔离恢复测试确认启动立即 due-scan、后台任务 attempt 2 恢复、旧工具进程退出和产物登记。
+- Windows published-install run `34770908602` 与 Ubuntu 24.04 published-install run `34770910836` 均成功。它们验证公开安装包安装与启动，不替代 Windows/Linux 从旧版点击应用内升级。
+- 下一安装版将包含 Desktop #102/#103 和 Core #66/#67 的真实睡眠间隔监测、Runtime health、后台进度与 Core 投影对齐；当前 `v0.3.11` 不包含这些后续提交。Apple 公证、Windows/Linux 应用内升级和系统通知点击仍未验收。
+
 ## 2026-09-13 `v0.3.10` Windows 修复发布与验收
 
 - Release workflow `34754561484` 的 macOS、Linux、Windows 和 manifest 全部成功；`v0.3.10` 已发布为非草稿、非预发布版本，三平台资产、签名文件、`latest.json` 和组件清单齐全。

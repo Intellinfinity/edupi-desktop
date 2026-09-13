@@ -1987,7 +1987,16 @@ pub fn run() {
     let server_api_token = desktop_api_token.clone();
     #[cfg(feature = "custom-protocol")]
     let server_instance_id = desktop_instance_id.clone();
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    {
+        // Register first so a second executable focuses this window instead
+        // of starting another server and WebView.
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }));
+    }
+    let app = builder
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())

@@ -1,6 +1,6 @@
 [package]
 name = "pi-agent-desktop"
-version = "0.3.8"
+version = "0.3.9"
 description = "Desktop shell for Pi Agent"
 authors = ["pi-agent-desktop contributors"]
 license = "MIT"
@@ -35,6 +35,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 # notify-rust 4.18 requires Rust 1.89, above this crate's declared MSRV.
 notify-rust = "=4.17.0"
+
+[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
+tauri-plugin-single-instance = "2.4.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys = "=0.6.15"

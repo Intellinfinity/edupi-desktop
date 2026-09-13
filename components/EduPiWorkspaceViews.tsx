@@ -28,6 +28,7 @@ import type { TaskBoardLaneId } from "@/lib/edupi-task-board";
 import type { EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import type { EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
 import type { EduPiKernelState } from "@/lib/edupi-kernel-client";
+import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 
 type Props = {
   view: Exclude<WorkbenchView, "chat" | "tasks" | "review">;
@@ -52,7 +53,7 @@ type Props = {
   onObject: (id: string) => void;
   onNavigate: (view: WorkbenchView, objectId?: string) => void;
   onUpload: () => void;
-  onIntakeMaterial: (item: MaterialStagingDescriptor) => Promise<unknown>;
+  onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => Promise<unknown>;
   onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>;
   onCalendarSelection: (selection: CalendarItemSelection | null) => void;
   onImportCalendar: (event: { eventId: string | null; date: string; endDate: string | null; name: string; type: string; notes: string | null }) => Promise<void>;
@@ -227,6 +228,6 @@ export function EduPiWorkspaceViews(props: Props) {
   if (props.view === "insights" && props.selectedObjectId?.startsWith("insights:student_records")) return <main className="edupi-module-workspace"><header className="edupi-module-heading"><div><span>观察与洞察</span><h1>学生学习与互动</h1></div></header><EduPiStudentEvents student={null} query={props.query} onAgent={props.onStartAgent} /></main>;
   if (props.view === "insights") return <EduPiInsightDatabase data={props.data} query={props.query} selectedObjectId={props.selectedObjectId} onReviewTarget={props.onReviewTarget} />;
   if (props.view === "growth") return <EduPiGrowthWorkspace onStartAgent={props.onStartAgent} data={props.data} teachingSkills={props.teachingSkills} query={props.query} selectedObjectId={props.selectedObjectId} onOpenFile={props.onOpenFile} onTask={(task) => props.onTask(task, "artifact")} />;
-  if (props.view === "materials") return <EduPiMaterialsWorkspace data={props.data} query={props.query} selectedObjectId={props.selectedObjectId} stagedMaterials={props.stagedMaterials} stagingBusy={props.stagingBusy} stagingMessage={props.stagingMessage} onTask={(task) => props.onTask(task, "evidence")} onUpload={props.onUpload} onIntakeMaterial={props.onIntakeMaterial} onRemoveStagedMaterial={props.onRemoveStagedMaterial} onOpenFile={props.onOpenFile} onStartAgent={props.onStartAgent} onDeleteEntity={props.onDeleteEntity} />;
+  if (props.view === "materials") return <EduPiMaterialsWorkspace data={props.data} context={props.context} query={props.query} selectedObjectId={props.selectedObjectId} stagedMaterials={props.stagedMaterials} stagingBusy={props.stagingBusy} stagingMessage={props.stagingMessage} onTask={(task) => props.onTask(task, "evidence")} onUpload={props.onUpload} onIntakeMaterial={props.onIntakeMaterial} onRemoveStagedMaterial={props.onRemoveStagedMaterial} onOpenFile={props.onOpenFile} onStartAgent={props.onStartAgent} onDeleteEntity={props.onDeleteEntity} />;
   return <ArtifactsView data={props.data} query={props.query} onTask={props.onTask} />;
 }

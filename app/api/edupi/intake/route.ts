@@ -102,17 +102,18 @@ function timetableCommand(body: RawRecord): EducationIntakeCommand {
   return { command_type: "import_timetable", source, slots };
 }
 
-function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean } {
+function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean } {
   if (!exactKeys(body, ["kind", "stagingId", "title", "materialKind", "subject", "classId", "recognize"])) throw new EducationIntakeError("invalid_envelope", "材料接入字段无效。");
   const stagingId = requiredText(body.stagingId, 160);
   const descriptor = listStagedMaterials().find((item) => item.staging_id === stagingId);
   if (!descriptor) throw new EducationIntakeError("staging_missing", "暂存材料不存在或已经处理。");
   const requestedKind = body.materialKind === undefined ? "other" : requiredText(body.materialKind, 40);
   if (!MATERIAL_KINDS.has(requestedKind)) throw new EducationIntakeError("invalid_envelope", "材料类型无效。");
-  optionalText(body.title, 240);
+  const title = optionalText(body.title, 240) || descriptor.original_name;
   if (body.recognize !== undefined && typeof body.recognize !== "boolean") throw new EducationIntakeError("invalid_envelope", "材料识别选项无效。");
   return {
     descriptor,
+    title,
     materialKind: requestedKind as "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other",
     subject: optionalText(body.subject, 120) ?? null,
     classId: optionalText(body.classId, 160) ?? null,

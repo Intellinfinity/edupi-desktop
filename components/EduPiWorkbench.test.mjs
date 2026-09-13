@@ -233,12 +233,15 @@ test("routes education uploads through Desktop staging without Core paths or aut
 
   assert.match(openUpload, /stageDesktopMaterialPaths|materialUploadInputRef/);
   assert.match(panel, /stageBrowserMaterialFiles/);
-  assert.match(panel, /processStagedMaterials/);
+  assert.match(panel, /showStagedMaterials/);
+  assert.doesNotMatch(panel, /processStagedMaterials/);
   assert.match(panel, /recognize: true/);
   assert.match(panel, /loadStagedMaterials|listDesktopStagedMaterials/);
   assert.match(panel, /type="file"/);
   assert.match(workspaceViews, /stagedMaterials/);
   assert.match(materials, /接入 EduPi/);
+  for (const label of ["材料名称", "材料类型", "学科", "班级", "确认接入"]) assert.match(materials, new RegExp(label));
+  assert.match(materials, /defaultMaterialIntakeMetadata/);
   assert.match(panel, /fetch\("\/api\/edupi\/intake"/);
   assert.doesNotMatch(openUpload, /selectView\("chat"\)|setPendingAgentPrompt|handleSend|sendAgentCommand/);
   for (const source of [panel, home, explorer, sidebar, appShell]) {
@@ -261,8 +264,8 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   assert.match(calendarWorkspace, /editingCalendarId/);
   assert.match(calendarWorkspace, /保存更改/);
   assert.match(panel, /eventId: string \| null/);
-  assert.match(panel, /education\?\.calendar\.flatMap/);
-  assert.match(panel, /item\.id === event\.eventId/);
+  assert.match(panel, /events: \[\{ \.\.\.event, confidence: "teacher_confirmed" \}\]/);
+  assert.doesNotMatch(panel, /preservedEvents/);
   assert.match(intakeRoute, /eventId/);
   assert.match(calendarWorkspace, /onSelect\(\{ kind: entry\.kind, sourceId:/);
   assert.match(calendarWorkspace, /className=\{`\$\{entryClass\(entry\)\}/);
@@ -274,7 +277,7 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   assert.doesNotMatch(workspaceViews, /source_hash\.slice|sourceHash\.slice/);
 });
 
-test("timetable entries edit in place without replacing the remaining weekly schedule", async () => {
+test("timetable entries patch only the selected Core object", async () => {
   const calendarWorkspace = await read("./EduPiCalendarWorkspace.tsx");
   const panel = await read("./EduPiEducationPanel.tsx");
   const workspaceViews = await read("./EduPiWorkspaceViews.tsx");
@@ -293,9 +296,8 @@ test("timetable entries edit in place without replacing the remaining weekly sch
   assert.match(calendarWorkspace, /visibleTimetableNote\(timetableSlot\?\.notes\) \|\| ""/);
   assert.match(calendarWorkspace, /selection\.kind === "timetable"/);
   assert.match(calendarWorkspace, /编辑课表/);
-  assert.match(panel, /education\?\.timetable\.flatMap/);
-  assert.match(panel, /itemSlotId === slot\.slotId/);
-  assert.match(panel, /slots: \[\.\.\.preservedSlots, slot\]/);
+  assert.match(panel, /slots: \[slot\]/);
+  assert.doesNotMatch(panel, /preservedSlots/);
 });
 
 test("board and calendar task entries share a mounted task peek drawer", async () => {
@@ -375,7 +377,7 @@ test("every EduPi module accepts one education material drop without handing it 
   assert.match(panel, /event\.stopPropagation\(\)/);
   assert.match(panel, /stageDesktopMaterialFiles\(files\)/);
   assert.match(panel, /stageBrowserMaterialFiles\(files\)/);
-  assert.match(panel, /await processStagedMaterials\(staged\)/);
+  assert.match(panel, /showStagedMaterials\(staged\)/);
   assert.match(panel, /上一批材料正在处理/);
   assert.match(panel, /edupi-global-material-drop/);
   assert.doesNotMatch(panel.slice(panel.indexOf("const stageBrowserFiles"), panel.indexOf("const openUpload")), /onPrepareAgentPrompt|sendAgentCommand|\/api\/agent/);

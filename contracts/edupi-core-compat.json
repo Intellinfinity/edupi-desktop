@@ -2,9 +2,9 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "6b1d0cf74d7a1344c881da8e34a857243e315fdb",
+    "core_commit": "1a7955345c1c3f2123734c18842ad6bb4fda1c90",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:9f28910f0886fcfed4509729af8361749cbd0f0cf3b48df4093db34fed6728b5"
+    "component_manifest_hash": "sha256:3e46e118acf493cbb64e24384ac3bc6c2a10733b697a965ef23ce5707642bf42"
   },
   "contract_identities": [
     {
@@ -63,7 +63,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/29",
     "https://github.com/PIGU-PPPgu/edupi/pull/30",
     "https://github.com/PIGU-PPPgu/edupi/pull/31",
-    "https://github.com/PIGU-PPPgu/edupi/pull/32"
+    "https://github.com/PIGU-PPPgu/edupi/pull/32",
+    "https://github.com/PIGU-PPPgu/edupi/pull/66"
   ],
-  "change_note": "Pinned Core PR #32 for immediate execution of one requested preparation task with replay-safe draft reuse; retains scoped student evidence and roster class imports from PR #31."
+  "change_note": "Pinned Core PR #66 so background jobs persist queued, working, finalizing, recovery, and terminal progress for Desktop display."
 }

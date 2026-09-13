@@ -1,4 +1,4 @@
-import { resolveEduPiBridgeRoots } from "./edupi-core-snapshot";
+import { readEduPiKernelProjection, resolveEduPiBridgeRoots } from "./edupi-core-snapshot";
 import { readEducationContract } from "./edupi-education-server";
 import { ensureEduPiRuntime, getPendingEduPiRuntime } from "./edupi-runtime-supervisor";
 import { pumpBackgroundJobs } from "./edupi-background-jobs";
@@ -7,8 +7,7 @@ type PreparationStatus = { state: "idle" | "running" | "ready" | "error"; update
 const shared = globalThis as typeof globalThis & { __edupiPreparationStatus?: PreparationStatus };
 const current = () => shared.__edupiPreparationStatus ??= { state: "idle", updatedAt: null, prepared: 0, error: null };
 
-function failure(response: Record<string, unknown>): Error {
-  const code = typeof response.error_code === "string" ? response.error_code : "runtime_unavailable";
+function preparationFailureMessage(code: string): string {
   const messages: Record<string, string> = {
     excerpt_unconfirmed: "请先确认材料内容",
     source_unavailable: "请关联可用材料",
@@ -19,13 +18,19 @@ function failure(response: Record<string, unknown>): Error {
     invalid_candidate: "这项任务暂不能准备",
     attempts_exhausted: "重试次数已用完，请检查材料和模型",
   };
-  return Object.assign(new Error(messages[code] || "备课暂不可用，请重试"), { code });
+  return messages[code] || "备课暂不可用，请重试";
+}
+
+function failure(response: Record<string, unknown>): Error {
+  const code = typeof response.error_code === "string" ? response.error_code : "runtime_unavailable";
+  return Object.assign(new Error(preparationFailureMessage(code)), { code });
 }
 
 export async function preparationStatus(taskId?: string): Promise<PreparationStatus> {
   const status = taskId ? { ...current(), taskId } : current();
   try {
-    const { dataRoot } = resolveEduPiBridgeRoots();
+    const roots = resolveEduPiBridgeRoots();
+    const { dataRoot } = roots;
     const pending = getPendingEduPiRuntime(dataRoot.root);
     if (!pending && !status.taskId) return { ...status, state: "idle" };
     if (!status.taskId && pending) {
@@ -34,10 +39,13 @@ export async function preparationStatus(taskId?: string): Promise<PreparationSta
       const queue = (health.result as { queue?: { queued: number; claimed: number } } | undefined)?.queue;
       if (queue && queue.queued + queue.claimed > 0) return { ...status, state: "running", error: null };
     }
-    const data = await readEducationContract();
+    const [data, kernel] = await Promise.all([readEducationContract(), readEduPiKernelProjection({ roots }).catch(() => null)]);
     const work = status.taskId ? data.workCases.find(item => item.taskId === status.taskId) : null;
+    const task = status.taskId ? (data.tasks || []).find(item => item.id === status.taskId) : null;
+    const preflight = task ? kernel?.projection.runs.find(item => item.trigger_id === "g1_prepare_task" && item.fire_key === `task:${task.id}:r${task.revision}` && ["failed", "needs_review"].includes(item.status)) : null;
     const prepared = data.workCases.filter(item => item.artifactIds.length > 0 && ["draft_ready", "accepted", "modified", "completed"].includes(item.currentState)).length;
-    if (work && ["queued", "running"].includes(work.currentState)) Object.assign(status, { state: pending ? "running" : "error", error: pending ? null : "备课执行已断开，请重试", prepared });
+    if (preflight?.error_code) Object.assign(status, { state: "error", error: preparationFailureMessage(preflight.error_code), prepared });
+    else if (work && ["queued", "running"].includes(work.currentState)) Object.assign(status, { state: pending ? "running" : "error", error: pending ? null : "备课执行已断开，请重试", prepared });
     else if (work?.currentState === "failed") Object.assign(status, { state: "error", error: "备课未完成，请重试", prepared });
     else if (work?.artifactIds.length || !status.taskId && prepared > 0) Object.assign(status, { state: "ready", error: null, prepared });
     else Object.assign(status, { state: "idle", error: null, prepared });

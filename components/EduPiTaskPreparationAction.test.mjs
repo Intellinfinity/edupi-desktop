@@ -17,7 +17,7 @@ function mount() {
   const jsx = (type, props) => ({ type, props });
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(new URL("./EduPiTaskPreparationAction.tsx", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, require: name => name === "react" ? hooks : { jsx, jsxs: jsx }, Event, window: { dispatchEvent: event => notifications.push(event.type), setInterval: () => 1, clearInterval() {} }, fetch: (_url, options) => new Promise((resolve, reject) => requests.push({ body: JSON.parse(options.body), resolve, reject })) });
+  vm.runInNewContext(code, { exports, require: name => name === "react" ? hooks : { jsx, jsxs: jsx }, Event, window: { dispatchEvent: event => notifications.push(event.type), setInterval: () => 1, clearInterval() {} }, fetch: (url, options = {}) => options.method ? new Promise((resolve, reject) => requests.push({ body: JSON.parse(options.body), resolve, reject })) : Promise.resolve(response(new URL(url, "http://localhost").searchParams.get("taskId"), "idle")) });
   function render(next = props) {
     props = next;
     do { dirty = false; cursor = 0; tree = exports.EduPiTaskPreparationAction(props); } while (dirty);

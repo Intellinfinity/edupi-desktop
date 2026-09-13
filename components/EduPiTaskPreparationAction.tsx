@@ -19,6 +19,16 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
   useEffect(() => () => { requestOwner.current.sequence++; }, []);
 
   useEffect(() => {
+    let active = true;
+    const sequence = requestOwner.current.sequence;
+    void fetch(`/api/edupi/preparation?taskId=${encodeURIComponent(taskId)}`, { cache: "no-store" }).then(async response => {
+      const next = await response.json() as PreparationState;
+      if (active && requestOwner.current.taskId === taskId && requestOwner.current.sequence === sequence && next.taskId === taskId) setStatus(next);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [taskId]);
+
+  useEffect(() => {
     if (status?.state !== "running" || status.taskId !== taskId) return;
     let active = true;
     const poll = async () => {

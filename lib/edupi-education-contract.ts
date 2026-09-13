@@ -1094,8 +1094,11 @@ function normalizeFactSpine(value: unknown): EducationFactSpine | null {
     && bySubject.length === (Array.isArray(rawTeaching?.by_subject) ? rawTeaching.by_subject.length : -1)
     && bySubject.every((group) => group.factIds.every((id) => Boolean(acceptedById.get(id) && sameSubject(acceptedById.get(id)!, group.subjectRef))))
     && nextLessonFactIds?.every((id) => acceptedById.has(id))
-    && hypotheses.every((item) => item.entityIds.every((id) => entityById.has(id)))
+    && hypotheses.every((item) => item.entityIds.every((id) => entityById.has(id))
+      && item.observationIds.every((id) => !observationById.has(id) || observationById.get(id)!.entityIds.every((entityId) => item.entityIds.includes(entityId))))
     && conflicts.every((item) => entityById.has(item.entityId) && item.factIds.every((id) => factById.get(id)?.entityId === item.entityId))
+    && uses.every((item) => item.factIds.every((id) => acceptedById.has(id))
+      && (item.consumerKind !== "student_projection" || entityById.get(item.consumerRef)?.kind === "student" && item.factIds.every((id) => acceptedById.get(id)?.entityId === item.consumerRef)))
     && legacyShadow.length === (spine.legacy_shadow as unknown[]).length
     && legacyShadow.every((item) => hasExactKeys(item, ["legacy_id", "student", "content", "state", "source_kind", "read_only", "external_send"])
       && Boolean(strictText(item.legacy_id, 160)) && (item.student === null || Boolean(strictText(item.student, 120))) && Boolean(strictText(item.content, 1000))

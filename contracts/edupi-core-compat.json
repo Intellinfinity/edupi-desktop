@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "2d310b5dd317db714d3fd9112ce7979d2eaa90b7",
+    "core_commit": "a180f1c70bb9c2e6c63bb5a6e2b25499f715130b",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:1b2b9aa2d3ffd52f37e954ebb366e42d7b03e024103738abc516ff2bffc8805c",
-    "runtime_component_manifest_hash": "sha256:23b6181869ab8f213550003f3e2124cf72706894b9ae38a2c2fb72376f29d775"
+    "component_manifest_hash": "sha256:53b57dda77e0e70edf41ae6c525a2b24064690d0cd7296b444c201665e9ff816",
+    "runtime_component_manifest_hash": "sha256:a1e3371952f903c5d5ea572775f11edde6a581817d5a913f497eb08d10c54d2f"
   },
   "contract_identities": [
     {
@@ -97,7 +97,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/67",
     "https://github.com/PIGU-PPPgu/edupi/pull/69",
     "https://github.com/PIGU-PPPgu/edupi/pull/71",
-    "https://github.com/PIGU-PPPgu/edupi/pull/73"
+    "https://github.com/PIGU-PPPgu/edupi/pull/73",
+    "https://github.com/PIGU-PPPgu/edupi/pull/74"
   ],
-  "change_note": "Pinned Core PR #73 so managed teacher-created tasks keep their exact material source in the combined task/work-case projection."
+  "change_note": "Pinned Core PR #74 so explicit preparation preflight failures survive refresh and current fact-use rows remain referentially complete."
 }

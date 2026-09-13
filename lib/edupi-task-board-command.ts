@@ -102,7 +102,7 @@ function taskFromPayload(payload: RawRecord, taskId: string): RawRecord | null {
   return matches[0];
 }
 
-export async function issueTaskBoardCommand(command: TaskBoardCommand, dependencies: Dependencies = {}): Promise<{ receipt: RawRecord; data: CoreEducationSnapshotPayload; task: RawRecord }> {
+export async function issueTaskBoardCommand(command: TaskBoardCommand, dependencies: Dependencies = {}): Promise<{ receipt: RawRecord; data: CoreEducationSnapshotPayload; task: RawRecord; replayed: boolean }> {
   const identity = activeBridgeIdentity();
   if (!identity.contract.supported_commands.includes(command.command_type)) throw new TaskBoardCommandError("unsupported_command", "当前 Core 尚未启用可写任务板。");
   const initial = await (dependencies.readSnapshot || productionSnapshot)();
@@ -118,24 +118,29 @@ export async function issueTaskBoardCommand(command: TaskBoardCommand, dependenc
   }
   const response = record(rawResponse);
   if (!response || response.ok !== true || response.operation !== "command"
+    || response.request_id !== envelope.request_id
     || !sameList(response.supported_commands, identity.contract.supported_commands)
     || !sameList(response.supported_projections, identity.contract.supported_projections)) {
     throw new TaskBoardCommandError("unavailable", "Core 任务板回执不可用。");
   }
+  const replayed = response.replayed === true;
   const receiptEnvelope = record(response.receipt);
   const receipt = record(receiptEnvelope?.payload);
   const taskId = command.command_type === "create_task" ? command.task.task_id : command.task_id;
   const target = record(receipt?.target);
   if (!receiptEnvelope || !receipt || !validateCoreEnvelopeSchema(receiptEnvelope)
     || receiptEnvelope.producer !== "edupi-core" || receiptEnvelope.external_send !== false
-    || receiptEnvelope.request_id !== envelope.request_id || receipt.command_id !== envelope.message_id
-    || receipt.command_type !== command.command_type || receipt.before_snapshot_id !== snapshotId
+    || receipt.command_type !== command.command_type
     || target?.target_kind !== "task" || target.target_id !== taskId || target.command_type !== command.command_type
     || receipt.external_send !== false || receipt.decision !== null) {
     throw new TaskBoardCommandError("invalid_envelope", "Core 任务板回执绑定无效。");
   }
+  if (!replayed && (receiptEnvelope.request_id !== envelope.request_id || receipt.command_id !== envelope.message_id || receipt.before_snapshot_id !== snapshotId)) {
+    throw new TaskBoardCommandError("invalid_envelope", "Core 任务板回执绑定无效。");
+  }
   const status = String(receipt.status || "");
   if (status === "failed" || status === "stale_snapshot") {
+    if (replayed) throw new TaskBoardCommandError("invalid_envelope", "Core 任务板重放回执无效。");
     if (receipt.after_snapshot_id !== null || receipt.after_state_hash !== null || receiptEnvelope.snapshot_id !== receipt.before_snapshot_id
       || !sameList(receipt.applied_ids, []) || !sameList(receipt.rejected_ids, [])) {
       throw new TaskBoardCommandError("invalid_envelope", "Core 任务板失败回执绑定无效。");
@@ -149,10 +154,14 @@ export async function issueTaskBoardCommand(command: TaskBoardCommand, dependenc
   }
   const refresh = dependencies.refreshSnapshot || (async (roots) => (await readEduPiEducationSnapshot({ roots })).payload);
   const data = await refresh(initial.roots);
-  if (data.snapshot_id !== receipt.after_snapshot_id || data.state_hash !== receipt.after_state_hash) throw new TaskBoardCommandError("invalid_envelope", "Core 任务板快照与回执不一致。");
   const task = taskFromPayload(data as unknown as RawRecord, taskId);
+  if (replayed) {
+    if (!task) throw new TaskBoardCommandError("invalid_envelope", "Core 重放后的任务不可用。");
+    return { receipt, data, task, replayed: true };
+  }
+  if (data.snapshot_id !== receipt.after_snapshot_id || data.state_hash !== receipt.after_state_hash) throw new TaskBoardCommandError("invalid_envelope", "Core 任务板快照与回执不一致。");
   const expectedStage = command.command_type === "create_task" ? "todo" : command.to_stage;
   const expectedRevision = command.command_type === "create_task" ? 0 : command.expected_revision + 1;
   if (!task || task.board_stage !== expectedStage || task.board_revision !== expectedRevision) throw new TaskBoardCommandError("invalid_envelope", "Core 刷新后的任务阶段与回执不一致。");
-  return { receipt, data, task };
+  return { receipt, data, task, replayed: false };
 }

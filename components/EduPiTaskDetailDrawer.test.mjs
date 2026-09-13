@@ -14,3 +14,10 @@ test("task details expose every authoritative work-case artifact when the genera
   assert.match(html, /<button[^>]*><strong>学案<\/strong>/);
   assert.doesNotMatch(html, /打开产物/);
 });
+
+test("an indexed unavailable artifact is not revived by the work-case fallback", () => {
+  const files = [{ artifact_id: "artifact-1", title: "教案", relative_path: ".edupi/output/lesson.md", available: false, session_id: "session-1", task_id: "task-1", updated_at: "2026-09-14T00:00:00.000Z", size_bytes: 0 }];
+  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { task, workCase, files, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} }));
+  assert.match(html, /<button[^>]*disabled=""[^>]*><strong>教案<\/strong><small>文件不可用<\/small><\/button>/);
+  assert.match(html, /<button[^>]*><strong>学案<\/strong><small>候选<\/small><\/button>/);
+});

@@ -95,6 +95,8 @@ type EducationIntakeApiResult = {
   recognition?: { eventCount?: number; slotCount?: number };
 };
 
+type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null };
+
 const reviewLabels: Record<TaskReviewAction, string> = {
   accept: "已接受",
   modify: "已修改并接受",
@@ -167,6 +169,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const contextModalRef = useModalDismiss<HTMLDivElement>(() => { if (!contextBusy) setContextOpen(false); }, contextOpen);
   const materialUploadInputRef = useRef<HTMLInputElement>(null);
   const activationRequestsRef = useRef(createActivationRequestTracker());
+  const preparationPollsRef = useRef(new Map<string, AbortController>());
   const objectSider = useEduPiContentSiderCollapse(false);
   const navigationRail = useEduPiContentSiderCollapse(false, APP_PREF_KEYS.edupiNavigationRailCollapsed);
 
@@ -193,6 +196,40 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setKernelState(nextKernelState);
     setRunningKernelCount(nextKernelState.running);
     return nextEducation;
+  }, []);
+
+  const pollBoardPreparation = useCallback((taskId: string) => {
+    if (preparationPollsRef.current.has(taskId)) return;
+    const controller = new AbortController();
+    preparationPollsRef.current.set(taskId, controller);
+    const poll = async () => {
+      try {
+        while (!controller.signal.aborted) {
+          try {
+            const response = await fetch(`/api/edupi/preparation?taskId=${encodeURIComponent(taskId)}`, { cache: "no-store", signal: controller.signal });
+            if (response.ok) {
+              const next = await response.json() as BoardPreparationStatus;
+              if (next.taskId === taskId && (next.state === "ready" || next.state === "error")) {
+                await loadWorkspace(controller.signal).catch(() => {});
+                if (!controller.signal.aborted) window.dispatchEvent(new Event("edupi-preparation-updated"));
+                return;
+              }
+            }
+          } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+        }
+      } finally {
+        if (preparationPollsRef.current.get(taskId) === controller) preparationPollsRef.current.delete(taskId);
+      }
+    };
+    void poll();
+  }, [loadWorkspace]);
+
+  useEffect(() => () => {
+    for (const controller of preparationPollsRef.current.values()) controller.abort();
+    preparationPollsRef.current.clear();
   }, []);
 
   const retryLoadWorkspace = useCallback(() => {
@@ -703,9 +740,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (!result.taskId || result.preparation?.taskId !== result.taskId || !["running", "ready"].includes(result.preparation?.state || "")) {
       return { preparationState: "error", preparationError: result.preparation?.error || "请打开任务后重试" };
     }
-    window.dispatchEvent(new Event("edupi-preparation-updated"));
+    if (result.preparation.state === "running") pollBoardPreparation(result.taskId);
+    else window.dispatchEvent(new Event("edupi-preparation-updated"));
     return { preparationState: result.preparation.state as "running" | "ready", preparationError: null };
-  }, [loadWorkspace]);
+  }, [loadWorkspace, pollBoardPreparation]);
 
   const moveBoardTask = useCallback(async (task: TeacherTask, stage: TaskBoardLaneId) => {
     if (!task.id) throw new Error("任务缺少可写标识。");

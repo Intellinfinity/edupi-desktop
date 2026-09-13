@@ -149,6 +149,19 @@ try {
   assert.equal(createReplay.data.tasks.filter((item) => item.id === taskId).length, 1);
   assert.equal(modelCalls, 1, "replaying the create request cannot duplicate the task or generation");
 
+  const changedMaterialsResponse = await taskRoute.POST(apiRequest("/api/edupi/tasks", { ...createInput, preparationSource: { ...createInput.preparationSource, materialIds: [materialId, "changed-second-material"] } }));
+  const changedMaterials = await changedMaterialsResponse.json();
+  assert.equal(changedMaterialsResponse.status, 409, JSON.stringify(changedMaterials));
+  assert.equal(changedMaterials.code, "idempotency_conflict");
+  assert.equal((await readEducation()).tasks.filter((item) => item.id === taskId).length, 1);
+  assert.equal(modelCalls, 1, "a changed later material cannot be treated as an exact replay");
+
+  const wrongLessonDate = dateInShanghai(new Date(new Date(`${lessonDate}T12:00:00+08:00`).getTime() + 86_400_000));
+  const wrongDateResponse = await taskRoute.POST(apiRequest("/api/edupi/tasks", { ...createInput, clientRequestId: "22222222-2222-4222-8222-222222222223", preparationSource: { ...createInput.preparationSource, lessonDate: wrongLessonDate } }));
+  const wrongDate = await wrongDateResponse.json();
+  assert.equal(wrongDateResponse.status, 400, JSON.stringify(wrongDate));
+  assert.equal(wrongDate.code, "invalid_envelope");
+
   const replayResponse = await preparationRoute.POST(apiRequest("/api/edupi/preparation", { action: "run", taskId }));
   const replay = await replayResponse.json();
   assert.equal(replay.state, "ready");

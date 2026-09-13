@@ -91,6 +91,7 @@ const taskRoute = await jiti.import("../app/api/edupi/tasks/route.ts");
 const preparationRoute = await jiti.import("../app/api/edupi/preparation/route.ts");
 const educationRoute = await jiti.import("../app/api/edupi/education/route.ts");
 const { closeAllEduPiRuntimes } = await jiti.import("../lib/edupi-runtime-supervisor.ts");
+const { getAllowedFileRoots, isFilePathAllowed, isExistingFilePathAllowed } = await jiti.import("../lib/file-access.ts");
 const apiRequest = (pathname, body) => new Request(`http://localhost${pathname}`, { method: "POST", headers: { host: "localhost", origin: "http://localhost", "content-type": "application/json", "sec-fetch-site": "same-origin" }, body: JSON.stringify(body) });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const readEducation = async () => { const response = await educationRoute.GET(); const body = await response.json(); assert.equal(response.status, 200, JSON.stringify(body)); return body; };
@@ -114,7 +115,8 @@ const waitForReady = async (taskId, context = null) => {
 
 let succeeded = false;
 try {
-  const createResponse = await taskRoute.POST(apiRequest("/api/edupi/tasks", { title: "教师自建单元检测", dueDate: today, note: "重点检查移项", preparationSource: { kind: "teaching_before_class", timetableSlotId: slot.slot_id, lessonDate, materialIds: [materialId], deliverables: ["检测卷", "参考答案"] } }));
+  const createInput = { clientRequestId: "22222222-2222-4222-8222-222222222222", title: "教师自建单元检测", dueDate: today, note: "重点检查移项", preparationSource: { kind: "teaching_before_class", timetableSlotId: slot.slot_id, lessonDate, materialIds: [materialId], deliverables: ["检测卷", "参考答案"] } };
+  const createResponse = await taskRoute.POST(apiRequest("/api/edupi/tasks", createInput));
   const created = await createResponse.json();
   assert.equal(createResponse.status, 200, JSON.stringify(created));
   const taskId = created.receipt.target.target_id;
@@ -123,12 +125,8 @@ try {
   assert.equal(createdTask.sourceEventDate, lessonDate);
   assert.equal(createdTask.materialId, materialId);
   assert.deepEqual(createdTask.deliverables, ["检测卷", "参考答案"]);
+  assert.ok(["running", "ready"].includes(created.preparation.state), JSON.stringify(created.preparation));
 
-  const startResponse = await preparationRoute.POST(apiRequest("/api/edupi/preparation", { action: "run", taskId }));
-  const started = await startResponse.json();
-  assert.equal(startResponse.status, 200, JSON.stringify(started));
-  assert.equal(started.taskId, taskId);
-  assert.ok(["running", "ready"].includes(started.state), JSON.stringify(started));
   const ready = await waitForReady(taskId);
   assert.equal(modelCalls, 1);
   assert.equal(ready.workCase.artifactIds.length, 2);
@@ -137,6 +135,19 @@ try {
   const artifacts = ready.data.generatedArtifacts.filter((item) => item.task_id === taskId);
   assert.deepEqual(artifacts.map((item) => item.title).sort(), ["参考答案", "检测卷"]);
   assert.equal(artifacts.every((item) => item.available), true);
+  const allowedRoots = await getAllowedFileRoots();
+  assert.equal(allowedRoots.has(dataRoot), false, "the general Core data root is not exposed to the file API");
+  assert.ok(allowedRoots.has(path.join(dataRoot, ".edupi", "output")));
+  assert.ok(allowedRoots.has(path.join(dataRoot, ".edupi", "inbox", "teacher-materials")));
+  assert.equal(isExistingFilePathAllowed(path.join(dataRoot, artifacts[0].relative_path), allowedRoots), true);
+  assert.equal(isFilePathAllowed(path.join(dataRoot, "ordinary.txt"), allowedRoots), false);
+  const createReplayResponse = await taskRoute.POST(apiRequest("/api/edupi/tasks", createInput));
+  const createReplay = await createReplayResponse.json();
+  assert.equal(createReplayResponse.status, 200, JSON.stringify(createReplay));
+  assert.equal(createReplay.taskId, taskId);
+  assert.equal(createReplay.replayed, true);
+  assert.equal(createReplay.data.tasks.filter((item) => item.id === taskId).length, 1);
+  assert.equal(modelCalls, 1, "replaying the create request cannot duplicate the task or generation");
 
   const replayResponse = await preparationRoute.POST(apiRequest("/api/edupi/preparation", { action: "run", taskId }));
   const replay = await replayResponse.json();

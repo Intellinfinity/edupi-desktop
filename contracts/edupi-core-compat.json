@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "145875575245335f82297a46c70fd3746a4fe9f3",
+    "core_commit": "2d310b5dd317db714d3fd9112ce7979d2eaa90b7",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:f3e8b413182667c450df0814c7984ec4a5e4b1a8f3811bd4286dbb0cc4509d9e",
-    "runtime_component_manifest_hash": "sha256:d39a1e076ffdbc781cde6b6ccd10231bb05ff09aa94cfcb408413768198a6d44"
+    "component_manifest_hash": "sha256:1b2b9aa2d3ffd52f37e954ebb366e42d7b03e024103738abc516ff2bffc8805c",
+    "runtime_component_manifest_hash": "sha256:23b6181869ab8f213550003f3e2124cf72706894b9ae38a2c2fb72376f29d775"
   },
   "contract_identities": [
     {
@@ -96,7 +96,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/66",
     "https://github.com/PIGU-PPPgu/edupi/pull/67",
     "https://github.com/PIGU-PPPgu/edupi/pull/69",
-    "https://github.com/PIGU-PPPgu/edupi/pull/71"
+    "https://github.com/PIGU-PPPgu/edupi/pull/71",
+    "https://github.com/PIGU-PPPgu/edupi/pull/73"
   ],
-  "change_note": "Pinned Core PR #71 so Desktop joins fact entities to roster students by the stable school-roster external identity while preserving R04 managed preparation."
+  "change_note": "Pinned Core PR #73 so managed teacher-created tasks keep their exact material source in the combined task/work-case projection."
 }

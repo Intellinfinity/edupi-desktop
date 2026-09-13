@@ -1,7 +1,7 @@
 import { readdirSync } from "fs";
 import { userHome } from "./user-home.ts";
 import path from "path";
-import { getAdditionalAllowedRoots, normalizeSlashes } from "./allowed-roots";
+import { getAdditionalAllowedRoots, getScopedAllowedFileRoots, normalizeSlashes } from "./allowed-roots";
 import { isExistingPathWithinRoots } from "./path-security";
 import { listAllSessions } from "./session-reader";
 export { allowFileRoot, normalizeSlashes } from "./allowed-roots";
@@ -48,6 +48,7 @@ export async function getAllowedFileRoots(): Promise<Set<string>> {
   }
 
   for (const root of getAdditionalAllowedRoots()) roots.add(root);
+  for (const root of getScopedAllowedFileRoots()) roots.add(root);
 
   globalThis.__piAllowedRootsCache = { roots, expiresAt: now + ALLOWED_ROOTS_TTL_MS };
   return roots;

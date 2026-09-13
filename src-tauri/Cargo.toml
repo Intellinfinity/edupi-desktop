@@ -36,6 +36,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
 # notify-rust 4.18 requires Rust 1.89, above this crate's declared MSRV.
 notify-rust = "=4.17.0"
 
+[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
+tauri-plugin-single-instance = "2.4.3"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-notification-sys = "=0.6.15"
 

@@ -69,7 +69,7 @@ export type EducationWorkTransition = {
 
 export type EducationWorkCase = {
   id: string;
-  kind: "calendar_preparation" | "teaching_before_class";
+  kind: "calendar_preparation" | "teaching_before_class" | "capability_package";
   triggerId: string;
   taskId: string;
   title: string;
@@ -80,6 +80,17 @@ export type EducationWorkCase = {
   transitionRevision: number;
   sourceIds: string[];
   artifactIds: string[];
+  artifacts: Array<{
+    id: string;
+    key: string;
+    title: string;
+    type: "markdown";
+    relativePath: string;
+    sha256: string;
+    revision: number;
+    evidenceIds: string[];
+    externalSend: false;
+  }>;
   transitions: EducationWorkTransition[];
   externalSend: false;
 };
@@ -768,6 +779,12 @@ function hasExactKeys(value: RawRecord, keys: readonly string[]): boolean {
   return Object.keys(value).sort().join("|") === [...keys].sort().join("|");
 }
 
+function hasExactKeysWithOptional(value: RawRecord, required: readonly string[], optional: readonly string[]): boolean {
+  const keys = Object.keys(value);
+  const allowed = new Set([...required, ...optional]);
+  return required.every(key => Object.hasOwn(value, key)) && keys.every(key => allowed.has(key));
+}
+
 function strictText(value: unknown, maxLength: number, allowEmpty = false): string | null {
   if (typeof value !== "string" || value.length > maxLength) return null;
   const normalized = value.trim();
@@ -927,7 +944,7 @@ function normalizeWorkCases(value: unknown, tasks: TeacherTask[]): EducationWork
   const taskIds = new Set<string>();
   for (const item of value) {
     const entry = strictRecord(item);
-    if (!entry || !hasExactKeys(entry, ["work_case_id", "case_kind", "trigger_id", "task_id", "title", "current_state", "due_date", "execution_revision", "artifact_revision", "transition_revision", "source_ids", "artifact_ids", "transitions", "external_send"])) return [];
+    if (!entry || !hasExactKeysWithOptional(entry, ["work_case_id", "case_kind", "trigger_id", "task_id", "title", "current_state", "due_date", "execution_revision", "artifact_revision", "transition_revision", "source_ids", "artifact_ids", "transitions", "external_send"], ["artifacts"])) continue;
     const id = strictText(entry.work_case_id, 160);
     const triggerId = strictText(entry.trigger_id, 160);
     const taskId = strictText(entry.task_id, 160);
@@ -936,7 +953,13 @@ function normalizeWorkCases(value: unknown, tasks: TeacherTask[]): EducationWork
     const sourceIds = boundedUniqueStrings(entry.source_ids, "work_case.source_ids", 50);
     const artifactIds = boundedUniqueStrings(entry.artifact_ids, "work_case.artifact_ids", 50);
     const task = taskId ? taskById.get(taskId) : null;
-    if (!id || !triggerId || !taskId || !title || (entry.case_kind !== "calendar_preparation" && entry.case_kind !== "teaching_before_class")
+    const validKind = entry.case_kind === "calendar_preparation" || entry.case_kind === "teaching_before_class" || entry.case_kind === "capability_package";
+    const triggerMatchesKind = entry.case_kind === "teaching_before_class"
+      ? task?.trigger === "teaching_before_class"
+      : entry.case_kind === "capability_package"
+        ? task?.trigger === "capability_package"
+        : task?.trigger !== "teaching_before_class" && task?.trigger !== "capability_package";
+    if (!id || !triggerId || !taskId || !title || !validKind
       || !WORK_CASE_STATES.has(entry.current_state as EducationWorkCaseState)
       || dueDate === undefined || entry.external_send !== false
       || !Number.isInteger(entry.execution_revision) || Number(entry.execution_revision) < 0
@@ -944,14 +967,15 @@ function normalizeWorkCases(value: unknown, tasks: TeacherTask[]): EducationWork
       || !Number.isInteger(entry.transition_revision) || Number(entry.transition_revision) < 0
       || !sourceIds || sourceIds.length !== 1 || sourceIds[0] !== triggerId || !artifactIds
       || !task || task.sourceEventId !== triggerId || task.title !== title || task.dueDate !== dueDate
-      || (entry.case_kind === "teaching_before_class") !== (task.trigger === "teaching_before_class")
-      || caseIds.has(id) || taskIds.has(taskId) || !Array.isArray(entry.transitions) || entry.transitions.length > 50) return [];
+      || !triggerMatchesKind || !Array.isArray(entry.transitions) || entry.transitions.length > 50) continue;
+    if (caseIds.has(id) || taskIds.has(taskId)) return [];
     const transitions: EducationWorkTransition[] = [];
     const transitionIds = new Set<string>();
     let previousSequence = 0;
+    let validTransitions = true;
     for (const itemTransition of entry.transitions) {
       const transition = strictRecord(itemTransition);
-      if (!transition || !hasExactKeys(transition, ["transition_id", "sequence", "state", "occurred_at", "source_kind", "source_id", "artifact_ids", "external_send"])) return [];
+      if (!transition || !hasExactKeys(transition, ["transition_id", "sequence", "state", "occurred_at", "source_kind", "source_id", "artifact_ids", "external_send"])) { validTransitions = false; break; }
       const transitionId = strictText(transition.transition_id, 160);
       const occurredAt = strictTimestamp(transition.occurred_at);
       const sourceId = strictText(transition.source_id, 160);
@@ -959,16 +983,43 @@ function normalizeWorkCases(value: unknown, tasks: TeacherTask[]): EducationWork
       if (!transitionId || transitionIds.has(transitionId) || !Number.isInteger(transition.sequence) || Number(transition.sequence) <= previousSequence
         || !WORK_TRANSITION_STATES.has(transition.state as EducationWorkTransitionState) || !occurredAt || !sourceId
         || (transition.source_kind !== "execution" && transition.source_kind !== "teacher_review")
-        || !transitionArtifactIds || transition.external_send !== false) return [];
+        || !transitionArtifactIds || transition.external_send !== false) { validTransitions = false; break; }
       previousSequence = Number(transition.sequence);
       transitionIds.add(transitionId);
       transitions.push({ id: transitionId, sequence: previousSequence, state: transition.state as EducationWorkTransitionState, occurredAt, sourceKind: transition.source_kind, sourceId, artifactIds: transitionArtifactIds, externalSend: false });
     }
-    if ((transitions.length === 0 && Number(entry.transition_revision) !== 0)
-      || (transitions.length > 0 && transitions.at(-1)!.sequence !== Number(entry.transition_revision))) return [];
+    if (!validTransitions || (transitions.length === 0 && Number(entry.transition_revision) !== 0)
+      || (transitions.length > 0 && transitions.at(-1)!.sequence !== Number(entry.transition_revision))) continue;
+    const artifacts: EducationWorkCase["artifacts"] = [];
+    let validArtifacts = true;
+    if (entry.artifacts !== undefined) {
+      if (!Array.isArray(entry.artifacts) || entry.artifacts.length > 50) validArtifacts = false;
+      else {
+        const artifactIdsSeen = new Set<string>();
+        for (const rawArtifact of entry.artifacts) {
+          const artifact = strictRecord(rawArtifact);
+          const artifactId = strictText(artifact?.artifact_id, 160);
+          const key = strictText(artifact?.key, 160);
+          const artifactTitle = strictText(artifact?.title, 240);
+          const relativePath = strictText(artifact?.relative_path, 1024);
+          const sha256 = strictText(artifact?.sha256, 71);
+          const evidenceIds = boundedUniqueStrings(artifact?.evidence_ids, "work_case.artifact.evidence_ids", 500);
+          if (!artifact || !hasExactKeys(artifact, ["artifact_id", "key", "title", "type", "relative_path", "sha256", "revision", "evidence_ids", "external_send"])
+            || !artifactId || artifactIdsSeen.has(artifactId) || !key || !artifactTitle || artifact.type !== "markdown"
+            || !relativePath || !relativePath.startsWith(".edupi/output/") || relativePath.split(/[\\/]/).includes("..")
+            || !sha256 || !/^sha256:[a-f0-9]{64}$/.test(sha256) || !Number.isInteger(artifact.revision) || Number(artifact.revision) < 1
+            || !evidenceIds || artifact.external_send !== false) { validArtifacts = false; break; }
+          artifactIdsSeen.add(artifactId);
+          artifacts.push({ id: artifactId, key, title: artifactTitle, type: "markdown", relativePath, sha256, revision: Number(artifact.revision), evidenceIds, externalSend: false });
+        }
+      }
+      if (validArtifacts && (artifacts.length !== artifactIds.length || artifacts.some((artifact, index) => artifact.id !== artifactIds[index])
+        || Math.max(0, ...artifacts.map(artifact => artifact.revision)) !== Number(entry.artifact_revision))) validArtifacts = false;
+    }
+    if (!validArtifacts) continue;
     caseIds.add(id);
     taskIds.add(taskId);
-    cases.push({ id, kind: entry.case_kind, triggerId, taskId, title, currentState: entry.current_state as EducationWorkCaseState, dueDate, executionRevision: Number(entry.execution_revision), artifactRevision: Number(entry.artifact_revision), transitionRevision: Number(entry.transition_revision), sourceIds, artifactIds, transitions, externalSend: false });
+    cases.push({ id, kind: entry.case_kind as EducationWorkCase["kind"], triggerId, taskId, title, currentState: entry.current_state as EducationWorkCaseState, dueDate, executionRevision: Number(entry.execution_revision), artifactRevision: Number(entry.artifact_revision), transitionRevision: Number(entry.transition_revision), sourceIds, artifactIds, artifacts, transitions, externalSend: false });
   }
   return cases;
 }

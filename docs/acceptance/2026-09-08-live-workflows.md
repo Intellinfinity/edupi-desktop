@@ -1,5 +1,13 @@
 # 实际流程验收
 
+## 2026-09-13 `v0.3.10` Windows 修复验收
+
+- Windows published-install run `34757893517` 从 `v0.3.10` Release 下载 NSIS，静默安装并启动成功；native source check 通过。
+- Windows acceptance run `34758285479` 在已安装可执行文件启动后再次启动同一 exe，第二个进程退出，剩余运行进程为 1，证明单实例插件阻止了第二个窗口/服务器。
+- macOS 安装版 `v0.3.10` 的 `/api/models-config/test` 使用缺失 `cacheWrite` 的模型价格对象返回 HTTP 200、`ok=true`、`responseText=OK`；临时模型测试目录由路由清理。
+- 代码回归：`npm test` 1057 passed、0 failed、25 skipped；`tsc --noEmit`、`npm run lint`、`cargo check --offline --locked` 和 Rust 21 项单元测试通过。
+- 未验证：真实 Windows 用户 API Key 和真实 Provider 动态模型目录；测试使用临时 loopback 服务与隔离数据，未写正式教师配置。
+
 ## 2026-09-13 `v0.3.9` 发布与安装版复核
 
 - Release workflow `34738213112` 的 macOS、Linux、Windows 和 manifest jobs 全部通过；Release `v0.3.9` 为非草稿、非预发布，三平台安装包、updater 资产、签名文件、`latest.json` 和组件清单均存在。

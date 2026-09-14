@@ -1,5 +1,14 @@
 # 实际流程验收
 
+## 2026-09-15 R09 教学重点生命周期
+
+- Core [#100](https://github.com/PIGU-PPPgu/edupi/pull/100) merge commit `9b79a1ce8f39980291cd1b25c8d54d77e989952f` 与即时刷新跟进 [#101](https://github.com/PIGU-PPPgu/edupi/pull/101) merge commit `1770bf759fd3f48b2f695d339d0a92c4c02cbe56` 已合并。最终 pin 为 Desktop component `sha256:622392b5d82ac6c10ac5491082fe62f4a72116487f6862f5434137f1515835cb`、Runtime component `sha256:f283aaf25ae39aefa87345f6c50c9aeb32871a83b2b6b8326171c44ded10ace5`、v1.1 schema `sha256:b410c8708e28a76e6e0f86a4d3386227d00d3eafc50475d3d78f4bf9c9f96bca`、fixture manifest `sha256:f05c3d9abf69919277f4845e95fcc1e01e8657f7d1ba32bf9319e4db93209c33`。Desktop 交付为 [#111](https://github.com/PIGU-PPPgu/edupi-desktop/pull/111)。
+- `EDUPI_CORE_ROOT=<Core #101 merge checkout> npm run test:edupi-teaching-priorities-e2` 通过：两个班级可保存同主题而不串对象；创建与修改重放不增加版本；已演进对象的重复创建返回 409；暂停、完成、删除从课前摘要移除，版本和 tombstone 恢复重新加入；旧 revision 返回 409。最终记录 `priorities=2`、`revision=5`，重启重读、版本链、来源 fingerprint 和稳定 task ID 均通过。
+- 实际浏览器在隔离数据根新建“数学 · 703 · 移项与符号变化”，修改说明，展开完整前后值历史，再恢复修改前；随后暂停、继续、完成。历史保持展开时状态变化会自动重读，不再显示“历史有数量但暂无版本”。删除按钮显示“删除‘移项与符号变化’？”及取消/确认；同一受限实体 API 提交删除后页面为0项并出现“已删除 1”，点击恢复后对象、完成状态和5条历史均保留，再从历史恢复到进行中。
+- 刷新页面后重点仍在。教学首页“当前教学重点”显示同一主题和说明；本周课前准备显示“教学重点：移项与符号变化：先讲等式性质，再处理变号”，原始 `rhythm_plan.json` 的 evidence 同时包含课表 slot 与 `teaching_priority:<id>:r6`。侧栏计数由错误的0修正为1；搜索“已暂停”时侧栏与主区同时为0，搜索“进行中”时同时为1。
+- 并发补充验收让页面停留在 revision 6，再通过同一 Desktop API 把 Core 更新到 revision 7。点击历史只产生一次 GET；返回后页面说明变为“外部协作已更新”，当前 revision、历史数及最新历史同时为7，服务端后续未重复请求。独立审查所报历史 reload loop P2 已修复，复审无 P1/P2。
+- Desktop `npm test` 为 1175 tests、1150 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`npm audit --audit-level=high`、锁文件下 `cargo check --lib` 和22项 Rust 测试通过。C2/C3、六类既有实体删除、教师资料版本、学生档案版本 E2 均在 Core #101 pin 下继续通过。验收使用 macOS 源码开发版与隔离数据；未修改真实教师资料，下一公开安装版与 Windows/Linux 页面交互仍由发布验收记录。
+
 ## 2026-09-15 R09 学生档案版本与恢复
 
 - Core [#97](https://github.com/PIGU-PPPgu/edupi/pull/97) merge commit `0d1e2e243cbd996f0c101db0d2038247bda7cf09`。班级、学生特征、家校备注的修改由名单导入、教师编辑、Agent 与恢复共用同一版本写入边界；版本链按学生稳定 ID、revision、前后值、来源、请求 ID 与内容哈希验证。Core 全量 `npm test`、类型检查和高危审计通过；容量、旧数据、同名跨班、删除/恢复、幂等重放及系统字段保持均有定向测试，最终独立审查无 P1/P2。

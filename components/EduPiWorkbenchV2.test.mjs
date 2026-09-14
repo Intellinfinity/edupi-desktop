@@ -116,12 +116,14 @@ test("activity pulse includes proactive kernel runs", async () => {
 });
 
 test("education memory uses Core semesters before category and pagination", async () => {
-  const [panel, sider, database] = await Promise.all([
+  const [panel, sider, database, scopes] = await Promise.all([
     read("./EduPiEducationPanel.tsx"),
     read("./EduPiObjectSider.tsx"),
     read("./EduPiMemoryDatabase.tsx"),
+    read("../lib/edupi-memory-scopes.ts"),
   ]);
-  assert.match(panel, /\/api\/edupi\/memory-scopes/);
+  assert.match(panel, /readEducationMemoryScopes/);
+  assert.match(scopes, /\/api\/edupi\/memory-scopes/);
   assert.match(sider, /memoryScopes\?\.semesters/);
   assert.match(sider, />学期</);
   assert.match(database, /semester\?\.label/);

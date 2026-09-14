@@ -53,6 +53,21 @@ export async function readEduPiEducation(options: { fetcher?: EducationFetcher; 
   return (await readEduPiWorkspace(options)).data;
 }
 
+export function preserveUnavailableWorkspaceResources(previous: EducationContract, next: EducationContract): EducationContract {
+  if (!next.workspaceResourcesUnavailable) return next;
+  const previousStudents = new Map(previous.students.map((student) => [student.student_id, student]));
+  return {
+    ...next,
+    students: next.students.map((student) => {
+      const prior = previousStudents.get(student.student_id);
+      return !student.class_name && prior?.class_name ? { ...student, class_name: prior.class_name } : student;
+    }),
+    studentNameCounts: previous.studentNameCounts,
+    teacherMaterials: previous.teacherMaterials,
+    generatedArtifacts: previous.generatedArtifacts,
+  };
+}
+
 export function resetEduPiEducationRequestForTest(): void {
   inFlightWorkspaceRequest = null;
 }

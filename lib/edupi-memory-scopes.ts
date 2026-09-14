@@ -28,6 +28,15 @@ export type EducationMemoryScopeProjection = {
   external_send: false;
 };
 
+type MemoryScopeFetcher = (url: string, init: { cache: RequestCache; signal?: AbortSignal }) => Promise<{ ok: boolean; status?: number; json: () => Promise<unknown> }>;
+
+export async function readEducationMemoryScopes({ fetcher = fetch as unknown as MemoryScopeFetcher, signal }: { fetcher?: MemoryScopeFetcher; signal?: AbortSignal } = {}): Promise<EducationMemoryScopeProjection> {
+  const response = await fetcher("/api/edupi/memory-scopes", { cache: "no-store", signal });
+  const body = await response.json() as { projection?: EducationMemoryScopeProjection; error?: string };
+  if (!response.ok || body?.projection?.projection_kind !== "scoped_education_memory") throw new Error(body?.error || `记忆范围读取失败（HTTP ${response.status ?? "unknown"}）`);
+  return body.projection;
+}
+
 export function scopedMemoryIds(projection: EducationMemoryScopeProjection | null, semesterId: string | null, category?: EducationMemoryCategory): Set<string> | null {
   if (!projection || !semesterId) return null;
   return new Set(projection.bindings.filter((binding) => {

@@ -1,5 +1,14 @@
 # 实际流程验收
 
+## 2026-09-15 R09 学生档案版本与恢复
+
+- Core [#97](https://github.com/PIGU-PPPgu/edupi/pull/97) merge commit `0d1e2e243cbd996f0c101db0d2038247bda7cf09`。班级、学生特征、家校备注的修改由名单导入、教师编辑、Agent 与恢复共用同一版本写入边界；版本链按学生稳定 ID、revision、前后值、来源、请求 ID 与内容哈希验证。Core 全量 `npm test`、类型检查和高危审计通过；容量、旧数据、同名跨班、删除/恢复、幂等重放及系统字段保持均有定向测试，最终独立审查无 P1/P2。
+- Desktop [#110](https://github.com/PIGU-PPPgu/edupi-desktop/pull/110) pin Core #97：Core commit `0d1e2e243cbd996f0c101db0d2038247bda7cf09`，Desktop component `sha256:a9d83aeb21aa666776408af3678ee975375a2ac4fa80fc30659c282c5aa25b09`，Runtime component `sha256:b5dbab91ed7942d9abd6e6a3227e95e22bba1b7e2d98738965cc7cb9c2528efd`，v1.1 schema `sha256:f0e909f76fa517817ee0d35679fc0700b2ff1e8a75c4c7ffdc7d5a93663b836a`，fixture manifest `sha256:4973aca90371844c9f5f93a138aec80ca54753ebaf1c4e1521e8421b70c35329`。
+- `EDUPI_CORE_ROOT=<Core #97 merge checkout> npm run test:edupi-student-profile-versions-e2` 从未带版本的李四档案开始，手动修改班级/特征/备注形成 revision 1，再恢复首版修改前快照形成 revision 2。修改与恢复的相同请求重放均不增加版本；过期 revision 返回 409；重读后班级、特征、备注与版本保持，学习模式和成长轨迹逐字段不变。旧的 `test:edupi-student-profile-update-e2` 继续通过。
+- 实际浏览器在隔离数据根打开李四档案，点击“手动修改”把 703/认真/保持沟通改为 704/主动提问、愿意表达/本周已沟通。保存后“档案历史”从0变1，展开显示来源“手动修改”、三个受影响字段以及两侧完整值；修改后一侧标记“当前档案”。点击“恢复修改前”后页面回到 703/认真/保持沟通，历史增至2，新记录来源为“版本恢复”；学习模式“移项时符号易错”和成长节点仍为1。刷新页面后当前值、历史数量与两条版本均重新从 Core 读出。
+- Desktop 全量 `npm test` 为 1162 tests、1137 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`npm audit --audit-level=high`、C2/C3、教师资料版本和六类删除恢复 E2 通过。独立只读审查无 P1/P2。页面控制台只有隔离浏览器残留已删除 cwd 的既有 project-trust 错误；本功能 PUT/GET/POST 均为 200，未出现流程错误。
+- 验收环境为 macOS 源码开发版与隔离 Core/数据目录，未写真实学生档案。该功能尚未进入公开安装包；Windows/Linux 页面交互随下一发布验收，不由本记录替代。
+
 ## 2026-09-14 R09 教师资料字段版本与单字段恢复
 
 - Core [#95](https://github.com/PIGU-PPPgu/edupi/pull/95) merge commit `76f1c9f6ef2393f96e789023e45c6dc86eac4b72`。字段版本保存在 teacher-review 同一原子事务，包含 revision、changed fields 及有界 before/after；公开 v1.1 快照不携带旧值，按需读取才返回。production snapshot 绑定私有版本摘要；旧状态、空基线、字段删除、提案再修改、旧 revision/来源、同请求换版本和重放均有定向回归。

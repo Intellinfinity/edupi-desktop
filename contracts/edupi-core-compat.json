@@ -2,18 +2,18 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "75cba8d4a331722ea2b34fb78e4e1943d02b79fb",
+    "core_commit": "9a969879c7cb7a45ce180a6e725188dfa377b244",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:44d84b04262cd198db92f60edc18e31214f5918af0f580e0db11cea1329c0bfb",
-    "runtime_component_manifest_hash": "sha256:b9ccf03ef155cbdf35c39bdfd6500829ddb72abc285be19c5cb260b1bbfcef42"
+    "component_manifest_hash": "sha256:55248c561339f0199f11f85c209c5b70175c63247feb95625342b3d27a83df4e",
+    "runtime_component_manifest_hash": "sha256:04163cb8a319767d1de4103ab8fa393d16fdda5f7044e3d62724b4f58699dec9"
   },
   "contract_identities": [
     {
       "contract_id": "edupi-bridge-v1.1",
       "contract_version": "1.1",
-      "schema_hash": "sha256:b410c8708e28a76e6e0f86a4d3386227d00d3eafc50475d3d78f4bf9c9f96bca",
+      "schema_hash": "sha256:190f2673a1c36d00cd52b0c7887d0bfa7bb0ffb7ca739eb4b5e443255858b0d5",
       "fixture_manifest_path": "fixtures/bridge/v1.1/fixture-manifest.json",
-      "fixture_manifest_hash": "sha256:f05c3d9abf69919277f4845e95fcc1e01e8657f7d1ba32bf9319e4db93209c33",
+      "fixture_manifest_hash": "sha256:9f002bc018d36f91720945e3c9213120df827793dae6bc4c2e639c6ff44f4e88",
       "supported_commands": [
         "review_observation",
         "review_memory_candidate",
@@ -109,7 +109,11 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/97",
     "https://github.com/PIGU-PPPgu/edupi/pull/100",
     "https://github.com/PIGU-PPPgu/edupi/pull/101",
-    "https://github.com/PIGU-PPPgu/edupi/pull/105"
+    "https://github.com/PIGU-PPPgu/edupi/pull/105",
+    "https://github.com/PIGU-PPPgu/edupi/pull/107",
+    "https://github.com/PIGU-PPPgu/edupi/pull/108",
+    "https://github.com/PIGU-PPPgu/edupi/pull/109",
+    "https://github.com/PIGU-PPPgu/edupi/pull/110"
   ],
-  "change_note": "Paired Core PR #105 adds bounded material-metadata versions, tombstone-serialized updates, canonical deleted-material identity, and immediate preparation refresh; PRs #100/#101 remain the teaching-priority baseline."
+  "change_note": "Paired Core PRs #107–#110 expose managed education-fact lifecycle, conflict-safe revisions, paginated recovery, authoritative restore modes, lineage-safe public review state, deterministic replay, and refreshed snapshots; PR #105 remains the material-metadata baseline."
 }

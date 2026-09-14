@@ -248,7 +248,7 @@ test("sidebar and panel review surfaces consume the shared reviewability predica
     readFile(new URL("./EduPiEducationPanel.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(sider, /const pendingReview = pending\.filter\(\(task\) => isTaskReviewable\(task, workCaseForTask\(data, task\.id\)\)\)/);
-  assert.match(sider, /CategoryRow label="审核看板" count=\{pendingReview\.length \+ pendingC1\.length\}/);
+  assert.match(sider, /CategoryRow label="审核看板" count=\{pendingReview\.length \+ pendingC1\.length \+ pendingFacts\.length\}/);
   assert.match(sider, /GroupTitle count=\{pendingReview\.length\}>任务审核/);
   assert.match(sider, /taskRows\(pendingReview, "review"\)/);
   assert.match(panel, /const reviewable = \(task: TeacherTask\) => isTaskActionable\(task\) && isTaskReviewable\(task, education \? workCaseForTask\(education, task\.id\) : null\)/);

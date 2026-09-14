@@ -98,7 +98,7 @@ export type EducationWorkCase = {
 export type EducationFactConfidence = { basis: "explicit" | "model_assisted" | "inferred"; score: number };
 export type EducationFactEntity = { id: string; kind: "teacher" | "term" | "class" | "student" | "parent" | "subject" | "topic" | "lesson_occurrence" | "calendar_event" | "material" | "artifact"; name: string; externalRefs: Array<{ namespace: string; externalId: string }>; revision: number };
 export type EducationFactObservation = { id: string; sourceKind: "teacher_utterance" | "material" | "calendar" | "timetable" | "legacy"; sourceId: string; sourceRevision: string; text: string; contentHash: string; observedAt: string; actorRef: string; entityIds: string[]; status: "active" | "stale"; revision: number };
-export type EducationFact = { id: string; entityId: string; kind: "error_pattern" | "progress" | "behavior" | "general" | "safety" | "academic" | "material" | "evidence"; predicate: string; value: string; subjectRef: string | null; topicRef: string | null; confidence: EducationFactConfidence; status: "candidate" | "pending_review" | "held" | "accepted"; sourceIds: string[]; observationIds: string[]; conflictIds: string[]; revision: number };
+export type EducationFact = { id: string; entityId: string; kind: "error_pattern" | "progress" | "behavior" | "general" | "safety" | "academic" | "material" | "evidence"; predicate: string; value: string; subjectRef: string | null; topicRef: string | null; confidence: EducationFactConfidence; status: "candidate" | "pending_review" | "held" | "accepted"; sourceIds: string[]; observationIds: string[]; conflictIds: string[]; hasPredecessor: boolean; revision: number };
 export type EducationFactSpine = {
   stateHash: string;
   generatedAt: string;
@@ -1010,7 +1010,7 @@ function factConfidence(value: unknown): EducationFactConfidence | null {
 
 function normalizeFact(value: unknown): EducationFact | null {
   const item = strictRecord(value);
-  if (!item || !hasExactKeys(item, ["fact_id", "entity_id", "fact_kind", "predicate", "value", "subject_ref", "topic_ref", "confidence", "status", "source_ids", "observation_ids", "conflict_ids", "revision", "external_send"])) return null;
+  if (!item || !hasExactKeys(item, ["fact_id", "entity_id", "fact_kind", "predicate", "value", "subject_ref", "topic_ref", "confidence", "status", "source_ids", "observation_ids", "conflict_ids", "has_predecessor", "revision", "external_send"])) return null;
   const id = strictText(item.fact_id, 160);
   const entityId = strictText(item.entity_id, 160);
   const predicate = strictText(item.predicate, 160);
@@ -1024,8 +1024,8 @@ function normalizeFact(value: unknown): EducationFact | null {
   if (!id || !entityId || !predicate || !factValue || !FACT_KINDS.has(item.fact_kind as EducationFact["kind"])
     || !FACT_STATUSES.has(item.status as EducationFact["status"]) || !confidence || !sourceIds || !observationIds || !conflictIds
     || (item.subject_ref !== null && !subjectRef) || (item.topic_ref !== null && !topicRef)
-    || !Number.isInteger(item.revision) || Number(item.revision) < 0 || item.external_send !== false) return null;
-  return { id, entityId, kind: item.fact_kind as EducationFact["kind"], predicate, value: factValue, subjectRef, topicRef, confidence, status: item.status as EducationFact["status"], sourceIds, observationIds, conflictIds, revision: Number(item.revision) };
+    || typeof item.has_predecessor !== "boolean" || !Number.isInteger(item.revision) || Number(item.revision) < 0 || item.external_send !== false) return null;
+  return { id, entityId, kind: item.fact_kind as EducationFact["kind"], predicate, value: factValue, subjectRef, topicRef, confidence, status: item.status as EducationFact["status"], sourceIds, observationIds, conflictIds, hasPredecessor: item.has_predecessor, revision: Number(item.revision) };
 }
 
 function isBoundedFactRecordArray(value: unknown, maxItems = 500): value is RawRecord[] {

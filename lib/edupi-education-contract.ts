@@ -409,6 +409,9 @@ export type EducationContract = {
   teacherMaterials?: Array<{ material_id: string; title: string; kind: string; subject: string | null; class_id: string | null; relative_path: string; available?: boolean }>;
   generatedArtifactsUnavailable?: boolean;
   generatedArtifacts?: Array<{ artifact_id: string; title: string; relative_path: string; available?: boolean; session_id: string; task_id: string | null; updated_at: string; size_bytes: number; origin?: "preparation" }>;
+  entityDeletionCount?: number;
+  entityDeletionHistoryCount?: number;
+  entityDeletionLedgerUnavailable?: boolean;
   scope: "teacher_internal";
   externalSend: false;
   requiresTeacherReview: true;

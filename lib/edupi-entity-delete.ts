@@ -404,13 +404,19 @@ type EntityRestoreDependencies = {
   callCore?: (request: ReturnType<typeof buildEntityRestoreRequest>, roots: EntityBridgeRoots, signal?: AbortSignal) => Promise<DeleteCoreResponse>;
 };
 
-function findDeletion(deletions: EntityDeletionRecord[], kind: EntityDeleteKind, id: string): EntityDeletionRecord | null {
+function findExactDeletion(deletions: EntityDeletionRecord[], kind: EntityDeleteKind, id: string): EntityDeletionRecord | null {
   const exact = deletions.filter((record) => record.kind === kind && record.id === id);
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) throw new EntityDeleteError("invalid_response", "Core 删除记录无效。");
+  return null;
+}
+
+function findDeletion(deletions: EntityDeletionRecord[], kind: EntityDeleteKind, id: string, restoreRequestId?: string): EntityDeletionRecord | null {
+  const exact = findExactDeletion(deletions, kind, id);
+  if (exact) return exact;
   const aliases = deletions.filter((record) => record.kind === kind && (record.studentId === id || record.reviewTargetId === id));
   if (aliases.length > 1) throw operationError("legacy_identity_unresolvable", "restore");
-  return aliases[0] || null;
+  return aliases[0] && (!restoreRequestId || entityRestoreRequestId(aliases[0]) === restoreRequestId) ? aliases[0] : null;
 }
 
 async function currentRestorePayload(roots: EntityBridgeRoots, signal: AbortSignal | undefined, dependencies: EntityRestoreDependencies) {
@@ -429,7 +435,7 @@ async function reconciledRestore(
   const history = ledger.history.find((item) => item.requestId === input.restoreRequestId && item.action === "restore"
     && item.kind === input.kind && item.targetId === input.id
     && (!expectedRecord || item.tombstoneRevision === expectedRecord.tombstoneRevision && item.targetFingerprint === expectedRecord.targetFingerprint)) || null;
-  if (!history || findDeletion(ledger.deletions, history.kind, history.targetId)) return null;
+  if (!history || findExactDeletion(ledger.deletions, history.kind, history.targetId)) return null;
   const payload = await currentRestorePayload(roots, input.signal, dependencies);
   if (!payload?.education_workspace || (history.kind !== "material" && !hasTargetInPayload(payload, history.kind, history.targetId))) return null;
   return { target: { kind: history.kind, id: history.targetId }, restoredAt: history.occurredAt, data: payload };
@@ -448,7 +454,7 @@ export async function issueEntityRestore(
   const ledger = dependencies.readLedger
     ? await dependencies.readLedger(roots, input.signal)
     : await readEntityDeletionLedger({ signal: input.signal }, { roots });
-  const deletion = findDeletion(ledger.deletions, input.kind, input.id);
+  const deletion = findDeletion(ledger.deletions, input.kind, input.id, input.restoreRequestId);
   if (!deletion) {
     const replayed = await reconciledRestore(input, ledger, roots, dependencies);
     if (replayed) return replayed;

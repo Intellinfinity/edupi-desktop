@@ -28,11 +28,13 @@ function historyLabel(item: EntityDeletionHistory): string {
 export function EduPiDeletedEntities({
   activeCount,
   historyCount,
+  countUnavailable = false,
   onLoad,
   onRestore,
 }: {
   activeCount: number;
   historyCount: number;
+  countUnavailable?: boolean;
   onLoad: () => Promise<{ deletions: EntityDeletionRestoreRecord[]; history: EntityDeletionHistory[] }>;
   onRestore: (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string, label: string) => Promise<void>;
 }) {
@@ -49,7 +51,7 @@ export function EduPiDeletedEntities({
   const recentHistory = useMemo(() => (ledger?.history ?? []).slice().sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 50), [ledger]);
   useEffect(() => setPage((current) => Math.min(current, pages - 1)), [pages]);
 
-  if (activeCount === 0 && historyCount === 0) return null;
+  if (activeCount === 0 && historyCount === 0 && !countUnavailable) return null;
 
   const show = async () => {
     setOpen(true);

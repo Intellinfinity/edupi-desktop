@@ -15,3 +15,14 @@ test("deleted entity control exposes the Core-backed count", () => {
   }));
   assert.match(html, />已删除 1</);
 });
+
+test("deleted entity control remains available while the summary is unavailable", () => {
+  const html = renderToStaticMarkup(React.createElement(EduPiDeletedEntities, {
+    activeCount: 0,
+    historyCount: 0,
+    countUnavailable: true,
+    onLoad: async () => ({ deletions: [], history: [] }),
+    onRestore: async () => {},
+  }));
+  assert.match(html, />删除记录</);
+});

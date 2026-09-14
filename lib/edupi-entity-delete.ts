@@ -433,8 +433,10 @@ async function reconciledRestore(
   expectedRecord?: EntityDeletionRecord,
 ): Promise<{ target: { kind: EntityDeleteKind; id: string }; restoredAt: string | null; data: RawRecord & { education_workspace: RawRecord } } | null> {
   const history = ledger.history.find((item) => item.requestId === input.restoreRequestId && item.action === "restore"
-    && item.kind === input.kind && item.targetId === input.id
-    && (!expectedRecord || item.tombstoneRevision === expectedRecord.tombstoneRevision && item.targetFingerprint === expectedRecord.targetFingerprint)) || null;
+    && item.kind === input.kind
+    && (expectedRecord
+      ? item.targetId === expectedRecord.id && item.tombstoneRevision === expectedRecord.tombstoneRevision && item.targetFingerprint === expectedRecord.targetFingerprint
+      : entityRestoreRequestId({ kind: item.kind, id: item.targetId, tombstoneRevision: item.tombstoneRevision, targetFingerprint: item.targetFingerprint }) === input.restoreRequestId)) || null;
   if (!history || findExactDeletion(ledger.deletions, history.kind, history.targetId)) return null;
   const payload = await currentRestorePayload(roots, input.signal, dependencies);
   if (!payload?.education_workspace || (history.kind !== "material" && !hasTargetInPayload(payload, history.kind, history.targetId))) return null;

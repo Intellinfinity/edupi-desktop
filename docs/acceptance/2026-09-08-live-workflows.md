@@ -1,5 +1,13 @@
 # 实际流程验收
 
+## 2026-09-15 R09 材料元信息版本与恢复
+
+- Core [#105](https://github.com/PIGU-PPPgu/edupi/pull/105) merge commit `75cba8d4a331722ea2b34fb78e4e1943d02b79fb` 为已接入材料的名称、类型、学科和班级建立私有有界版本链，并在修改、历史恢复、统一删除和 tombstone 恢复后刷新公开材料投影与课前准备来源。Desktop [#112](https://github.com/PIGU-PPPgu/edupi-desktop/pull/112) 精确 pin 该提交；Desktop component 为 `sha256:44d84b04262cd198db92f60edc18e31214f5918af0f580e0db11cea1329c0bfb`，Runtime component 为 `sha256:b9ccf03ef155cbdf35c39bdfd6500829ddb72abc285be19c5cb260b1bbfcef42`。
+- `EDUPI_CORE_ROOT=<Core #105 merge checkout> npm run test:edupi-material-metadata-e2` 从 legacy revision 0 开始，完成修改、相同请求重放、旧 revision 拒绝、完整历史读取、版本恢复与恢复响应丢失后的对账；再修改班级使材料退出当前备课范围，统一删除后历史返回 410，tombstone 恢复保留 revision 3 与三条历史，最后恢复班级生成 revision 4 并重新进入备课。材料文件逐字节保持不变。
+- 实际浏览器在隔离数据根把“第一课教案”改为“移项专项教案”并切到学案类型；列表分类随 Core 类型从教案移动到练习。历史显示每版修改前、修改后、变更字段和当前信息，恢复后标题、类型、分类和课前准备摘要同步；再次修改为“函数专项教案”后，教学首页的可用材料同步，刷新重开仍保留 revision 3 与三条历史。删除入口显示目标名称，取消后材料仍在。
+- 并发验收在 revision 4 打开旧草稿，另一入口把学科修改为物理并推进到 revision 5；展开历史后页面关闭旧草稿并显示“材料信息已在其他入口更新，请重新打开后修改”。重新打开后只改名称并保存为 revision 6，学科仍为物理，没有被旧草稿覆盖。独立审查所报 P1 已修复；复审无 P1/P2。全新浏览器标签页两次验收均无 console error/warning。
+- Desktop `npm test` 为 1188 tests、1163 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`npm audit --audit-level=moderate`、精确 Core bridge/manifest 检查和22项 Rust 测试通过。验收使用 macOS 源码开发版与隔离数据，未改真实教师材料；公开安装包页面复验归入 R15，不回退本项的 Core 与桌面功能验收。
+
 ## 2026-09-15 R09 教学重点生命周期
 
 - Core [#100](https://github.com/PIGU-PPPgu/edupi/pull/100) merge commit `9b79a1ce8f39980291cd1b25c8d54d77e989952f` 与即时刷新跟进 [#101](https://github.com/PIGU-PPPgu/edupi/pull/101) merge commit `1770bf759fd3f48b2f695d339d0a92c4c02cbe56` 已合并。最终 pin 为 Desktop component `sha256:622392b5d82ac6c10ac5491082fe62f4a72116487f6862f5434137f1515835cb`、Runtime component `sha256:f283aaf25ae39aefa87345f6c50c9aeb32871a83b2b6b8326171c44ded10ace5`、v1.1 schema `sha256:b410c8708e28a76e6e0f86a4d3386227d00d3eafc50475d3d78f4bf9c9f96bca`、fixture manifest `sha256:f05c3d9abf69919277f4845e95fcc1e01e8657f7d1ba32bf9319e4db93209c33`。Desktop 交付为 [#111](https://github.com/PIGU-PPPgu/edupi-desktop/pull/111)。

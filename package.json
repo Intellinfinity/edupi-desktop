@@ -56,6 +56,7 @@
     "test:edupi-student-events-e2": "node scripts/test-edupi-student-events-e2.mjs",
     "test:edupi-teacher-context-versions-e2": "node scripts/test-edupi-teacher-context-versions-e2.mjs",
     "test:edupi-teaching-priorities-e2": "node scripts/test-edupi-teaching-priorities-e2.mjs",
+    "test:edupi-material-metadata-e2": "node scripts/test-edupi-material-metadata-e2.mjs",
     "test:edupi-entity-delete-e2": "node scripts/test-edupi-entity-delete-e2.mjs",
     "test:edupi-living-flow-e2": "node scripts/test-edupi-living-flow-e2.mjs",
     "test:packaged-background-recovery": "node scripts/test-packaged-background-recovery.mjs",

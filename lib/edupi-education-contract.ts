@@ -419,8 +419,22 @@ export type EducationDataSource = {
   status: EducationDataSourceStatus;
 };
 
+export type EducationTeacherMaterial = {
+  material_id: string;
+  title: string;
+  kind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other";
+  subject: string | null;
+  class_id: string | null;
+  relative_path: string;
+  available?: boolean;
+  metadata_revision: number;
+  metadata_history_count: number;
+  metadata_updated_at: string;
+  external_send: false;
+};
+
 export type EducationContract = {
-  teacherMaterials?: Array<{ material_id: string; title: string; kind: string; subject: string | null; class_id: string | null; relative_path: string; available?: boolean }>;
+  teacherMaterials?: EducationTeacherMaterial[];
   workspaceResourcesUnavailable?: boolean;
   generatedArtifactsUnavailable?: boolean;
   generatedArtifacts?: Array<{ artifact_id: string; title: string; relative_path: string; available?: boolean; session_id: string; task_id: string | null; updated_at: string; size_bytes: number; origin?: "preparation" }>;

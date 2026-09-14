@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "1770bf759fd3f48b2f695d339d0a92c4c02cbe56",
+    "core_commit": "75cba8d4a331722ea2b34fb78e4e1943d02b79fb",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:622392b5d82ac6c10ac5491082fe62f4a72116487f6862f5434137f1515835cb",
-    "runtime_component_manifest_hash": "sha256:f283aaf25ae39aefa87345f6c50c9aeb32871a83b2b6b8326171c44ded10ace5"
+    "component_manifest_hash": "sha256:44d84b04262cd198db92f60edc18e31214f5918af0f580e0db11cea1329c0bfb",
+    "runtime_component_manifest_hash": "sha256:b9ccf03ef155cbdf35c39bdfd6500829ddb72abc285be19c5cb260b1bbfcef42"
   },
   "contract_identities": [
     {
@@ -108,7 +108,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/95",
     "https://github.com/PIGU-PPPgu/edupi/pull/97",
     "https://github.com/PIGU-PPPgu/edupi/pull/100",
-    "https://github.com/PIGU-PPPgu/edupi/pull/101"
+    "https://github.com/PIGU-PPPgu/edupi/pull/101",
+    "https://github.com/PIGU-PPPgu/edupi/pull/105"
   ],
-  "change_note": "Paired Core PRs #100/#101 add bounded teaching-priority lifecycle, private versions, unified deletion, and immediate class-scoped lesson refresh; PR #97 remains the student-profile version baseline."
+  "change_note": "Paired Core PR #105 adds bounded material-metadata versions, tombstone-serialized updates, canonical deleted-material identity, and immediate preparation refresh; PRs #100/#101 remain the teaching-priority baseline."
 }

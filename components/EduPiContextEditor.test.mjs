@@ -47,7 +47,7 @@ test("context actions are receipt-bound, strict, and keep Chat as a draft handof
   assert.match(source, /event\.key === "Enter" && \(event\.metaKey \|\| event\.ctrlKey\)/);
   assert.doesNotMatch(source, /externalSend|external_send|onSaved|fetch\("\/api\/edupi\/onboarding"[\s\S]*GET/);
   assert.match(panel, /teacherContextPendingCount/);
-  assert.match(panel, /pendingCount \+ c1PendingCount \+ teacherContextPendingCount/);
+  assert.match(panel, /pendingCount \+ c1PendingCount \+ factPendingCount \+ teacherContextPendingCount/);
   assert.match(panel, /ref=\{contextModalRef\}/);
   assert.match(panel, /useModalDismiss<HTMLDivElement>/);
   assert.match(panel, /tabIndex=\{-1\}/);

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { EducationContract, EducationObservation } from "@/lib/edupi-education-contract";
+import type { EducationContract, EducationFact, EducationObservation } from "@/lib/edupi-education-contract";
 import { useStudentObservationRows } from "@/hooks/useStudentObservationRows";
 import { INSIGHT_CATEGORIES, INSIGHT_STATUSES, insightCategory, routePart, type InsightCategoryId, type InsightStatusId } from "@/lib/edupi-domain-navigation";
+import { factInsightCategory, factInsightStatus, factStatusLabel } from "@/lib/edupi-fact-lifecycle-model";
+import { EduPiFactActions } from "./EduPiFactActions";
+import { EduPiDeletedFacts } from "./EduPiDeletedFacts";
 
 const PAGE_SIZE = 8;
 
@@ -29,6 +32,7 @@ type InsightRow = {
   reviewTargets?: ReviewTarget[];
   sourceText?: string;
   sourceSessionId?: string | null;
+  fact?: EducationFact;
 };
 
 function observationEvidenceIds(item: EducationContract["observations"][number]): string[] {
@@ -54,7 +58,7 @@ function observationReviewLabel(item: EducationObservation): string {
   }[item.teacherReview.state];
 }
 
-export function EduPiInsightDatabase({ data, query, selectedObjectId, onReviewTarget }: { data: EducationContract; query: string; selectedObjectId: string | null; onReviewTarget?: (target: ReviewTarget) => void }) {
+export function EduPiInsightDatabase({ data, query, selectedObjectId, onReviewTarget, onEducation, reviewer }: { data: EducationContract; query: string; selectedObjectId: string | null; onReviewTarget?: (target: ReviewTarget) => void; onEducation: (data: EducationContract) => void; reviewer: string }) {
   const [category = "learning", status = "all"] = routePart(selectedObjectId, "insights", "learning:all").split(":") as [InsightCategoryId, InsightStatusId];
   const [page, setPage] = useState(0);
   const localRowCount = useMemo(() => {
@@ -62,8 +66,9 @@ export function EduPiInsightDatabase({ data, query, selectedObjectId, onReviewTa
     const observations = data.observations.filter(item => insightCategory(item.text) === category && (status === "all" || status === "observation") && matches(item.text, item.teacherReview.state, item.evidenceIds, [...item.studentIds, ...(item.classId ? [item.classId] : [])])).length;
     const insights = data.continuity.insights.filter(item => !item.content.startsWith("[主题候选]") && insightCategory(item.content) === category && (status === "all" || status === item.status) && matches(item.content, item.status, item.evidenceIds, [])).length;
     const signals = data.continuity.signals.filter(item => insightCategory(item.content) === category && (status === "all" || status === "signal") && matches(item.content, "持续观察", [], item.related)).length;
-    return observations + insights + signals;
-  }, [category, data.continuity.insights, data.continuity.signals, data.observations, query, status]);
+    const facts = [...(data.factSpine?.acceptedFacts || []), ...(data.factSpine?.factCandidates || [])].filter(item => factInsightCategory(item) === category && (status === "all" || status === factInsightStatus(item)) && matches(item.value, item.status, [...item.sourceIds, ...item.observationIds], [item.entityId, item.subjectRef || "", item.topicRef || ""])).length;
+    return observations + insights + signals + facts;
+  }, [category, data.continuity.insights, data.continuity.signals, data.factSpine, data.observations, query, status]);
   const studentObservations = useStudentObservationRows(category, status, query, page, localRowCount);
   const categoryLabel = INSIGHT_CATEGORIES.find((item) => item.id === category)?.label || "学情观察";
   const statusLabel = INSIGHT_STATUSES.find((item) => item.id === status)?.label || "全部";
@@ -82,18 +87,26 @@ export function EduPiInsightDatabase({ data, query, selectedObjectId, onReviewTa
       return { id: `insight:${item.id}`, type: "洞察", content: item.content.replace(/^\[梦境启示\]\s*/, ""), status: item.status === "surfaced" ? "已浮出" : "酝酿中", statusId: item.status, evidence: item.evidenceIds, metric: `${Math.round(item.confidence * 100)}%`, date: item.surfacedAt || item.createdAt, related: [] as string[], sources: uniqueSources([...item.evidenceIds.map(id => `证据 · ${id}`), ...linkedObservations.map(observation => `原始观察 · ${observation.observationId}`)]), reviewTargets: linkedObservations.filter(isReviewableObservation).map(observation => ({ kind: "observation" as const, id: observation.observationId })) };
     });
     const signals = data.continuity.signals.filter((item) => insightCategory(item.content) === category).map((item) => ({ id: `signal:${item.id}`, type: "弱信号", content: item.content, status: "持续观察", statusId: "signal", evidence: [] as string[], metric: `${item.strength} 次`, date: item.lastSeenAt || item.createdAt, related: item.related, sources: item.related.map(source => `关联 · ${source}`) }));
+    const factSpine = data.factSpine;
+    const factEntities = new Map(factSpine?.entities.map((entity) => [entity.id, entity.name]) || []);
+    const factObservations = new Map(factSpine?.observations.map((observation) => [observation.id, observation]) || []);
+    const facts = [...(factSpine?.acceptedFacts || []), ...(factSpine?.factCandidates || [])].filter((item) => factInsightCategory(item) === category).map((item) => {
+      const sources = item.observationIds.flatMap((id) => factObservations.get(id) || []);
+      const observedSourceIds = new Set(sources.map((source) => source.sourceId));
+      return { id: `fact:${item.id}`, type: "事实", content: item.value, status: factStatusLabel(item.status), statusId: factInsightStatus(item), evidence: [...item.sourceIds, ...item.observationIds], metric: `${Math.round(item.confidence.score * 100)}%`, date: factSpine?.generatedAt || null, related: [factEntities.get(item.entityId), item.subjectRef, item.topicRef].filter((value): value is string => Boolean(value)), sources: uniqueSources([...sources.map((source) => `${source.sourceKind} · ${source.text}`), ...item.sourceIds.filter((sourceId) => !observedSourceIds.has(sourceId)).map((sourceId) => `来源 · ${sourceId}`)]), fact: item };
+    });
     const studentRows = studentObservations.records.map(item => ({ id: `student-event:${item.id}`, type: item.kind === "learning" ? "学习记录" : "互动记录", content: [item.canonical_topic || item.topic, item.summary].filter(Boolean).join(" · "), status: "教师记录", statusId: "observation", evidence: [item.source?.message_id].filter(Boolean), metric: `版本 ${item.revision}`, date: item.recorded_at, related: item.student_labels || item.students, sourceText: item.source?.text || "", sourceSessionId: item.source?.session_id || null }));
-    return [...observations, ...insights, ...signals, ...studentRows]
+    return [...observations, ...facts, ...insights, ...signals, ...studentRows]
       .filter((item) => status === "all" || item.statusId === status)
       .filter((item) => !query || `${item.content} ${item.status} ${item.evidence.join(" ")} ${item.related.join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
       .sort((left, right) => String(right.date || "").localeCompare(String(left.date || "")));
-  }, [category, data.continuity.insights, data.continuity.signals, data.observations, query, status, studentObservations.records]);
+  }, [category, data.continuity.insights, data.continuity.signals, data.factSpine, data.observations, query, status, studentObservations.records]);
   useEffect(() => setPage(0), [category, query, status]);
   const total = rows.filter(item => !item.id.startsWith("student-event:")).length + studentObservations.total;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, pages - 1);
   const visible = rows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-  const sourceAvailable = data.dataSources.insights.present || data.observations.length > 0 || studentObservations.connected;
+  const sourceAvailable = data.dataSources.insights.present || data.observations.length > 0 || Boolean(data.factSpine) || studentObservations.connected;
   const emptyMessage = !sourceAvailable
     ? "观察与洞察数据尚未接入"
     : query || status !== "all"
@@ -103,6 +116,7 @@ export function EduPiInsightDatabase({ data, query, selectedObjectId, onReviewTa
   return <main className="edupi-module-workspace edupi-database-workspace">
     <header className="edupi-module-heading"><div><h1>{categoryLabel}</h1><p>{sourceAvailable ? "数据已连接" : "数据未接入"} · {statusLabel} · {total} 条记录</p></div></header>
     {studentObservations.error ? <p role="alert">{studentObservations.error}</p> : null}
+    <EduPiDeletedFacts data={data} reviewer={reviewer} onEducation={onEducation} />
     <section className="edupi-database" aria-label={`${categoryLabel}数据库`}>
       <div className="edupi-database__head edupi-insight-db-grid"><span>类型</span><span>内容</span><span>状态</span><span>依据</span><span>最近时间</span></div>
       {visible.map((item) => <details className="edupi-database-row" key={item.id}>
@@ -119,6 +133,7 @@ export function EduPiInsightDatabase({ data, query, selectedObjectId, onReviewTa
           </details> : null}
           {item.sourceSessionId ? <a className="edupi-insight-source-link" href={`/?edupi=1&module=home&view=chat&inspector=0&session=${encodeURIComponent(item.sourceSessionId)}`}>打开来源对话</a> : null}
           {item.sourceText ? <blockquote className="edupi-insight-source-quote">{item.sourceText}</blockquote> : null}
+          {item.fact && data.factSpine ? <EduPiFactActions fact={item.fact} spine={data.factSpine} reviewer={reviewer} onEducation={onEducation} /> : null}
         </div>
       </details>)}
       {studentObservations.loading ? <div role="status">读取中…</div> : visible.length === 0 && !studentObservations.error ? <div className="edupi-database__empty">{emptyMessage}</div> : null}

@@ -1522,6 +1522,9 @@
                               }
                             ]
                           },
+                          "has_predecessor": {
+                            "type": "boolean"
+                          },
                           "observation_ids": {
                             "items": {
                               "maxLength": 160,
@@ -1612,6 +1615,7 @@
                           "source_ids",
                           "observation_ids",
                           "conflict_ids",
+                          "has_predecessor",
                           "revision",
                           "external_send"
                         ],
@@ -1898,6 +1902,9 @@
                               }
                             ]
                           },
+                          "has_predecessor": {
+                            "type": "boolean"
+                          },
                           "observation_ids": {
                             "items": {
                               "maxLength": 160,
@@ -1988,6 +1995,7 @@
                           "source_ids",
                           "observation_ids",
                           "conflict_ids",
+                          "has_predecessor",
                           "revision",
                           "external_send"
                         ],

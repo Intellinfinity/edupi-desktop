@@ -1,5 +1,13 @@
 # 实际流程验收
 
+## 2026-09-15 R10 事实审核、编辑、删除与跨模块同步
+
+- 验收版本为 Core [#107](https://github.com/PIGU-PPPgu/edupi/pull/107) 至 [#110](https://github.com/PIGU-PPPgu/edupi/pull/110) 的最终 commit `9a969879c7cb7a45ce180a6e725188dfa377b244`，Desktop 为 [#113](https://github.com/PIGU-PPPgu/edupi-desktop/pull/113)。最终 pin：Desktop component `sha256:55248c561339f0199f11f85c209c5b70175c63247feb95625342b3d27a83df4e`、Runtime component `sha256:04163cb8a319767d1de4103ab8fa393d16fdda5f7044e3d62724b4f58699dec9`、v1.1 schema `sha256:190f2673a1c36d00cd52b0c7887d0bfa7bb0ffb7ca739eb4b5e443255858b0d5`、fixture manifest `sha256:9f002bc018d36f91720945e3c9213120df827793dae6bc4c2e639c6ff44f4e88`。
+- 隔离事实先在“待我确认”显示两条候选。接受“移项符号已经掌握”时页面明确提示会替换“移项符号仍需练习”，提交后待确认数从 2 变为 1；学生档案与教学依据显示同一已确认 ID。随后在学生档案把值修改为“移项符号基本掌握”，教学和洞察同步显示新值，洞察来源展开为 `teacher_utterance · 林晓复测后已经掌握移项变号。`。
+- 删除确认可以取消且对象保持；经受限 API 删除后，学生、教学和洞察均不再显示目标，删除记录为 1。直接恢复后刷新仍为已确认。再建立冲突并删除已修改事实时，Core 判定其已有前序版本，页面显示“恢复为待确认”；恢复后保留当前已确认事实并出现待确认事实，接受按钮提示先处理当前事实。删除当前事实后，原事实可接受并成为唯一已确认事实，重启读回一致。
+- 状态筛选实际显示已确认、待确认和已暂缓数量；候选暂缓后进入“已暂缓事实”，再接受后待确认徽标归零。事实来源、学生稳定身份、教学采用状态和删除分页均来自 Core，Desktop 不写私有事实 JSON。最终观察库、教学页和学生抽屉分别显示“事实”“教学依据”“学习事实”，所有操作有明确结果，浏览器控制台为 `[]`。
+- `EDUPI_CORE_ROOT=<Core #110> npm run test:edupi-fact-lifecycle-e2` 通过候选审核、旧替换 revision 拒绝、冲突替换、修改稳定谱系、学生/教学同步、删除恢复、重启读回和来源保持；C2 教师资料与 C3 工作候选 E2 均为 GREEN。Desktop `npm test` 为 1201 tests、1176 passed、25 skipped、0 failed；TypeScript、ESLint、npm audit、精确 Core pin 和 22 项 Rust 测试通过。测试使用隔离数据，没有写入真实学生档案。
+
 ## 2026-09-15 R09 材料元信息版本与恢复
 
 - Core [#105](https://github.com/PIGU-PPPgu/edupi/pull/105) merge commit `75cba8d4a331722ea2b34fb78e4e1943d02b79fb` 为已接入材料的名称、类型、学科和班级建立私有有界版本链，并在修改、历史恢复、统一删除和 tombstone 恢复后刷新公开材料投影与课前准备来源。Desktop [#112](https://github.com/PIGU-PPPgu/edupi-desktop/pull/112) 精确 pin 该提交；Desktop component 为 `sha256:44d84b04262cd198db92f60edc18e31214f5918af0f580e0db11cea1329c0bfb`，Runtime component 为 `sha256:b9ccf03ef155cbdf35c39bdfd6500829ddb72abc285be19c5cb260b1bbfcef42`。

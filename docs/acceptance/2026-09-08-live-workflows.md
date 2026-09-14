@@ -1,5 +1,13 @@
 # 实际流程验收
 
+## 2026-09-14 R09 教师资料字段版本与单字段恢复
+
+- Core [#95](https://github.com/PIGU-PPPgu/edupi/pull/95) merge commit `76f1c9f6ef2393f96e789023e45c6dc86eac4b72`。字段版本保存在 teacher-review 同一原子事务，包含 revision、changed fields 及有界 before/after；公开 v1.1 快照不携带旧值，按需读取才返回。production snapshot 绑定私有版本摘要；旧状态、空基线、字段删除、提案再修改、旧 revision/来源、同请求换版本和重放均有定向回归。
+- Desktop [#109](https://github.com/PIGU-PPPgu/edupi-desktop/pull/109) 精确 pin Core #95：Desktop component `sha256:3a20af0688c9f0f3ce5db52da5ea0be26d0ad93e59529310211d7a59833815bf`，Runtime component `sha256:340bd1d314d8fc2638fa01de30a2cdc0bc51cd16c27296c3a0a502578fceca28`，v1.1 schema hash 仍为 `sha256:3116b37914b996ec90dd5da2b946798390617ffb2151c7653dbcda731e27227c`。`npm test` 为 1151 tests、1126 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit` 与 `npm run lint` 通过。
+- `EDUPI_CORE_ROOT=<Core #95 merge checkout> npm run test:edupi-teacher-context-versions-e2` 连续保存七年级/703与八年级/703，再从首版 before 值只恢复 `class_name`。结果为 revision 3、班级缺失、年级八年级、称呼和学科不变；重复 POST 返回 reconciled，版本不增加；onboarding 重读与会话 system prompt 均使用恢复后的八年级。
+- 实际浏览器在隔离数据根打开“字段历史”，看到版本1的四项初始值和版本2的年级“七年级 → 八年级”。点击班级原值“未设置”后，当前班级变为未设置、年级仍为八年级、操作与字段历史均增至3；刷新重开仍保持。再把班级恢复为703并恢复为未设置，两个方向都形成新版本；新记录显示“恢复班级”，不显示 `class_name`。页面控制台没有该流程错误；开发环境仅因浏览器残留的已删除测试 cwd 报既有 project-trust 错误，与本功能请求无关。
+- Core 升级前的审核记录没有字段内容，页面继续把它们列为操作历史；不补造无法证明的旧值。验收使用 macOS 开发版和隔离数据，未修改真实教师资料，安装版仍随发布项验收。
+
 ## 2026-09-14 R09 Core 统一删除与恢复验收
 
 - Core [#85](https://github.com/PIGU-PPPgu/edupi/pull/85) merge commit `ab1aa67293f8d75fb4f108994f494d21a1480a2c` 与安全跟进 [#90](https://github.com/PIGU-PPPgu/edupi/pull/90) merge commit `93b191bfdbca74a6c7349594051225496a29c7f6`；最终提交执行完整 `npm test` 通过。定向进程测试覆盖校历、课表、记忆、学生、任务和材料的删除、列表、恢复、重放、重启读取、同名/ID 碰撞、旧状态迁移、材料缺失与哈希变化、锁目录缺失的只读 ledger，以及材料路径替换、同字节外部符号链接、硬链接、同 inode 内容漂移、组件清单和守护进程传输一致性。

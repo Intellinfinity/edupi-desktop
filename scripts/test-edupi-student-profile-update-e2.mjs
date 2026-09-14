@@ -39,10 +39,11 @@ function request(body) {
 try {
   const initialResponse = await GET();
   const initial = await initialResponse.json();
+  assert.equal(initialResponse.status, 200, JSON.stringify(initial));
   const before = initial.students.find((student) => student.name === "李四");
   assert.equal(before.updated_at, "2026-09-01T07:00:00.000Z");
 
-  const response = await PUT(request({ traits: ["耐心", "主动提问"], parentNotes: [], expectedUpdatedAt: before.updated_at }), { params: Promise.resolve({ name: "李四" }) });
+  const response = await PUT(request({ studentId: before.student_id, traits: ["耐心", "主动提问"], parentNotes: [], expectedUpdatedAt: before.updated_at, expectedRevision: before.profile_revision }), { params: Promise.resolve({ name: "李四" }) });
   const result = await response.json();
   assert.equal(response.status, 200, JSON.stringify(result));
   const updated = result.data.students.find((student) => student.name === "李四");
@@ -53,7 +54,7 @@ try {
   assert.equal(updated.trajectory.length, 1);
   assert.deepEqual({ date: updated.trajectory[0].date, event: updated.trajectory[0].event }, { date: "2026-08-20", event: "进步" });
 
-  const staleResponse = await PUT(request({ traits: [], parentNotes: [], expectedUpdatedAt: before.updated_at }), { params: Promise.resolve({ name: "李四" }) });
+  const staleResponse = await PUT(request({ studentId: before.student_id, traits: [], parentNotes: [], expectedUpdatedAt: before.updated_at, expectedRevision: before.profile_revision }), { params: Promise.resolve({ name: "李四" }) });
   assert.equal(staleResponse.status, 409);
   assert.equal((await staleResponse.json()).code, "stale_student");
 

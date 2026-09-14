@@ -2584,6 +2584,17 @@
                   "items": {
                     "additionalProperties": false,
                     "properties": {
+                      "class_name": {
+                        "anyOf": [
+                          {
+                            "maxLength": 120,
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "created_at": {
                         "anyOf": [
                           {
@@ -2690,6 +2701,15 @@
                         "maxItems": 500,
                         "type": "array"
                       },
+                      "profile_history_count": {
+                        "maximum": 50,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "profile_revision": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
                       "student_id": {
                         "maxLength": 160,
                         "minLength": 1,
@@ -2762,6 +2782,9 @@
                     "required": [
                       "student_id",
                       "name",
+                      "class_name",
+                      "profile_revision",
+                      "profile_history_count",
                       "traits",
                       "parent_notes",
                       "error_patterns",

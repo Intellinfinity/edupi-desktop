@@ -8,6 +8,7 @@ import type {
   TeacherContextReviewCapability,
 } from "@/lib/edupi-education-contract";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
+import type { TeacherContextVersion, TeacherContextVersionField, TeacherContextVersionSide } from "@/lib/edupi-teacher-context-versions";
 import {
   TEACHER_CONTEXT_FIELDS,
   buildContextPatch,
@@ -103,6 +104,10 @@ export function EduPiContextEditor({ initial, candidate = null, capability = nul
   const [busyDecision, setBusyDecision] = useState<TeacherContextReviewDecision | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldHistoryOpen, setFieldHistoryOpen] = useState(false);
+  const [fieldVersions, setFieldVersions] = useState<TeacherContextVersion[] | null>(null);
+  const [fieldHistoryError, setFieldHistoryError] = useState<string | null>(null);
+  const [restoringField, setRestoringField] = useState<string | null>(null);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -127,6 +132,21 @@ export function EduPiContextEditor({ initial, candidate = null, capability = nul
   useEffect(() => {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
+
+  useEffect(() => {
+    if (!fieldHistoryOpen) return;
+    const controller = new AbortController();
+    setFieldHistoryError(null);
+    setFieldVersions(null);
+    fetch("/api/edupi/onboarding/versions", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as { versions?: TeacherContextVersion[]; error?: string };
+        if (!response.ok || !Array.isArray(result.versions)) throw new Error(result.error || "字段历史读取失败");
+        setFieldVersions(result.versions);
+      })
+      .catch((reason) => { if (!controller.signal.aborted) setFieldHistoryError(reason instanceof Error ? reason.message : "字段历史读取失败"); });
+    return () => controller.abort();
+  }, [candidate?.revision, fieldHistoryOpen]);
 
   useEffect(() => {
     if (!modifyOpen && !chatDraftOpen && !manualOpen) return;
@@ -305,6 +325,39 @@ export function EduPiContextEditor({ initial, candidate = null, capability = nul
     } finally { setBusy(false); }
   }
 
+  async function restoreField(version: TeacherContextVersion, side: TeacherContextVersionSide, fieldKey: TeacherContextVersionField) {
+    if (busy || !candidate || !capability?.enabled || candidate.sourceIds.length !== 1) return;
+    setBusy(true);
+    setRestoringField(`${version.versionId}:${side}:${fieldKey}`);
+    setFieldHistoryError(null);
+    try {
+      const response = await fetch("/api/edupi/onboarding/versions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetId: candidate.contextId,
+          versionId: version.versionId,
+          versionSide: side,
+          fieldKey,
+          expectedSnapshotId: candidate.snapshotId,
+          expectedRevision: candidate.revision,
+          expectedSourceId: candidate.sourceIds[0],
+        }),
+      });
+      const result = await response.json() as { receipt?: Record<string, unknown> | null; data?: EducationContract; error?: string; reconciled?: boolean };
+      if (!response.ok || !result.data) throw new Error(result.error || "字段恢复失败");
+      if (onReviewed) await onReviewed({ receipt: result.receipt || { reconciled: result.reconciled === true }, data: result.data });
+      setFieldVersions(null);
+      setFeedback(`已恢复${TEACHER_CONTEXT_FIELDS.find((field) => field.key === fieldKey)?.label || fieldKey}`);
+      window.dispatchEvent(new Event("edupi-preparation-updated"));
+    } catch (reason) {
+      setFieldHistoryError(reason instanceof Error ? reason.message : "字段恢复失败");
+    } finally {
+      setRestoringField(null);
+      setBusy(false);
+    }
+  }
+
   const status = contextStatusLabel(candidate, capability, currentValues);
   const actionable = isActionable(candidate);
   const canReview = Boolean(candidate && capability?.enabled && actionable);
@@ -336,6 +389,18 @@ export function EduPiContextEditor({ initial, candidate = null, capability = nul
           })}</tbody>
         </table>
       </div>
+
+      <details className="edupi-context-history is-fields" onToggle={(event) => setFieldHistoryOpen(event.currentTarget.open)}><summary>字段历史 <span>{fieldVersions?.length ?? ""}</span></summary>{fieldHistoryError ? <p className="edupi-context-history__error" role="alert">{fieldHistoryError}</p> : fieldVersions === null ? <p className="edupi-context-history__empty">正在读取…</p> : fieldVersions.length === 0 ? <p className="edupi-context-history__empty">暂无字段版本</p> : <ol>{fieldVersions.slice().reverse().map((version) => <li key={version.versionId}><div><strong>版本 {version.revision}</strong><time>{new Date(version.reviewedAt).toLocaleString("zh-CN")}</time></div>{version.changedFields.map((fieldKey) => {
+        const label = TEACHER_CONTEXT_FIELDS.find((field) => field.key === fieldKey)?.label || fieldKey;
+        const before = version.beforeValues[fieldKey] ?? null;
+        const after = version.afterValues[fieldKey] ?? null;
+        const current = currentValues[fieldKey] ?? null;
+        const disabled = busy || manualOpen || modifyOpen || chatDraftOpen || !candidate || !capability?.enabled || candidate.sourceIds.length !== 1;
+        const valueButton = (side: TeacherContextVersionSide, value: string | null) => current === value
+          ? <span className="edupi-context-field-version__current">{value || "未设置"}<em>当前</em></span>
+          : <button type="button" disabled={disabled} aria-label={`恢复${label}为${value || "未设置"}`} onClick={() => void restoreField(version, side, fieldKey)}>{restoringField === `${version.versionId}:${side}:${fieldKey}` ? <span>恢复中…</span> : <><span>{value || "未设置"}</span><em>恢复</em></>}</button>;
+        return <div className="edupi-context-field-version" key={`${version.versionId}:${fieldKey}`}><b>{label}</b><span>原值</span>{valueButton("before", before)}<span>改为</span>{valueButton("after", after)}</div>;
+      })}{version.note ? <p>{version.note}</p> : null}</li>)}</ol>}</details>
 
       {history.length ? <details className="edupi-context-history"><summary>操作历史 <span>{history.length}</span></summary><ol>{history.slice(-10).reverse().map((item) => <li key={item.reviewId}><div><strong>{ACTION_LABELS[item.decision as TeacherContextReviewDecision] || item.decision}</strong><span>{REVIEW_STATUS_LABELS[item.status] || item.status}</span></div><time>{item.reviewedAt ? new Date(item.reviewedAt).toLocaleString("zh-CN") : "时间未记录"}</time>{item.teacherReview.note ? <p>{item.teacherReview.note}</p> : null}</li>)}</ol></details> : null}
 

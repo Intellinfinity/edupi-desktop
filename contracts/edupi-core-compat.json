@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "93b191bfdbca74a6c7349594051225496a29c7f6",
+    "core_commit": "76f1c9f6ef2393f96e789023e45c6dc86eac4b72",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:eef54da42cccf43ee12d4470ba3b9a6014b64b3bbed259aa8027ec23500887e4",
-    "runtime_component_manifest_hash": "sha256:bb2d539a8b859193446fd54403e54c1af1448184a49941b01e13bf8c351897e4"
+    "component_manifest_hash": "sha256:3a20af0688c9f0f3ce5db52da5ea0be26d0ad93e59529310211d7a59833815bf",
+    "runtime_component_manifest_hash": "sha256:340bd1d314d8fc2638fa01de30a2cdc0bc51cd16c27296c3a0a502578fceca28"
   },
   "contract_identities": [
     {
@@ -104,7 +104,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/81",
     "https://github.com/PIGU-PPPgu/edupi/pull/83",
     "https://github.com/PIGU-PPPgu/edupi/pull/85",
-    "https://github.com/PIGU-PPPgu/edupi/pull/90"
+    "https://github.com/PIGU-PPPgu/edupi/pull/90",
+    "https://github.com/PIGU-PPPgu/edupi/pull/95"
   ],
-  "change_note": "Paired Core PRs #85 and #90 restore Core-owned education entities only when the current source and a stable verified material file descriptor still match the recorded tombstone revision and fingerprint."
+  "change_note": "Paired Core PR #95 adds bounded teacher-context field versions and Core-owned field restore proposals while preserving the v1.1 wire schema; PRs #85 and #90 remain the entity deletion and verified-file restore baseline."
 }

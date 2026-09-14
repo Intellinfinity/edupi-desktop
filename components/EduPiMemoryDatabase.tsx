@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { EducationContract, EducationEntityDeleteKind, EducationMemory } from "@/lib/edupi-education-contract";
-import { MEMORY_CATEGORIES, memoryCategoryRoute, memorySemesterRoute } from "@/lib/edupi-domain-navigation";
+import { MEMORY_CATEGORIES, memoryCategoryRoute, memoryItemRoute, memorySemesterRoute } from "@/lib/edupi-domain-navigation";
 import { scopedMemoryIds, type EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { isUserFacingMemory } from "@/lib/edupi-workbench";
@@ -20,8 +20,13 @@ function memoryUpdateReasonId(memoryId: string): string {
   return `memory-update-reason-${memoryId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 
+function memoryRowId(memoryId: string): string {
+  return `edupi-memory-${encodeURIComponent(memoryId)}`;
+}
+
 export function EduPiMemoryDatabase({ data, memoryScopes, query, selectedObjectId, onEducation, onStartAgent, onDeleteEntity }: { data: EducationContract; memoryScopes: EducationMemoryScopeProjection | null; query: string; selectedObjectId: string | null; onEducation: (data: EducationContract) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
   const category = memoryCategoryRoute(selectedObjectId);
+  const focusedMemoryId = memoryItemRoute(selectedObjectId);
   const categoryLabel = MEMORY_CATEGORIES.find((item) => item.id === category)?.label || "学期";
   const semesterId = memorySemesterRoute(selectedObjectId, memoryScopes?.active_semester_id || null);
   const semester = memoryScopes?.semesters.find((item) => item.semester_id === semesterId) || null;
@@ -39,6 +44,18 @@ export function EduPiMemoryDatabase({ data, memoryScopes, query, selectedObjectI
   useEffect(() => { setPage(0); setEditor(null); setMessage(null); }, [category, query, semesterId]);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   useEffect(() => { setPage((current) => Math.min(current, Math.max(0, pages - 1))); }, [pages]);
+  useEffect(() => {
+    if (!focusedMemoryId) return;
+    const index = rows.findIndex((memory) => memory.id === focusedMemoryId);
+    if (index < 0) return;
+    setPage(Math.floor(index / PAGE_SIZE));
+    const frame = window.requestAnimationFrame(() => {
+      const row = document.getElementById(memoryRowId(focusedMemoryId));
+      row?.scrollIntoView({ block: "center" });
+      row?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedMemoryId, rows]);
   const visible = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const saveMemory = async (memory: EducationMemory, restoredContent?: string) => {
     const draft = restoredContent ?? (editor?.memoryId === memory.id ? editor.draft.trim() : "");
@@ -90,7 +107,7 @@ export function EduPiMemoryDatabase({ data, memoryScopes, query, selectedObjectI
     {message ? <p className={`edupi-memory-message is-${message.tone}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p> : null}
     <section className="edupi-database" aria-label={`${categoryLabel}记忆数据库`}>
       <div className="edupi-database__head edupi-memory-db-grid"><span>记忆</span><span>关联对象</span><span>标签</span><span>累计</span><span>更新时间</span></div>
-      {visible.map((memory) => <details className="edupi-database-row" key={memory.id}>
+      {visible.map((memory) => <details id={memoryRowId(memory.id)} tabIndex={-1} open={memory.id === focusedMemoryId || undefined} className="edupi-database-row" key={`${memory.id}:${memory.id === focusedMemoryId ? "focused" : "row"}`}>
         <summary className="edupi-memory-db-grid"><strong>{memory.content}</strong><span>{memory.student || categoryLabel}</span><span>{memory.tags.slice(0, 3).join(" · ") || "—"}</span><span>{memory.count} 次</span><time>{shortDate(memory.updatedAt || memory.createdAt)}</time></summary>
         <div className="edupi-database-row__detail"><div><span>创建</span><strong>{shortDate(memory.createdAt)}</strong></div><div><span>状态</span><strong>当前事实 · 版本 {memory.revision}</strong></div><div><span>完整标签</span><strong>{memory.tags.join("、") || "无"}</strong></div>{editor?.memoryId === memory.id ? <form className="edupi-memory-editor" onSubmit={(event) => { event.preventDefault(); void saveMemory(memory); }}><textarea value={editor.draft} rows={3} maxLength={4000} autoFocus aria-label="修改记忆内容" onChange={(event) => setEditor({ ...editor, draft: event.target.value })} /><footer><button type="button" disabled={saving} onClick={() => setEditor(null)}>取消</button><button type="submit" className="is-primary" disabled={saving || !editor.draft.trim() || editor.draft.trim() === editor.originalContent}>{saving ? "保存中…" : "保存"}</button></footer></form> : <footer className="edupi-memory-actions"><button type="button" aria-disabled={!data.capabilities.memoryUpdate.enabled} aria-describedby={!data.capabilities.memoryUpdate.enabled ? memoryUpdateReasonId(memory.id) : undefined} onClick={() => { if (!data.capabilities.memoryUpdate.enabled) return; setMessage(null); setEditor({ memoryId: memory.id, draft: memory.content, originalContent: memory.content, revision: memory.revision }); }}>手动修改</button>{!data.capabilities.memoryUpdate.enabled ? <span id={memoryUpdateReasonId(memory.id)} className="edupi-visually-hidden">{data.capabilities.memoryUpdate.reason}</span> : null}<button type="button" onClick={() => openMemoryAgent(memory)}>AI 协作</button>{data.capabilities.entityDelete.enabled && data.capabilities.entityDelete.targetKinds.includes("memory") ? <button type="button" className="is-delete" disabled={Boolean(deletingId)} onClick={() => void deleteMemory(memory)}>{deletingId === memory.id ? "删除中…" : "删除"}</button> : null}</footer>}</div>
         <EduPiMemoryHistory id={memory.id} revision={memory.revision} onRestore={data.capabilities.memoryUpdate.enabled ? content => saveMemory(memory, content) : undefined} />

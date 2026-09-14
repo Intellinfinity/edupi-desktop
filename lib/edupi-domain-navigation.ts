@@ -69,17 +69,44 @@ export function routePart(value: string | null | undefined, prefix: string, fall
 }
 
 export function memoryCategoryRoute(value: string | null | undefined): EducationMemoryCategory {
-  const requested = routePart(value, "memory", "semester").split(":").at(-1) || "semester";
+  const parts = routePart(value, "memory", "semester").split(":");
+  const requested = parts.find((part) => MEMORY_CATEGORIES.some((category) => category.id === part)) || "semester";
   return MEMORY_CATEGORIES.some((category) => category.id === requested) ? requested as EducationMemoryCategory : "semester";
 }
 
 export function memorySemesterRoute(value: string | null | undefined, fallback: string | null): string | null {
   const parts = routePart(value, "memory", "").split(":").filter(Boolean);
-  return parts.length >= 2 ? parts[0] : fallback;
+  return parts.length >= 2 && parts[0] !== "_" && !MEMORY_CATEGORIES.some((category) => category.id === parts[0]) ? parts[0] : fallback;
 }
 
-export function memoryObjectId(semesterId: string | null, category: EducationMemoryCategory): string {
+function routeItem(value: string | null | undefined, prefix: string): string | null {
+  const parts = routePart(value, prefix, "").split(":");
+  const marker = parts.indexOf("item");
+  if (marker < 0 || marker === parts.length - 1) return null;
+  try { return decodeURIComponent(parts.slice(marker + 1).join(":")); }
+  catch { return null; }
+}
+
+export function memoryItemRoute(value: string | null | undefined): string | null {
+  return routeItem(value, "memory");
+}
+
+export function memoryObjectId(semesterId: string | null, category: EducationMemoryCategory, memoryId?: string | null): string {
+  if (memoryId) return `memory:${semesterId || "_"}:${category}:item:${encodeURIComponent(memoryId)}`;
   return semesterId ? `memory:${semesterId}:${category}` : `memory:${category}`;
+}
+
+export function materialCategoryRoute(value: string | null | undefined): MaterialCategoryId {
+  const requested = routePart(value, "materials", "all").split(":")[0] || "all";
+  return MATERIAL_CATEGORIES.some((category) => category.id === requested) ? requested as MaterialCategoryId : "all";
+}
+
+export function materialItemRoute(value: string | null | undefined): string | null {
+  return routeItem(value, "materials");
+}
+
+export function materialObjectId(category: MaterialCategoryId, materialId?: string | null): string {
+  return materialId ? `materials:${category}:item:${encodeURIComponent(materialId)}` : `materials:${category}`;
 }
 
 export function viewKeepsObjectItem(view: string): boolean {

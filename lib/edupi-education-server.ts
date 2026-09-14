@@ -6,7 +6,7 @@ import { issueTeacherContextReview, type TeacherContextReviewDependencies, type 
 import { issueWorkCandidateReview, type WorkCandidateReviewDependencies, type WorkCandidateReviewInput } from "./edupi-work-candidate-review";
 import { issueTaskReview, type TaskReviewDependencies, type TaskReviewInput } from "./edupi-task-review";
 import { issueMemoryUpdate, type MemoryUpdateDependencies, type MemoryUpdateInput } from "./edupi-memory-update";
-import { issueEntityDelete, type EntityDeleteKind } from "./edupi-entity-delete";
+import { EntityDeleteError, issueEntityDelete, issueEntityRestore, parseEntityDeletionSummary, type EntityDeleteKind } from "./edupi-entity-delete";
 import { projectTeacherContextSnapshot } from "./edupi-onboarding-server";
 import type { TeacherContextSnapshot } from "./edupi-onboarding-types";
 import { activeBridgeIdentity } from "./edupi-bridge-manifest";
@@ -78,6 +78,8 @@ export async function projectEducationContract(snapshot: EducationSnapshot): Pro
     entityDeleteEnabled: true,
   });
   const generated = await workspaceResourcesRequest().catch(() => null);
+  let deletionSummary: ReturnType<typeof parseEntityDeletionSummary> | null = null;
+  try { if (generated) deletionSummary = parseEntityDeletionSummary(generated); } catch { /* Keep resources visible while the deletion summary is unavailable. */ }
   const studentNames = new Map<string,number>();
   for (const student of generated?.studentMetadata || []) studentNames.set(student.name,(studentNames.get(student.name) || 0) + 1);
   return {
@@ -86,7 +88,11 @@ export async function projectEducationContract(snapshot: EducationSnapshot): Pro
     studentNameCounts: Object.fromEntries(studentNames),
     generatedArtifacts: generated?.artifacts || [],
     teacherMaterials: generated?.teacherMaterials || [],
+    workspaceResourcesUnavailable: generated === null,
     generatedArtifactsUnavailable: generated === null || generated.artifacts === null,
+    entityDeletionCount: deletionSummary?.activeCount || 0,
+    entityDeletionHistoryCount: deletionSummary?.historyCount || 0,
+    entityDeletionLedgerUnavailable: deletionSummary === null,
     taskSessions: projectTaskSessionBindings(taskSessionStore, {
       taskIds: new Set([...contract.tasks.map((task) => task.id).filter((id): id is string => Boolean(id)), ...contract.continuity.documents.map(document => `document:${document.id}`)]),
       knownSessionIds,
@@ -249,7 +255,29 @@ export async function deleteEducationEntity(input: { kind: EntityDeleteKind; id:
     payload: result.data as EducationSnapshot["payload"],
     workspace: refreshedWorkspace as EducationSnapshot["workspace"],
   });
+  if (input.kind === "material" && data.teacherMaterials?.some((item) => item.material_id === result.target.id)) {
+    throw new EntityDeleteError("invalid_response", "Core 删除结果无效。");
+  }
   return { target: result.target, deletedAt: result.deletedAt, data };
+}
+
+export async function restoreEducationEntity(input: { kind: EntityDeleteKind; id: string; note: string | null; restoreRequestId: string; signal?: AbortSignal }): Promise<{ target: { kind: EntityDeleteKind; id: string }; restoredAt: string | null; data: EducationContract }> {
+  const snapshot = await readEduPiEducationSnapshot({ signal: input.signal });
+  const result = await issueEntityRestore(input, { roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot } });
+  const refreshedWorkspace = result.data.education_workspace;
+  const data = await projectEducationContract({
+    ...snapshot,
+    payload: result.data as EducationSnapshot["payload"],
+    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
+  });
+  if (!restoredEntityProjectionIsValid(input.kind, result.target.id, data)) {
+    throw new EntityDeleteError("invalid_response", "Core 恢复结果无效。");
+  }
+  return { target: result.target, restoredAt: result.restoredAt, data };
+}
+
+export function restoredEntityProjectionIsValid(kind: EntityDeleteKind, id: string, data: Pick<EducationContract, "teacherMaterials" | "workspaceResourcesUnavailable">): boolean {
+  return kind !== "material" || data.workspaceResourcesUnavailable === true || Boolean(data.teacherMaterials?.some((item) => item.material_id === id));
 }
 
 export async function bindEducationTaskSession(input: { taskId: unknown; sessionId: unknown }): Promise<{ binding: EducationContract["taskSessions"][string]; data: EducationContract }> {

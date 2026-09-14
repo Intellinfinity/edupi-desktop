@@ -1,5 +1,12 @@
 # 实际流程验收
 
+## 2026-09-14 R09 Core 统一删除与恢复验收
+
+- Core [#85](https://github.com/PIGU-PPPgu/edupi/pull/85) merge commit `ab1aa67293f8d75fb4f108994f494d21a1480a2c` 与安全跟进 [#90](https://github.com/PIGU-PPPgu/edupi/pull/90) merge commit `93b191bfdbca74a6c7349594051225496a29c7f6`；最终提交执行完整 `npm test` 通过。定向进程测试覆盖校历、课表、记忆、学生、任务和材料的删除、列表、恢复、重放、重启读取、同名/ID 碰撞、旧状态迁移、材料缺失与哈希变化、锁目录缺失的只读 ledger，以及材料路径替换、同字节外部符号链接、硬链接、同 inode 内容漂移、组件清单和守护进程传输一致性。
+- Desktop [#108](https://github.com/PIGU-PPPgu/edupi-desktop/pull/108) 的 `npm test` 为 1144 tests、1119 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit` 与 `npm run lint` 通过。`EDUPI_CORE_ROOT=<Core #90 merge checkout> npm run test:edupi-entity-delete-e2` 实际调用 Core，六类对象全部删除并恢复，最终 16 条历史、0 个 active tombstone；原 JSON 与材料字节未变，材料漂移被拒绝，补回原字节后恢复成功。
+- 实际浏览器使用隔离数据根逐项恢复六类对象。课表恢复后选中周一第 7 节并打开“恢复课表数学”详情；记忆先停在“学校”分类，恢复后切到“教师偏好”并展开 `ui-memory`；学生先筛选 704 班，恢复 703 班学生后清除冲突筛选并打开 `ui-student` 档案；材料先停在“测验与评估”，恢复后切到“全部材料”并打开 `ui-material` 详情；任务恢复后进入 `ui-task` 任务目标；校历恢复后跳到 2026 年 12 月并打开 12 月 20 日详情。页面计数由 6 递减至“删除记录”，刷新后六类对象仍由 Core 读出；`GET /api/edupi/entities` 返回 0 个 active tombstone、12 条删除/恢复历史。首次 `/api/edupi/education` 响应只含删除摘要，点击入口后才读取完整 ledger。摘要暂不可用时入口仍保留；资源投影暂不可用时保留上一次材料、产物和学生班级并后台重读。E2 还验证稳定请求标识重放、超时后 Core 历史对账、正式 ID 优先及歧义别名拒绝。
+- 验收环境为 macOS 源码开发版和隔离 Core/数据目录，未写真实教师数据。该功能尚未进入公开安装包；Windows/Linux 安装版交互另按发布项验收。
+
 ## 2026-09-14 R04 老师自建任务与 Core 托管验收
 
 - Core [#78](https://github.com/PIGU-PPPgu/edupi/pull/78) merge commit `bf42f89227a48cdf2bfd94a636c4268d3da10759`、[#81](https://github.com/PIGU-PPPgu/edupi/pull/81) merge commit `af38213333bffcda89b3b12c3d85151861328923` 与 [#83](https://github.com/PIGU-PPPgu/edupi/pull/83) merge commit `9235cb5b577882bbb114ee71a713e01d87efe6c5` 全量 `npm test` 通过。新传输 envelope 重放同一创建命令会返回原回执；只改变第二项材料返回 `idempotency_conflict`，不创建第二个任务。旧版创建指纹只在完整任务与原来源哈希一致时迁移；新任务的课次、星期及每份材料的删除/文件/班级/学科状态由 Core 事务核对，已提交任务在课表移除后仍先重放。同 revision 来源经历失败、恢复、再次失败时，同一 Kernel run 会再次显示失败并可再次结清，attempt 仍为 1。
@@ -411,4 +418,3 @@ Core9af123d启动后，无需再保存摘录，旧任务已回planned、当前�
 - 连续两次通过正式 intake API 写入同一 `calendar-r09-ui`，第二次把日期改为 2026-09-17、备注改为“日期已修正”。实际校历详情显示新值，并按两个 receipt 的 `appliedIds` 展开“操作历史 2”；没有错误地用批次 target ID 关联对象。
 - 学生记录初始为 revision 1“当前：移项已经掌握”，历史 revision 0 为“原始：移项仍需练习”。页面切到列表、展开修改历史并点击“恢复此版本”，刷新后正文、知识点和日期变为旧值；API 重读 summary、topic、observed_on 一致，revision 2、history_count 2。
 - `test:edupi-student-events-e2` 另行完成对话捕获、手动修改、历史恢复、删除和来源重放。此批展示的是 Core 已有操作审计与可重放版本；不将没有旧字段值的教师/接入 receipt 宣称为字段恢复能力。
-- 在最新 Core `9235cb5b577882bbb114ee71a713e01d87efe6c5` 与 #106 合并树上重新运行 `test:edupi-student-events-e2`，捕获、来源绑定、手动修改、旧版恢复、删除和重放全部通过；R09 定向 20 项、TypeScript 与 ESLint 通过。完整桌面回归沿用同一最终树的 1128 tests：1103 passed、25 skipped、0 failed。

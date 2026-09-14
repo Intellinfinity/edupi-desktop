@@ -88,6 +88,7 @@ export async function projectEducationContract(snapshot: EducationSnapshot): Pro
     studentNameCounts: Object.fromEntries(studentNames),
     generatedArtifacts: generated?.artifacts || [],
     teacherMaterials: generated?.teacherMaterials || [],
+    workspaceResourcesUnavailable: generated === null,
     generatedArtifactsUnavailable: generated === null || generated.artifacts === null,
     entityDeletionCount: deletionSummary?.activeCount || 0,
     entityDeletionHistoryCount: deletionSummary?.historyCount || 0,
@@ -269,10 +270,14 @@ export async function restoreEducationEntity(input: { kind: EntityDeleteKind; id
     payload: result.data as EducationSnapshot["payload"],
     workspace: refreshedWorkspace as EducationSnapshot["workspace"],
   });
-  if (input.kind === "material" && !data.teacherMaterials?.some((item) => item.material_id === result.target.id)) {
+  if (!restoredEntityProjectionIsValid(input.kind, result.target.id, data)) {
     throw new EntityDeleteError("invalid_response", "Core 恢复结果无效。");
   }
   return { target: result.target, restoredAt: result.restoredAt, data };
+}
+
+export function restoredEntityProjectionIsValid(kind: EntityDeleteKind, id: string, data: Pick<EducationContract, "teacherMaterials" | "workspaceResourcesUnavailable">): boolean {
+  return kind !== "material" || data.workspaceResourcesUnavailable === true || Boolean(data.teacherMaterials?.some((item) => item.material_id === id));
 }
 
 export async function bindEducationTaskSession(input: { taskId: unknown; sessionId: unknown }): Promise<{ binding: EducationContract["taskSessions"][string]; data: EducationContract }> {

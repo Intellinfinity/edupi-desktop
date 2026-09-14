@@ -1,5 +1,12 @@
 # 实际流程验收
 
+## 2026-09-14 R09 Core 统一删除与恢复验收
+
+- Core [#85](https://github.com/PIGU-PPPgu/edupi/pull/85) merge commit `ab1aa67293f8d75fb4f108994f494d21a1480a2c`；最终提交执行完整 `npm test` 通过。定向进程测试覆盖校历、课表、记忆、学生、任务和材料的删除、列表、恢复、重放、重启读取、同名/ID 碰撞、旧状态迁移、材料缺失与哈希变化、锁目录缺失的只读 ledger，以及组件清单和守护进程传输一致性。
+- Desktop `npm test` 为 1135 tests、1110 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit` 与 `npm run lint` 通过。`EDUPI_CORE_ROOT=<Core #85 checkout> npm run test:edupi-entity-delete-e2` 实际调用 Core，六类对象全部删除并恢复，最终 16 条历史、0 个 active tombstone；原 JSON 与材料字节未变，材料漂移被拒绝，补回原字节后恢复成功。
+- 实际浏览器使用隔离数据根。首次 `/api/edupi/education` 响应只有删除摘要，没有完整 ledger；页面显示“已删除 1”。点击后先显示“正在读取…”，此时才出现首个 `GET /api/edupi/entities`；列表显示 Core 标签和删除备注。点击恢复“家长开放日”后弹窗关闭、计数变为“删除记录”，页面进入日历并显示恢复对象。
+- 验收环境为 macOS 源码开发版和隔离 Core/数据目录，未写真实教师数据。该功能尚未进入公开安装包；Windows/Linux 安装版交互另按发布项验收。
+
 ## 2026-09-14 R04 老师自建任务与 Core 托管验收
 
 - Core [#78](https://github.com/PIGU-PPPgu/edupi/pull/78) merge commit `bf42f89227a48cdf2bfd94a636c4268d3da10759`、[#81](https://github.com/PIGU-PPPgu/edupi/pull/81) merge commit `af38213333bffcda89b3b12c3d85151861328923` 与 [#83](https://github.com/PIGU-PPPgu/edupi/pull/83) merge commit `9235cb5b577882bbb114ee71a713e01d87efe6c5` 全量 `npm test` 通过。新传输 envelope 重放同一创建命令会返回原回执；只改变第二项材料返回 `idempotency_conflict`，不创建第二个任务。旧版创建指纹只在完整任务与原来源哈希一致时迁移；新任务的课次、星期及每份材料的删除/文件/班级/学科状态由 Core 事务核对，已提交任务在课表移除后仍先重放。同 revision 来源经历失败、恢复、再次失败时，同一 Kernel run 会再次显示失败并可再次结清，attempt 仍为 1。

@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "9235cb5b577882bbb114ee71a713e01d87efe6c5",
+    "core_commit": "ab1aa67293f8d75fb4f108994f494d21a1480a2c",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:c79389bef865012af57cca29598e919a166034f7e157b9a57bd223f87345e6e7",
-    "runtime_component_manifest_hash": "sha256:f2523fbf8c35025a2b4b10ce76601003dccaa7733296150dfd306c1dc12c0d9d"
+    "component_manifest_hash": "sha256:10c9bf491f4b09890f1eed00945cf7b6630c356f27b740e348f8b7497f3d1d2e",
+    "runtime_component_manifest_hash": "sha256:09ec56d2cba39564de2a07500af7741f3994624964d0a95e492d40a8533f74b5"
   },
   "contract_identities": [
     {
@@ -102,7 +102,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/76",
     "https://github.com/PIGU-PPPgu/edupi/pull/78",
     "https://github.com/PIGU-PPPgu/edupi/pull/81",
-    "https://github.com/PIGU-PPPgu/edupi/pull/83"
+    "https://github.com/PIGU-PPPgu/edupi/pull/83",
+    "https://github.com/PIGU-PPPgu/edupi/pull/85"
   ],
-  "change_note": "Paired Core PR #83 rejects deleted, missing, unavailable, cross-subject, and cross-class materials inside new managed task transactions while preserving prior idempotent replays."
+  "change_note": "Paired Core PR #85 restores Core-owned education entities only when the current source still matches the recorded tombstone revision and fingerprint."
 }

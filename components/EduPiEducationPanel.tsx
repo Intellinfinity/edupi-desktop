@@ -50,7 +50,8 @@ import { APP_PREF_KEYS } from "@/lib/app-prefs";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { readEduPiWorkspace } from "@/lib/edupi-education-client";
 import { EduPiPreparationArtifactEditor } from "./EduPiPreparationArtifactEditor";
-import { deleteEducationEntity } from "@/lib/edupi-entity-delete-client";
+import { deleteEducationEntity, readEducationEntityDeletions, restoreEducationEntity } from "@/lib/edupi-entity-delete-client";
+import { EduPiDeletedEntities } from "./EduPiDeletedEntities";
 import type { EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import { readEduPiTeachingSkills, type EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
@@ -818,6 +819,22 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [commitEducationSnapshot, deleteBusy, education, stopTaskTracking]);
 
+  const restoreEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, label: string): Promise<void> => {
+    const result = await restoreEducationEntity(kind, id);
+    commitEducationSnapshot(result.data);
+    setMaterialStagingMessage({ tone: "success", text: `已恢复：${label}` });
+    if (kind === "task") {
+      const task = result.data.tasks.find((item) => item.id === result.target.id);
+      if (task) { selectTask(task); return; }
+    }
+    const targetView: WorkbenchView = kind === "calendar" || kind === "timetable" ? "calendar"
+      : kind === "memory" ? "memory"
+        : kind === "student" ? "students"
+          : kind === "material" ? "materials"
+            : "tasks";
+    selectView(targetView);
+  }, [commitEducationSnapshot, selectTask, selectView]);
+
   const closeDrawer = useCallback(() => {
     cancelActivation();
     setDrawer(null);
@@ -965,7 +982,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       <EduPiNavigationRail activeView={activeView} pendingReviewCount={pendingCount + c1PendingCount + teacherContextPendingCount} runningAgentCount={runningAgentCount} memoryCount={education.continuity.memories.filter((memory) => memory.state === "active" && isUserFacingMemory(memory)).length} workspaceLabel={context?.school || context?.name || "教师工作区"} collapsed={navigationRail.collapsed} onSelect={selectView} onOpenAdmin={onOpenAdmin} onOpenGuide={onOpenGuide} onCollapse={navigationRail.toggle} />
       <div className="edupi-teacher-app">
         <div className={`edupi-teacher-body${activeView === "chat" ? " is-chat" : ""}${objectSiderAvailable ? " has-object-sider" : ""}${objectSiderAvailable && objectSider.collapsed ? " is-object-sider-collapsed" : ""}${inspectorAvailable && inspectorOpen ? " has-inspector" : ""}`}>
-          {(loadError || inspectorAvailable) ? <div className="edupi-teacher-body__controls">{loadError ? <button type="button" onClick={retryLoadWorkspace} title={loadError}>重试</button> : null}{inspectorAvailable ? <button type="button" onClick={toggleInspector}>{inspectorOpen ? "收起检查" : "检查"}</button> : null}</div> : null}
+          {(loadError || inspectorAvailable || (education.entityDeletionCount ?? 0) > 0 || (education.entityDeletionHistoryCount ?? 0) > 0) ? <div className="edupi-teacher-body__controls">{loadError ? <button type="button" onClick={retryLoadWorkspace} title={loadError}>重试</button> : null}{education.entityDeletionLedgerUnavailable ? null : <EduPiDeletedEntities activeCount={education.entityDeletionCount ?? 0} historyCount={education.entityDeletionHistoryCount ?? 0} onLoad={readEducationEntityDeletions} onRestore={restoreEntity} />}{inspectorAvailable ? <button type="button" onClick={toggleInspector}>{inspectorOpen ? "收起检查" : "检查"}</button> : null}</div> : null}
           {activeView === "chat" ? <aside className="edupi-chat-session-sidebar" aria-label="对话与文件">{chatSidebar}</aside> : showObjectSider ? <EduPiObjectSider view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} query={query} onQuery={setQuery} selectedStudentId={selectedStudentId} onStudent={selectStudent} selectedObjectId={selectedObjectId} onObject={selectObject} selectedTaskKey={activeTask ? taskKey(activeTask) : null} onTask={selectTask} onReviewTarget={focusC1Review} selectedCalendarSourceId={calendarSelection?.sourceId ?? null} onCalendarItem={setCalendarSelection} onUpload={openUpload} onCollapse={objectSider.toggle} /> : objectSiderAvailable ? <button type="button" className="edupi-object-sider-strip" onClick={objectSider.toggle} aria-label="展开列表"><span aria-hidden="true">›</span></button> : null}
           <div className={`edupi-teacher-main${activeView === "chat" ? " is-chat" : ""}`}>
             <EduPiPersistentChatHost mode={drawer === "agent" ? "drawer" : activeView === "chat" ? "main" : "hidden"} task={drawer === "agent" ? currentAgentTask : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt}>{chatPanel}</EduPiPersistentChatHost>

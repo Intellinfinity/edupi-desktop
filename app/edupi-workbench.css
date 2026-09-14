@@ -458,6 +458,35 @@ html.dark .edupi-teacher-shell {
 .edupi-delete-confirmation > div { display: flex; justify-content: flex-end; gap: 8px; }
 .edupi-delete-confirmation button { padding: 8px 16px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface-soft); color: var(--ep-text); cursor: pointer; }
 .edupi-delete-confirmation button.is-delete { color: var(--ep-red); }
+.edupi-deleted-entities-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; padding: 20px; place-items: center; background: rgba(20, 26, 35, .38); backdrop-filter: blur(4px); }
+.edupi-deleted-entities { width: min(680px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 40px)); overflow-y: auto; border: 1px solid var(--ep-border); border-radius: 9px; background: var(--ep-surface); color: var(--ep-text); box-shadow: 0 16px 44px rgba(18, 24, 32, .2); }
+.edupi-deleted-entities > header { position: sticky; z-index: 1; top: 0; display: flex; min-height: 54px; padding: 0 16px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--ep-border); background: var(--ep-surface); }
+.edupi-deleted-entities > header h2 { margin: 0; font-size: 17px; }
+.edupi-deleted-entities > header button { width: 30px; height: 30px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-muted); cursor: pointer; font-size: 16px; }
+.edupi-deleted-entities__message { margin: 12px 16px 0; padding: 8px 10px; border-radius: 6px; background: var(--ep-red-soft); color: var(--ep-red); font-size: 11px; }
+.edupi-deleted-entities__list { display: grid; margin: 0; padding: 8px 16px; list-style: none; }
+.edupi-deleted-entities__list > li { display: grid; min-height: 76px; padding: 11px 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; border-bottom: 1px solid var(--ep-border); }
+.edupi-deleted-entities__list > li:last-child { border-bottom: 0; }
+.edupi-deleted-entities__list > li > div { display: grid; min-width: 0; gap: 3px; }
+.edupi-deleted-entities__list strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-deleted-entities__list span,
+.edupi-deleted-entities__list small { overflow: hidden; color: var(--ep-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-deleted-entities__list small { color: var(--ep-dim); font-family: var(--font-mono); }
+.edupi-deleted-entities__list p { margin: 2px 0 0; color: var(--ep-muted); font-size: 10px; }
+.edupi-deleted-entities__list button { height: 30px; padding: 0 11px; border: 1px solid var(--ep-border-strong); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 11px; }
+.edupi-deleted-entities button:disabled { cursor: not-allowed; opacity: .45; }
+.edupi-deleted-entities__empty { margin: 0; padding: 32px 16px; color: var(--ep-muted); font-size: 12px; text-align: center; }
+.edupi-deleted-entities__pagination { display: flex; padding: 8px 16px 14px; align-items: center; justify-content: flex-end; gap: 9px; color: var(--ep-muted); font-size: 10px; }
+.edupi-deleted-entities__pagination button { height: 27px; padding: 0 8px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 10px; }
+.edupi-deleted-entities__history { margin: 0 16px 14px; border-top: 1px solid var(--ep-border); }
+.edupi-deleted-entities__history > summary { display: flex; padding: 12px 0; justify-content: space-between; color: var(--ep-muted); cursor: pointer; font-size: 11px; }
+.edupi-deleted-entities__history ol { display: grid; margin: 0; padding: 0; gap: 6px; list-style: none; }
+.edupi-deleted-entities__history li { display: grid; padding: 8px 10px; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; border-radius: 6px; background: var(--ep-surface-soft); }
+.edupi-deleted-entities__history li > div { display: grid; min-width: 0; gap: 2px; }
+.edupi-deleted-entities__history strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-deleted-entities__history span,
+.edupi-deleted-entities__history time { color: var(--ep-muted); font-size: 9px; }
+.edupi-deleted-entities__history p { grid-column: 1 / -1; margin: 0; font-size: 9px; }
 .edupi-student-drawer__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--ep-border); }
 .edupi-student-drawer__metrics > div { min-height: 62px; padding: 12px; border-right: 1px solid var(--ep-border); }
 .edupi-student-drawer__metrics > div:last-child { border-right: 0; }
@@ -1733,6 +1762,9 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-task-board { min-width: 980px; }
   .edupi-today-work__groups { grid-template-columns: 1fr; }
   .edupi-today-work__group + .edupi-today-work__group { border-top: 1px solid var(--ep-border); border-left: 0; }
+  .edupi-deleted-entities-backdrop { padding: 10px; }
+  .edupi-deleted-entities { width: 100%; max-height: calc(100dvh - 20px); }
+  .edupi-deleted-entities__list > li { align-items: start; gap: 10px; }
 }
 
 @media (max-width: 560px) {

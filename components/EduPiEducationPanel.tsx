@@ -45,7 +45,7 @@ import type { TaskBoardLaneId } from "@/lib/edupi-task-board";
 import { calendarQuickEntryKey, calendarQuickEntryStatusLabel, type EduPiQuickEntryItem } from "@/lib/edupi-quick-entry";
 import { isTaskReviewable, workCaseForTask } from "@/lib/edupi-work-case";
 import { studentRecordKey } from "@/lib/edupi-student-roster-model";
-import { objectItemForView, viewKeepsObjectItem } from "@/lib/edupi-domain-navigation";
+import { materialObjectId, memoryObjectId, objectItemForView, viewKeepsObjectItem } from "@/lib/edupi-domain-navigation";
 import { APP_PREF_KEYS } from "@/lib/app-prefs";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { preserveUnavailableWorkspaceResources, readEduPiWorkspace } from "@/lib/edupi-education-client";
@@ -488,9 +488,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [inspectorOpen, router, searchParams, selectedObjectId, selectedStudentId]);
 
-  const selectView = useCallback((view: WorkbenchView, requestedObjectId?: string) => {
+  const selectView = useCallback((view: WorkbenchView, requestedObjectId?: string, requestedStudentId?: string | null) => {
     const stage = view === "tasks" ? activeStage : undefined;
     const nextObjectId = objectItemForView(view, requestedObjectId ?? selectedObjectId);
+    const nextStudentId = requestedStudentId === undefined ? selectedStudentId : requestedStudentId;
     cancelActivation();
     setDrawer(null);
     setTaskDetailTask(null);
@@ -501,8 +502,9 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (view === "review") setReviewMode("board");
     setActiveView(view);
     setSelectedObjectId(nextObjectId);
+    if (requestedStudentId !== undefined) setSelectedStudentId(requestedStudentId);
     if (stage) setActiveStage(stage);
-    updateLocation(view, view === "tasks" ? activeTask : undefined, stage, inspectorOpen, selectedStudentId, nextObjectId);
+    updateLocation(view, view === "tasks" ? activeTask : undefined, stage, inspectorOpen, nextStudentId, nextObjectId);
   }, [activeStage, activeTask, cancelActivation, inspectorOpen, selectedObjectId, selectedStudentId, updateLocation]);
 
   const selectTask = useCallback((task: TeacherTask, stage: TaskStage = "brief") => {
@@ -823,7 +825,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const result = await restoreEducationEntity(kind, id, restoreRequestId);
     const committedData = education ? preserveUnavailableWorkspaceResources(education, result.data) : result.data;
     commitEducationSnapshot(committedData);
-    if (kind === "memory") setMemoryScopes(await readEducationMemoryScopes().catch(() => null));
+    const restoredMemoryScopes = kind === "memory" ? await readEducationMemoryScopes().catch(() => null) : memoryScopes;
+    if (kind === "memory") setMemoryScopes(restoredMemoryScopes);
     if (result.data.workspaceResourcesUnavailable) void loadWorkspace().catch(() => {});
     setMaterialStagingMessage({ tone: "success", text: `已恢复：${label}` });
     if (kind === "task") {
@@ -836,12 +839,24 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       selectView("calendar");
       return;
     }
-    const targetView: WorkbenchView = kind === "memory" ? "memory"
-      : kind === "student" ? "students"
-          : kind === "material" ? "materials"
-            : "tasks";
-    selectView(targetView);
-  }, [commitEducationSnapshot, education, loadWorkspace, selectTask, selectView]);
+    if (kind === "memory") {
+      const memory = committedData.continuity.memories.find((item) => item.id === result.target.id);
+      const binding = restoredMemoryScopes?.bindings.find((item) => item.memory_id === result.target.id);
+      if (memory) {
+        selectView("memory", memoryObjectId(binding?.scope_path.semester_id || restoredMemoryScopes?.active_semester_id || null, memory.category, result.target.id));
+        return;
+      }
+    }
+    if (kind === "student") {
+      selectView("students", undefined, result.target.id);
+      return;
+    }
+    if (kind === "material") {
+      selectView("materials", materialObjectId("all", result.target.id));
+      return;
+    }
+    selectView("tasks");
+  }, [commitEducationSnapshot, education, loadWorkspace, memoryScopes, selectTask, selectView]);
 
   const closeDrawer = useCallback(() => {
     cancelActivation();

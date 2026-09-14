@@ -100,6 +100,19 @@ export function EduPiStudentWorkspace({ mode, data, context, query, selectedStud
   const studentDrawerRef = useModalDismiss<HTMLElement>(() => { setEditor(null); onStudent(null); }, Boolean(selected));
 
   useEffect(() => {
+    if (!selected || !selectedStudentId) return;
+    const selectedClass = String(selected.class_name || "");
+    if (classFilter && classFilter !== selectedClass) {
+      setClassFilter("");
+      return;
+    }
+    const selectedIndex = directory.filtered.findIndex(({ student, key }) => key === selectedStudentId || student === selected);
+    if (selectedIndex < 0) return;
+    const selectedPage = Math.floor(selectedIndex / 24);
+    setPagination((current) => current.filterKey === filterKey && current.page === selectedPage ? current : { filterKey, page: selectedPage });
+  }, [classFilter, directory.filtered, filterKey, selected, selectedStudentId]);
+
+  useEffect(() => {
     if (!message) return;
     if (message.tone === "error") setLastError(message.text);
     const timer = window.setTimeout(() => setMessage(null), message.tone === "error" ? 8_000 : 4_000);

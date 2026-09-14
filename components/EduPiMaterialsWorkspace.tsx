@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { EducationContract, EducationEntityDeleteKind, TeacherTask } from "@/lib/edupi-education-contract";
-import { MATERIAL_CATEGORIES, routePart, type MaterialCategoryId } from "@/lib/edupi-domain-navigation";
+import { MATERIAL_CATEGORIES, materialCategoryRoute, materialItemRoute } from "@/lib/edupi-domain-navigation";
 import type { MaterialStagingDescriptor } from "@/lib/edupi-material-staging-client";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
@@ -23,7 +23,8 @@ function shortDate(value: string | null): string {
 
 
 export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId, stagedMaterials, stagingBusy, stagingMessage, onTask, onUpload, onIntakeMaterial, onRemoveStagedMaterial, onOpenFile, onStartAgent, onDeleteEntity }: { data: EducationContract; context: TeacherContextSnapshot | null; query: string; selectedObjectId: string | null; stagedMaterials: MaterialStagingDescriptor[]; stagingBusy: boolean; stagingMessage: string | null; onTask: (task: TeacherTask) => void; onUpload: () => void; onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => Promise<unknown>; onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>; onOpenFile: (path: string) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
-  const category = routePart(selectedObjectId, "materials", "all") as MaterialCategoryId;
+  const category = materialCategoryRoute(selectedObjectId);
+  const focusedMaterialId = materialItemRoute(selectedObjectId);
   const categoryLabel = MATERIAL_CATEGORIES.find((item) => item.id === category)?.label || "全部材料";
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<MaterialRow | null>(null);
@@ -37,6 +38,13 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   const materialIntakeReady = data.capabilities.materialIntake.enabled;
   const rows = useMemo(() => buildMaterialRows(data, query).filter(item => category === "all" || item.category === category), [data, query, category]);
   useEffect(() => { setPage(0); setSelected(null); }, [category, query]);
+  useEffect(() => {
+    if (!focusedMaterialId) return;
+    const index = rows.findIndex((item) => item.id === focusedMaterialId);
+    if (index < 0) return;
+    setPage(Math.floor(index / PAGE_SIZE));
+    setSelected(rows[index]);
+  }, [focusedMaterialId, rows]);
   useEffect(() => {
     if (intakeDraft && !stagedMaterials.some(item => item.staging_id === intakeDraft.stagingId)) setIntakeDraft(null);
   }, [intakeDraft, stagedMaterials]);

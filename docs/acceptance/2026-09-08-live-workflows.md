@@ -3,8 +3,8 @@
 ## 2026-09-14 R09 Core 统一删除与恢复验收
 
 - Core [#85](https://github.com/PIGU-PPPgu/edupi/pull/85) merge commit `ab1aa67293f8d75fb4f108994f494d21a1480a2c` 与安全跟进 [#90](https://github.com/PIGU-PPPgu/edupi/pull/90) merge commit `93b191bfdbca74a6c7349594051225496a29c7f6`；最终提交执行完整 `npm test` 通过。定向进程测试覆盖校历、课表、记忆、学生、任务和材料的删除、列表、恢复、重放、重启读取、同名/ID 碰撞、旧状态迁移、材料缺失与哈希变化、锁目录缺失的只读 ledger，以及材料路径替换、同字节外部符号链接、硬链接、同 inode 内容漂移、组件清单和守护进程传输一致性。
-- Desktop [#108](https://github.com/PIGU-PPPgu/edupi-desktop/pull/108) 的 `npm test` 为 1143 tests、1118 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit` 与 `npm run lint` 通过。`EDUPI_CORE_ROOT=<Core #90 merge checkout> npm run test:edupi-entity-delete-e2` 实际调用 Core，六类对象全部删除并恢复，最终 16 条历史、0 个 active tombstone；原 JSON 与材料字节未变，材料漂移被拒绝，补回原字节后恢复成功。
-- 实际浏览器使用隔离数据根。首次 `/api/edupi/education` 响应只有删除摘要，没有完整 ledger；页面显示“已删除 1”。点击后先显示“正在读取…”，此时才出现首个 `GET /api/edupi/entities`；列表显示 Core 标签和删除备注。点击恢复“家长开放日”后弹窗关闭、计数变为“删除记录”，页面进入日历并显示恢复对象。定向日历模型回归确认恢复后的正式 ID 会生成带原日期的选择项，课表正式 ID 会生成对应课次选择项；页面据此定位日期并打开详情。摘要暂不可用时入口仍保留，由独立 ledger 请求显示记录或错误；资源投影暂不可用时保留上一次材料、产物和学生班级，并后台重读，记忆恢复会单独刷新 scope，失败时解除旧过滤。E2 还用同一稳定请求标识重放已提交恢复，服务端从 Core 历史对账后返回成功且不增加历史；正式 ID 与旧别名碰撞时正式 ID 优先，别名不唯一时在调用 Core 前拒绝。
+- Desktop [#108](https://github.com/PIGU-PPPgu/edupi-desktop/pull/108) 的 `npm test` 为 1144 tests、1119 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit` 与 `npm run lint` 通过。`EDUPI_CORE_ROOT=<Core #90 merge checkout> npm run test:edupi-entity-delete-e2` 实际调用 Core，六类对象全部删除并恢复，最终 16 条历史、0 个 active tombstone；原 JSON 与材料字节未变，材料漂移被拒绝，补回原字节后恢复成功。
+- 实际浏览器使用隔离数据根逐项恢复六类对象。课表恢复后选中周一第 7 节并打开“恢复课表数学”详情；记忆先停在“学校”分类，恢复后切到“教师偏好”并展开 `ui-memory`；学生先筛选 704 班，恢复 703 班学生后清除冲突筛选并打开 `ui-student` 档案；材料先停在“测验与评估”，恢复后切到“全部材料”并打开 `ui-material` 详情；任务恢复后进入 `ui-task` 任务目标；校历恢复后跳到 2026 年 12 月并打开 12 月 20 日详情。页面计数由 6 递减至“删除记录”，刷新后六类对象仍由 Core 读出；`GET /api/edupi/entities` 返回 0 个 active tombstone、12 条删除/恢复历史。首次 `/api/edupi/education` 响应只含删除摘要，点击入口后才读取完整 ledger。摘要暂不可用时入口仍保留；资源投影暂不可用时保留上一次材料、产物和学生班级并后台重读。E2 还验证稳定请求标识重放、超时后 Core 历史对账、正式 ID 优先及歧义别名拒绝。
 - 验收环境为 macOS 源码开发版和隔离 Core/数据目录，未写真实教师数据。该功能尚未进入公开安装包；Windows/Linux 安装版交互另按发布项验收。
 
 ## 2026-09-14 R04 老师自建任务与 Core 托管验收

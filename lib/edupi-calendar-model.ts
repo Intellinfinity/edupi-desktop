@@ -545,6 +545,42 @@ export function createCalendarProjection(
 
 export const buildCalendarModel = createCalendarProjection;
 
+export function calendarSelectionForSource(
+  data: Pick<EducationContract, "calendar" | "tasks" | "timetable">,
+  kind: "calendar" | "timetable",
+  id: string,
+): CalendarItemSelection | null {
+  if (kind === "calendar") {
+    const event = data.calendar.find((item) => item.id === id);
+    if (!event) return null;
+    const source = calendarSource(event);
+    return {
+      kind,
+      sourceId: id,
+      date: dateField(event as unknown as RecordValue, ["date"]).date,
+      title: event.name,
+      detail: event.notes,
+      sourceLabel: source.sourceLabel,
+      statusLabel: statusLabel(calendarStatus(event)),
+    };
+  }
+  const slot = data.timetable.map(record).find((item) => text(firstValue(item, ["id", "slot_id"])) === id);
+  if (!slot) return null;
+  const source = timetableSource(slot);
+  const day = timetableDay(firstValue(slot, ["day_of_week", "dayOfWeek", "weekday", "day"]));
+  const period = timetablePeriod(slot);
+  const className = text(firstValue(slot, ["class_name", "className", "group", "room"]));
+  return {
+    kind,
+    sourceId: id,
+    date: null,
+    title: text(firstValue(slot, ["subject", "name", "title"])) || "课程",
+    detail: [day === null ? null : `周${day}`, period === null ? null : `第 ${period} 节`, className].filter(Boolean).join(" · ") || null,
+    sourceLabel: source.sourceLabel,
+    statusLabel: statusLabel(timetableStatus(slot)),
+  };
+}
+
 export function calendarSelectionFromLink(
   data: Pick<EducationContract, "calendar" | "tasks" | "timetable">,
   link: { kind: string | null; id: string | null; date: string | null },

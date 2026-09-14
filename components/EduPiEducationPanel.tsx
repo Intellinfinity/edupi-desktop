@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type ReactElement, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { EducationContract, EducationEntityDeleteKind, TaskReviewAction, TeacherTask } from "@/lib/edupi-education-contract";
-import { calendarSelectionFromLink, type CalendarItemSelection } from "@/lib/edupi-calendar-model";
+import { calendarSelectionForSource, calendarSelectionFromLink, type CalendarItemSelection } from "@/lib/edupi-calendar-model";
 import type { EducationModule } from "@/lib/edupi-education-ui";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import {
@@ -827,9 +827,14 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       const task = result.data.tasks.find((item) => item.id === result.target.id);
       if (task) { selectTask(task); return; }
     }
-    const targetView: WorkbenchView = kind === "calendar" || kind === "timetable" ? "calendar"
-      : kind === "memory" ? "memory"
-        : kind === "student" ? "students"
+    if (kind === "calendar" || kind === "timetable") {
+      const selection = calendarSelectionForSource(result.data, kind, result.target.id);
+      if (selection) setCalendarSelection(selection);
+      selectView("calendar");
+      return;
+    }
+    const targetView: WorkbenchView = kind === "memory" ? "memory"
+      : kind === "student" ? "students"
           : kind === "material" ? "materials"
             : "tasks";
     selectView(targetView);

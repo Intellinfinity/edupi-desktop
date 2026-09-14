@@ -397,8 +397,13 @@ type EntityRestoreDependencies = {
   callCore?: (request: ReturnType<typeof buildEntityRestoreRequest>, roots: EntityBridgeRoots, signal?: AbortSignal) => Promise<DeleteCoreResponse>;
 };
 
-function deletionMatches(record: EntityDeletionRecord, kind: EntityDeleteKind, id: string): boolean {
-  return record.kind === kind && [record.id, record.studentId, record.reviewTargetId].includes(id);
+function findDeletion(deletions: EntityDeletionRecord[], kind: EntityDeleteKind, id: string): EntityDeletionRecord | null {
+  const exact = deletions.filter((record) => record.kind === kind && record.id === id);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) throw new EntityDeleteError("invalid_response", "Core 删除记录无效。");
+  const aliases = deletions.filter((record) => record.kind === kind && (record.studentId === id || record.reviewTargetId === id));
+  if (aliases.length > 1) throw operationError("legacy_identity_unresolvable", "restore");
+  return aliases[0] || null;
 }
 
 export async function issueEntityRestore(
@@ -412,7 +417,7 @@ export async function issueEntityRestore(
   const ledger = dependencies.readLedger
     ? await dependencies.readLedger(roots, input.signal)
     : await readEntityDeletionLedger({ signal: input.signal }, { roots });
-  const deletion = ledger.deletions.find((item) => deletionMatches(item, input.kind, input.id));
+  const deletion = findDeletion(ledger.deletions, input.kind, input.id);
   if (!deletion) throw operationError("target_not_deleted", "restore");
   const requestId = `entity-restore-${randomUUID()}`;
   const request = buildEntityRestoreRequest({ record: deletion, snapshotId: ledger.snapshotId, note: input.note }, requestId);

@@ -5,6 +5,7 @@ import type { EducationContract, EducationTeacherMaterial } from "@/lib/edupi-ed
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import {
   MATERIAL_METADATA_FIELDS,
+  materialMetadataPatch,
   materialMetadataValues,
   sameMaterialMetadataValues,
   type MaterialMetadataKind,
@@ -23,6 +24,11 @@ const KIND_LABELS: Record<MaterialMetadataKind, string> = {
 };
 const FIELD_LABELS = { title: "名称", kind: "类型", subject: "学科", class_id: "班级" } as const;
 const SOURCE_LABELS = { teacher_edit: "手动修改", agent_update: "AI 协作", restore: "版本恢复" } as const;
+type MaterialMetadataDraft = { baseRevision: number; baseValues: MaterialMetadataValues; values: MaterialMetadataValues };
+
+function normalizedDraftValues(values: MaterialMetadataValues): MaterialMetadataValues {
+  return { title: values.title.trim(), kind: values.kind, subject: values.subject?.trim() || null, classId: values.classId?.trim() || null };
+}
 
 function valueLabel(field: keyof typeof FIELD_LABELS, values: MaterialMetadataValues): string {
   if (field === "kind") return KIND_LABELS[values.kind];
@@ -70,7 +76,7 @@ export function EduPiMaterialMetadataEditor({ material, classes, onEducation, on
   onEducation: (data: EducationContract) => void;
   onStartAgent: (prompt: string, mode?: "insert" | "replace") => void;
 }) {
-  const [editor, setEditor] = useState<MaterialMetadataValues | null>(null);
+  const [editor, setEditor] = useState<MaterialMetadataDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -82,6 +88,9 @@ export function EduPiMaterialMetadataEditor({ material, classes, onEducation, on
   const historyAbort = useRef<AbortController | null>(null);
   const mutationAbort = useRef<AbortController | null>(null);
   const classOptions = [...new Set([material.class_id, ...classes].filter((value): value is string => typeof value === "string" && Boolean(value.trim())))];
+  const editorBaseRevision = editor?.baseRevision;
+  const normalizedEditor = editor ? normalizedDraftValues(editor.values) : null;
+  const editorPatch = editor && normalizedEditor ? materialMetadataPatch(editor.baseValues, normalizedEditor) : {};
 
   useEffect(() => {
     activeMaterialId.current = material.material_id;
@@ -99,6 +108,12 @@ export function EduPiMaterialMetadataEditor({ material, classes, onEducation, on
     const timer = window.setTimeout(() => setMessage(null), message.tone === "error" ? 8000 : 4000);
     return () => window.clearTimeout(timer);
   }, [message]);
+
+  useEffect(() => {
+    if (editorBaseRevision === undefined || editorBaseRevision === material.metadata_revision) return;
+    setEditor(null);
+    setMessage({ tone: "error", text: "材料信息已在其他入口更新，请重新打开后修改" });
+  }, [editorBaseRevision, material.metadata_revision]);
 
   const loadHistory = useCallback(async () => {
     if (historyAbort.current) return;
@@ -127,13 +142,19 @@ export function EduPiMaterialMetadataEditor({ material, classes, onEducation, on
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editor || busy) return;
+    if (!editor || !normalizedEditor || busy) return;
+    if (editor.baseRevision !== material.metadata_revision) {
+      setEditor(null);
+      setMessage({ tone: "error", text: "材料信息已在其他入口更新，请重新打开后修改" });
+      return;
+    }
+    if (Object.keys(editorPatch).length === 0) { setEditor(null); return; }
     const requestedMaterialId = material.material_id;
     const controller = new AbortController();
     mutationAbort.current = controller;
     setBusy(true); setMessage(null);
     try {
-      const response = await fetch(`/api/edupi/materials/${encodeURIComponent(requestedMaterialId)}/metadata`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision: material.metadata_revision, patch: { title: editor.title.trim(), kind: editor.kind, subject: editor.subject?.trim() || null, classId: editor.classId?.trim() || null } }), signal: controller.signal });
+      const response = await fetch(`/api/edupi/materials/${encodeURIComponent(requestedMaterialId)}/metadata`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision: editor.baseRevision, patch: editorPatch }), signal: controller.signal });
       const result = await response.json() as { data?: EducationContract; history?: MaterialMetadataVersionHistory; error?: string };
       if (!response.ok || !result.data || !result.history) throw new Error(result.error || "材料信息保存失败");
       if (activeMaterialId.current !== requestedMaterialId) return;
@@ -178,9 +199,9 @@ export function EduPiMaterialMetadataEditor({ material, classes, onEducation, on
   };
 
   return <section className="edupi-material-metadata-editor">
-    <header><h3>材料信息</h3><div><button type="button" className="is-primary" onClick={() => setEditor(materialMetadataValues(material))} disabled={busy}>修改信息</button><button type="button" onClick={collaborate} disabled={busy}>AI 协作</button></div></header>
+    <header><h3>材料信息</h3><div><button type="button" className="is-primary" onClick={() => { const values = materialMetadataValues(material); setEditor({ baseRevision: material.metadata_revision, baseValues: values, values }); }} disabled={busy}>修改信息</button><button type="button" onClick={collaborate} disabled={busy}>AI 协作</button></div></header>
     {message ? <p className={`edupi-material-metadata-message is-${message.tone}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p> : null}
-    {editor ? <form onSubmit={save}><label><span>名称</span><input required maxLength={240} value={editor.title} onChange={(event) => setEditor({ ...editor, title: event.target.value })} /></label><label><span>类型</span><select value={editor.kind} onChange={(event) => setEditor({ ...editor, kind: event.target.value as MaterialMetadataKind })}>{Object.entries(KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label><span>学科</span><input maxLength={120} value={editor.subject || ""} placeholder="可留空" onChange={(event) => setEditor({ ...editor, subject: event.target.value })} /></label><label><span>班级</span>{classOptions.length > 0 ? <select value={editor.classId || ""} onChange={(event) => setEditor({ ...editor, classId: event.target.value })}><option value="">未设置</option>{classOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select> : <input maxLength={160} value={editor.classId || ""} placeholder="可留空" onChange={(event) => setEditor({ ...editor, classId: event.target.value })} />}</label><div><button type="button" onClick={() => setEditor(null)} disabled={busy}>取消</button><button type="submit" className="is-primary" disabled={busy || !editor.title.trim()}>{busy ? "保存中…" : "保存"}</button></div></form> : null}
+    {editor ? <form onSubmit={save}><label><span>名称</span><input required maxLength={240} value={editor.values.title} onChange={(event) => setEditor({ ...editor, values: { ...editor.values, title: event.target.value } })} /></label><label><span>类型</span><select value={editor.values.kind} onChange={(event) => setEditor({ ...editor, values: { ...editor.values, kind: event.target.value as MaterialMetadataKind } })}>{Object.entries(KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label><span>学科</span><input maxLength={120} value={editor.values.subject || ""} placeholder="可留空" onChange={(event) => setEditor({ ...editor, values: { ...editor.values, subject: event.target.value } })} /></label><label><span>班级</span>{classOptions.length > 0 ? <select value={editor.values.classId || ""} onChange={(event) => setEditor({ ...editor, values: { ...editor.values, classId: event.target.value } })}><option value="">未设置</option>{classOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select> : <input maxLength={160} value={editor.values.classId || ""} placeholder="可留空" onChange={(event) => setEditor({ ...editor, values: { ...editor.values, classId: event.target.value } })} />}</label><div><button type="button" onClick={() => setEditor(null)} disabled={busy}>取消</button><button type="submit" className="is-primary" disabled={busy || !normalizedEditor?.title || Object.keys(editorPatch).length === 0}>{busy ? "保存中…" : "保存"}</button></div></form> : null}
     <History material={material} history={history} loading={historyLoading} error={historyError} open={historyOpen} busy={busy} restoring={restoring} onToggle={setHistoryOpen} onRetry={() => void loadHistory()} onRestore={(version, side) => void restore(version, side)} />
   </section>;
 }

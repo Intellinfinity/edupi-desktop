@@ -16,6 +16,7 @@ import {
 export {
   MATERIAL_METADATA_FIELDS,
   MATERIAL_METADATA_KINDS,
+  materialMetadataPatch,
   materialMetadataValues,
   sameMaterialMetadataValues,
   type MaterialMetadataField,

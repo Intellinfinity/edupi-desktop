@@ -41,6 +41,15 @@ export function sameMaterialMetadataValues(left: MaterialMetadataValues, right: 
   return JSON.stringify(wireValues(left)) === JSON.stringify(wireValues(right));
 }
 
+export function materialMetadataPatch(before: MaterialMetadataValues, after: MaterialMetadataValues): Partial<MaterialMetadataValues> {
+  const patch: Partial<MaterialMetadataValues> = {};
+  if (before.title !== after.title) patch.title = after.title;
+  if (before.kind !== after.kind) patch.kind = after.kind;
+  if (before.subject !== after.subject) patch.subject = after.subject;
+  if (before.classId !== after.classId) patch.classId = after.classId;
+  return patch;
+}
+
 export function materialMetadataValues(material: EducationTeacherMaterial): MaterialMetadataValues {
   return { title: material.title, kind: material.kind, subject: material.subject, classId: material.class_id };
 }

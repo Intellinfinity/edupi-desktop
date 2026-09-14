@@ -30,6 +30,9 @@ test("material metadata editor uses only bounded Core routes and a teacher input
   assert.match(component, /\/api\/edupi\/materials\/\$\{encodeURIComponent\(requestedMaterialId\)\}\/metadata/);
   assert.doesNotMatch(component, /from ["']@\/lib\/edupi-material-metadata["']/);
   assert.match(component, /AbortController/);
+  assert.match(component, /baseRevision: material\.metadata_revision/);
+  assert.match(component, /expectedRevision: editor\.baseRevision/);
+  assert.match(component, /materialMetadataPatch\(editor\.baseValues, normalizedEditor\)/);
   assert.match(component, /恢复会同时替换名称、类型、学科和班级/);
   assert.match(component, /我要补充或修改的材料信息（在这里输入或口述）/);
   assert.match(workspace, /<EduPiMaterialMetadataEditor/);

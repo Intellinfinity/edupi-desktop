@@ -4,7 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createJiti } from "jiti";
 
-const { EduPiDeletedEntities } = await createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } }).import("./EduPiDeletedEntities.tsx");
+const { EduPiDeletedEntities, deletedHistoryBadgeCount } = await createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } }).import("./EduPiDeletedEntities.tsx");
 
 test("deleted entity control exposes the Core-backed count", () => {
   const html = renderToStaticMarkup(React.createElement(EduPiDeletedEntities, {
@@ -25,4 +25,9 @@ test("deleted entity control remains available while the summary is unavailable"
     onRestore: async () => {},
   }));
   assert.match(html, />删除记录</);
+});
+
+test("loaded history replaces a missing summary count without reducing a known total", () => {
+  assert.equal(deletedHistoryBadgeCount(0, 3), 3);
+  assert.equal(deletedHistoryBadgeCount(18, 10), 18);
 });

@@ -25,6 +25,10 @@ function historyLabel(item: EntityDeletionHistory): string {
   return item.targetLabel || item.targetId;
 }
 
+export function deletedHistoryBadgeCount(summaryCount: number, loadedCount: number): number {
+  return Math.max(summaryCount, loadedCount);
+}
+
 export function EduPiDeletedEntities({
   activeCount,
   historyCount,
@@ -49,6 +53,7 @@ export function EduPiDeletedEntities({
   const pages = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
   const visible = ordered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const recentHistory = useMemo(() => (ledger?.history ?? []).slice().sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 50), [ledger]);
+  const visibleHistoryCount = deletedHistoryBadgeCount(historyCount, ledger?.history.length ?? 0);
   useEffect(() => setPage((current) => Math.min(current, pages - 1)), [pages]);
 
   if (activeCount === 0 && historyCount === 0 && !countUnavailable) return null;
@@ -88,7 +93,7 @@ export function EduPiDeletedEntities({
           return <li key={key}><div><strong>{item.label || kindLabels[item.kind]}</strong><span>{kindLabels[item.kind]} · {time(item.deletedAt)}</span><small>{item.id}</small>{item.note ? <p>{item.note}</p> : null}</div><button type="button" disabled={Boolean(busy)} onClick={() => void restore(item)}>{busy === key ? "恢复中…" : "恢复"}</button></li>;
         })}</ol> : !error ? <p className="edupi-deleted-entities__empty">当前没有已删除项目</p> : null}
         {pages > 1 ? <nav className="edupi-deleted-entities__pagination" aria-label="已删除项目分页"><button type="button" disabled={page === 0 || Boolean(busy)} onClick={() => setPage((value) => value - 1)}>上一页</button><span>{page + 1} / {pages}</span><button type="button" disabled={page >= pages - 1 || Boolean(busy)} onClick={() => setPage((value) => value + 1)}>下一页</button></nav> : null}
-        {recentHistory.length > 0 ? <details className="edupi-deleted-entities__history"><summary>操作记录 <span>{historyCount}</span></summary><ol>{recentHistory.map((item) => <li key={item.historyId}><div><strong>{item.action === "delete" ? "删除" : "恢复"} · {historyLabel(item)}</strong><span>{kindLabels[item.kind]} · 记录版本 {item.tombstoneRevision}</span></div><time>{time(item.occurredAt)}</time>{item.note ? <p>{item.note}</p> : null}</li>)}</ol></details> : null}
+        {recentHistory.length > 0 ? <details className="edupi-deleted-entities__history"><summary>操作记录 <span>{visibleHistoryCount}</span></summary><ol>{recentHistory.map((item) => <li key={item.historyId}><div><strong>{item.action === "delete" ? "删除" : "恢复"} · {historyLabel(item)}</strong><span>{kindLabels[item.kind]} · 记录版本 {item.tombstoneRevision}</span></div><time>{time(item.occurredAt)}</time>{item.note ? <p>{item.note}</p> : null}</li>)}</ol></details> : null}
       </div>
     </div>, document.body) : null}
   </>;

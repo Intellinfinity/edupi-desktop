@@ -52,6 +52,7 @@
     "test:edupi-task-board-write-e2": "node scripts/test-edupi-task-board-write-e2.mjs",
     "test:edupi-memory-update-e2": "node scripts/test-edupi-memory-update-e2.mjs",
     "test:edupi-student-profile-update-e2": "node scripts/test-edupi-student-profile-update-e2.mjs",
+    "test:edupi-student-profile-versions-e2": "node scripts/test-edupi-student-profile-versions-e2.mjs",
     "test:edupi-student-events-e2": "node scripts/test-edupi-student-events-e2.mjs",
     "test:edupi-teacher-context-versions-e2": "node scripts/test-edupi-teacher-context-versions-e2.mjs",
     "test:edupi-entity-delete-e2": "node scripts/test-edupi-entity-delete-e2.mjs",

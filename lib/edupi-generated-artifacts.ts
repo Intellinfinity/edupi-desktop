@@ -9,7 +9,7 @@ export type GeneratedArtifact = { artifact_id: string; title: string; relative_p
 
 export async function workspaceResourcesRequest() {
   const roots = resolveEduPiBridgeRoots();
-  const result = await runCoreProcess<{ ok: boolean; artifacts: GeneratedArtifact[] | null; teacherMaterials: EducationContract["teacherMaterials"]; studentMetadata: Array<{ student_id: string; name: string; class_name: string | null }>; entityDeletionSummary?: { active_count?: unknown; history_count?: unknown } }>({ ...roots, timeoutMs: 5000, request: { protocol: "edupi-desktop-bridge", protocol_version: 1, producer: "edupi-desktop", request_id: crypto.randomUUID(), operation: "workspace-resources" } });
+  const result = await runCoreProcess<{ ok: boolean; artifacts: GeneratedArtifact[] | null; teacherMaterials: EducationContract["teacherMaterials"]; studentMetadata: Array<{ student_id: string; name: string; class_name: string | null; profile_revision: number; profile_history_count: number }>; entityDeletionSummary?: { active_count?: unknown; history_count?: unknown } }>({ ...roots, timeoutMs: 5000, request: { protocol: "edupi-desktop-bridge", protocol_version: 1, producer: "edupi-desktop", request_id: crypto.randomUUID(), operation: "workspace-resources" } });
   if (!result.ok) throw new Error("工作区资源暂不可用");
   return result;
 }

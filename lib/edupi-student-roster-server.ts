@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { runCoreProcess } from "./edupi-core-process-client";
 import { resolveEduPiBridgeRoots } from "./edupi-core-snapshot";
+import { normalizeStudentProfileMutationReceipt, type StudentProfileMutationReceipt } from "./edupi-student-profile-versions";
 import type { StudentRosterRow } from "./edupi-student-roster-model";
 
 type StudentRosterResponse = {
@@ -18,11 +20,12 @@ type StudentRosterResponse = {
 
 export type StudentProfileUpdateInput = {
   name: string;
-  studentId?: string;
+  studentId: string;
   className?: string | null;
   traits: string[];
   parentNotes: string[];
   expectedUpdatedAt: string;
+  expectedRevision: number;
 };
 
 export class StudentProfileUpdateError extends Error {
@@ -41,8 +44,22 @@ export function buildStudentProfileUpdateRequest(input: StudentProfileUpdateInpu
     request_id: requestId,
     action: "update",
     expected_updated_at: input.expectedUpdatedAt,
-    student: { name: input.name, traits: input.traits, parent_notes: input.parentNotes, ...(input.studentId ? {student_id:input.studentId} : {}), ...(input.className !== undefined ? {class_name:input.className} : {}) },
+    expected_revision: input.expectedRevision,
+    student: { name: input.name, student_id: input.studentId, traits: input.traits, parent_notes: input.parentNotes, ...(input.className !== undefined ? {class_name:input.className} : {}) },
   } as const;
+}
+
+export function studentProfileUpdateRequestId(input: StudentProfileUpdateInput): string {
+  const identity = JSON.stringify({
+    name: input.name,
+    student_id: input.studentId,
+    class_name: input.className === undefined ? "__preserve__" : input.className,
+    traits: input.traits,
+    parent_notes: input.parentNotes,
+    expected_updated_at: input.expectedUpdatedAt,
+    expected_revision: input.expectedRevision,
+  });
+  return `student-profile-update-${createHash("sha256").update(identity).digest("base64url")}`;
 }
 
 export async function importStudentRoster({ students, sourceName, signal }: { students: StudentRosterRow[]; sourceName: string; signal?: AbortSignal }): Promise<StudentRosterResponse> {
@@ -69,20 +86,35 @@ export async function importStudentRoster({ students, sourceName, signal }: { st
   return response;
 }
 
-export async function updateStudentProfile({ signal, ...input }: StudentProfileUpdateInput & { signal?: AbortSignal }): Promise<StudentRosterResponse> {
+export async function updateStudentProfile({ signal, ...input }: StudentProfileUpdateInput & { signal?: AbortSignal }): Promise<StudentProfileMutationReceipt> {
   const roots = resolveEduPiBridgeRoots();
-  const requestId = `student-profile-${Date.now().toString(36)}`;
-  const response = await runCoreProcess<StudentRosterResponse>({
+  const requestId = studentProfileUpdateRequestId(input);
+  const response = await runCoreProcess<Record<string, unknown>>({
     runtime: roots.runtime,
     dataRoot: roots.dataRoot,
     timeoutMs: 15_000,
     signal,
     request: buildStudentProfileUpdateRequest(input, requestId),
   });
-  if (response.ok !== true) throw new StudentProfileUpdateError(response.code || "unavailable", response.code === "stale_student" ? "学生档案已更新，请刷新后重试。" : response.code === "student_not_found" ? "学生档案不存在。" : "学生档案修改失败。");
-  if (response.operation !== "students" || response.external_send !== false || response.updated !== 1 || response.student_name !== input.name || typeof response.updated_at !== "string") {
-    throw new StudentProfileUpdateError("invalid_response", "学生档案修改结果无效。");
+  if (response.ok !== true) {
+    const code = typeof response.code === "string" ? response.code : "unavailable";
+    const message = code === "stale_student" ? "学生档案已更新，请刷新后重试。"
+      : code === "student_not_found" ? "学生档案不存在。"
+        : code === "student_deleted" ? "学生档案已删除。"
+          : code === "idempotency_conflict" ? "修改请求与先前操作冲突，请刷新后重试。"
+            : code === "invalid_state" ? "学生档案数据需要修复。"
+              : "学生档案修改失败。";
+    throw new StudentProfileUpdateError(code, message);
   }
-  if (input.studentId && response.student_id !== input.studentId) throw new StudentProfileUpdateError("invalid_response", "学生身份不匹配。");
-  return response;
+  try {
+    return normalizeStudentProfileMutationReceipt(response, {
+      requestId,
+      action: "update",
+      studentId: input.studentId,
+      studentName: input.name,
+      expectedRevision: input.expectedRevision,
+    });
+  } catch (error) {
+    throw new StudentProfileUpdateError("invalid_response", error instanceof Error ? error.message : "学生档案修改结果无效。");
+  }
 }

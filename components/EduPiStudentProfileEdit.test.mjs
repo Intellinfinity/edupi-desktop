@@ -21,7 +21,21 @@ test("student profiles expose real manual replacement and global AI collaboratio
   assert.match(student, /onStartAgent\(prompt, "replace"\)/);
   assert.match(student, /method: "PUT"/);
   assert.match(student, /expectedUpdatedAt/);
+  assert.match(student, /expectedRevision/);
   assert.match(student, /parseStudentProfileList/);
   assert.match(student, /保存修改/);
   assert.doesNotMatch(student, /补充学生档案/);
+});
+
+test("student profile history explains and performs full snapshot restore", async () => {
+  const [student, css] = await Promise.all([read("./EduPiStudentWorkspace.tsx"), read("../app/edupi-workbench.css")]);
+  assert.match(student, /档案历史/);
+  assert.match(student, /恢复会同时替换班级、学生特征和家校备注/);
+  assert.match(student, /side === "before" \? "修改前" : "修改后"/);
+  assert.match(student, /`恢复\$\{sideLabel\}`/);
+  assert.match(student, /profile_history_count/);
+  assert.match(student, /profile_revision/);
+  assert.match(student, /\/versions/);
+  assert.match(student, /method: "POST"/);
+  assert.match(css, /\.edupi-student-profile-history__sides/);
 });

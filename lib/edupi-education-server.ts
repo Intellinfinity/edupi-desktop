@@ -81,10 +81,14 @@ export async function projectEducationContract(snapshot: EducationSnapshot): Pro
   let deletionSummary: ReturnType<typeof parseEntityDeletionSummary> | null = null;
   try { if (generated) deletionSummary = parseEntityDeletionSummary(generated); } catch { /* Keep resources visible while the deletion summary is unavailable. */ }
   const studentNames = new Map<string,number>();
+  const studentMetadata = new Map(generated?.studentMetadata.map((student) => [student.student_id, student]) || []);
   for (const student of generated?.studentMetadata || []) studentNames.set(student.name,(studentNames.get(student.name) || 0) + 1);
   return {
     ...contract,
-    students: contract.students.map(student => ({ ...student, class_name: generated?.studentMetadata.find(item => item.student_id === student.student_id)?.class_name || null })),
+    students: contract.students.map((student) => {
+      const metadata = typeof student.student_id === "string" ? studentMetadata.get(student.student_id) : undefined;
+      return metadata ? { ...student, class_name: metadata.class_name, profile_revision: metadata.profile_revision, profile_history_count: metadata.profile_history_count } : student;
+    }),
     studentNameCounts: Object.fromEntries(studentNames),
     generatedArtifacts: generated?.artifacts || [],
     teacherMaterials: generated?.teacherMaterials || [],

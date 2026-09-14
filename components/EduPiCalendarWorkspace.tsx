@@ -19,6 +19,8 @@ import {
 } from "@/lib/edupi-calendar-model";
 import { EduPiTimetableGrid } from "./EduPiTimetableGrid";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
+import { intakeOperationHistory } from "@/lib/edupi-operation-history";
+import { EduPiOperationHistory } from "./EduPiOperationHistory";
 
 type Props = {
   data: EducationContract;
@@ -250,6 +252,7 @@ function CalendarDetailDrawer({ data, selection, onClose, onEdit, onDelete, dele
   const drawerRef = useModalDismiss<HTMLElement>(onClose);
   const rows: Array<{ label: string; value: string }> = [];
   let title = selection.title;
+  const history = selection.sourceId ? intakeOperationHistory(data, selection.kind === "calendar" ? "import_calendar" : "import_timetable", selection.sourceId) : [];
   if (selection.kind === "calendar") {
     const item = data.calendar.find((event) => event.id === selection.sourceId || (!event.id && event.name === selection.title && event.date === selection.date));
     title = item?.name || title;
@@ -274,7 +277,7 @@ function CalendarDetailDrawer({ data, selection, onClose, onEdit, onDelete, dele
       ["备注", visibleTimetableNote(item.notes) || selection.detail],
     ] as Array<[string, unknown]>) { const text = rawText(value); if (text) rows.push({ label, value: text }); }
   }
-  return <aside ref={drawerRef} className="edupi-calendar-detail" role="dialog" aria-modal="true" aria-label={`${title}详情`}><header><div><span>{selection.kind === "calendar" ? "校历节点" : "课程安排"}</span><h2>{title}</h2></div><div className="edupi-calendar-detail__actions">{onEdit && !editor ? <button type="button" className="is-edit" onClick={onEdit}>编辑</button> : null}{onDelete && !editor ? <button type="button" className="is-delete" disabled={deleteBusy} onClick={onDelete}>{deleteBusy ? "删除中…" : "删除"}</button> : null}<button type="button" data-autofocus onClick={onClose} aria-label="关闭详情">×</button></div></header>{editor ? <div className="edupi-calendar-detail__editor">{editor}</div> : <dl>{rows.map((row) => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>}</aside>;
+  return <aside ref={drawerRef} className="edupi-calendar-detail" role="dialog" aria-modal="true" aria-label={`${title}详情`}><header><div><span>{selection.kind === "calendar" ? "校历节点" : "课程安排"}</span><h2>{title}</h2></div><div className="edupi-calendar-detail__actions">{onEdit && !editor ? <button type="button" className="is-edit" onClick={onEdit}>编辑</button> : null}{onDelete && !editor ? <button type="button" className="is-delete" disabled={deleteBusy} onClick={onDelete}>{deleteBusy ? "删除中…" : "删除"}</button> : null}<button type="button" data-autofocus onClick={onClose} aria-label="关闭详情">×</button></div></header>{editor ? <div className="edupi-calendar-detail__editor">{editor}</div> : <><dl>{rows.map((row) => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl><EduPiOperationHistory rows={history} /></>}</aside>;
 }
 
 function IntakeComposer({ mode, anchorDate, calendarEvent, timetableSlot, busy, embedded = false, onClose, onImportCalendar, onImportTimetable }: {

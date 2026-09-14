@@ -12,6 +12,8 @@ test("context editor is a compact five-field comparison sheet", async () => {
   assert.match(source, /待确认更新/);
   assert.match(source, /未设置/);
   assert.match(source, /已变更/);
+  assert.match(source, /操作历史/);
+  assert.match(source, /history\.slice\(-10\)\.reverse\(\)/);
   assert.match(source, /candidate\?\.status \|\| candidate\?\.teacherReview\.state/);
   assert.doesNotMatch(source, /step|progress|roleOptions|choices|school|classCount|studentCount|painPoint|isHomeroom/);
   assert.doesNotMatch(css, /__progress|__choices|__step|260px/);
@@ -53,6 +55,7 @@ test("context actions are receipt-bound, strict, and keep Chat as a draft handof
   assert.doesNotMatch(panel, /onKeyDown=\{handleContextModalKeyDown\}/);
   assert.match(panel, /role="dialog" aria-modal="true"/);
   assert.match(panel, /candidate=\{education\?\.teacherContextCandidates\[0\]/);
+  assert.match(panel, /history=\{education\?\.teacherContextReviewHistory \?\? \[\]\}/);
   assert.match(home, /candidate=\{data\.teacherContextCandidates\[0\]/);
   assert.match(home, /capability=\{data\.capabilities\.teacherContextReview\}/);
   assert.doesNotMatch(home, /onSaved=/);

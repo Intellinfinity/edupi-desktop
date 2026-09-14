@@ -855,6 +855,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       selectView("materials", materialObjectId("all", result.target.id));
       return;
     }
+    if (kind === "teaching_priority") {
+      selectView("teaching", "teaching:knowledge");
+      return;
+    }
     selectView("tasks");
   }, [commitEducationSnapshot, education, loadWorkspace, memoryScopes, selectTask, selectView]);
 

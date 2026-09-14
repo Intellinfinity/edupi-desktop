@@ -1230,6 +1230,107 @@
                       "maxItems": 500,
                       "type": "array"
                     },
+                    "teaching_priorities": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "class_name": {
+                            "anyOf": [
+                              {
+                                "maxLength": 120,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "created_at": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "external_send": {
+                            "const": false,
+                            "type": "boolean"
+                          },
+                          "history_count": {
+                            "maximum": 50,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "note": {
+                            "anyOf": [
+                              {
+                                "maxLength": 2000,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "priority_id": {
+                            "maxLength": 160,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "revision": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "const": "active",
+                                "type": "string"
+                              },
+                              {
+                                "const": "paused",
+                                "type": "string"
+                              },
+                              {
+                                "const": "completed",
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "subject": {
+                            "maxLength": 120,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "topic": {
+                            "maxLength": 240,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "priority_id",
+                          "subject",
+                          "class_name",
+                          "topic",
+                          "note",
+                          "status",
+                          "revision",
+                          "history_count",
+                          "created_at",
+                          "updated_at",
+                          "external_send"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 500,
+                      "type": "array"
+                    },
                     "themes": {
                       "items": {
                         "additionalProperties": false,
@@ -1313,6 +1414,7 @@
                     "insights",
                     "themes",
                     "subject_knowledge",
+                    "teaching_priorities",
                     "family_contacts",
                     "documents",
                     "last_dream"
@@ -2538,6 +2640,10 @@
                           },
                           {
                             "const": "subject_knowledge",
+                            "type": "string"
+                          },
+                          {
+                            "const": "teaching_priorities",
                             "type": "string"
                           },
                           {

@@ -719,14 +719,52 @@ html.dark .edupi-teacher-shell {
 .edupi-material-drawer > header span { color: var(--ep-blue); font-size: 9px; font-weight: 700; }
 .edupi-material-drawer > header h2 { margin: 6px 0 0; font-size: 19px; line-height: 1.35; }
 .edupi-material-drawer > header > button { width: 28px; height: 28px; border: 0; background: transparent; color: var(--ep-muted); cursor: pointer; font-size: 18px; }
-.edupi-material-drawer dl { min-height: 0; margin: 0; overflow-y: auto; }
-.edupi-material-drawer dl > div { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--ep-border); }
-.edupi-material-drawer dt { color: var(--ep-muted); font-size: 10px; }
-.edupi-material-drawer dd { margin: 0; font-size: 11px; line-height: 1.55; }
+.edupi-material-drawer__body { min-height: 0; overflow-y: auto; }
+.edupi-material-drawer__facts { margin: 0; }
+.edupi-material-drawer__facts > div { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--ep-border); }
+.edupi-material-drawer__facts dt { color: var(--ep-muted); font-size: 10px; }
+.edupi-material-drawer__facts dd { margin: 0; font-size: 11px; line-height: 1.55; }
 .edupi-material-drawer > footer { display: flex; justify-content: flex-end; gap: 7px; padding: 12px 16px; border-top: 1px solid var(--ep-border); }
 .edupi-material-drawer > footer button { height: 31px; padding: 0 10px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 10px; }
 .edupi-material-drawer > footer button.is-primary { border-color: var(--ep-text); background: var(--ep-text); color: var(--ep-surface); }
 .edupi-material-drawer > footer button.is-delete { border-color: color-mix(in srgb, var(--ep-red) 35%, var(--ep-border)); color: var(--ep-red); }
+.edupi-material-metadata-editor { padding: 14px 16px; border-top: 1px solid var(--ep-border); }
+.edupi-material-metadata-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.edupi-material-metadata-editor > header h3 { margin: 0; font-size: 11px; }
+.edupi-material-metadata-editor > header div { display: flex; gap: 6px; }
+.edupi-material-metadata-editor button { min-height: 27px; padding: 0 8px; border: 1px solid var(--ep-border); border-radius: 5px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 9px; }
+.edupi-material-metadata-editor button:disabled { cursor: wait; opacity: .55; }
+.edupi-material-metadata-editor button.is-primary { border-color: var(--ep-text); background: var(--ep-text); color: var(--ep-surface); }
+.edupi-material-metadata-message { margin: 10px 0 0; color: var(--ep-green); font-size: 10px; }
+.edupi-material-metadata-message.is-error { color: var(--ep-red); }
+.edupi-material-metadata-editor > form { display: grid; margin-top: 11px; padding: 11px; gap: 9px; border: 1px solid var(--ep-border); border-radius: 7px; background: var(--ep-surface-soft); }
+.edupi-material-metadata-editor > form label { display: grid; gap: 4px; color: var(--ep-muted); font-size: 9px; }
+.edupi-material-metadata-editor > form input,
+.edupi-material-metadata-editor > form select { width: 100%; min-width: 0; height: 31px; padding: 0 8px; border: 1px solid var(--ep-border-strong); border-radius: 5px; background: var(--ep-surface); color: var(--ep-text); font-size: 10px; }
+.edupi-material-metadata-editor > form > div { display: flex; justify-content: flex-end; gap: 6px; }
+.edupi-material-metadata-history { margin-top: 12px; border-top: 1px solid var(--ep-border); }
+.edupi-material-metadata-history > summary { display: flex; min-height: 36px; align-items: center; justify-content: space-between; cursor: pointer; color: var(--ep-muted); font-size: 9px; }
+.edupi-material-metadata-history > div > p { margin: 0; padding: 0 0 9px; color: var(--ep-muted); font-size: 9px; }
+.edupi-material-metadata-history > div > p.is-error { color: var(--ep-red); }
+.edupi-material-metadata-history > div > p button { min-height: 0; padding: 0; border: 0; color: currentColor; text-decoration: underline; }
+.edupi-material-metadata-history__notice { color: var(--ep-muted); }
+.edupi-material-metadata-history ol { display: grid; margin: 0; padding: 0; gap: 8px; list-style: none; }
+.edupi-material-metadata-history li { display: grid; padding: 9px; gap: 6px; border-radius: 7px; background: var(--ep-surface-soft); }
+.edupi-material-metadata-history li > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.edupi-material-metadata-history li > header > div { display: flex; align-items: center; gap: 6px; }
+.edupi-material-metadata-history li > header strong { font-size: 9px; }
+.edupi-material-metadata-history li > header span { color: var(--ep-muted); font-size: 8px; }
+.edupi-material-metadata-history li > header time,
+.edupi-material-metadata-history li > small { color: var(--ep-dim); font-size: 8px; }
+.edupi-material-metadata-history__sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.edupi-material-metadata-history__sides > section { min-width: 0; padding: 8px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); }
+.edupi-material-metadata-history__sides > section > header { display: flex; min-height: 23px; align-items: center; justify-content: space-between; gap: 5px; }
+.edupi-material-metadata-history__sides > section > header strong { font-size: 9px; }
+.edupi-material-metadata-history__sides > section > header span { color: var(--ep-green); font-size: 8px; }
+.edupi-material-metadata-history__sides dl { display: grid; margin: 0; gap: 4px; }
+.edupi-material-metadata-history__sides dl > div { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 5px; }
+.edupi-material-metadata-history__sides dt { color: var(--ep-dim); font-size: 8px; }
+.edupi-material-metadata-history__sides dd { margin: 0; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .edupi-teaching-next { display: grid; min-height: 78px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; column-gap: 16px; margin: 16px 0; padding: 13px 15px; border: 1px solid var(--ep-border); border-radius: 8px; background: var(--ep-surface); }
 .edupi-teaching-next > span { color: var(--ep-blue); font-size: 10px; font-weight: 700; }
 .edupi-teaching-next > strong { grid-column: 1; font-size: 16px; }
@@ -1881,6 +1919,7 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
 }
 
 @media (max-width: 560px) {
+  .edupi-material-metadata-history__sides { grid-template-columns: minmax(0, 1fr); }
   .edupi-dashboard-heading { flex-direction: column; }
   .edupi-dashboard-heading__actions { padding: 0; }
   .edupi-command-center footer { align-items: flex-end; }

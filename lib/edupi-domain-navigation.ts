@@ -51,7 +51,13 @@ export const MATERIAL_CATEGORIES: ReadonlyArray<{ id: MaterialCategoryId; label:
 ];
 
 export function materialCategory(value: { materialKind?: string | null; title?: string | null }): Exclude<MaterialCategoryId, "all"> {
-  const source = `${value.materialKind || ""} ${value.title || ""}`.toLocaleLowerCase();
+  const kind = String(value.materialKind || "").toLocaleLowerCase();
+  if (kind === "lesson_note" || kind === "lesson") return "lesson";
+  if (kind === "worksheet" || kind === "practice") return "practice";
+  if (kind === "assessment" || kind === "exam" || kind === "quiz") return "assessment";
+  if (kind === "classroom_record" || kind === "classroom") return "classroom";
+  if (kind === "other") return "other";
+  const source = String(value.title || "").toLocaleLowerCase();
   if (/lesson|教案|课件|讲义/.test(source)) return "lesson";
   if (/worksheet|practice|练习|作业|习题/.test(source)) return "practice";
   if (/assessment|exam|quiz|测验|考试|评估/.test(source)) return "assessment";

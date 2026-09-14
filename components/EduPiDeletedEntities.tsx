@@ -14,6 +14,7 @@ const kindLabels: Record<EducationEntityDeleteKind, string> = {
   student: "学生档案",
   task: "任务",
   material: "材料",
+  teaching_priority: "教学重点",
 };
 
 function time(value: string): string {

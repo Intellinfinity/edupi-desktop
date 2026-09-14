@@ -5,7 +5,7 @@ export type CalendarDateStatus = "explicit" | "missing" | "invalid";
 export type CalendarPreparationStatus = "read_only" | "hold";
 export type TaskReviewAction = "accept" | "modify" | "reject" | "hold" | "rollback";
 export type TeacherTaskStatus = "planned" | "accepted" | "modified" | "rejected" | "hold";
-export type EducationEntityDeleteKind = "calendar" | "timetable" | "memory" | "student" | "task" | "material";
+export type EducationEntityDeleteKind = "calendar" | "timetable" | "memory" | "student" | "task" | "material" | "teaching_priority";
 
 export type CalendarFact = {
   id: string | null;
@@ -373,6 +373,20 @@ export type SubjectKnowledgeNode = {
   updatedAt: string | null;
 };
 
+export type EducationTeachingPriority = {
+  id: string;
+  subject: string;
+  className: string | null;
+  topic: string;
+  note: string | null;
+  status: "active" | "paused" | "completed";
+  revision: number;
+  historyCount: number;
+  createdAt: string;
+  updatedAt: string;
+  externalSend: false;
+};
+
 export type FamilyContact = {
   id: string;
   student: string;
@@ -445,6 +459,7 @@ export type EducationContract = {
     insights: EducationInsight[];
     themes: EducationTheme[];
     subjectKnowledge: SubjectKnowledgeNode[];
+    teachingPriorities: EducationTeachingPriority[];
     familyContacts: FamilyContact[];
     documents: EducationDocument[];
     lastDreamAt: string | null;
@@ -490,6 +505,7 @@ type ContractInput = {
   memoryStores?: unknown;
   subconscious?: unknown;
   subjectKnowledge?: unknown;
+  teachingPriorities?: unknown;
   parentProfiles?: unknown;
   documents?: unknown;
   calendarPresent?: boolean;
@@ -1472,6 +1488,25 @@ function normalizeSubjectKnowledge(value: unknown): SubjectKnowledgeNode[] {
   return [...grouped.values()];
 }
 
+function normalizeTeachingPriorities(value: unknown): EducationTeachingPriority[] {
+  return objectArray(value).flatMap((raw) => {
+    const id = text(raw.priority_id);
+    const subject = text(raw.subject);
+    const topic = text(raw.topic);
+    const className = raw.class_name === null ? null : text(raw.class_name);
+    const note = raw.note === null ? null : text(raw.note);
+    const status = raw.status;
+    const createdAt = timestamp(raw.created_at);
+    const updatedAt = timestamp(raw.updated_at);
+    if (!id || !subject || !topic || (raw.class_name !== null && !className) || (raw.note !== null && !note)
+      || (status !== "active" && status !== "paused" && status !== "completed")
+      || !Number.isInteger(raw.revision) || Number(raw.revision) < 0
+      || !Number.isInteger(raw.history_count) || Number(raw.history_count) < 0 || Number(raw.history_count) > 50
+      || !createdAt || !updatedAt || raw.external_send !== false) return [];
+    return [{ id, subject, className, topic, note, status, revision: Number(raw.revision), historyCount: Number(raw.history_count), createdAt, updatedAt, externalSend: false } satisfies EducationTeachingPriority];
+  });
+}
+
 function normalizeFamilyContacts(value: unknown): FamilyContact[] {
   if (Array.isArray(value)) {
     return value.flatMap((raw) => {
@@ -1853,6 +1888,7 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
   const insights = normalizeInsights(subconscious);
   const themes = normalizeThemes(subconscious);
   const subjectKnowledge = normalizeSubjectKnowledge(continuity.subject_knowledge);
+  const teachingPriorities = normalizeTeachingPriorities(continuity.teaching_priorities);
   const familyContacts = normalizeFamilyContacts(continuity.family_contacts);
   const documents = normalizeDocuments(continuity.documents);
   const taskSessions = normalizeTaskSessions(options.taskSessions, new Set(tasks.map((task) => task.id).filter((id): id is string => Boolean(id))));
@@ -1898,6 +1934,7 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
       insights,
       themes,
       subjectKnowledge,
+      teachingPriorities,
       familyContacts,
       documents,
       lastDreamAt: timestamp(continuity.last_dream),
@@ -1922,7 +1959,7 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
       teacherContextReview: teacherContextReviewCapability(snapshotPayload, options.supportedCommands),
       workCandidateReview: workCandidateReviewCapability(snapshotPayload, options.supportedCommands),
       memoryUpdate: memoryUpdateCapability(snapshotPayload, options.supportedCommands),
-      entityDelete: { enabled: options.entityDeleteEnabled === true, targetKinds: options.entityDeleteEnabled === true ? ["calendar", "timetable", "memory", "student", "task", "material"] : [], reason: options.entityDeleteEnabled === true ? "Core 软删除已启用。" : CORE_PROJECTION_UNAVAILABLE },
+      entityDelete: { enabled: options.entityDeleteEnabled === true, targetKinds: options.entityDeleteEnabled === true ? ["calendar", "timetable", "memory", "student", "task", "material", "teaching_priority"] : [], reason: options.entityDeleteEnabled === true ? "Core 软删除已启用。" : CORE_PROJECTION_UNAVAILABLE },
     },
   };
 }
@@ -1964,6 +2001,7 @@ export function buildEducationContract(input: ContractInput = {}): EducationCont
   const insights = normalizeInsights(input.subconscious);
   const themes = normalizeThemes(input.subconscious);
   const subjectKnowledge = normalizeSubjectKnowledge(input.subjectKnowledge);
+  const teachingPriorities = normalizeTeachingPriorities(input.teachingPriorities);
   const familyContacts = normalizeFamilyContacts(input.parentProfiles);
   const documents = normalizeDocuments(input.documents);
 
@@ -1999,6 +2037,7 @@ export function buildEducationContract(input: ContractInput = {}): EducationCont
       insights,
       themes,
       subjectKnowledge,
+      teachingPriorities,
       familyContacts,
       documents,
       lastDreamAt: timestamp(record(input.subconscious).last_dream),

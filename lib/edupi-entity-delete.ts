@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { ResolvedEduPiCore, ResolvedEduPiDataRoot } from "./edupi-core-root";
 
-export const ENTITY_DELETE_KINDS = ["calendar", "timetable", "memory", "student", "task", "material"] as const;
+export const ENTITY_DELETE_KINDS = ["calendar", "timetable", "memory", "student", "task", "material", "teaching_priority"] as const;
 export type EntityDeleteKind = typeof ENTITY_DELETE_KINDS[number];
 
 type RawRecord = Record<string, unknown>;
@@ -303,6 +303,7 @@ function itemsFor(workspace: RawRecord, kind: EntityDeleteKind): unknown[] {
   if (kind === "student") return Array.isArray(workspace.students) ? workspace.students : [];
   if (kind === "task") return Array.isArray(workspace.tasks) ? workspace.tasks : [];
   const continuity = workspace.continuity && typeof workspace.continuity === "object" && !Array.isArray(workspace.continuity) ? workspace.continuity as RawRecord : {};
+  if (kind === "teaching_priority") return Array.isArray(continuity.teaching_priorities) ? continuity.teaching_priorities : [];
   return Array.isArray(continuity.memories) ? continuity.memories : [];
 }
 
@@ -312,7 +313,8 @@ function itemId(kind: EntityDeleteKind, value: unknown): string | null {
     : kind === "timetable" ? item.slot_id
       : kind === "memory" ? item.memory_id
         : kind === "student" ? item.student_id || item.name
-          : item.task_id;
+          : kind === "teaching_priority" ? item.priority_id
+            : item.task_id;
   return typeof candidate === "string" ? candidate : null;
 }
 

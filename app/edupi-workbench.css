@@ -513,6 +513,73 @@ html.dark .edupi-teacher-shell {
 .edupi-student-core-facts article details > summary { cursor: pointer; color: var(--ep-blue); font-size: 9px; }
 .edupi-student-core-facts article details > div { padding: 7px 0 0 10px; }
 .edupi-student-core-facts article code { display: block; overflow: hidden; padding-top: 5px; color: var(--ep-dim); font-size: 8px; text-overflow: ellipsis; }
+.edupi-teaching-priorities { margin-bottom: 14px; overflow: hidden; border: 1px solid var(--ep-border-strong); border-radius: 10px; background: var(--ep-surface); }
+.edupi-teaching-priorities > header { display: flex; min-height: 50px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--ep-border); }
+.edupi-teaching-priorities > header > div { display: flex; align-items: baseline; gap: 8px; }
+.edupi-teaching-priorities > header h2 { margin: 0; font-size: 13px; }
+.edupi-teaching-priorities > header span { color: var(--ep-muted); font-size: 10px; }
+.edupi-teaching-priorities > header button { height: 30px; padding: 0 10px; border: 1px solid var(--ep-blue); border-radius: 6px; background: var(--ep-blue); color: white; cursor: pointer; font-size: 10px; }
+.edupi-priority-message { margin: 10px 14px 0; padding: 7px 9px; border-radius: 6px; background: var(--ep-green-soft); color: var(--ep-green); font-size: 10px; }
+.edupi-priority-message.is-error { background: var(--ep-red-soft); color: var(--ep-red); }
+.edupi-priority-editor { display: grid; margin: 12px 14px; padding: 12px; gap: 9px; border: 1px solid var(--ep-border); border-radius: 7px; background: var(--ep-surface-soft); }
+.edupi-priority-editor > header { display: flex; align-items: center; justify-content: space-between; }
+.edupi-priority-editor h3 { margin: 0; font-size: 11px; }
+.edupi-priority-editor > header button { padding: 0; border: 0; background: transparent; color: var(--ep-muted); cursor: pointer; }
+.edupi-priority-editor > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.edupi-priority-editor label { display: grid; min-width: 0; gap: 4px; color: var(--ep-muted); font-size: 9px; }
+.edupi-priority-editor input,
+.edupi-priority-editor textarea { width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--ep-border); border-radius: 6px; outline: 0; background: var(--ep-surface); color: var(--ep-text); font: inherit; font-size: 10px; resize: vertical; }
+.edupi-priority-editor input:focus,
+.edupi-priority-editor textarea:focus { border-color: var(--ep-blue); }
+.edupi-priority-editor > button { height: 31px; justify-self: end; padding: 0 13px; border: 1px solid var(--ep-text); border-radius: 6px; background: var(--ep-text); color: var(--ep-surface); cursor: pointer; font-size: 10px; }
+.edupi-priority-editor button:disabled,
+.edupi-teaching-priorities button:disabled { cursor: not-allowed; opacity: .45; }
+.edupi-priority-row { border-top: 1px solid var(--ep-border); }
+.edupi-priority-row > summary { display: grid; min-height: 58px; padding: 9px 14px; grid-template-columns: minmax(220px, 1fr) minmax(90px, .35fr) 70px 90px; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.edupi-priority-row > summary:hover { background: var(--ep-surface-soft); }
+.edupi-priority-row > summary > span:first-child { display: grid; min-width: 0; gap: 3px; }
+.edupi-priority-row > summary strong,
+.edupi-priority-row > summary small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-priority-row > summary strong { font-size: 11px; }
+.edupi-priority-row > summary small,
+.edupi-priority-row > summary > span,
+.edupi-priority-row > summary time { color: var(--ep-muted); font-size: 9px; }
+.edupi-priority-row > summary em { justify-self: start; padding: 3px 6px; border-radius: 5px; background: var(--ep-green-soft); color: var(--ep-green); font-size: 9px; font-style: normal; }
+.edupi-priority-row.is-paused > summary em { background: var(--ep-orange-soft); color: var(--ep-orange); }
+.edupi-priority-row.is-completed > summary em { background: var(--ep-surface-soft); color: var(--ep-muted); }
+.edupi-priority-row__detail { padding: 0 14px 12px; }
+.edupi-priority-row__detail > p { margin: 0; padding: 9px 0; border-top: 1px solid var(--ep-border); color: var(--ep-muted); font-size: 9px; }
+.edupi-priority-row__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.edupi-priority-row__actions button { height: 28px; padding: 0 9px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 9px; }
+.edupi-priority-row__actions button.is-delete { color: var(--ep-red); }
+.edupi-priority-history { margin-top: 10px; border-top: 1px solid var(--ep-border); }
+.edupi-priority-history > summary { display: flex; min-height: 36px; align-items: center; justify-content: space-between; cursor: pointer; color: var(--ep-muted); font-size: 9px; }
+.edupi-priority-history > summary span { color: var(--ep-dim); }
+.edupi-priority-history__state,
+.edupi-priority-history__notice { margin: 0; padding: 0 0 9px; color: var(--ep-muted); font-size: 9px; }
+.edupi-priority-history__state.is-error { color: var(--ep-red); }
+.edupi-priority-history__state button { margin-left: 6px; padding: 0; border: 0; background: transparent; color: currentColor; font: inherit; text-decoration: underline; cursor: pointer; }
+.edupi-priority-history ol { display: grid; margin: 0; padding: 0; gap: 8px; list-style: none; }
+.edupi-priority-history li { display: grid; padding: 9px; gap: 6px; border-radius: 7px; background: var(--ep-surface-soft); }
+.edupi-priority-history li > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.edupi-priority-history li > header > div { display: flex; align-items: center; gap: 6px; }
+.edupi-priority-history li > header strong { font-size: 9px; }
+.edupi-priority-history li > header span { padding: 2px 5px; border-radius: 4px; background: var(--ep-surface); color: var(--ep-muted); font-size: 8px; }
+.edupi-priority-history li > header time,
+.edupi-priority-history li > small { color: var(--ep-dim); font-size: 8px; }
+.edupi-priority-history__sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.edupi-priority-history__sides > section { min-width: 0; padding: 8px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); }
+.edupi-priority-history__sides > section > header { display: flex; min-height: 23px; align-items: center; justify-content: space-between; gap: 5px; }
+.edupi-priority-history__sides > section > header strong { font-size: 9px; }
+.edupi-priority-history__sides > section > header span { color: var(--ep-green); font-size: 8px; }
+.edupi-priority-history__sides button { padding: 3px 6px; border: 1px solid var(--ep-blue); border-radius: 5px; background: transparent; color: var(--ep-blue); cursor: pointer; font-size: 8px; }
+.edupi-priority-history__sides dl { display: grid; margin: 5px 0 0; gap: 3px; }
+.edupi-priority-history__sides dl > div { display: grid; min-width: 0; grid-template-columns: 40px minmax(0, 1fr); gap: 5px; }
+.edupi-priority-history__sides dt { color: var(--ep-dim); font-size: 8px; }
+.edupi-priority-history__sides dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ep-text); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-teaching-priorities__empty { display: grid; min-height: 92px; place-items: center; align-content: center; gap: 8px; color: var(--ep-muted); font-size: 10px; }
+.edupi-teaching-priorities__empty p { margin: 0; }
+.edupi-teaching-priorities__empty button { padding: 0; border: 0; background: transparent; color: var(--ep-blue); cursor: pointer; font-size: 10px; }
 .edupi-teaching-core-facts { border: 1px solid var(--ep-border); border-radius: 12px; background: var(--ep-surface); }
 .edupi-teaching-core-facts > header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--ep-border); }
 .edupi-teaching-core-facts > header h2 { margin: 0; font-size: 13px; }
@@ -1804,6 +1871,13 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-deleted-entities-backdrop { padding: 10px; }
   .edupi-deleted-entities { width: 100%; max-height: calc(100dvh - 20px); }
   .edupi-deleted-entities__list > li { align-items: start; gap: 10px; }
+}
+
+@media (max-width: 820px) {
+  .edupi-priority-editor > div,
+  .edupi-priority-history__sides { grid-template-columns: minmax(0, 1fr); }
+  .edupi-priority-row > summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .edupi-priority-row > summary > time { display: none; }
 }
 
 @media (max-width: 560px) {

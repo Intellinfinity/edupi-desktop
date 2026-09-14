@@ -26,9 +26,11 @@ try{
   assert.equal((await read()).records[0].summary,item.summary);
   const request=body=>new Request("http://localhost/api/edupi/student-events",{method:"POST",headers:{host:"localhost",origin:"http://localhost","Content-Type":"application/json"},body:JSON.stringify(body)});
   assert.equal((await POST(request({action:"update_event",event_id:item.id,expected_revision:0,summary:"在课堂上互相讲解",topic:"移项",observed_on:"2026-09-05"}))).status,200);
-  assert.equal((await read()).records[0].revision,1);
-  assert.equal((await POST(request({action:"delete_event",event_id:item.id,expected_revision:1}))).status,200);
+  const updated=(await read()).records[0];assert.equal(updated.revision,1);assert.equal(updated.history_count,1);assert.equal(updated.history[0].summary,item.summary);
+  assert.equal((await POST(request({action:"update_event",event_id:item.id,expected_revision:updated.revision,summary:updated.history[0].summary,topic:updated.history[0].topic,observed_on:updated.history[0].observed_on}))).status,200);
+  const restored=(await read()).records[0];assert.equal(restored.revision,2);assert.equal(restored.summary,item.summary);assert.equal(restored.topic,item.topic);assert.equal(restored.observed_on,item.observed_on);assert.equal(restored.history_count,2);
+  assert.equal((await POST(request({action:"delete_event",event_id:item.id,expected_revision:2}))).status,200);
   assert.equal((await tool.execute("call",input,undefined,undefined,ctx)).details.replayed,true);
   assert.equal((await read()).total,1);
-  console.log("student records E2: capture, source, manual edit, delete and replay passed");
+  console.log("student records E2: capture, source, manual edit, history restore, delete and replay passed");
 }finally{fs.rmSync(root,{recursive:true,force:true});}

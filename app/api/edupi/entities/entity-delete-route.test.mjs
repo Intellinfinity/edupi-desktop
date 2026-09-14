@@ -5,6 +5,7 @@ import { createJiti } from "jiti";
 const { DELETE, POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./[kind]/[id]/route.ts");
 
 const context = (kind, id) => ({ params: Promise.resolve({ kind, id }) });
+const restoreRequestId = `entity-restore-${"a".repeat(43)}`;
 const request = (body, headers = {}, method = "DELETE") => new Request("http://localhost/api/edupi/entities/calendar/calendar-1", {
   method,
   headers: { host: "localhost", "content-type": "application/json", origin: "http://localhost", "sec-fetch-site": "same-origin", ...headers },
@@ -29,6 +30,12 @@ test("entity restore rejects cross-site and caller-supplied tombstone state befo
   assert.equal(crossSite.status, 403);
   const suppliedState = await POST(request({ note: null, expected_tombstone_revision: 1 }, {}, "POST"), context("calendar", "calendar-1"));
   assert.equal(suppliedState.status, 400);
+  const missingRequestId = await POST(request({ note: null }, {}, "POST"), context("calendar", "calendar-1"));
+  assert.equal(missingRequestId.status, 400);
+  const malformedRequestId = await POST(request({ note: null, restoreRequestId: "entity-restore-invalid" }, {}, "POST"), context("calendar", "calendar-1"));
+  assert.equal(malformedRequestId.status, 400);
+  const restoreIdOnDelete = await DELETE(request({ note: null, restoreRequestId }), context("calendar", "calendar-1"));
+  assert.equal(restoreIdOnDelete.status, 400);
 });
 
 test("valid-shaped entity deletion and restore reach only the Core boundary", async () => {
@@ -39,7 +46,7 @@ test("valid-shaped entity deletion and restore reach only the Core boundary", as
   try {
     const response = await DELETE(request({ note: null }), context("calendar", "calendar-1"));
     assert.equal(response.status, 503);
-    const restoreResponse = await POST(request({ note: null }, {}, "POST"), context("calendar", "calendar-1"));
+    const restoreResponse = await POST(request({ note: null, restoreRequestId }, {}, "POST"), context("calendar", "calendar-1"));
     assert.equal(restoreResponse.status, 503);
   } finally {
     if (previousCore === undefined) delete process.env.EDUPI_CORE_ROOT; else process.env.EDUPI_CORE_ROOT = previousCore;

@@ -261,7 +261,7 @@ export async function deleteEducationEntity(input: { kind: EntityDeleteKind; id:
   return { target: result.target, deletedAt: result.deletedAt, data };
 }
 
-export async function restoreEducationEntity(input: { kind: EntityDeleteKind; id: string; note: string | null; signal?: AbortSignal }): Promise<{ target: { kind: EntityDeleteKind; id: string }; restoredAt: string | null; data: EducationContract }> {
+export async function restoreEducationEntity(input: { kind: EntityDeleteKind; id: string; note: string | null; restoreRequestId: string; signal?: AbortSignal }): Promise<{ target: { kind: EntityDeleteKind; id: string }; restoredAt: string | null; data: EducationContract }> {
   const snapshot = await readEduPiEducationSnapshot({ signal: input.signal });
   const result = await issueEntityRestore(input, { roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot } });
   const refreshedWorkspace = result.data.education_workspace;

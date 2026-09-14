@@ -54,11 +54,11 @@ const { GET: GET_DELETIONS } = await jiti.import("../app/api/edupi/entities/rout
 const { GET } = await jiti.import("../app/api/edupi/education/route.ts");
 const { readEduPiEducationSnapshot } = await jiti.import("../lib/edupi-core-snapshot.ts");
 
-function request(kind, id, method = "DELETE") {
+function request(kind, id, method = "DELETE", restoreRequestId = null) {
   return new Request(`http://localhost/api/edupi/entities/${kind}/${encodeURIComponent(id)}`, {
     method,
     headers: { host: "localhost", origin: "http://localhost", "content-type": "application/json", "sec-fetch-site": "same-origin" },
-    body: JSON.stringify({ note: null }),
+    body: JSON.stringify({ note: null, ...(method === "POST" ? { restoreRequestId } : {}) }),
   });
 }
 
@@ -112,9 +112,12 @@ try {
   const deletedLedger = await (await GET_DELETIONS(listRequest())).json();
   assert.equal(deletedLedger.deletions.length, 6);
   assert.equal(deletedLedger.deletions.some((item) => item.kind === "material" && item.label === "第一课教案"), true);
+  const restoreRecords = new Map(deletedLedger.deletions.map((item) => [`${item.kind}:${item.id}`, item]));
 
   for (const target of targets) {
-    const response = await POST(request(target.kind, target.id, "POST"), { params: Promise.resolve(target) });
+    const restoreRecord = restoreRecords.get(`${target.kind}:${target.id}`);
+    assert.match(restoreRecord.restoreRequestId, /^entity-restore-[A-Za-z0-9_-]{43}$/);
+    const response = await POST(request(target.kind, target.id, "POST", restoreRecord.restoreRequestId), { params: Promise.resolve(target) });
     const result = await response.json();
     assert.equal(response.status, 200, JSON.stringify(result));
     data = result.data;
@@ -129,6 +132,8 @@ try {
   assert.equal(restoredLedger.history.length, 12);
   const restoredTask = restarted.tasks.find((item) => item.id === "task-delete-1");
   assert.equal(restoredTask.status, "planned", "restoring a task must not auto-complete it");
+  const replayedCalendarRestore = await POST(request("calendar", "calendar-delete-1", "POST", restoreRecords.get("calendar:calendar-delete-1").restoreRequestId), { params: Promise.resolve({ kind: "calendar", id: "calendar-delete-1" }) });
+  assert.equal(replayedCalendarRestore.status, 200, JSON.stringify(await replayedCalendarRestore.clone().json()));
   audit = JSON.parse(fs.readFileSync(path.join(outputDir, "entity_delete_state.json"), "utf8"));
   assert.equal(audit.records.length, 0);
   assert.equal(audit.next_tombstone_revision, 7);
@@ -138,19 +143,23 @@ try {
   assert.equal(deletedCalendarAgain.status, 200, JSON.stringify(await deletedCalendarAgain.clone().json()));
   audit = JSON.parse(fs.readFileSync(path.join(outputDir, "entity_delete_state.json"), "utf8"));
   assert.equal(audit.records.find((item) => item.target_kind === "calendar").tombstone_revision, 7);
-  const restoredCalendarAgain = await POST(request("calendar", "calendar-delete-1", "POST"), { params: Promise.resolve({ kind: "calendar", id: "calendar-delete-1" }) });
+  const calendarAgainLedger = await (await GET_DELETIONS(listRequest())).json();
+  const calendarAgainRestoreId = calendarAgainLedger.deletions.find((item) => item.kind === "calendar" && item.id === "calendar-delete-1").restoreRequestId;
+  const restoredCalendarAgain = await POST(request("calendar", "calendar-delete-1", "POST", calendarAgainRestoreId), { params: Promise.resolve({ kind: "calendar", id: "calendar-delete-1" }) });
   assert.equal(restoredCalendarAgain.status, 200, JSON.stringify(await restoredCalendarAgain.clone().json()));
 
   const deletedMaterialAgain = await DELETE(request("material", "material-1"), { params: Promise.resolve({ kind: "material", id: "material-1" }) });
   assert.equal(deletedMaterialAgain.status, 200, JSON.stringify(await deletedMaterialAgain.clone().json()));
+  const materialAgainLedger = await (await GET_DELETIONS(listRequest())).json();
+  const materialAgainRestoreId = materialAgainLedger.deletions.find((item) => item.kind === "material" && item.id === "material-1").restoreRequestId;
   fs.writeFileSync(materialPath, Buffer.alloc(materialBytes.length, 0x78));
-  const rejectedMaterialRestore = await POST(request("material", "material-1", "POST"), { params: Promise.resolve({ kind: "material", id: "material-1" }) });
+  const rejectedMaterialRestore = await POST(request("material", "material-1", "POST", materialAgainRestoreId), { params: Promise.resolve({ kind: "material", id: "material-1" }) });
   const rejectedMaterialResult = await rejectedMaterialRestore.json();
   assert.equal(rejectedMaterialRestore.status, 409, JSON.stringify(rejectedMaterialResult));
   assert.equal(rejectedMaterialResult.code, "material_unavailable");
   assert.equal(JSON.parse(fs.readFileSync(path.join(outputDir, "entity_delete_state.json"), "utf8")).records.some((item) => item.target_kind === "material"), true);
   fs.writeFileSync(materialPath, materialBytes);
-  const repairedMaterialRestore = await POST(request("material", "material-1", "POST"), { params: Promise.resolve({ kind: "material", id: "material-1" }) });
+  const repairedMaterialRestore = await POST(request("material", "material-1", "POST", materialAgainRestoreId), { params: Promise.resolve({ kind: "material", id: "material-1" }) });
   assert.equal(repairedMaterialRestore.status, 200, JSON.stringify(await repairedMaterialRestore.clone().json()));
   for (const [key, file] of Object.entries(sources)) assert.equal(fs.readFileSync(file, "utf8"), originalSources[key], `${key} source bytes must remain unchanged after restore`);
   assert.deepEqual(fs.readFileSync(materialPath), materialBytes);

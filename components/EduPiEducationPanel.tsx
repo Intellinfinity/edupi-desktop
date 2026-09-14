@@ -819,8 +819,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [commitEducationSnapshot, deleteBusy, education, stopTaskTracking]);
 
-  const restoreEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, label: string): Promise<void> => {
-    const result = await restoreEducationEntity(kind, id);
+  const restoreEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string, label: string): Promise<void> => {
+    const result = await restoreEducationEntity(kind, id, restoreRequestId);
     commitEducationSnapshot(result.data);
     setMaterialStagingMessage({ tone: "success", text: `已恢复：${label}` });
     if (kind === "task") {

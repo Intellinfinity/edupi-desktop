@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import type { EducationEntityDeleteKind } from "@/lib/edupi-education-contract";
-import type { EntityDeletionHistory, EntityDeletionRecord } from "@/lib/edupi-entity-delete";
+import type { EntityDeletionHistory, EntityDeletionRestoreRecord } from "@/lib/edupi-entity-delete";
 
 const PAGE_SIZE = 8;
 const kindLabels: Record<EducationEntityDeleteKind, string> = {
@@ -33,11 +33,11 @@ export function EduPiDeletedEntities({
 }: {
   activeCount: number;
   historyCount: number;
-  onLoad: () => Promise<{ deletions: EntityDeletionRecord[]; history: EntityDeletionHistory[] }>;
-  onRestore: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<void>;
+  onLoad: () => Promise<{ deletions: EntityDeletionRestoreRecord[]; history: EntityDeletionHistory[] }>;
+  onRestore: (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string, label: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [ledger, setLedger] = useState<{ deletions: EntityDeletionRecord[]; history: EntityDeletionHistory[] } | null>(null);
+  const [ledger, setLedger] = useState<{ deletions: EntityDeletionRestoreRecord[]; history: EntityDeletionHistory[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
@@ -60,13 +60,13 @@ export function EduPiDeletedEntities({
     finally { setLoading(false); }
   };
 
-  const restore = async (item: EntityDeletionRecord) => {
+  const restore = async (item: EntityDeletionRestoreRecord) => {
     const key = `${item.kind}:${item.id}`;
     if (busy) return;
     setBusy(key);
     setError(null);
     try {
-      await onRestore(item.kind, item.id, item.label || kindLabels[item.kind]);
+      await onRestore(item.kind, item.id, item.restoreRequestId, item.label || kindLabels[item.kind]);
       setOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "恢复失败");

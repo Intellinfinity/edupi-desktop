@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { ResolvedEduPiCore, ResolvedEduPiDataRoot } from "./edupi-core-root";
 
 export const ENTITY_DELETE_KINDS = ["calendar", "timetable", "memory", "student", "task", "material"] as const;
@@ -63,6 +63,12 @@ export type EntityDeletionLedger = {
 };
 
 export type EntityDeletionSummary = { activeCount: number; historyCount: number };
+export type EntityDeletionRestoreRecord = EntityDeletionRecord & { restoreRequestId: string };
+
+export function entityRestoreRequestId(record: Pick<EntityDeletionRecord, "kind" | "id" | "targetFingerprint" | "tombstoneRevision">): string {
+  const value = `${record.kind}\0${record.id}\0${record.tombstoneRevision}\0${record.targetFingerprint}`;
+  return `entity-restore-${createHash("sha256").update(value).digest("base64url")}`;
+}
 
 type EntityBridgeRoots = { runtime: ResolvedEduPiCore; dataRoot: ResolvedEduPiDataRoot };
 
@@ -394,6 +400,7 @@ export async function issueEntityDelete(
 type EntityRestoreDependencies = {
   roots?: EntityBridgeRoots;
   readLedger?: (roots: EntityBridgeRoots, signal?: AbortSignal) => Promise<EntityDeletionLedger>;
+  readCurrentSnapshot?: (roots: EntityBridgeRoots, signal?: AbortSignal) => Promise<RawRecord & { education_workspace: RawRecord }>;
   callCore?: (request: ReturnType<typeof buildEntityRestoreRequest>, roots: EntityBridgeRoots, signal?: AbortSignal) => Promise<DeleteCoreResponse>;
 };
 
@@ -406,11 +413,35 @@ function findDeletion(deletions: EntityDeletionRecord[], kind: EntityDeleteKind,
   return aliases[0] || null;
 }
 
+async function currentRestorePayload(roots: EntityBridgeRoots, signal: AbortSignal | undefined, dependencies: EntityRestoreDependencies) {
+  if (dependencies.readCurrentSnapshot) return await dependencies.readCurrentSnapshot(roots, signal);
+  const { readEduPiEducationSnapshot } = await import("./edupi-core-snapshot.ts");
+  return (await readEduPiEducationSnapshot({ signal })).payload;
+}
+
+async function reconciledRestore(
+  input: { kind: EntityDeleteKind; id: string; restoreRequestId: string; signal?: AbortSignal },
+  ledger: EntityDeletionLedger,
+  roots: EntityBridgeRoots,
+  dependencies: EntityRestoreDependencies,
+  expectedRecord?: EntityDeletionRecord,
+): Promise<{ target: { kind: EntityDeleteKind; id: string }; restoredAt: string | null; data: RawRecord & { education_workspace: RawRecord } } | null> {
+  const history = ledger.history.find((item) => item.requestId === input.restoreRequestId && item.action === "restore"
+    && item.kind === input.kind && item.targetId === input.id
+    && (!expectedRecord || item.tombstoneRevision === expectedRecord.tombstoneRevision && item.targetFingerprint === expectedRecord.targetFingerprint)) || null;
+  if (!history || findDeletion(ledger.deletions, history.kind, history.targetId)) return null;
+  const payload = await currentRestorePayload(roots, input.signal, dependencies);
+  if (!payload?.education_workspace || (history.kind !== "material" && !hasTargetInPayload(payload, history.kind, history.targetId))) return null;
+  return { target: { kind: history.kind, id: history.targetId }, restoredAt: history.occurredAt, data: payload };
+}
+
 export async function issueEntityRestore(
-  input: { kind: EntityDeleteKind; id: string; note: string | null; signal?: AbortSignal },
+  input: { kind: EntityDeleteKind; id: string; note: string | null; restoreRequestId: string; signal?: AbortSignal },
   dependencies: EntityRestoreDependencies = {},
 ): Promise<{ target: { kind: EntityDeleteKind; id: string }; restoredAt: string | null; data: RawRecord & { education_workspace: RawRecord } }> {
-  if (!isDeleteKind(input.kind) || !validText(input.id, 160) || (input.note !== null && !validText(input.note, 1000))) {
+  if (!isDeleteKind(input.kind) || !validText(input.id, 160)
+    || !/^entity-restore-[A-Za-z0-9_-]{43}$/u.test(input.restoreRequestId)
+    || (input.note !== null && !validText(input.note, 1000))) {
     throw new EntityDeleteError("invalid_request", "恢复对象无效。");
   }
   const roots = dependencies.roots || (await import("./edupi-core-snapshot.ts")).resolveEduPiBridgeRoots();
@@ -418,8 +449,13 @@ export async function issueEntityRestore(
     ? await dependencies.readLedger(roots, input.signal)
     : await readEntityDeletionLedger({ signal: input.signal }, { roots });
   const deletion = findDeletion(ledger.deletions, input.kind, input.id);
-  if (!deletion) throw operationError("target_not_deleted", "restore");
-  const requestId = `entity-restore-${randomUUID()}`;
+  if (!deletion) {
+    const replayed = await reconciledRestore(input, ledger, roots, dependencies);
+    if (replayed) return replayed;
+    throw operationError("target_not_deleted", "restore");
+  }
+  if (entityRestoreRequestId(deletion) !== input.restoreRequestId) throw operationError("stale_tombstone", "restore");
+  const requestId = input.restoreRequestId;
   const request = buildEntityRestoreRequest({ record: deletion, snapshotId: ledger.snapshotId, note: input.note }, requestId);
   const callCore = dependencies.callCore || (async (nextRequest, currentRoots, signal) => {
     const { runCoreProcess } = await import("./edupi-core-process-client.ts");
@@ -431,7 +467,19 @@ export async function issueEntityRestore(
       signal,
     });
   });
-  const response = await callCore(request, roots, input.signal);
+  let response;
+  try {
+    response = await callCore(request, roots, input.signal);
+  } catch (error) {
+    try {
+      const currentLedger = dependencies.readLedger
+        ? await dependencies.readLedger(roots, input.signal)
+        : await readEntityDeletionLedger({ signal: input.signal }, { roots });
+      const committed = await reconciledRestore(input, currentLedger, roots, dependencies, deletion);
+      if (committed) return committed;
+    } catch { /* Preserve the original transport failure when reconciliation is unavailable. */ }
+    throw error;
+  }
   if (response.ok !== true) throw operationError(response.code || "unavailable", "restore");
   const refreshed = response.snapshot;
   const refreshedWorkspace = refreshed?.education_workspace;

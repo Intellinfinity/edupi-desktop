@@ -182,7 +182,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
 
   const commitEducationSnapshot = useCallback((nextEducation: EducationContract) => {
     workspaceMinimumApplySequenceRef.current = Math.max(workspaceMinimumApplySequenceRef.current, workspaceLoadSequenceRef.current + 1);
-    setEducation((current) => current ? preserveUnavailableWorkspaceResources(current, nextEducation) : nextEducation);
+    setEducation(nextEducation);
   }, []);
 
   const cancelActivation = useCallback(() => {
@@ -804,7 +804,9 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     try {
       const result = await deleteEducationEntity(kind, id);
       if (kind === "task") { stopTaskTracking(id); setTaskDetailTask(null); setSelectedTaskKey(null); }
-      commitEducationSnapshot(result.data);
+      commitEducationSnapshot(education && result.data.workspaceResourcesUnavailable
+        ? preserveUnavailableWorkspaceResources(education, result.data, { removedMaterialId: kind === "material" ? result.target.id : null })
+        : result.data);
       if (kind === "calendar" || kind === "timetable") setCalendarSelection(null);
       if (kind === "student") setSelectedStudentId(null);
       setMaterialStagingMessage({ tone: "success", text: `已删除：${label}` });

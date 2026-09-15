@@ -1,5 +1,12 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-15 桌面聊天、提醒与 Core 权限收口
+
+- Desktop [#117](https://github.com/PIGU-PPPgu/edupi-desktop/pull/117) 已合并，合并提交 `22b014d83cd874d5e73d806dc080ad45fa98640b`。提醒从 Chat 顶层移到独立提醒页，聊天滚动层补齐嵌套 flex 的最小高度约束，composer 左下提供“请求批准 / 帮我批准 / 完全访问”。
+- 权限模式写入 Agent session；完全访问启动完整内置工具集，并在 Core 项目根使用 Desktop bridge 工具，避免旧 direct writer 直接触发 `Core Runtime writer admission is required`。隔离数据根中 `memory_write` bridge 实际返回 Core 成功 receipt，未写真实教师数据。
+- Desktop `npm test` 为 1220 tests、1195 passed、25 skipped、0 failed；TypeScript、ESLint、`npm audit --audit-level=high` 和 `git diff --check` 通过。隔离开发版实际操作提醒入口→独立提醒页→返回对话、完全访问菜单和 session `accessMode=full` 回读。
+- 安装版、Windows 实机以及真实教师数据上的权限选择仍归发布验收；本条不把源码开发版证据当成跨平台安装完成。
+
 ## 2026-09-15 R12/R17 学生双网络收口
 
 - Desktop 当前提交完成学生详情的知识图谱与人际互动网络：稳定学生 ID、同名分离、互动事件节点、20 条分页、60 条图谱窗口、加载更多、学期/自定义时间筛选、缩放、键盘边线选择、节点居中和关联记录聚焦。

@@ -1,5 +1,13 @@
 # 实际流程验收
 
+## 2026-09-15 桌面聊天、提醒与 Core 权限
+
+- 验收分支基于 Desktop 合并提交 `22b014d83cd874d5e73d806dc080ad45fa98640b`，使用 `/tmp/edupi-chat-permissions-data` 隔离数据根和 pinned Core #111；验收后隔离数据根、session 状态目录和临时开发服务均已清理。
+- 浏览器实际点击侧栏“提醒”后，主区显示独立“提醒”页，包含状态筛选、空态和“返回对话”；返回后 URL 恢复聊天视图，聊天页左上没有提醒列表。截图核对 composer 左下出现权限入口；展开后显示“请求批准 / 帮我批准 / 完全访问”，选择完全访问后显示“完全访问”和“完整”工具预设。
+- 通过隔离 `/api/agent/new` 创建新 session，传入 `accessMode=full` 和完整内置工具集，随后 GET 状态回读 `accessMode=full`，工具列表包含 `read/bash/edit/write/grep/find/ls` 与 EduPi 工具；发送 `set_access_mode=workspace` 后状态回读为 `workspace`。
+- 直接调用 Desktop 的 `createMemoryWriteTool`，请求经 pinned Core bridge 在隔离数据根成功写入并返回 `ok=true`、`operation=memory-write`、`external_send=false` 的 receipt；这条路径没有出现 writer admission 错误。测试没有写入真实教师档案。
+- 定向与全量证据：`npm test` 为 1220 tests、1195 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`npm audit --audit-level=high`、`git diff --check` 通过。聊天历史大数据在安装版和 Windows 实机仍未验收，滚动修复以源码结构回归和隔离开发版页面为证据。
+
 ## 2026-09-15 R12/R17 学生知识与互动网络
 
 - 在 `/tmp/edupi-r12-network.AdWO8Q` 隔离数据根运行 Desktop 开发版，创建 63 名学生（含 703/704 两名同名“张三”）、45 条学习记录和45条互动记录；未写入真实教师或学生数据。班级名单显示三页，第三页仍可访问，两个同名学生可分别打开详情。

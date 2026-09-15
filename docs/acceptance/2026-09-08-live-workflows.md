@@ -1,5 +1,14 @@
 # 实际流程验收
 
+## 2026-09-16 `v0.3.17` 公开包、Core 中心与更新收口
+
+- 正式 Latest [`v0.3.17`](https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v0.3.17) 固定到 Desktop [#140](https://github.com/PIGU-PPPgu/edupi-desktop/pull/140) 的构建提交 `dd5bce96bb0e1bfdf3f117cae4a7d88994b54bc0`，Release API 回读 11 项资产、非草稿、非预发布。公开 `latest.json` 有 `darwin-aarch64`、Linux AppImage/deb、Windows NSIS 等 7 个签名键；macOS updater 下载 SHA-256 `d4f88cae3e5eb96dd0b97b2f45cb188b7478726c5a097f5adfd2aa1ce09f612a` 与 Release digest 相同，14,803 个归档条目经路径检查后安全解包，Info.plist 为 `0.3.17`。
+- 从该公开 updater 原样启动内置 server、Node、Pi 和 bundled Core `19c0fd5182c6c20d6534973e506d6fa36acc1b06`。状态回读 Core/projection/Kernel ready，Desktop/Runtime component hash、contract、schema 和 fixture 四组身份一致；真实教师数据副本为 50 名学生、9 条课表、43 个校历节点、240 个任务。
+- 旧 `v0.3.13` Runtime 已把 500 条 Kernel ring 全部挤成 13 个逻辑课次的重复 `g1_prepare_due/source_unavailable`。`v0.3.17` 首次投影即只显示 13 条逻辑失败；连续两次真实 `prepare_due` 后原始条数仍为 500、逻辑课次仍为 13，没有再覆盖其他历史。自然五分钟定时检查再次返回 `source_unavailable` 后，`/api/edupi/status` 仍为 Core ready。
+- 1280×720 页面实际打开管理中心：自动运行标题为“有课前任务缺少可用材料”，最近 12 行使用课次标题、“缺少可用材料”和“补充材料”，点击动作进入材料页；系统页显示“EduPi Core · 已就绪 · 已连接”，不再提供误导性的重连动作。页面不含 `g1_prepare_due` 或 `source_unavailable`，请求失败、console error 和 page error 均为空。
+- Desktop [#138](https://github.com/PIGU-PPPgu/edupi-desktop/pull/138) 的唯一草稿发布流程已由 `v0.3.17` 实际验证：三个平台共用 Release `389472524` 并上传 9 个互不覆盖的资产。集中清单正确生成后，冗余组件生成命令因轻量 job 无 `node_modules` 失败；Desktop [#141](https://github.com/PIGU-PPPgu/edupi-desktop/pull/141) 删除该依赖并校验已提交清单，当前 Release 用同一修复步骤补齐 `latest.json` 与组件清单后发布。发布过程未重跑或替换成功的安装包。
+- 已安装 `v0.3.13` 的更新接口实际检测到 `v0.3.17` 并返回 `updateAvailable=true`。磁盘仍只有 `/Applications/EduPi.app` 一个副本，运行时只有一个主进程和其 server/Core 子进程。本轮未代替用户安装；原生文件打开/所在文件夹/另存为、OCR 文件打开、首配、真实睡眠唤醒、通知中心点击、升级后的数据/模型/TCC 回读由用户验收。Windows/Linux 应用内升级、Apple 公证、真实课堂效果和外部连接器/学校部署仍需对应环境。
+
 ## 2026-09-16 `v0.3.14` Core、对话文件与 OCR 公开包复核
 
 - `v0.3.13` 应用内升级已真实执行：`v0.3.11` 的旧进程退出，`/Applications/EduPi.app` 原位变为 `v0.3.13`，没有出现第二个安装副本。升级前后 50 名学生、240 个任务、43 个校历节点、9 个课表、45 条记忆、9 个模型、默认模型、模型配置哈希和认证文件保持。
@@ -15,7 +24,7 @@
 - R03 使用真实教师数据的只读临时副本检查自动运行历史：原文件有 421 条 run，325 条 `g1_prepare_due/source_unavailable` 来自 13 个逻辑课次，说明旧 Runtime 每五分钟重复记错。Core [#122](https://github.com/PIGU-PPPgu/edupi/pull/122) 与 [#123](https://github.com/PIGU-PPPgu/edupi/pull/123) 后，首次和第二次 `prepare_due` 均保持 421 条不增长，投影只显示 13 条失败；测试补回来源后同一 run 转为 succeeded。原始审计字节不因投影折叠删除。
 - Desktop [#134](https://github.com/PIGU-PPPgu/edupi-desktop/pull/134) pin 最终 Core `19c0fd5182c6c20d6534973e506d6fa36acc1b06`。管理中心“自动运行”实际显示“第3周 · 数学 · 703 · 第1节课前准备 / 缺少可用材料 / 补充材料”，不出现原始 trigger/error code；12 条最近记录对应 13 条逻辑失败，点击动作进入材料页。Core 全量、Desktop 34 项精确 Core 集成及 1229 项全量回归通过，页面 console/page error 为空；私有数据副本已删除。
 - R05 设置页此前的普通测试通知不带提醒 target，点击无法触发 AppShell 路由。Desktop [#136](https://github.com/PIGU-PPPgu/edupi-desktop/pull/136) 改为同一 `send_reminder_notification` 原生命令，使用有界测试 claim 与空 target；生产监听收到点击后按既有逻辑打开提醒收件箱。按钮和反馈改为“测试通知跳转 / 点击通知应打开提醒”。1231 项全量测试中 1206 passed、25 skipped、0 failed，类型和 lint 通过；真实 macOS 通知中心点击仍不以源码测试替代。
-- #129–#131 全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。公开包隔离目录、复制的临时凭据和测试服务均已删除。尚未验证的是安装 `v0.3.14` 后的原生文件按钮/OCR 打开、#127–#131 的发布包与 R06 原生壳首配、真实睡眠唤醒、系统通知点击、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署。
+- #129–#131 当时的全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。#127–#136 后续已进入上方 `v0.3.17` 公开包；安装后的原生文件按钮/OCR 打开、R06 原生壳首配、真实睡眠唤醒、系统通知点击、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署仍按上方当前边界验收。
 
 ## 2026-09-16 设置热修、正式发布与旧客户端检测
 

@@ -1,5 +1,12 @@
 # 自动下载安装
 
+## 2026-09-16 `v0.3.13` 实际升级与 `v0.3.14` 发布
+
+- 用户授权后，已从 `v0.3.11` 设置页点击真实“更新”。下载进度走完后应用自行重启，旧 PID `88791` 被新 PID `90028` 取代，路径仍为 `/Applications/EduPi.app`，版本为 `0.3.13`；磁盘搜索没有发现第二个 EduPi 安装副本。
+- 升级前基线与升级后回读一致：Core、教育投影和 Kernel ready；50 名学生、240 个任务、43 个校历节点、9 个课表、45 条记忆、9 个自定义模型、默认模型、模型配置 SHA-256 和认证文件均保留。升级后暴露的旧 Runtime 重试历史兼容问题已由 Core [#121](https://github.com/PIGU-PPPgu/edupi/pull/121) 修复并由 Desktop [#125](https://github.com/PIGU-PPPgu/edupi-desktop/pull/125) 精确 pin；迁移后连续六轮状态/工作区读取为 200。
+- `v0.3.14` 已由 Desktop [#126](https://github.com/PIGU-PPPgu/edupi-desktop/pull/126) 发布。Workflow [35002520172](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35002520172) 的 macOS、Linux、Windows 分别约 13、15、22 分钟，整轮约 22 分钟；11 项 Release 资产、七个平台 updater 签名和组件清单完整。公开 macOS updater SHA-256 `8921b36e29b0ed79f5270136d4a363240987dcb6267e8fcea89e7207028e24c8` 与 Release digest 相同，解包后的应用版本为 `0.3.14`。
+- 当前已安装 `v0.3.13` 能检测 `v0.3.14`，但本机尚未安装它；用户将在后续自行验收。当前 Release 仍使用 ad-hoc macOS 身份，Apple 稳定签名/公证和 Windows/Linux 应用内升级仍未完成；因此更新后 TCC 权限仍可能要求重新开启并重启应用。
+
 ## 2026-09-16 `v0.3.13` 更新入口热修与权限身份
 
 - Desktop [#121](https://github.com/PIGU-PPPgu/edupi-desktop/pull/121) 修复管理中心覆盖设置窗口、更新区与首张卡片重叠、更新入口含义不清和权限状态无法重查；系统页现在明确显示“应用更新 / 检查更新”，打开时先关闭管理中心。设置窗口固定头部并让正文独立滚动，去掉仓库标签和第二行说明；桌面权限可重新检测、返回应用时自动刷新，并可打开对应系统设置或重启 EduPi。

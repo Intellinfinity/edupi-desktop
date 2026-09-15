@@ -541,7 +541,7 @@ export const zhCNLocale: LocalePlugin = {
     "appSettings.downloading": "正在下载…",
     "appSettings.downloadingPercent": "正在下载 {percent}%",
     "appSettings.installing": "正在安装并重启…",
-    "appSettings.updateNote": "更新将安装一个完整签名的 {name} 发布版本。",
+    "appSettings.updateNote": "替换当前 {name} 并重启，不会另装一个副本。",
     "appSettings.noSignedBundle": "检测到组件更新，但包含这些更新的签名 {name} 安装包尚未发布。",
     "appSettings.openRelease": "查看发布",
     "appSettings.languageSection": "语言",

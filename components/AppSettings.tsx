@@ -5,8 +5,6 @@ import type { AppComponentReleaseInfo, AppUpdatesResponse } from "@/lib/app-upda
 import {
   APP_DISTRIBUTION_NAME,
   APP_RELEASES_URL,
-  APP_REPOSITORY,
-  APP_REPOSITORY_URL,
   APP_VERSION,
   APP_VERSION_DISPLAY,
   PRODUCT_NAME,
@@ -74,6 +72,18 @@ function ComputerUseSettingsCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshStatus = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(await getComputerUseStatusNative());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     void getComputerUseStatusNative()
@@ -90,6 +100,12 @@ function ComputerUseSettingsCard() {
     window.addEventListener(COMPUTER_USE_CHANGED_EVENT, update);
     return () => window.removeEventListener(COMPUTER_USE_CHANGED_EVENT, update);
   }, []);
+
+  useEffect(() => {
+    const refreshAfterSystemSettings = () => { void refreshStatus(); };
+    window.addEventListener("focus", refreshAfterSystemSettings);
+    return () => window.removeEventListener("focus", refreshAfterSystemSettings);
+  }, [refreshStatus]);
 
   const updateEnabled = async (enabled: boolean) => {
     setBusy(true);
@@ -118,7 +134,20 @@ function ComputerUseSettingsCard() {
     }
   };
 
-  const permissionLabel = (value: boolean | null | undefined) => value === undefined || value === null ? "未知" : value ? "已授权" : "未授权";
+  const restartApp = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await relaunchAppNative();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const permissionLabel = (value: boolean | null | undefined) => value === undefined || value === null ? "未知" : value ? "已授权" : "当前未生效";
+  const permissionNeedsRecovery = status?.accessibility === false || status?.screenRecording === false;
   return <div className="native-settings-card" style={sectionCardStyle}>
     <div style={sectionTitleStyle}>桌面控制</div>
     <div style={sectionHintStyle}>默认关闭。开启后，每次读取或操作仍需你确认。</div>
@@ -128,9 +157,12 @@ function ComputerUseSettingsCard() {
       <div className="computer-use-status-row"><strong>屏幕录制</strong><span className={status?.screenRecording ? "is-ready" : "is-off"}>{permissionLabel(status?.screenRecording)}</span></div>
       <div className="computer-use-actions">
         <button type="button" className={`native-button${status?.enabled ? "" : " native-button-primary"}`} disabled={busy} onClick={() => void updateEnabled(!status?.enabled)}>{status?.enabled ? "停止控制" : "开启控制"}</button>
-        {status?.accessibility === false ? <button type="button" className="native-button" disabled={busy} onClick={() => void requestPermission("accessibility")}>授权辅助功能</button> : null}
-        {status?.screenRecording === false ? <button type="button" className="native-button" disabled={busy} onClick={() => void requestPermission("screen_recording")}>授权屏幕录制</button> : null}
+        <button type="button" className="native-button" disabled={busy} onClick={() => void refreshStatus()}>重新检测</button>
+        {status?.accessibility === false ? <button type="button" className="native-button" disabled={busy} onClick={() => void requestPermission("accessibility")}>打开辅助功能设置</button> : null}
+        {status?.screenRecording === false ? <button type="button" className="native-button" disabled={busy} onClick={() => void requestPermission("screen_recording")}>打开屏幕录制设置</button> : null}
+        {permissionNeedsRecovery ? <button type="button" className="native-button" disabled={busy} onClick={() => void restartApp()}>重启 EduPi</button> : null}
       </div>
+      {permissionNeedsRecovery ? <div style={sectionHintStyle} role="status">系统设置已开启但这里仍未生效时，请关闭再重新开启对应权限，然后重启 EduPi。应用更新后可能需要重新开启一次。</div> : null}
       {error ? <div className="computer-use-error" role="alert">{error}</div> : null}
     </div>
   </div>;
@@ -246,54 +278,6 @@ const metaChipStyle = (emphasized: boolean): CSSProperties => ({
   lineHeight: 1.35,
   textDecoration: "none",
 });
-
-function MetaChip({
-  label,
-  value,
-  emphasized = false,
-  href,
-  title,
-  ariaLabel,
-}: {
-  label: string;
-  value: string;
-  emphasized?: boolean;
-  href?: string;
-  title?: string;
-  ariaLabel?: string;
-}) {
-  const content = (
-    <>
-      <span style={{ opacity: 0.72, fontWeight: 500 }}>{label}</span>
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {value}
-      </span>
-      {href ? <span aria-hidden="true">↗</span> : null}
-    </>
-  );
-
-  if (href) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        title={title}
-        aria-label={ariaLabel ?? title}
-        style={metaChipStyle(emphasized)}
-        onClick={(event) => handleExternalLinkClick(event, href)}
-      >
-        {content}
-      </a>
-    );
-  }
-
-  return (
-    <span title={title} aria-label={ariaLabel ?? title} style={metaChipStyle(emphasized)}>
-      {content}
-    </span>
-  );
-}
 
 function VersionChip({
   currentValue,
@@ -503,6 +487,7 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
         aria-labelledby="app-settings-title"
         style={{
           width: "min(620px, 100%)",
+          height: "min(720px, calc(100vh - 36px))",
           maxHeight: "min(720px, calc(100vh - 36px))",
           display: "flex",
           flexDirection: "column",
@@ -514,24 +499,15 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
           boxShadow: "0 22px 70px rgba(0,0,0,0.32)",
         }}
       >
-        <header className="native-modal-header" style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "20px 22px 17px", borderBottom: "1px solid var(--border)" }}>
+        <header className="native-modal-header" style={{ display: "flex", flexShrink: 0, alignItems: "flex-start", gap: 14, padding: "20px 22px 17px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <h2 className="native-modal-title" id="app-settings-title" style={{ margin: 0, fontSize: 18, lineHeight: 1.25 }}>
               {PRODUCT_NAME}
             </h2>
             <div style={{ marginTop: 5, color: "var(--text-muted)", fontSize: 12, lineHeight: 1.6 }}>
               {t("appSettings.tagline", { product: PRODUCT_NAME })}
-              <br />
-              {t("appSettings.taglineDetails")}
             </div>
             <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-              <MetaChip
-                label={t("appSettings.repository")}
-                value={APP_REPOSITORY}
-                href={APP_REPOSITORY_URL}
-                title={t("appSettings.openRepository")}
-                ariaLabel={`${t("appSettings.repository")}: ${APP_REPOSITORY}`}
-              />
               <VersionChip
                 currentValue={currentVersionText}
                 latestValue={latestReleaseText}
@@ -559,6 +535,7 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
                   type="button"
                   disabled={!canUpgrade}
                   onClick={() => void handleUpgrade()}
+                  title={t("appSettings.updateNote", { name: APP_DISTRIBUTION_NAME })}
                   style={{ minWidth: 112 }}
                 >
                   {upgradeLabel}
@@ -584,7 +561,7 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
           </button>
         </header>
 
-        <div style={{ overflowY: "auto", padding: "18px 22px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ minHeight: 0, flex: 1, overflowY: "auto", padding: "18px 22px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
           <TeacherContextSettingsCard />
           <div className="native-settings-card" style={sectionCardStyle}>
             <div style={sectionTitleStyle}>{t("appSettings.languageSection")}</div>

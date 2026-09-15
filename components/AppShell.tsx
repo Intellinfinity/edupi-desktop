@@ -2194,7 +2194,7 @@ export function AppShell() {
       onOpenContext={() => { setEduPiAdminOpen(false); openEducationModule("context"); }}
       onAskStudentUpdate={askEduPiToUpdateStudents}
       onNavigate={openEducationView}
-      onOpenSettings={() => setAppSettingsOpen(true)}
+      onOpenSettings={() => { setEduPiAdminOpen(false); setAppSettingsOpen(true); }}
     />}
     {firstRunGuideOpen && (
       <EduPiFirstRunGuide

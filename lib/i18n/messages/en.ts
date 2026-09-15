@@ -541,7 +541,7 @@ export const enLocale: LocalePlugin = {
     "appSettings.downloading": "Downloading…",
     "appSettings.downloadingPercent": "Downloading {percent}%",
     "appSettings.installing": "Installing and restarting…",
-    "appSettings.updateNote": "Updating installs a complete signed {name} release.",
+    "appSettings.updateNote": "Replaces the current {name} app in place and restarts it.",
     "appSettings.noSignedBundle": "The component updates are detected, but a signed {name} bundle containing them has not been published yet.",
     "appSettings.openRelease": "Open release",
     "appSettings.languageSection": "Language",

@@ -79,7 +79,8 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(appShell, /inert=\{edupiAdminOpen \? true : undefined\}/);
   assert.match(appShell, /aria-hidden=\{edupiAdminOpen \? true : undefined\}/);
   assert.match(appShell, /onAskStudentUpdate=\{askEduPiToUpdateStudents\}/);
-  assert.match(appShell, /onOpenSettings=\{\(\) => setAppSettingsOpen\(true\)\}/);
+  assert.match(appShell, /onOpenSettings=\{\(\) => \{ setEduPiAdminOpen\(false\); setAppSettingsOpen\(true\); \}\}/);
+  assert.match(admin, /<strong>应用更新<\/strong><small>检查、下载并安装新版本<\/small><\/span><em>检查更新<\/em>/);
   assert.match(appShell, /params\.set\("view", view\)/);
   assert.doesNotMatch(workspace, /edupi-dashboard-readiness/);
   assert.match(workspace, /onOpenAdmin/);

@@ -284,7 +284,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
           <div><span><strong>EduPi Core</strong><small>{snapshot.status?.core?.reason || snapshot.status?.core?.lifecycle || snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreConnected ? "已连接" : snapshot.status?.core?.status === "degraded" ? "需处理" : "检查"}</em></div>
           <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.status || "不可用"}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
           <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.status || "不可用"}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
-          <button type="button" onClick={onOpenSettings}><span><strong>应用与桌面设置</strong><small>外观、桌面行为与更新</small></span><em>打开</em></button>
+          <button type="button" onClick={onOpenSettings}><span><strong>应用更新</strong><small>检查、下载并安装新版本</small></span><em>检查更新</em></button>
         </div>
       </section> : null}
     </main>

@@ -12,6 +12,8 @@
 - R06 使用全新隔离 Pi 配置和公开 `v0.3.14` server 完成七步引导。模型页初始 0 项，真实 DeepSeek Key 自动发现 2 项；`invalid-edupi-first-run-model` 测试失败后改用 `deepseek-flash` 成功。教师资料为 R06 验收老师/任课教师/数学/七年级/703；返回后资料保持，名单步骤实际跳过。校历与课表经 Desktop intake 各收到 accepted 回执；25,884 字节真实 PDF 经暂存、接入和正文确认进入 Core。
 - 首次明确任务绑定 2026-09-17 的数学 703 第 2 节与该材料。切换到公开包的正式 server 运行路径并重启后，Core 自动恢复并生成 4 份 available Markdown；教案、学案和答案逐项核对 `2x+3=7 → x=2`、`x-5=9 → x=14`。页面从教学任务进入“教学产物”，打开本节教案并读取正文；第二次 server 重启后教师资料、1 条校历、1 个课表、1 份材料、默认模型、4 份产物和第 7/7 步均保持，点击“进入今天”后完成标记为 true、步骤复位 0。
 - 组合流程发现并修复三个页面问题：首配完成后的旧状态会把默认模型从刚测试成功的模型改走；手动教师资料的成功提示会被刷新 effect 清除；展开引导条遮挡右上角侧栏关闭键。Desktop [#131](https://github.com/PIGU-PPPgu/edupi-desktop/pull/131) 修复后用第二个干净配置重跑：默认仍为 `deepseek-flash`，发现的 2 个模型都已持久化，“已保存”可见；引导右边缘 x=920，教师资料关闭键 x=1006、文件侧栏关闭键 x=1235，均用真实点击关闭，无 console/page error。
+- R03 使用真实教师数据的只读临时副本检查自动运行历史：原文件有 421 条 run，325 条 `g1_prepare_due/source_unavailable` 来自 13 个逻辑课次，说明旧 Runtime 每五分钟重复记错。Core [#122](https://github.com/PIGU-PPPgu/edupi/pull/122) 与 [#123](https://github.com/PIGU-PPPgu/edupi/pull/123) 后，首次和第二次 `prepare_due` 均保持 421 条不增长，投影只显示 13 条失败；测试补回来源后同一 run 转为 succeeded。原始审计字节不因投影折叠删除。
+- Desktop [#134](https://github.com/PIGU-PPPgu/edupi-desktop/pull/134) pin 最终 Core `19c0fd5182c6c20d6534973e506d6fa36acc1b06`。管理中心“自动运行”实际显示“第3周 · 数学 · 703 · 第1节课前准备 / 缺少可用材料 / 补充材料”，不出现原始 trigger/error code；12 条最近记录对应 13 条逻辑失败，点击动作进入材料页。Core 全量、Desktop 34 项精确 Core 集成及 1229 项全量回归通过，页面 console/page error 为空；私有数据副本已删除。
 - #129–#131 全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。公开包隔离目录、复制的临时凭据和测试服务均已删除。尚未验证的是安装 `v0.3.14` 后的原生文件按钮/OCR 打开、#127–#131 的发布包与 R06 原生壳首配、真实睡眠唤醒、系统通知点击、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署。
 
 ## 2026-09-16 设置热修、正式发布与旧客户端检测

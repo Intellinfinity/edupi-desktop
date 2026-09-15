@@ -195,7 +195,7 @@ test("release workflow publishes Apple Silicon, Linux x64, and Windows x64 insta
   );
 
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /max-parallel: 1/);
+  assert.match(workflow, /max-parallel: 3/);
   assert.match(workflow, /'macos-15'/);
   assert.match(workflow, /\["aarch64-apple-darwin"\]/);
   assert.match(workflow, /'ubuntu-24\.04'/);

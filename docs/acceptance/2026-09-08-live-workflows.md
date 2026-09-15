@@ -1,5 +1,21 @@
 # 实际流程验收
 
+## 2026-09-16 设置热修、正式发布与旧客户端检测
+
+- Desktop [#121](https://github.com/PIGU-PPPgu/edupi-desktop/pull/121) 合并后，用 pinned Core `f6145130dad4250864a3c6cd404f121be08fad17` 和隔离数据根启动开发服务；在1280×720与700×600视口实际操作“管理中心 → 系统 → 应用更新”。管理中心先关闭，设置窗口单独出现；“检查更新”可见可点击，头部底边与滚动正文顶边相同，第一张卡片另有18px间距，没有重叠。真实 `/api/updates?refresh=1` 返回 HTTP 200。
+- 权限卡把原来的“未授权”改为“当前未生效”，提供“重新检测”“打开辅助功能设置”“打开屏幕录制设置”“重启 EduPi”；窗口重新获得焦点时会再次读取当前进程的原生权限。系统已显示开启而当前进程仍返回 false 时，界面不再把两个状态混为同一个结论。
+- Desktop [#122](https://github.com/PIGU-PPPgu/edupi-desktop/pull/122) 与 workflow [34995513104](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/34995513104) 已发布正式 Latest `v0.3.13`：macOS、Linux、Windows 与 manifest 全部成功，11项资产和7个签名平台键齐全。并行发布整轮约22分钟。
+- 唯一安装副本 `/Applications/EduPi.app` 仍为 `v0.3.11`，其原生界面已经显示最新 `v0.3.13` 和“更新”按钮；升级前 50/240/43/9 教育对象计数、45条记忆、默认模型、9个自定义模型和模型配置哈希已保存。尚未点击安装，因此升级后版本、数据、模型和权限回读仍待执行。
+- Desktop [#123](https://github.com/PIGU-PPPgu/edupi-desktop/pull/123) 已让后续发布支持稳定 Developer ID 和公证凭据；仓库尚无对应 Secret，`v0.3.13` 仍为临时签名，不能把 TCC 权限跨版本保持写成通过。
+
+## 2026-09-15 `v0.3.12` 正式发布与旧客户端检测
+
+- 发布提交为 Desktop [#119](https://github.com/PIGU-PPPgu/edupi-desktop/pull/119) merge commit `dee8d190e4d67983ab5eacb85d74255f3c60aca0`；workflow [34983508483](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/34983508483) 的 macOS 17分10秒、Linux 15分04秒、Windows 22分13秒和 manifest 8秒全部成功，最终 Release 为正式 Latest。
+- `latest.json` 回读版本 `0.3.12`，包含 `darwin-aarch64`、Linux AppImage/deb、Windows NSIS 等7个签名条目；`component-versions.json` 回读 Desktop `0.3.12`、Pi `0.84.1`、pi-web `0.8.7`。Release API 返回11项资产，草稿和预发布均为 false。
+- 本机安装版 Info.plist 为 `0.3.11`，其真实更新接口立即检测到 `0.3.12` 并返回 `updateAvailable=true`。这证明已安装客户端可从桌面内检查更新；本轮没有点击安装，因此不把本机升级重启、数据回读写成通过。
+- 发布前本地 1220 tests 为1195 passed、25 skipped、0 failed；TypeScript、ESLint、安全审计、组件清单、生产 Next server 与固定 Core 资源闭包通过。CI 三平台又分别运行同一质量门，Windows/Linux release Rust 测试通过。
+- Desktop [#120](https://github.com/PIGU-PPPgu/edupi-desktop/pull/120) 已将后续三平台构建改为并行，23项发布工作流回归和 release destination 校验通过；manifest 仍只有在完整矩阵成功后才公开 Release。
+
 ## 2026-09-15 桌面聊天、提醒与 Core 权限
 
 - 验收分支基于 Desktop 合并提交 `22b014d83cd874d5e73d806dc080ad45fa98640b`，使用 `/tmp/edupi-chat-permissions-data` 隔离数据根和 pinned Core #111；验收后隔离数据根、session 状态目录和临时开发服务均已清理。

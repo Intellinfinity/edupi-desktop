@@ -1,5 +1,18 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-16 `v0.3.13` 设置与更新热修
+
+- Desktop [#121](https://github.com/PIGU-PPPgu/edupi-desktop/pull/121) 已修复管理中心覆盖设置、更新区与内容重叠、更新入口不明确以及桌面权限无法重新检测；1280×720和700×600实际页面操作均无重叠，“检查更新”可见可点。全量 1222 tests 为1197 passed、25 skipped、0 failed，TypeScript、ESLint和安全审计通过。
+- Desktop [#122](https://github.com/PIGU-PPPgu/edupi-desktop/pull/122) 和 Release run [34995513104](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/34995513104) 已把修复发布为正式 Latest `v0.3.13`；11项资产和7个签名平台键齐全，三平台并行后整轮约22分钟。已安装 `v0.3.11` 的接口与原生界面均检测到 `v0.3.13`，尚未点击安装。
+- 本机只存在 `/Applications/EduPi.app` 一个安装副本；应用内更新按当前 bundle 路径原地替换，不新建版本副本。升级前教育对象、记忆和模型基线已保存，R15 的本机升级重启与数据回读仍待最后安装操作。
+- Desktop [#123](https://github.com/PIGU-PPPgu/edupi-desktop/pull/123) 已接入稳定 Developer ID 与公证 Secret；当前仓库尚未配置 Apple 凭据，`v0.3.13` 仍为临时签名。R15 的 Apple 公证和 TCC 权限跨版本保持继续列为外部阻塞，不以权限界面修复冒充签名完成。
+
+## 2026-09-15 `v0.3.12` 发布收口
+
+- Desktop [#119](https://github.com/PIGU-PPPgu/edupi-desktop/pull/119) 和 Release run [34983508483](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/34983508483) 已把当前 main 发布为正式 `v0.3.12`；三平台安装/更新资产、签名、`latest.json` 和组件清单完整，固定 Core 仍为 `f6145130dad4250864a3c6cd404f121be08fad17`。
+- 已安装 `v0.3.11` 在本机真实回读 `latestVersion=0.3.12`、`updateAvailable=true`，应用内检测更新链成立；未点击安装，不替代本机升级重启验收。Windows/Linux 应用内升级和人工优化按用户要求后置。
+- Desktop [#120](https://github.com/PIGU-PPPgu/edupi-desktop/pull/120) 将后续三平台发布改为并行，保留全平台成功后才公开的 manifest gate；预计完整发布由约55分钟降至22–25分钟。
+
 ## 2026-09-15 桌面聊天、提醒与 Core 权限收口
 
 - Desktop [#117](https://github.com/PIGU-PPPgu/edupi-desktop/pull/117) 已合并，合并提交 `22b014d83cd874d5e73d806dc080ad45fa98640b`。提醒从 Chat 顶层移到独立提醒页，聊天滚动层补齐嵌套 flex 的最小高度约束，composer 左下提供“请求批准 / 帮我批准 / 完全访问”。

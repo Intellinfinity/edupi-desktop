@@ -25,6 +25,7 @@ import {
 } from "@/lib/desktop-native";
 import type { ExtensionStatusItem } from "@/lib/types";
 import { ExtensionStatusBar } from "./ExtensionStatusBar";
+import type { PermissionMode } from "@/lib/tool-presets";
 
 export interface AttachedImage {
   data: string;   // base64, no prefix
@@ -60,6 +61,8 @@ interface Props {
   compactResult?: CompactResultInfo | null;
   toolPreset?: "none" | "default" | "full";
   onToolPresetChange?: (preset: "none" | "default" | "full") => void;
+  permissionMode?: PermissionMode;
+  onPermissionModeChange?: (mode: PermissionMode) => void;
   thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
   availableThinkingLevels?: string[] | null;
@@ -370,7 +373,7 @@ export function ModelScopeWarningBanner({ warnings }: { warnings?: string[] }) {
 
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange,
-  onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange,
+  onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange, permissionMode = "workspace", onPermissionModeChange,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
@@ -389,6 +392,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const [modelFilter, setModelFilter] = useState("");
   const [toolDropdownOpen, setToolDropdownOpen] = useState(false);
+  const [permissionDropdownOpen, setPermissionDropdownOpen] = useState(false);
   const [thinkingDropdownOpen, setThinkingDropdownOpen] = useState(false);
   const [controlsMenuOpen, setControlsMenuOpen] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>(() => (
@@ -420,6 +424,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const modelDropdownPanelRef = useRef<HTMLDivElement>(null);
   const toolDropdownRef = useRef<HTMLDivElement>(null);
+  const permissionDropdownRef = useRef<HTMLDivElement>(null);
   const thinkingDropdownRef = useRef<HTMLDivElement>(null);
   const controlsMenuRef = useRef<HTMLDivElement>(null);
   const historyMenuRef = useRef<HTMLDivElement>(null);
@@ -1264,6 +1269,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   })();
   const rawToolPresetLabel = Object.entries(TOOL_PRESET_MAP).find(([, v]) => v === (toolPreset ?? "default"))?.[0] ?? "default";
   const toolPresetLabel = locale === "zh-CN" ? ({ off: "关闭", default: "默认", full: "完整" } as const)[rawToolPresetLabel] : rawToolPresetLabel;
+  const permissionModeLabel = locale === "zh-CN"
+    ? ({ approval: "请求批准", workspace: "帮我批准", full: "完全访问" } as const)[permissionMode]
+    : permissionMode;
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -1277,6 +1285,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       }
       if (toolDropdownRef.current && !toolDropdownRef.current.contains(e.target as Node)) {
         setToolDropdownOpen(false);
+      }
+      if (permissionDropdownRef.current && !permissionDropdownRef.current.contains(e.target as Node)) {
+        setPermissionDropdownOpen(false);
       }
       if (thinkingDropdownRef.current && !thinkingDropdownRef.current.contains(e.target as Node)) {
         setThinkingDropdownOpen(false);
@@ -2028,6 +2039,44 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 <polyline points="21 15 16 10 5 21" />
               </svg>
             </button>
+            {!isStreaming && onPermissionModeChange && (
+              <div ref={permissionDropdownRef} style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  className="native-toolbar-button"
+                  onClick={() => setPermissionDropdownOpen((value) => !value)}
+                  aria-expanded={permissionDropdownOpen}
+                  aria-label="选择访问权限"
+                  title={`访问权限：${permissionModeLabel}`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: isMobile ? "0 6px" : "8px 10px",
+                    height: 32, background: permissionDropdownOpen ? "var(--bg-hover)" : "none",
+                    border: "none", borderRadius: 9,
+                    color: permissionMode === "full" ? "var(--accent)" : "var(--text-muted)",
+                    cursor: "pointer", fontSize: 12,
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3 19 6v5.2c0 4.4-2.5 7.6-7 9.3-4.5-1.7-7-4.9-7-9.3V6z" /><path d="m9 12 2 2 4-4" /></svg>
+                  {(!isMobile || controlsMenuOpen) && <span style={{ whiteSpace: "nowrap" }}>{permissionModeLabel}</span>}
+                </button>
+                {permissionDropdownOpen ? (
+                  <div className="native-popover" style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 120, minWidth: 220, overflow: "hidden", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 9, boxShadow: "0 -4px 16px rgba(0,0,0,0.12)" }}>
+                    {([
+                      ["approval", "请求批准", "风险操作先询问"],
+                      ["workspace", "帮我批准", "在当前工作区内继续"],
+                      ["full", "完全访问", "访问工作区和 Core 写入能力"],
+                    ] as const).map(([mode, label, description]) => {
+                      const active = permissionMode === mode;
+                      return <button key={mode} type="button" onClick={() => { setPermissionDropdownOpen(false); if (!active) onPermissionModeChange(mode); }} style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", gap: 8, width: "100%", padding: "9px 11px", textAlign: "left", background: active ? "var(--bg-selected)" : "none", border: 0, color: active ? "var(--text)" : "var(--text-muted)", cursor: "pointer" }}>
+                        <span aria-hidden="true" style={{ color: mode === "full" ? "var(--accent)" : "currentColor" }}>{active ? "✓" : ""}</span>
+                        <span style={{ display: "grid", gap: 2 }}><strong style={{ fontSize: 12, fontWeight: 600 }}>{label}</strong><small style={{ color: "var(--text-dim)", fontSize: 10 }}>{description}</small></span>
+                      </button>;
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            )}
             {/* Model selector — visible always, disabled during streaming */}
             {(modelOptions.length > 0 || currentName || modelError) && onModelChange && (
                 <div ref={dropdownRef} style={{ position: "relative", flex: isMobile ? "1 1 auto" : undefined, minWidth: 0 }}>

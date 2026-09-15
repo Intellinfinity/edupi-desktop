@@ -7,7 +7,6 @@ import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
 import { countToolCallBlocks, getDisplayableAssistantBlocks, splitFinalAssistantBlocks } from "@/lib/message-display";
 import { MessageView } from "./MessageView";
 import { EduPiConversationFiles } from "./EduPiConversationFiles";
-import { EduPiReminderInbox } from "./EduPiReminderInbox";
 import { EduPiRuntimeFlow } from "./EduPiRuntimeFlow";
 import { ConversationNavigator, type ConversationTurnLocation } from "./ConversationNavigator";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
@@ -49,7 +48,6 @@ interface Props {
   onProjectFilesImported?: () => void;
   onEducationImportCompleted?: (toolName: EducationImportToolName) => void;
   onEduPiAction?: (action: DesktopControlInput) => boolean | Promise<boolean>;
-  onContinueReminder?: (taskId: string) => Promise<void>;
   reminderText?: string;
   reminderTitle?: string;
   reminderDraftKey?: string;
@@ -230,7 +228,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, children, t }: { mes
   );
 }
 
-export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, onContinueReminder, reminderText, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
+export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, reminderText, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
   const appliedReminderText = useRef<string | null>(null);
   useEffect(() => {
     if (!reminderText || !chatInputRef?.current || appliedReminderText.current === reminderText) return;
@@ -263,7 +261,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
 
   const {
     loading, error, messages, entryIds, streamState,
-    agentRunning, bashRunning, pendingBash, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, toolPreset, thinkingLevel,
+    agentRunning, bashRunning, pendingBash, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, toolPreset, permissionMode, thinkingLevel,
     retryInfo, contextUsage, forkingEntryId,
     isCompacting, compactError, compactResult, displayModel: displayModelValue, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages,
@@ -278,7 +276,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     handleCompact, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
     handleRecallQueue,
     handleBuiltinSlashCommand, retryLoad,
-    handleToolPresetChange, handleThinkingLevelChange, loadSlashCommands, scrollToBottom, scrollUserMsgToTop,
+    handleToolPresetChange, handlePermissionModeChange, handleThinkingLevelChange, loadSlashCommands, scrollToBottom, scrollUserMsgToTop,
   } = useAgentSession({
     session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked,
     modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsPanelOpen,
@@ -850,6 +848,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       compactResult={compactResult}
       toolPreset={toolPreset}
       onToolPresetChange={session || isNew ? handleToolPresetChange : undefined}
+      permissionMode={permissionMode}
+      onPermissionModeChange={session || isNew ? handlePermissionModeChange : undefined}
       thinkingLevel={thinkingLevel}
       onThinkingLevelChange={session || isNew ? handleThinkingLevelChange : undefined}
       availableThinkingLevels={availableThinkingLevels}
@@ -885,7 +885,6 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {onEduPiAction ? <EduPiReminderInbox onAction={onEduPiAction} onContinue={onContinueReminder} /> : null}
       {onEduPiAction ? <EduPiRuntimeFlow running={sessionBusy} toolRunning={bashRunning} compacting={isCompacting} activeTools={agentPhase?.kind === "running_tools" ? agentPhase.tools.map(tool => tool.name) : []} /> : null}
       {reminderTitle ? <div role="status" style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{reminderTitle}</div> : null}
       {onEduPiAction && (session?.id || sessionIdRef.current) && messageCwd ? <EduPiConversationFiles sessionId={(session?.id || sessionIdRef.current)!} cwd={messageCwd} onOpen={onOpenFile} /> : null}
@@ -970,8 +969,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       ) : (
       <>
       {/* Composer overlays the scrollport; trailing spacer clears the last lines. */}
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="relative flex min-w-0 flex-1 overflow-hidden">
+      <div className="relative flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-w-0 min-h-0 flex-1 overflow-hidden">
         <div
           style={{
             position: "absolute",
@@ -989,7 +988,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
         </div>
         <div
           ref={scrollContainerRef}
-          className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-4"
+          className="min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-4"
           style={{ scrollbarGutter: "stable both-edges" }}
         >
           <div style={{ minWidth: 0, padding: `0 ${CHAT_COLUMN_PADDING}px` }}>

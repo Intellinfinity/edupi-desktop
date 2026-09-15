@@ -15,7 +15,7 @@ import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-comp
 import { normalizeToolCalls } from "@/lib/normalize";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { fetchWithRetry } from "@/lib/fetch-timeout";
-import { getToolNamesForPreset, type ToolEntry } from "@/lib/tool-presets";
+import { getPermissionModeForToolPreset, getToolNamesForPreset, getToolPresetForPermissionMode, type PermissionMode, type ToolEntry } from "@/lib/tool-presets";
 import { rememberScrollPosition, sessionScrollTops } from "@/lib/scroll-memory";
 import { applyAssistantMessageEvent, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -85,6 +85,7 @@ type AgentStateResponse = {
   isPromptRunning?: boolean;
   isBashRunning?: boolean;
   isCompacting?: boolean;
+  accessMode?: PermissionMode;
   extensionStatuses?: ExtensionStatusItem[];
   extensionWidgets?: ExtensionWidgetItem[];
   queuedMessages?: { steering?: string[]; followUp?: string[] } | null;
@@ -439,6 +440,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [newSessionModel, setNewSessionModel] = useState<SelectedModel | null>(null);
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
   const [toolPreset, setToolPreset] = useState<"none" | "default" | "full">("default");
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>("workspace");
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption>("auto");
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxAttempts: number; errorMessage?: string } | null>(null);
   const [contextUsage, setContextUsage] = useState<{ percent: number | null; contextWindow: number; tokens: number | null } | null>(null);
@@ -498,10 +500,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const newSessionPromotedRef = useRef(false);
   const newSessionModelOverrideRef = useRef<SelectedModel | null>(null);
   const thinkingLevelOverrideRef = useRef<Exclude<ThinkingLevelOption, "auto"> | null>(null);
+  const toolPresetRef = useRef(toolPreset);
+  const permissionModeRef = useRef(permissionMode);
   const promptRunIdRef = useRef(0);
   const optimisticUserMessageKeyRef = useRef<string | null>(null);
 
   const setToolPresetState = opts.setToolPreset ?? setToolPreset;
+  toolPresetRef.current = toolPreset;
+  permissionModeRef.current = permissionMode;
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     ignoreProgrammaticScrollUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_IGNORE_MS;
@@ -579,6 +585,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setLoading(Boolean(session?.id));
       if (isNew) {
         setToolPreset("default");
+        setPermissionMode("workspace");
         setThinkingLevel("auto");
         setNewSessionModel(null);
       }
@@ -677,6 +684,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (liveState.contextUsage !== undefined) setContextUsage(liveState.contextUsage ?? null);
           if (liveState.systemPrompt !== undefined) setSystemPrompt(liveState.systemPrompt ?? null);
           if (liveState.thinkingLevel !== undefined) setThinkingLevel((liveState.thinkingLevel as ThinkingLevelOption) ?? "auto");
+          if (liveState.accessMode !== undefined) setPermissionMode(liveState.accessMode);
           if (liveState.extensionStatuses !== undefined) setExtensionStatuses(liveState.extensionStatuses ?? []);
           if (liveState.extensionWidgets !== undefined) setExtensionWidgets(liveState.extensionWidgets ?? []);
           if (liveState.queuedMessages !== undefined) setQueuedMessages(normalizeQueuedMessages(liveState.queuedMessages));
@@ -739,7 +747,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (tools && isCurrent()) {
         const { getPresetFromTools } = await import("@/lib/tool-presets");
         if (!isCurrent()) return;
-        setToolPresetState(getPresetFromTools(tools));
+        const preset = getPresetFromTools(tools);
+        setToolPresetState(preset);
+        setPermissionMode(getPermissionModeForToolPreset(preset));
       }
     } catch (e) {
       if (isCurrent()) console.error("Failed to load tools:", e);
@@ -773,7 +783,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       const selectedModel = newSessionModelOverrideRef.current;
       const selectedThinkingLevel = thinkingLevelOverrideRef.current;
       if (selectedModel) setPendingModel(selectedModel);
-      const toolNames = getToolNamesForPreset(toolPreset);
+      const toolNames = getToolNamesForPreset(toolPresetRef.current);
       const res = await fetch("/api/agent/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -781,6 +791,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           cwd: newSessionCwd,
           type: "ensure_session",
           toolNames,
+          accessMode: permissionModeRef.current,
           ...(selectedModel ? { provider: selectedModel.provider, modelId: selectedModel.modelId } : {}),
           ...(selectedThinkingLevel
             ? { thinkingLevel: selectedThinkingLevel }
@@ -814,7 +825,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     } finally {
       ensuringNewSessionRef.current = null;
     }
-  }, [isNew, newSessionCwd, toolPreset]);
+  }, [isNew, newSessionCwd]);
 
   const loadSlashCommands = useCallback(async () => {
     const sid = sessionIdRef.current ?? await ensureNewSession();
@@ -1975,12 +1986,32 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const handleToolPresetChange = useCallback(async (preset: "none" | "default" | "full") => {
     const toolNames = getToolNamesForPreset(preset);
     setToolPresetState(preset);
+    toolPresetRef.current = preset;
+    setPermissionMode(getPermissionModeForToolPreset(preset));
     const sid = sessionIdRef.current ?? await ensuringNewSessionRef.current;
     if (!sid) return;
     try {
       await sendAgentCommand(sid, { type: "set_tools", toolNames });
+      await sendAgentCommand(sid, { type: "set_access_mode", mode: getPermissionModeForToolPreset(preset) });
     } catch (e) {
       console.error("Failed to set tools:", e);
+    }
+  }, [setToolPresetState]);
+
+  const handlePermissionModeChange = useCallback(async (mode: PermissionMode) => {
+    const preset = getToolPresetForPermissionMode(mode);
+    const toolNames = getToolNamesForPreset(preset);
+    setPermissionMode(mode);
+    permissionModeRef.current = mode;
+    setToolPresetState(preset);
+    toolPresetRef.current = preset;
+    const sid = sessionIdRef.current ?? await ensuringNewSessionRef.current;
+    if (!sid) return;
+    try {
+      await sendAgentCommand(sid, { type: "set_tools", toolNames });
+      await sendAgentCommand(sid, { type: "set_access_mode", mode });
+    } catch (e) {
+      console.error("Failed to set access mode:", e);
     }
   }, [setToolPresetState]);
 
@@ -2117,6 +2148,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         if (agentState.state.contextUsage !== undefined) setContextUsage(agentState.state.contextUsage ?? null);
         if (agentState.state.systemPrompt !== undefined) setSystemPrompt(agentState.state.systemPrompt ?? null);
         if (agentState.state.thinkingLevel !== undefined) setThinkingLevel((agentState.state.thinkingLevel as ThinkingLevelOption) ?? "auto");
+        if (agentState.state.accessMode !== undefined) setPermissionMode(agentState.state.accessMode);
         if (agentState.state.extensionStatuses !== undefined) setExtensionStatuses(agentState.state.extensionStatuses ?? []);
         if (agentState.state.extensionWidgets !== undefined) setExtensionWidgets(agentState.state.extensionWidgets ?? []);
         if (agentState.state.queuedMessages !== undefined) setQueuedMessages(normalizeQueuedMessages(agentState.state.queuedMessages));
@@ -2232,7 +2264,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   return {
     // State
     data, loading, error, activeLeafId, messages, entryIds, streamState,
-    agentRunning, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel,
+    agentRunning, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, permissionMode, thinkingLevel,
     retryInfo, contextUsage, systemPrompt, forkingEntryId,
     isCompacting, compactError, compactResult, currentModel, displayModel, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages,
@@ -2250,7 +2282,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     handleCompact, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
     handleRecallQueue,
     handleBuiltinSlashCommand, retryLoad,
-    handleToolPresetChange, handleThinkingLevelChange, loadTools, loadSlashCommands, setActiveLeafId, setData, setMessages,
+    handleToolPresetChange, handlePermissionModeChange, handleThinkingLevelChange, loadTools, loadSlashCommands, setActiveLeafId, setData, setMessages,
     scrollToBottom, scrollUserMsgToTop,
     dispatch, setAgentRunning, setForkingEntryId,
     bashRunning, pendingBash,

@@ -214,6 +214,26 @@ test("release workflow publishes Apple Silicon, Linux x64, and Windows x64 insta
   assert.match(workflow, /gh release edit "v\$version" --draft=false --latest/);
 });
 
+test("macOS releases accept stable Developer ID signing without hiding the ad-hoc fallback", async () => {
+  const workflow = await readFile(
+    join(root, ".github", "workflows", "release.yml"),
+    "utf8",
+  );
+
+  assert.match(workflow, /CODE_SIGN_CERTIFICATE: \$\{\{ secrets\.APPLE_CERTIFICATE \}\}/);
+  assert.match(workflow, /CODE_SIGN_CERTIFICATE_PASSWORD: \$\{\{ secrets\.APPLE_CERTIFICATE_PASSWORD \}\}/);
+  assert.match(workflow, /CODE_SIGN_IDENTITY: \$\{\{ secrets\.APPLE_SIGNING_IDENTITY \}\}/);
+  assert.match(workflow, /echo "APPLE_CERTIFICATE=\$CODE_SIGN_CERTIFICATE" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /echo "APPLE_CERTIFICATE_PASSWORD=\$CODE_SIGN_CERTIFICATE_PASSWORD" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /echo "APPLE_ID=\$NOTARY_APPLE_ID" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /echo "APPLE_PASSWORD=\$NOTARY_PASSWORD" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /echo "APPLE_TEAM_ID=\$NOTARY_TEAM_ID" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /echo "APPLE_SIGNING_IDENTITY=-" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /macOS is ad-hoc signed; Accessibility and Screen Recording grants may need to be renewed after an update/);
+  assert.doesNotMatch(workflow, /APPLE_SIGNING_IDENTITY: \$\{\{ runner\.os == 'macOS'/);
+  assert.doesNotMatch(workflow, /\n\s{10}APPLE_(?:CERTIFICATE|ID|PASSWORD|TEAM_ID): \$\{\{ secrets\./);
+});
+
 test("the published Linux installer workflow verifies a real packaged Core startup", async () => {
   const workflow = await readFile(
     join(root, ".github", "workflows", "linux-published-install.yml"),

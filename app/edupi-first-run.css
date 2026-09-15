@@ -26,8 +26,11 @@
 
 .edupi-first-run.is-opened {
   top: 8px;
+  right: auto;
   bottom: auto;
-  width: min(640px, calc(100vw - 32px));
+  left: 50%;
+  width: min(560px, calc(100vw - 360px));
+  transform: translateX(-50%);
 }
 .edupi-first-run.is-opened .edupi-first-run__dialog {
   min-height: 0;
@@ -119,6 +122,17 @@
 @media (max-width: 420px) {
   .edupi-first-run { right: 10px; bottom: 10px; width: calc(100vw - 20px); }
   .edupi-first-run__dialog { min-height: 210px; padding: 18px; }
+}
+
+@media (max-width: 760px) {
+  .edupi-first-run.is-opened {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

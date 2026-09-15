@@ -1677,7 +1677,7 @@ function FirstModelSetup({
   onUseAdvanced,
 }: {
   availableProviderIds: readonly string[];
-  onSetupSaved: (providerId: string) => void;
+  onSetupSaved: (providerId: string, config: ModelsJson) => void;
   onUseAdvanced: () => void;
 }) {
   const [stage, setStage] = useState<SetupStage>("provider");
@@ -1773,14 +1773,15 @@ function FirstModelSetup({
       if (!configResponse.ok) throw new Error("模型配置读取失败");
       const config = await configResponse.json() as ModelsJson;
       const previous = config.providers?.[preset.id] || {};
-      const savedModels = [...(previous.models || []).filter((entry) => entry.id !== chosen.id), model];
+      const discoveredModels = models.map((entry) => ({ id: entry.id, ...(entry.name ? { name: entry.name } : {}) }));
+      const savedModels = mergeModelEntries([model], previous.models || [], discoveredModels);
       const updated = { ...config, providers: { ...config.providers, [preset.id]: { ...previous, baseUrl: preset.baseUrl, api: preset.api, models: savedModels } } };
       const configSaved = await fetch("/api/models-config", {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(updated)});
       if (!configSaved.ok) throw new Error("模型配置保存失败");
       const defaultResponse = await fetch("/api/models-config/default", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({provider:preset.id,modelId:chosen.id}) });
       const defaultResult = await defaultResponse.json() as {success?:boolean;error?:string};
       if (!defaultResponse.ok || !defaultResult.success) { setError(defaultResult.error || "默认模型保存失败"); return; }
-      onSetupSaved(preset.id);
+      onSetupSaved(preset.id, updated);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -2326,7 +2327,9 @@ export function ModelsConfig({ onClose, embedded = false, onDirtyChange, onSaved
     }
   }, [config, onSaved]);
 
-  const onSetupSaved = useCallback((providerId: string) => {
+  const onSetupSaved = useCallback((providerId: string, nextConfig: ModelsJson) => {
+    setConfig(nextConfig);
+    savedSnapshotRef.current = JSON.stringify(nextConfig);
     setSelection({ type: "apikey", providerId });
     setSavedOk(true);
     setTimeout(() => setSavedOk(false), 2000);

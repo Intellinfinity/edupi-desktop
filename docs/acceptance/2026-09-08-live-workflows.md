@@ -9,7 +9,10 @@
 - R13：公开包隔离任务 `agent_job_d34fc703130ecca83c82ada39bdb9023` 对合成中文课堂图片执行 OCR，首次尝试完成且 error 为空，登记 176 字节 Markdown。日期、班级、`-3` 的相反数、绝对值、数轴原点和 `EDUPI-OCR-314` 共 7 项语义逐项通过；重启后任务仍 completed、产物仍 available。
 - Desktop [#127](https://github.com/PIGU-PPPgu/edupi-desktop/pull/127) 与 [#128](https://github.com/PIGU-PPPgu/edupi-desktop/pull/128) 已合并但尚未发布：Runtime 启动错误现在使用有限分类，管理中心显示恢复入口。[#129](https://github.com/PIGU-PPPgu/edupi-desktop/pull/129) 将“重新连接 Core”接成真实重启。隔离源代码页面先显示 `runtime_root_invalid`，点击后显示“连接中”与“Core 已重新连接”；API 回读 Core/教育投影/Kernel ready，旧 Core PID 退出，只留下一个新实例。1280×720 页面按钮完整可点击，恢复后没有新增 console error；跨站重连请求为 403。
 - Desktop [#130](https://github.com/PIGU-PPPgu/edupi-desktop/pull/130) 把系统操作列表移到兼容性详情前，Core 按钮在 1280×720 首屏的 y=233；Core、教育投影和自动内核均显示中文“已就绪”。兼容卡显示“版本与能力一致 / 已匹配”，四个身份列完整，三个技术详情默认收起；实际页面 console/page error 均为空。
-- #129/#130 全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。公开包隔离目录、复制的临时凭据和测试服务均已删除。尚未验证的是安装 `v0.3.14` 后的原生文件按钮/OCR 打开、#127–#130 的发布包、真实睡眠唤醒、系统通知点击、零 API 首次完整备课、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署。
+- R06 使用全新隔离 Pi 配置和公开 `v0.3.14` server 完成七步引导。模型页初始 0 项，真实 DeepSeek Key 自动发现 2 项；`invalid-edupi-first-run-model` 测试失败后改用 `deepseek-flash` 成功。教师资料为 R06 验收老师/任课教师/数学/七年级/703；返回后资料保持，名单步骤实际跳过。校历与课表经 Desktop intake 各收到 accepted 回执；25,884 字节真实 PDF 经暂存、接入和正文确认进入 Core。
+- 首次明确任务绑定 2026-09-17 的数学 703 第 2 节与该材料。切换到公开包的正式 server 运行路径并重启后，Core 自动恢复并生成 4 份 available Markdown；教案、学案和答案逐项核对 `2x+3=7 → x=2`、`x-5=9 → x=14`。页面从教学任务进入“教学产物”，打开本节教案并读取正文；第二次 server 重启后教师资料、1 条校历、1 个课表、1 份材料、默认模型、4 份产物和第 7/7 步均保持，点击“进入今天”后完成标记为 true、步骤复位 0。
+- 组合流程发现并修复三个页面问题：首配完成后的旧状态会把默认模型从刚测试成功的模型改走；手动教师资料的成功提示会被刷新 effect 清除；展开引导条遮挡右上角侧栏关闭键。Desktop [#131](https://github.com/PIGU-PPPgu/edupi-desktop/pull/131) 修复后用第二个干净配置重跑：默认仍为 `deepseek-flash`，发现的 2 个模型都已持久化，“已保存”可见；引导右边缘 x=920，教师资料关闭键 x=1006、文件侧栏关闭键 x=1235，均用真实点击关闭，无 console/page error。
+- #129–#131 全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。公开包隔离目录、复制的临时凭据和测试服务均已删除。尚未验证的是安装 `v0.3.14` 后的原生文件按钮/OCR 打开、#127–#131 的发布包与 R06 原生壳首配、真实睡眠唤醒、系统通知点击、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署。
 
 ## 2026-09-16 设置热修、正式发布与旧客户端检测
 

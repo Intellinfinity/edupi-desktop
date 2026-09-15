@@ -35,6 +35,10 @@ test("official first-run keys stay in AuthStorage instead of models.json", async
   assert.doesNotMatch(setupSource, /nextConfig|setConfig\(/);
   assert.match(setupSource, /transientProvider/);
   assert.match(setupSource, /onUseAdvanced/);
+  assert.match(setupSource, /mergeModelEntries\(\[model\], previous\.models \|\| \[\], discoveredModels\)/);
+  assert.match(setupSource, /onSetupSaved\(preset\.id, updated\)/);
+  assert.match(source, /setConfig\(nextConfig\)/);
+  assert.match(source, /savedSnapshotRef\.current = JSON\.stringify\(nextConfig\)/);
 });
 
 test("existing users keep the current provider tree and advanced editor", async () => {

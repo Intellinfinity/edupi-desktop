@@ -313,9 +313,26 @@ export function EduPiContextEditor({ initial, candidate = null, capability = nul
       const before = result.candidate as EducationTeacherContextCandidate;
       const verified = verifyTeacherContextReview(result, { targetId: before.contextId, expectedSnapshotId: before.snapshotId, expectedStateHash: before.stateHash, decision: "accept" });
       if (!verified.ok) throw new Error("未收到可信回执，保存未确认。");
+      const marker: TrustedAfterSnapshot = {
+        targetId: before.contextId,
+        snapshotId: String(verified.receipt.after_snapshot_id),
+        stateHash: String(verified.receipt.after_state_hash),
+        awaiting: true,
+      };
+      trustedAfterSnapshotRef.current = marker;
       const data = verified.data as unknown as EducationContract;
-      const refreshed = onReviewed ? await onReviewed({ receipt: verified.receipt, data }) : data;
-      if (!matchesTeacherContextRefresh(refreshed, { targetId: before.contextId, afterSnapshotId: String(verified.receipt.after_snapshot_id), afterStateHash: String(verified.receipt.after_state_hash) })) throw new Error("已收到回执，刷新失败。");
+      let refreshed: EducationContract;
+      try {
+        refreshed = onReviewed ? await onReviewed({ receipt: verified.receipt, data }) : data;
+      } catch {
+        trustedAfterSnapshotRef.current = null;
+        throw new Error("已收到回执，刷新失败。");
+      }
+      if (trustedAfterSnapshotRef.current !== marker || !matchesTeacherContextRefresh(refreshed, { targetId: marker.targetId, afterSnapshotId: marker.snapshotId, afterStateHash: marker.stateHash })) {
+        trustedAfterSnapshotRef.current = null;
+        throw new Error("已收到回执，刷新失败。");
+      }
+      marker.awaiting = false;
       setManualOpen(false);
       setFeedback("已保存");
       window.dispatchEvent(new Event("edupi-preparation-updated"));

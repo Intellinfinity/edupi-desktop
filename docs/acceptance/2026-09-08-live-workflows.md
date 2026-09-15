@@ -1,5 +1,14 @@
 # 实际流程验收
 
+## 2026-09-15 R08 Today、工作区与教学共享任务
+
+- 验收版本为 Desktop [#114](https://github.com/PIGU-PPPgu/edupi-desktop/pull/114)，配套 Core 保持 `9a969879c7cb7a45ce180a6e725188dfa377b244`。测试从真实工作区制作 0700 权限的本地临时副本，所有写操作仅进入副本；验收后副本与隔离 Pi 配置均已删除，真实教师数据只读。
+- Today 初始为待你决定18、稍后处理12、已记录0。点击第一项“接受”时所有动作进入忙状态；完成后出现“已接受：移到已记录，关闭本次待判断”，原卡移到已记录，计数变为17/12/1。下一项“暂缓”后提示移到稍后处理，计数变为16/13/1；第三项“稍后”先展开日期字段，按默认 2026-09-16 提交后显示到期会重新进入待你决定，计数变为15/14/1。刷新和服务重启后决定、日期与计数保持。
+- 候选标题现在是“打开任务”按钮。页面 30 张候选卡全部有任务入口；实际点击一张没有 WorkCase 的课前候选也打开统一任务详情，显示任务概览、四步进度、六份候选文件、中文证据和教师审核。默认 Today 正文不含 `receipt_`、`timetable:<id>` 或 `Core 回执流转`；已知课表原因显示“临近上课时间”，详情显示“课表课次 / 日期明确 / 已确认”。
+- 工作区将“第2周 · 慢慢进入状态准备”从已完成重开到进行中，Core 重读为 `boardStage=progress`、`boardRevision=2`。卡片随即显示进行中；Today 新增“正在进行 1 项”；任务详情的概览和进度均显示进行中。服务停止并重启后 Today 仍显示同一任务。教学“备课任务”搜索“慢慢进入状态”时侧栏计数和主表都为1，行状态为进行中；点击后进入同一 task ID 的完整任务页，标题、来源和状态一致。
+- 实际页面还验证教学重点子页主标题与侧栏选中一致并可返回教学首页；教育记忆“教学”、观察与洞察“教学改进”、成长“EduPi 能力成长”、材料“练习与作业”均显示对应二级主标题；对象列表折叠后保留“展开列表”，主导航折叠和重启后仍保留全部图标。浏览器控制台两轮均为 `[]`。
+- `npm test` 为 1205 tests、1180 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`npm audit --audit-level=moderate` 与精确 Core schema/manifest 检查通过。R09 的统一删除恢复和 R10 的事实审核删除继续提供删除/审核计数证据；本记录补齐 R08 跨入口任务、分类、搜索、标题和折叠验收。
+
 ## 2026-09-15 R10 事实审核、编辑、删除与跨模块同步
 
 - 验收版本为 Core [#107](https://github.com/PIGU-PPPgu/edupi/pull/107) 至 [#110](https://github.com/PIGU-PPPgu/edupi/pull/110) 的最终 commit `9a969879c7cb7a45ce180a6e725188dfa377b244`，Desktop 为 [#113](https://github.com/PIGU-PPPgu/edupi-desktop/pull/113)。最终 pin：Desktop component `sha256:55248c561339f0199f11f85c209c5b70175c63247feb95625342b3d27a83df4e`、Runtime component `sha256:04163cb8a319767d1de4103ab8fa393d16fdda5f7044e3d62724b4f58699dec9`、v1.1 schema `sha256:190f2673a1c36d00cd52b0c7887d0bfa7bb0ffb7ca739eb4b5e443255858b0d5`、fixture manifest `sha256:9f002bc018d36f91720945e3c9213120df827793dae6bc4c2e639c6ff44f4e88`。

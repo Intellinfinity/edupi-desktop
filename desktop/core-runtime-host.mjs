@@ -15,6 +15,7 @@ const STARTUP_ERROR_CODES = Object.freeze({
   native_attestation_required: "runtime_root_invalid",
   invalid_root: "runtime_root_invalid",
   runtime_path_invalid: "runtime_root_invalid",
+  layout_mismatch: "runtime_root_invalid",
   writer_admission_root_mismatch: "runtime_root_invalid",
   writer_admission_path_invalid: "runtime_root_invalid",
 });

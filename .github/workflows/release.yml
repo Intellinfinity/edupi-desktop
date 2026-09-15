@@ -276,7 +276,14 @@ jobs:
             --assets-json release-assets.json \
             --notes-file scripts/release-notes.md \
             --output latest.json
-          npm run release:manifest
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const manifest = JSON.parse(fs.readFileSync("src-tauri/resources/component-versions.json", "utf8"));
+          const desktop = manifest.components?.find((component) => component.id === "pi-agent-desktop");
+          if (manifest.appVersion !== process.env.RELEASE_VERSION || desktop?.version !== process.env.RELEASE_VERSION) {
+            throw new Error("Committed component manifest does not match the release version");
+          }
+          NODE
 
           delete_asset() {
             name="$1"

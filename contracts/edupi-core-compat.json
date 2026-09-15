@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "f6145130dad4250864a3c6cd404f121be08fad17",
+    "core_commit": "e6cc4f23ebc1d4a240e1ef9cb1818720e1a1b21f",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:c8a1529495adb2a2c796f2bcbab388b3c160ab0e8e37cb54b5913cfe4e6e620e",
-    "runtime_component_manifest_hash": "sha256:303e904b9d82839d3acba06e10e9d0170ee6ebc373eff7a59444ea0c3c3f4e08"
+    "component_manifest_hash": "sha256:a398726b41e004d065af50df29073ed0f09d63a9c1e00043976c865827ecadef",
+    "runtime_component_manifest_hash": "sha256:6670e98b46e141c6f84dfe2dd02e9c2d47309c5b5e1dc41a161c6ec894f1610e"
   },
   "contract_identities": [
     {
@@ -114,7 +114,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/108",
     "https://github.com/PIGU-PPPgu/edupi/pull/109",
     "https://github.com/PIGU-PPPgu/edupi/pull/110",
-    "https://github.com/PIGU-PPPgu/edupi/pull/111"
+    "https://github.com/PIGU-PPPgu/edupi/pull/111",
+    "https://github.com/PIGU-PPPgu/edupi/pull/121"
   ],
-  "change_note": "Core PR #111 adds the writer-admitted teaching-method lifecycle, task-bound teacher feedback, deterministic mutation receipts, and published-method injection into later G1 preparation while the historical self-modifying skill path remains frozen; PRs #107–#110 remain the education-fact baseline."
+  "change_note": "Core PR #121 migrates legacy retry histories before source reconciliation so older attempt-2 preparation records cannot prevent Core Runtime startup; PR #111 remains the writer-admitted teaching-method lifecycle baseline and PRs #107–#110 remain the education-fact baseline."
 }

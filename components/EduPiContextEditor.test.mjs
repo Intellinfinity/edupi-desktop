@@ -36,6 +36,9 @@ test("context actions are receipt-bound, strict, and keep Chat as a draft handof
   assert.match(source, /trustedAfterSnapshotRef\.current = null/);
   assert.match(source, /await onReviewed/);
   assert.match(source, /matchesTeacherContextRefresh\(refreshed/);
+  const manualSave = source.slice(source.indexOf("async function saveManual"), source.indexOf("async function restoreField"));
+  assert.match(manualSave, /trustedAfterSnapshotRef\.current = marker/);
+  assert.match(manualSave, /marker\.awaiting = false/);
   assert.match(source, /已收到回执，刷新失败。/);
   assert.match(source, /candidate \? <div className="edupi-context-editor__meta">教师资料/);
   assert.match(source, /setFeedback\(`✓ /);

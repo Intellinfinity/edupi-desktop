@@ -94,4 +94,6 @@ test("the guide restores invoking focus, supports Escape, and does not trap focu
   assert.match(guide, /role="region"/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(css, /\.edupi-first-run__primary:focus-visible/);
+  assert.match(css, /\.edupi-first-run\.is-opened \{[\s\S]*right: auto;[\s\S]*left: 50%;[\s\S]*width: min\(560px, calc\(100vw - 360px\)\)/);
+  assert.match(css, /@media \(max-width: 760px\) \{[\s\S]*\.edupi-first-run\.is-opened[\s\S]*bottom: 10px/);
 });

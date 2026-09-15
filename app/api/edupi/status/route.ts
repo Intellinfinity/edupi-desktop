@@ -117,7 +117,15 @@ export async function GET(request: Request) {
       capabilities: runtime.capabilities,
       scheduler: runtime.scheduler,
     } : { status: "unavailable", reason: runtimeReason, supportedCommands, supportedProjections },
-    compatibility: { expected: expectedCompatibility, actual: actualCompatibility, ...(actualCompatibility ? {} : { reason: failureReason(healthResult.status === "rejected" ? healthResult.reason : null, "Core Bridge 不可用") }) },
+    compatibility: {
+      expected: expectedCompatibility,
+      actual: actualCompatibility,
+      ...(!actualCompatibility
+        ? { reason: failureReason(healthResult.status === "rejected" ? healthResult.reason : null, "Core Bridge 不可用") }
+        : !runtime
+          ? { reason: runtimeReason }
+          : {}),
+    },
     projection: snapshot ? { status: "ready", reason: null, projection: "education_workspace", counts } : { status: "unavailable", reason: `${projectionReason}；未使用本地 JSON 回退` },
     kernel: kernelBody,
   });

@@ -28,6 +28,9 @@ test("Core compatibility surface exposes every pinned command and its Desktop en
   assert.match(source, /未接入能力/);
   assert.match(source, /identityMatches/);
   assert.match(source, /sameList/);
+  assert.match(source, /runtimeConnected/);
+  assert.match(source, /版本不匹配/);
+  assert.doesNotMatch(source, /<details open>/);
 });
 
 test("Core compatibility surface makes unsupported capabilities visible", async () => {

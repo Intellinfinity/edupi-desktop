@@ -77,4 +77,5 @@ test("route source contains no legacy education JSON reads", () => {
   assert.doesNotMatch(source, /preferences\.json|student_profiles\.json|timetable\.json|calendar\.json|rhythm_plan\.json/);
   assert.doesNotMatch(source, /readFile|loadJson|memoryDir|outputDir/);
   assert.match(source, /readEduPiCoreHealth|readEduPiEducationSnapshot|readEduPiKernelProjection/);
+  assert.match(source, /!runtime\s*\? \{ reason: runtimeReason \}/);
 });

@@ -20,9 +20,10 @@ type AdminSnapshot = {
   education: EducationContract | null;
   status: {
     core?: { status?: string; reason?: string | null; lifecycle?: string; coreCommit?: string; validationMode?: string; componentManifestHash?: string; runtimeComponentManifestHash?: string; contractVersion?: string; schemaHash?: string; fixtureManifestHash?: string; supportedCommands?: string[]; supportedProjections?: string[]; scheduler?: CoreRuntimeScheduler | null };
-    projection?: { status?: string };
+    projection?: { status?: string; reason?: string | null };
     kernel?: {
       status?: string;
+      reason?: string | null;
       summary?: { total?: number; running?: number; failed?: number; needs_review?: number; succeeded?: number; skipped?: number };
       runs?: Array<{ run_id?: string; trigger_id?: string; status?: string; updated_at?: string; result_summary?: string | null; attempt_count?: number }>;
     };
@@ -79,6 +80,16 @@ function connectorStatusLabel(status: string | undefined): string {
   if (status === "configured") return "已配置";
   if (status === "credentials_verified") return "凭据已验证";
   return "未接入";
+}
+
+function systemStatusLabel(status: string | undefined): string {
+  if (status === "ready") return "已就绪";
+  if (status === "starting") return "启动中";
+  if (status === "degraded") return "需要检查";
+  if (status === "draining") return "正在停止";
+  if (status === "failed") return "启动失败";
+  if (status === "stopped") return "已停止";
+  return "不可用";
 }
 
 async function readJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
@@ -295,14 +306,14 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
 
       {activeSection === "system" ? <section className="edupi-admin-section">
         <AdminSectionHeader title="系统" meta={education?.workspace || "数据目录待连接"} onRefresh={refresh} />
-        <EduPiCoreCompatibility value={snapshot.compatibility} onNavigate={onNavigate} onOpenContext={onOpenContext} />
         <div className="edupi-admin-list">
           <div><span><strong>EduPi Desktop</strong><small>当前安装版本</small></span><em>v{APP_VERSION_DISPLAY}</em></div>
-          <button type="button" disabled={coreReconnecting} onClick={coreConnected ? refresh : () => void reconnectCore()} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small aria-live="polite">{coreReconnectMessage || snapshot.status?.core?.reason || snapshot.status?.core?.lifecycle || snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreReconnecting ? "连接中" : loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
-          <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.status || "不可用"}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
-          <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.status || "不可用"}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
+          <button type="button" disabled={coreReconnecting} onClick={coreConnected ? refresh : () => void reconnectCore()} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small aria-live="polite">{coreReconnectMessage || snapshot.status?.core?.reason || systemStatusLabel(snapshot.status?.core?.lifecycle || snapshot.status?.core?.status)}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreReconnecting ? "连接中" : loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
+          <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.reason || systemStatusLabel(snapshot.status?.projection?.status)}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
+          <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.reason || systemStatusLabel(kernel?.status)}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
           <button type="button" onClick={onOpenSettings}><span><strong>应用更新</strong><small>检查、下载并安装新版本</small></span><em>检查更新</em></button>
         </div>
+        <EduPiCoreCompatibility value={snapshot.compatibility} onNavigate={onNavigate} onOpenContext={onOpenContext} />
       </section> : null}
     </main>
   </section>;

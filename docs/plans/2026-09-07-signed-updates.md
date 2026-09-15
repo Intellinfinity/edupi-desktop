@@ -1,5 +1,13 @@
 # 自动下载安装
 
+## 2026-09-16 `v0.3.15`–`v0.3.17` 发布与旧客户端检测
+
+- `v0.3.15` 首轮因 Cargo.lock 的无关 `errno` 版本被误改而失败且未生成 Release；Desktop [#133](https://github.com/PIGU-PPPgu/edupi-desktop/pull/133) 恢复依赖并在打包前强制校验 lockfile。workflow [35013486688](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35013486688) 随后以 macOS 15分57秒、Linux 16分05秒、Windows 21分36秒完成，发布 11 项资产。
+- `v0.3.16` workflow [35016438326](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35016438326) 的三平台全部成功，旧 manifest job 因两个并发草稿各只有部分 updater 平台而失败。两个草稿的原构建资产和签名经摘要核对后合并到 Release `389446081`，完整 `latest.json` 有 7 个平台键，Release 固定到 `06f167a1db94a1b28f076b45d213fd1d23630263` 并公开，重复草稿已删除。公开 macOS updater 与实测包相同，SHA-256 为 `3b5572a2a520b632f527970c571bfb963f87d9505b7a954e497e72999b9cac69`。
+- Desktop [#138](https://github.com/PIGU-PPPgu/edupi-desktop/pull/138) 让并行构建共用一个 commit-bound Release ID，并由最终 job 从真实签名集中生成 `latest.json`。`v0.3.17` workflow [35022297439](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35022297439) 实际只创建一个草稿，macOS、Linux、Windows 分别约13分40秒、14分51秒、20分19秒并全部成功，草稿准确收齐 9 个平台资产。最终 job 已正确生成 7 平台清单，但随后调用需要 `node_modules` 的冗余组件生成器而失败；Desktop [#141](https://github.com/PIGU-PPPgu/edupi-desktop/pull/141) 改为校验提交内组件清单，使用同一修复步骤完成当前草稿。
+- 正式 Latest [`v0.3.17`](https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v0.3.17) 固定到实际构建提交 `dd5bce96bb0e1bfdf3f117cae4a7d88994b54bc0`，非草稿、非预发布，共 11 项资产；`latest.json` 的 7 个条目全部带签名，组件清单为 Desktop `0.3.17`、Pi `0.84.1`、pi-web `0.8.7`。公开 macOS updater SHA-256 为 `d4f88cae3e5eb96dd0b97b2f45cb188b7478726c5a097f5adfd2aa1ce09f612a`，解包版本为 `0.3.17`。
+- 本机唯一安装副本 `/Applications/EduPi.app` 仍为 `0.3.13`；其真实 `/api/updates?refresh=1` 已返回 `latestVersion=0.3.17`、`updateAvailable=true`、`releaseStatus=available`，证明现有客户端无需重新下载安装包即可发现新版。本轮按用户安排不执行安装；升级重启、教师数据/模型保持、权限重查、通知点击和睡眠唤醒留给用户验收。Windows/Linux 应用内升级与 Apple 稳定签名/公证仍未验收。
+
 ## 2026-09-16 `v0.3.13` 实际升级与 `v0.3.14` 发布
 
 - 用户授权后，已从 `v0.3.11` 设置页点击真实“更新”。下载进度走完后应用自行重启，旧 PID `88791` 被新 PID `90028` 取代，路径仍为 `/Applications/EduPi.app`，版本为 `0.3.13`；磁盘搜索没有发现第二个 EduPi 安装副本。

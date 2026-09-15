@@ -1,3 +1,5 @@
+import { preparationIssueDetail } from "./edupi-preparation-issues";
+
 export type KernelRunDisplayInput = {
   trigger_id?: string;
   fire_key?: string;
@@ -21,23 +23,13 @@ const TRIGGER_LABELS: Record<string, string> = {
   calendar_work: "校历任务检查",
 };
 
-const ERROR_LABELS: Record<string, string> = {
-  source_unavailable: "缺少可用材料",
-  excerpt_unconfirmed: "材料正文待确认",
-  stale_source: "课程或材料已变化",
-  model_unavailable: "默认模型不可用",
-  stale_revision: "任务已更新",
-  invalid_candidate: "任务暂不能执行",
-  attempts_exhausted: "自动重试次数已用完",
-};
-
 export function kernelRunTitle(run: KernelRunDisplayInput, tasks: readonly { id: string | null; title: string }[]): string {
   const task = tasks.find((item) => item.id && (run.error_message?.startsWith(`${item.id}: `) || run.fire_key?.startsWith(`${item.id}:`)));
   return task?.title || TRIGGER_LABELS[run.trigger_id || ""] || "自动任务";
 }
 
 export function kernelRunDetail(run: KernelRunDisplayInput): string {
-  if (run.error_code) return ERROR_LABELS[run.error_code] || "运行失败";
+  if (run.error_code) return preparationIssueDetail(run.error_code) || "运行失败";
   return run.result_summary || `第 ${run.attempt_count || 1} 次执行`;
 }
 

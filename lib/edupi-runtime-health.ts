@@ -1,3 +1,5 @@
+import { isPreparationIssue } from "./edupi-preparation-issues";
+
 export type CoreRuntimeScheduler = {
   kind: "core_runtime_g1_processor" | "core_runtime_g1_live_processor";
   timer_active: boolean;
@@ -51,14 +53,15 @@ export function projectCoreRuntimeHealth(response: unknown, expectedCoreCommit: 
   }
 
   const lifecycle = health.lifecycle as CoreRuntimeHealth["lifecycle"];
+  const timerErrorCode = scheduler?.timer_error_code as string | null | undefined;
   let status: ProjectedCoreRuntimeHealth["status"] = lifecycle;
   let reason: string | null = lifecycle === "ready" ? null : `Core Runtime ${lifecycle}`;
   if (lifecycle === "ready" && (capabilities.g1_processor !== "active" || capabilities.internal_timer !== "active" || !scheduler?.timer_active)) {
     status = "degraded";
     reason = "课程准备自动检查未启动";
-  } else if (lifecycle === "ready" && scheduler?.timer_error_code) {
+  } else if (lifecycle === "ready" && timerErrorCode && !isPreparationIssue(timerErrorCode)) {
     status = "degraded";
-    reason = `自动检查失败：${scheduler.timer_error_code}`;
+    reason = "自动检查异常";
   }
 
   return {

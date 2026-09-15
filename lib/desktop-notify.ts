@@ -67,6 +67,10 @@ export async function testDesktopNotification(): Promise<void> {
   if (!isTauriDesktop()) throw new Error("请在桌面应用中测试通知");
   if (!desktopNotificationsEnabled()) throw new Error("请先开启通知");
   if (!(await ensurePermission())) throw new Error("通知权限未开启，请在系统设置中允许 EduPi 通知");
-  const { sendNotification } = await import("@tauri-apps/plugin-notification");
-  sendNotification({ title: "EduPi", body: "通知测试" });
+  await sendReminderNotificationNative({
+    title: "EduPi",
+    body: "点击后打开提醒",
+    target: null,
+    claims: [{ id: "notification-test", attemptedAt: new Date().toISOString() }],
+  });
 }

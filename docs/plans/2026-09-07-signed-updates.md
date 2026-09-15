@@ -1,5 +1,20 @@
 # 自动下载安装
 
+## 2026-09-16 `v0.3.13` 更新入口热修与权限身份
+
+- Desktop [#121](https://github.com/PIGU-PPPgu/edupi-desktop/pull/121) 修复管理中心覆盖设置窗口、更新区与首张卡片重叠、更新入口含义不清和权限状态无法重查；系统页现在明确显示“应用更新 / 检查更新”，打开时先关闭管理中心。设置窗口固定头部并让正文独立滚动，去掉仓库标签和第二行说明；桌面权限可重新检测、返回应用时自动刷新，并可打开对应系统设置或重启 EduPi。
+- Desktop [#122](https://github.com/PIGU-PPPgu/edupi-desktop/pull/122) 将版本推进到 `0.3.13`。Release workflow [34995513104](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/34995513104) 的 macOS、Linux、Windows 分别用时14分40秒、15分58秒、21分50秒，manifest 16秒；三平台并行后整轮约22分钟。正式 Release 含11项资产，`latest.json` 的7个平台键全部带签名，组件为 Desktop `0.3.13`、Pi `0.84.1`、pi-web `0.8.7`。
+- 本机磁盘只找到 `/Applications/EduPi.app` 一个安装副本，当前为 `0.3.11`；其真实更新接口已返回 `latestVersion=0.3.13`、`updateAvailable=true`，原生设置页也显示可用的“更新”按钮。升级前基线为 Core/projection/Kernel ready、50名学生、240个任务、43个校历节点、9个课表、45条记忆、9个自定义模型；尚未执行安装，不把升级重启与数据保持记为通过。
+- Tauri macOS updater 的实际实现会先把当前 `.app` 移到临时备份，再把新包移动回同一路径；正常应用内更新替换当前安装，不另建版本副本。Desktop [#123](https://github.com/PIGU-PPPgu/edupi-desktop/pull/123) 已接入 Developer ID 证书和可选公证凭据，并在缺少凭据时明确警告临时签名。仓库当前没有 Apple 证书类 Secret，因此 `v0.3.13` 仍是临时签名；Apple 确认 TCC 依赖稳定代码身份，辅助功能与屏幕录制授权可能在更新后需要重新开启。[Apple 说明](https://developer.apple.com/forums/thread/819406) [Tauri 环境变量](https://github.com/tauri-apps/tauri-docs/blob/v2/src/content/docs/reference/environment-variables.mdx)
+
+## 2026-09-15 `v0.3.12` 发布与更新检测
+
+- Desktop [#119](https://github.com/PIGU-PPPgu/edupi-desktop/pull/119) 将四处版本元数据统一到 `0.3.12`。Release workflow [34983508483](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/34983508483) 的 macOS、Linux、Windows build 和最终 manifest 全部成功，`v0.3.12` 已发布为非草稿、非预发布的 Latest Release。
+- Release 包含 DMG、macOS updater、AppImage、deb、Windows NSIS、对应签名、`latest.json` 与 `component-versions.json` 共11项资产。`latest.json` 的7个安装/更新平台条目均带签名；组件清单为 Desktop `0.3.12`、Pi `0.84.1`、pi-web `0.8.7`。
+- 本机已安装 `v0.3.11` 的 `/api/updates?refresh=1` 实际返回 `latestVersion=0.3.12`、`updateAvailable=true`、release status `available`，证明既有客户端可以在应用内检测并下载更新，无需用户重新寻找安装包。本轮只验证检测，没有替用户点击安装。
+- 本次三平台因 `max-parallel: 1` 串行耗时约55分钟。Desktop [#120](https://github.com/PIGU-PPPgu/edupi-desktop/pull/120) 将独立平台并发数改为3，同时保留每平台质量门、Rust测试、签名、草稿保护、全平台 manifest gate 和失败通知；按本次各平台耗时，后续完整发布预计约22–25分钟。
+- Windows/Linux 应用内升级、Apple 公证、系统通知点击和真实睡眠唤醒仍未验收；按用户要求 Windows 人工优化与应用内升级后置，不再阻塞本地产品主线。
+
 ## 2026-09-14 `v0.3.11` 发布与三平台安装复核
 
 - Release workflow `34765761183` 的三平台构建和 manifest 全部成功；`v0.3.11` 为正式 Release，DMG、macOS updater、AppImage、deb、NSIS、三平台签名、`latest.json` 与组件清单齐全。

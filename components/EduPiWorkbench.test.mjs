@@ -56,7 +56,7 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.doesNotMatch(calendarModel, /taskContentStatusLabel\(task\)/);
   for (const label of ["待处理", "进行中", "待我确认", "已完成"]) assert.match(`${taskBoard}\n${taskBoardModel}`, new RegExp(label));
   for (const label of ["新建任务", "移动到", "创建任务", "取消"]) assert.match(taskBoard, new RegExp(label));
-  for (const label of ["由 Core 准备教学产物", "课次", "上课日期", "材料", "产物", "创建并准备"]) assert.match(taskBoard, new RegExp(label));
+  for (const label of ["自动准备教学产物", "课次", "上课日期", "材料", "产物", "创建并准备"]) assert.match(taskBoard, new RegExp(label));
   assert.match(taskBoard, /preparationSource: managedPreparation/);
   assert.match(taskBoard, /pendingCreateRef/);
   assert.match(taskBoard, /clientRequestId: pendingCreateRef\.current\.id/);
@@ -171,6 +171,9 @@ test("the dashboard wires the Core work-candidate inbox with six receipt-bound a
     assert.match(component, new RegExp(`id=\\"${id}\\"`));
   }
   assert.match(component, /workCandidateReasonLabel\(candidate\.reason\)/);
+  assert.match(component, /taskById\.get\(candidate\.taskId\)/);
+  assert.match(component, /onTaskDetail\(task\)/);
+  assert.match(component, /aria-label=\{`打开任务：\$\{candidate\.title\}`\}/);
   assert.match(component, /min=\{tomorrow\(\)\}/);
   assert.match(css, /\.edupi-today-work__group > header h3/);
   assert.doesNotMatch(css, /\.edupi-today-work__group > header h2/);
@@ -185,6 +188,7 @@ test("the dashboard wires the Core work-candidate inbox with six receipt-bound a
   assert.match(component, /setFeedback\(null\)/);
   assert.match(component, /DECISION_EFFECTS/);
   assert.match(component, /移到“已记录”/);
+  assert.doesNotMatch(component, /回执 \$\{receiptId\}/);
   assert.match(component, /setRetryReview/);
   assert.match(component, />重试<\/button>/);
   assert.match(component, />刷新待办<\/button>/);
@@ -193,7 +197,7 @@ test("the dashboard wires the Core work-candidate inbox with six receipt-bound a
   assert.match(component, /正在接受/);
   assert.doesNotMatch(component, /edupi-today-work__guide/);
   assert.doesNotMatch(component, /result\??\.reason/);
-  assert.doesNotMatch(component, /setCandidates|data\.tasks/);
+  assert.doesNotMatch(component, /setCandidates/);
   assert.doesNotMatch(component, /body\.(?:externalSend|sourceIds|evidenceIds|reviewer|issuedAt|provider|model|token)/);
 });
 
@@ -369,6 +373,11 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(panel, /<EduPiPersistentChatHost/);
 
   for (const label of ["任务进度", "已准备", "计划交付", "依据", "教师反馈", "打开产物", "进入任务", "继续让 EduPi 做"]) assert.match(drawer, new RegExp(label));
+  assert.doesNotMatch(`${drawer}\n${await read("./EduPiTodayWork.tsx")}`, /EduPi 流/);
+  assert.match(drawer, /次流转/);
+  assert.match(drawer, /const flowStatus = taskWorkStatusLabel\(task, workCase\)/);
+  assert.match(drawer, /reviewer === "teacher" \? "教师"/);
+  assert.match(drawer, /reviewTime \? flowTime\(reviewTime\)/);
   assert.match(drawer, /taskAgentSteps\(task\)/);
   assert.match(drawer, /taskArtifacts\(task\)/);
   assert.match(drawer, /preparedFilesById/);

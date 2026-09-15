@@ -192,7 +192,7 @@ function DashboardView({ data, context, kernelState, runningAgentCount, onEducat
           {latestBrief ? <p>{briefPreview(latestBrief.excerpt)}</p> : <div className="edupi-module-empty">今天还没有生成简报</div>}
           <footer><span>自动运行</span><strong>{latestBriefRun ? ({ running: "正在生成", awaiting_delivery: "等待交付", failed: "生成失败", needs_review: "待确认", succeeded: "已生成", skipped: "已跳过" })[latestBriefRun.status] : kernelState.status === "unavailable" ? "状态不可用" : "尚无运行记录"}</strong></footer>
         </section>
-        <EduPiTodayWork data={data} onEducation={onEducation} onWorkCaseDetail={(workCase) => { const task = data.tasks.find((item) => item.id === workCase.taskId); if (task) onTaskDetail(task); }} />
+        <EduPiTodayWork data={data} onEducation={onEducation} onTaskDetail={onTaskDetail} />
       </div>
       <aside className="edupi-today-side">
         <section className="edupi-page-section edupi-today-dock">

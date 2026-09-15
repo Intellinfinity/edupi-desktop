@@ -63,6 +63,7 @@ test("teaching keeps a home route and the calendar exposes a ten-period weekday 
   assert.match(teaching, /EduPiTimetableGrid/);
   assert.match(teaching, /filterTimetableSlots\(data\.timetable, query\)/);
   assert.match(teaching, /onNavigate\("memory", "memory:teaching"\)/);
+  assert.match(teaching, /taskWorkStatusLabel\(task, workCase\)/);
   assert.match(timetable, /length: 10/);
   for (const day of ["星期一", "星期二", "星期三", "星期四", "星期五"]) assert.match(timetable, new RegExp(day));
   assert.match(timetable, /period === 6 \? " is-afternoon-start"/);

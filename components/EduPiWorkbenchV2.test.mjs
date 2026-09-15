@@ -40,6 +40,8 @@ test("task board and task sidebar expose the same teacher-facing categories", as
   for (const label of ["教学准备", "学生跟进", "校历节点", "材料证据", "活动安排"]) {
     assert.match(`${board}\n${sider}\n${categories}`, new RegExp(label));
   }
+  assert.match(board, /\["queued", "running", "draft_ready", "failed"\]\.includes\(workCase\.currentState\)/);
+  assert.match(board, /hasCurrentExplicitBoardStage\(task\)/);
 });
 
 test("class and student modules select one student and expose real import and export actions", async () => {

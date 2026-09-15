@@ -12,6 +12,7 @@ test("runtime startup errors expose only bounded operational categories", () => 
   assert.equal(classifyCoreRuntimeStartupError({ code: "database_unavailable", message: "/private/teacher/data" }), "runtime_database_unavailable");
   assert.equal(classifyCoreRuntimeStartupError({ code: "invalid_state" }), "runtime_state_invalid");
   assert.equal(classifyCoreRuntimeStartupError({ code: "writer_admission_unavailable" }), "runtime_writer_unavailable");
+  assert.equal(classifyCoreRuntimeStartupError({ code: "layout_mismatch" }), "runtime_root_invalid");
   assert.equal(classifyCoreRuntimeStartupError({ code: "writer_admission_root_mismatch" }), "runtime_root_invalid");
   assert.equal(classifyCoreRuntimeStartupError({ code: "unexpected_private_detail" }), "runtime_unavailable");
   assert.equal(classifyCoreRuntimeStartupError(null), "runtime_unavailable");

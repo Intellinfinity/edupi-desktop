@@ -13,6 +13,7 @@ import { startWindowDragging } from "@/lib/desktop-window";
 import { formatCoreSchedulerStatus } from "@/lib/edupi-schedule-display";
 import type { CoreRuntimeScheduler } from "@/lib/edupi-runtime-health";
 import { EduPiCoreCompatibility, type CoreCompatibilitySnapshot } from "./EduPiCoreCompatibility";
+import { reconnectEduPiCore } from "@/lib/edupi-runtime-client";
 
 type AdminSnapshot = {
   context: TeacherContextSnapshot | null;
@@ -108,6 +109,8 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
   const [snapshot, setSnapshot] = useState<AdminSnapshot>({ context: null, education: null, status: null, compatibility: null, models: null, platform: null });
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [coreReconnecting, setCoreReconnecting] = useState(false);
+  const [coreReconnectMessage, setCoreReconnectMessage] = useState<string | null>(null);
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
   const firstNavRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -172,6 +175,20 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
   const kernelRuns = kernel?.runs ?? [];
   const defaultModel = snapshot.models?.defaultModel;
   const refresh = () => setRefreshKey((value) => value + 1);
+  const reconnectCore = async () => {
+    if (coreReconnecting) return;
+    setCoreReconnecting(true);
+    setCoreReconnectMessage(null);
+    try {
+      await reconnectEduPiCore();
+      setCoreReconnectMessage("Core 已重新连接");
+      refresh();
+    } catch (error) {
+      setCoreReconnectMessage(error instanceof Error ? error.message : "Core 重新连接失败");
+    } finally {
+      setCoreReconnecting(false);
+    }
+  };
   const leaveAdmin = (action: () => void) => {
     if (modelSettingsDirty && !window.confirm("AI 模型设置尚未保存，仍要离开后台吗？")) return;
     action();
@@ -281,7 +298,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <EduPiCoreCompatibility value={snapshot.compatibility} onNavigate={onNavigate} onOpenContext={onOpenContext} />
         <div className="edupi-admin-list">
           <div><span><strong>EduPi Desktop</strong><small>当前安装版本</small></span><em>v{APP_VERSION_DISPLAY}</em></div>
-          <button type="button" onClick={refresh} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small>{snapshot.status?.core?.reason || snapshot.status?.core?.lifecycle || snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
+          <button type="button" disabled={coreReconnecting} onClick={coreConnected ? refresh : () => void reconnectCore()} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small aria-live="polite">{coreReconnectMessage || snapshot.status?.core?.reason || snapshot.status?.core?.lifecycle || snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreReconnecting ? "连接中" : loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
           <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.status || "不可用"}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
           <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.status || "不可用"}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
           <button type="button" onClick={onOpenSettings}><span><strong>应用更新</strong><small>检查、下载并安装新版本</small></span><em>检查更新</em></button>

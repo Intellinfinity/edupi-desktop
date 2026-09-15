@@ -9,8 +9,13 @@ import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-
 
 export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
-const shared = globalThis as typeof globalThis & { __edupiRuntimeSupervisors?: Map<string, Entry>; __edupiRuntimeExitHook?: boolean };
+const shared = globalThis as typeof globalThis & {
+  __edupiRuntimeSupervisors?: Map<string, Entry>;
+  __edupiRuntimeRestartLocks?: Map<string, Promise<EduPiRuntimeHandle>>;
+  __edupiRuntimeExitHook?: boolean;
+};
 const entries = shared.__edupiRuntimeSupervisors ||= new Map<string, Entry>();
+const restartLocks = shared.__edupiRuntimeRestartLocks ||= new Map<string, Promise<EduPiRuntimeHandle>>();
 const STARTUP_FAILURE_REASONS = Object.freeze({
   runtime_database_unavailable: "Core Runtime 数据库不可用（runtime_database_unavailable）",
   runtime_root_invalid: "Core Runtime 数据目录校验失败（runtime_root_invalid）",
@@ -51,6 +56,31 @@ export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEdu
   entries.set(dataRoot.root, entry);
   entry.startup = start(runtime, dataRoot, entry).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
   return entry.startup;
+}
+
+export function restartEduPiRuntime(args: { runtime: ResolvedEduPiCore; dataRoot: ResolvedEduPiDataRoot }): Promise<EduPiRuntimeHandle> {
+  const key = args.dataRoot.root;
+  const existingRestart = restartLocks.get(key);
+  if (existingRestart) return existingRestart;
+
+  const restart = (async () => {
+    const existing = entries.get(key);
+    if (existing) {
+      try {
+        const handle = await existing.startup;
+        await handle.close();
+      } catch {
+        existing.kill?.();
+        if (entries.get(key) === existing) entries.delete(key);
+      }
+    }
+    return ensureEduPiRuntime(args);
+  })();
+  restartLocks.set(key, restart);
+  void restart.finally(() => {
+    if (restartLocks.get(key) === restart) restartLocks.delete(key);
+  }).catch(() => {});
+  return restart;
 }
 
 async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot, entry: Entry): Promise<EduPiRuntimeHandle> {

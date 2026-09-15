@@ -17,7 +17,64 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Check out EduPi Desktop
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Create one draft release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./src-tauri/pi-agent-desktop-package.json').version")"
+          tag="v$version"
+          gh api "repos/$RELEASE_REPOSITORY/releases?per_page=100" > releases.json
+          release_count="$(jq --arg tag "$tag" '[.[] | select(.tag_name == $tag)] | length' releases.json)"
+
+          if [ "$release_count" -gt 1 ]; then
+            echo "::error::Multiple releases already use $tag; consolidate them before retrying."
+            exit 1
+          fi
+
+          if [ "$release_count" -eq 1 ]; then
+            release_id="$(jq -r --arg tag "$tag" '.[] | select(.tag_name == $tag) | .id' releases.json)"
+            release_draft="$(jq -r --arg tag "$tag" '.[] | select(.tag_name == $tag) | .draft' releases.json)"
+            release_target="$(jq -r --arg tag "$tag" '.[] | select(.tag_name == $tag) | .target_commitish' releases.json)"
+            if [ "$release_draft" != "true" ]; then
+              echo "::error::$tag is already published; bump the app version before releasing again."
+              exit 1
+            fi
+            if [ "$release_target" != "$GITHUB_SHA" ]; then
+              echo "::error::$tag belongs to $release_target, not this commit $GITHUB_SHA."
+              exit 1
+            fi
+          else
+            jq -n \
+              --arg tag "$tag" \
+              --arg target "$GITHUB_SHA" \
+              --arg name "EduPi Desktop v$version" \
+              --rawfile body scripts/release-notes.md \
+              '{ tag_name: $tag, target_commitish: $target, name: $name, body: $body, draft: true, prerelease: false }' \
+              > release-request.json
+            release_id="$(gh api --method POST "repos/$RELEASE_REPOSITORY/releases" --input release-request.json --jq .id)"
+          fi
+
+          {
+            echo "release_id=$release_id"
+            echo "tag=$tag"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
   build:
+    needs: release
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -49,16 +106,19 @@ jobs:
           NOTARY_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
+          append_env() {
+            printf '%s\n' "$1" >> "$GITHUB_ENV"
+          }
           if [ -n "$CODE_SIGN_CERTIFICATE" ] || [ -n "$CODE_SIGN_CERTIFICATE_PASSWORD" ]; then
             test -n "$CODE_SIGN_CERTIFICATE"
             test -n "$CODE_SIGN_CERTIFICATE_PASSWORD"
-            echo "APPLE_CERTIFICATE=$CODE_SIGN_CERTIFICATE" >> "$GITHUB_ENV"
-            echo "APPLE_CERTIFICATE_PASSWORD=$CODE_SIGN_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+            append_env "APPLE_CERTIFICATE=$CODE_SIGN_CERTIFICATE"
+            append_env "APPLE_CERTIFICATE_PASSWORD=$CODE_SIGN_CERTIFICATE_PASSWORD"
             if [ -n "$CODE_SIGN_IDENTITY" ]; then
-              echo "APPLE_SIGNING_IDENTITY=$CODE_SIGN_IDENTITY" >> "$GITHUB_ENV"
+              append_env "APPLE_SIGNING_IDENTITY=$CODE_SIGN_IDENTITY"
             fi
           else
-            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            append_env "APPLE_SIGNING_IDENTITY=-"
             echo "::warning::macOS is ad-hoc signed; Accessibility and Screen Recording grants may need to be renewed after an update."
           fi
           if [ -n "$NOTARY_APPLE_ID" ] || [ -n "$NOTARY_PASSWORD" ] || [ -n "$NOTARY_TEAM_ID" ]; then
@@ -66,9 +126,9 @@ jobs:
             test -n "$NOTARY_APPLE_ID"
             test -n "$NOTARY_PASSWORD"
             test -n "$NOTARY_TEAM_ID"
-            echo "APPLE_ID=$NOTARY_APPLE_ID" >> "$GITHUB_ENV"
-            echo "APPLE_PASSWORD=$NOTARY_PASSWORD" >> "$GITHUB_ENV"
-            echo "APPLE_TEAM_ID=$NOTARY_TEAM_ID" >> "$GITHUB_ENV"
+            append_env "APPLE_ID=$NOTARY_APPLE_ID"
+            append_env "APPLE_PASSWORD=$NOTARY_PASSWORD"
+            append_env "APPLE_TEAM_ID=$NOTARY_TEAM_ID"
           fi
 
       - name: Set up Node.js
@@ -165,27 +225,16 @@ jobs:
         with:
           owner: PIGU-PPPgu
           repo: edupi-desktop
-          releaseCommitish: main
-          tagName: v__VERSION__
-          releaseName: EduPi Desktop v__VERSION__
-          releaseBody: |
-            EduPi Desktop 自动更新版本（更新包已签名验证）。
-
-            - macOS Apple Silicon DMG
-            - Windows x64 安装程序
-            - Linux x64 Debian / AppImage
-            - 应用内检查、下载、安装并重启更新
-
-            完整变更记录以本次 EduPi 源码版本为准。
-            更新签名用于验证安装包来源，不代表 Apple 公证或 Windows 代码签名。
+          releaseId: ${{ needs.release.outputs.release_id }}
+          tagName: ${{ needs.release.outputs.tag }}
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: true
+          includeUpdaterJson: false
           tauriScript: npx tauri
           args: --verbose --target ${{ matrix.target }} --bundles ${{ runner.os == 'macOS' && 'app,dmg' || runner.os == 'Windows' && 'nsis' || 'deb,appimage' }}
 
   manifest:
-    needs: build
+    needs: [release, build]
     runs-on: ubuntu-latest
     steps:
       - name: Check out EduPi Desktop
@@ -195,27 +244,77 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
+          RELEASE_ID: ${{ needs.release.outputs.release_id }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
         run: |
-          version="$(node -p "require('./src-tauri/pi-agent-desktop-package.json').version")"
-          gh release download "v$version" --pattern latest.json --output latest.json --repo "$RELEASE_REPOSITORY"
-          RELEASE_VERSION="$version" node --input-type=module -e '
-            import fs from "node:fs";
-            const manifest = JSON.parse(fs.readFileSync("latest.json", "utf8"));
-            if (manifest.version !== process.env.RELEASE_VERSION) throw new Error("Wrong updater version");
-            for (const platform of ["darwin-aarch64", "windows-x86_64", "linux-x86_64"]) {
-              const entry = manifest.platforms?.[platform];
-              if (!entry?.signature || !entry.url?.startsWith(`https://github.com/PIGU-PPPgu/edupi-desktop/releases/download/v${manifest.version}/`)) throw new Error(`Missing signed update: ${platform}`);
-            }
-          '
-          gh release upload "v$version" src-tauri/resources/component-versions.json --clobber --repo "$RELEASE_REPOSITORY"
-          gh release edit "v$version" --draft=false --latest --repo "$RELEASE_REPOSITORY"
+          set -euo pipefail
+          mkdir -p release-assets
+          gh api "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" > release-assets.json
+
+          download_signature() {
+            name="$1"
+            asset_count="$(jq --arg name "$name" '[.[] | select(.name == $name)] | length' release-assets.json)"
+            if [ "$asset_count" -ne 1 ]; then
+              echo "::error::Expected one release asset named $name, found $asset_count."
+              exit 1
+            fi
+            asset_id="$(jq -r --arg name "$name" '.[] | select(.name == $name) | .id' release-assets.json)"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$RELEASE_REPOSITORY/releases/assets/$asset_id" > "release-assets/$name"
+          }
+
+          download_signature 'EduPi_aarch64.app.tar.gz.sig'
+          download_signature "EduPi_${RELEASE_VERSION}_amd64.AppImage.sig"
+          download_signature "EduPi_${RELEASE_VERSION}_amd64.deb.sig"
+          download_signature "EduPi_${RELEASE_VERSION}_x64-setup.exe.sig"
+
+          node scripts/updater-manifest.mjs \
+            --version "$RELEASE_VERSION" \
+            --repository "$RELEASE_REPOSITORY" \
+            --assets-dir release-assets \
+            --assets-json release-assets.json \
+            --notes-file scripts/release-notes.md \
+            --output latest.json
+          npm run release:manifest
+
+          delete_asset() {
+            name="$1"
+            gh api "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
+              --jq ".[] | select(.name == \"$name\") | .id" \
+              | while read -r asset_id; do
+                  [ -z "$asset_id" ] || gh api --method DELETE \
+                    "repos/$RELEASE_REPOSITORY/releases/assets/$asset_id"
+                done
+          }
+          delete_asset latest.json
+          delete_asset component-versions.json
+
+          gh api --method POST -H 'Content-Type: application/json' --input latest.json \
+            "https://uploads.github.com/repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID/assets?name=latest.json" > /dev/null
+          gh api --method POST -H 'Content-Type: application/json' --input src-tauri/resources/component-versions.json \
+            "https://uploads.github.com/repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID/assets?name=component-versions.json" > /dev/null
+
+          gh api "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" > final-assets.json
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { requiredReleaseAssetNames } from "./scripts/updater-manifest.mjs";
+          const assets = JSON.parse(fs.readFileSync("final-assets.json", "utf8"));
+          const expected = [...requiredReleaseAssetNames(process.env.RELEASE_VERSION), "component-versions.json", "latest.json"].sort();
+          const names = assets.map((asset) => asset.name).sort();
+          if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`Release assets differ: ${names.join(", ")}`);
+          NODE
+
+          gh api --method PATCH "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID" \
+            -f target_commitish="$GITHUB_SHA" -F draft=false -F prerelease=false -f make_latest=true \
+            --jq '{ tag: .tag_name, draft, prerelease, published_at, assets: (.assets | length) }'
 
   # A partially failed matrix leaves the release a draft and skips `manifest`,
   # which is correct — but it was also completely silent. Four consecutive
   # v0.1.3 builds failed on Windows without anyone noticing, and the release was
   # published by hand with macOS artifacts only and no component manifest.
   notify:
-    needs: [build, manifest]
+    needs: [release, build, manifest]
     if: failure()
     runs-on: ubuntu-latest
     permissions:

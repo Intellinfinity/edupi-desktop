@@ -973,6 +973,7 @@ html.dark .edupi-teacher-shell {
 .edupi-task-board-card__footer i.is-done { background: var(--ep-green); }
 .edupi-flow-state { display: inline-block; width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--ep-dim); }
 .edupi-flow-state.is-running { background: var(--ep-blue); animation: edupi-flow-running 1.35s ease-in-out infinite; }
+.edupi-flow-state.is-progress { background: var(--ep-blue); }
 .edupi-flow-state.is-queued { background: var(--ep-orange); animation: edupi-flow-queued 1.7s ease-in-out infinite; }
 .edupi-flow-state.is-draft_ready,
 .edupi-flow-state.is-accepted,
@@ -1188,6 +1189,9 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-today-work__item-header > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .edupi-today-work__item-header > div > span { color: var(--ep-muted); font-size: 10px; }
 .edupi-today-work__item h4 { margin: 0; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; }
+.edupi-today-work__item-title { display: flex; width: 100%; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 7px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-weight: 700; line-height: inherit; text-align: left; }
+.edupi-today-work__item-title > span { flex: 0 0 auto; color: var(--ep-dim); font-size: 14px; font-weight: 400; }
+.edupi-today-work__item-title:disabled { cursor: wait; opacity: .55; }
 .edupi-today-work__status { flex: 0 0 auto; padding: 4px 6px; border-radius: 5px; background: var(--ep-surface-soft); color: var(--ep-muted); font-size: 10px; font-weight: 650; }
 .edupi-today-work__status.is-pending_review,
 .edupi-today-work__status.is-held,

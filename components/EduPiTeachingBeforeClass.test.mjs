@@ -47,7 +47,7 @@ test("teaching task detail uses the same Core work case and distinguishes class 
 
 test("next-lesson preparation opens the existing task flow and never fabricates completion", () => {
   assert.match(workspace, /nextTeachingTask \? onTask\(nextTeachingTask\)/);
-  assert.match(workspace, /workCaseStateLabel/);
+  assert.match(workspace, /taskWorkStatusLabel/);
   assert.doesNotMatch(workspace, /setInterval|setTimeout|Math\.random|localStorage/);
 });
 

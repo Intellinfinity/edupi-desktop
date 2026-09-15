@@ -2,7 +2,7 @@
 
 import type { EducationWorkCase, TeacherTask } from "@/lib/edupi-education-contract";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
-import { workCaseStateLabel, workCaseTransitionLabel } from "@/lib/edupi-work-case";
+import { taskWorkStatusLabel, workCaseTransitionLabel } from "@/lib/edupi-work-case";
 import {
   taskAgentSteps,
   taskArtifactFile,
@@ -74,12 +74,15 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
   const fileHasVerification = Boolean(file?.hash);
   const evidence = evidenceRows.filter(({ label }) => label !== "来源路径" && label !== "产物文件" && label !== "文件校验");
   const latestReview = [...task.reviewHistory].reverse().find((entry) => nonempty(entry.note ?? entry.review_note) || nonempty(entry.reviewer ?? entry.reviewer_id) || nonempty(entry.reviewed_at));
+  const reviewTime = task.reviewedAt || nonempty(latestReview?.reviewed_at);
+  const reviewer = task.reviewer || nonempty(latestReview?.reviewer ?? latestReview?.reviewer_id);
   const feedbackRows = [
     ["意见", task.reviewNote || nonempty(latestReview?.note ?? latestReview?.review_note)],
-    ["审核人", task.reviewer || nonempty(latestReview?.reviewer ?? latestReview?.reviewer_id)],
-    ["时间", task.reviewedAt || nonempty(latestReview?.reviewed_at)],
+    ["审核人", reviewer === "teacher" ? "教师" : reviewer],
+    ["时间", reviewTime ? flowTime(reviewTime) : null],
   ].flatMap(([label, value]) => value ? [{ label, value }] : []);
   const flowTransitions = workCase ? workCase.transitions.slice(-12) : [];
+  const flowStatus = taskWorkStatusLabel(task, workCase);
   return (
     <div className="edupi-task-detail-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <aside ref={drawerRef} className="edupi-task-detail-drawer" role="dialog" aria-modal="true" aria-labelledby="edupi-task-detail-title" tabIndex={-1}>
@@ -98,7 +101,7 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
           </section>
 
           {workCase ? <section className="edupi-task-detail-section edupi-task-flow" aria-labelledby="edupi-task-detail-flow">
-            <header><h3 id="edupi-task-detail-flow">EduPi 流</h3><span>{workCaseStateLabel(workCase.currentState)} · v{workCase.transitionRevision}</span></header>
+            <header><h3 id="edupi-task-detail-flow">任务进度</h3><span>{flowStatus} · {workCase.transitionRevision} 次流转</span></header>
             {flowTransitions.length > 0 ? <ol>{flowTransitions.map((transition) => <li className={`is-${transition.state}`} key={transition.id}><i className={`edupi-flow-state is-${transition.state}`} aria-hidden="true" /><div><strong>{workCaseTransitionLabel(transition)}</strong><small>{transition.sourceKind === "teacher_review" ? "教师判断" : "EduPi 执行"}</small></div><time>{flowTime(transition.occurredAt)}</time></li>)}</ol> : <p className="edupi-task-detail-empty">等待第一条执行记录</p>}
           </section> : <section className="edupi-task-detail-section" aria-labelledby="edupi-task-detail-progress">
             <header><h3 id="edupi-task-detail-progress">任务进度</h3><span>{steps.filter((step) => step.state === "done").length}/{steps.length} 步</span></header>

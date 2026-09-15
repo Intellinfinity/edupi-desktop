@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { EducationContract, EducationWorkCandidate, EducationWorkCase, TeacherTask } from "@/lib/edupi-education-contract";
 import { workCaseForTask, workCaseStateLabel } from "@/lib/edupi-work-case";
-import { projectTaskBoard, taskBoardLane, taskBoardTargets, type TaskBoardLaneId } from "@/lib/edupi-task-board";
+import { hasCurrentExplicitBoardStage, projectTaskBoard, taskBoardLane, taskBoardTargets, type TaskBoardLaneId } from "@/lib/edupi-task-board";
 import { taskCategory, TASK_CATEGORY_CONFIG, type TaskCategoryId } from "@/lib/edupi-task-category";
 import type { TaskSessionBinding } from "@/lib/edupi-task-sessions";
 import { taskContentStatusLabel, taskDisplayTitle, taskPresentation, taskStatusLabel, taskTypeLabel } from "@/lib/edupi-workbench";
@@ -36,6 +36,8 @@ function taskSource(task: TeacherTask): string {
 }
 
 function taskState(task: TeacherTask, session: TaskSessionBinding | null, lane: TaskBoardLaneId, candidate: EducationWorkCandidate | null, workCase: EducationWorkCase | null): string {
+  if (hasCurrentExplicitBoardStage(task)) return stageLabels[lane];
+  if (workCase && ["queued", "running", "draft_ready", "failed"].includes(workCase.currentState)) return workCaseStateLabel(workCase.currentState);
   if (workCase && (workCase.currentState !== "planned" || !task.boardStage || task.boardStage === "todo")) return workCaseStateLabel(workCase.currentState);
   const contentStatus = taskContentStatusLabel(task);
   if (contentStatus) return taskPresentation(task).label;
@@ -224,8 +226,8 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
       setDeliverables(DEFAULT_PREPARATION_DELIVERABLES.join("\n"));
       setCreateOpen(false);
       setMessage(result.preparationState === "error"
-        ? { tone: "error", text: `任务已创建；Core 尚未启动：${result.preparationError || "请打开任务后重试"}` }
-        : { tone: "success", text: result.preparationState ? "任务已创建，Core 正在准备教学产物。" : "任务已创建到“待处理”。" });
+        ? { tone: "error", text: `任务已创建；自动准备尚未启动：${result.preparationError || "请打开任务后重试"}` }
+        : { tone: "success", text: result.preparationState ? "任务已创建，正在准备教学产物。" : "任务已创建到“待处理”。" });
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof Error ? error.message : "任务创建失败。" });
     } finally {
@@ -238,7 +240,7 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
     <main className="edupi-workspace-board" onPointerMove={(event) => { if (!draggedTaskIdRef.current) { const start = dragStartRef.current; if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 6) return; suppressClickRef.current = true; beginDrag(start, event.clientX, event.clientY); } queueGhostPosition(event.clientX, event.clientY); setDropTarget(dragTarget(event)?.stage ?? null); }} onPointerUp={(event) => { const target = dragTarget(event); stopDragging(); if (target) void move(target.task, target.stage); }} onPointerCancel={stopDragging} onPointerLeave={() => { if (draggedTaskIdRef.current) stopDragging(); }}>
       <header className="edupi-workspace-board__heading">
         <div><span>教师工作</span><h1>工作区</h1><p>{query.trim() ? `找到 ${visibleCount} 项` : `${data.tasks.length} 项任务`}</p></div>
-        <div className="edupi-workspace-board__actions"><span className="edupi-workspace-board__mode"><i aria-hidden="true" />Core 回执流转</span><button type="button" onClick={() => setCreateOpen((open) => !open)}>新建任务</button></div>
+        <div className="edupi-workspace-board__actions"><span className="edupi-workspace-board__mode"><i aria-hidden="true" />状态实时同步</span><button type="button" onClick={() => setCreateOpen((open) => !open)}>新建任务</button></div>
       </header>
       {mergeSuggestions}
       <div className="edupi-task-category-segment" role="group" aria-label="任务类型">
@@ -249,7 +251,7 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
         <label><span>任务</span><input autoFocus required maxLength={240} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：准备第一次单元检测" /></label>
         <label><span>截止日期</span><input type="date" value={dueDate} onInput={(event) => { dueDateManuallyEditedRef.current = true; setDueDate(event.currentTarget.value); }} /></label>
         <label><span>备注</span><input maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选" /></label>
-        <label className="edupi-task-board-create__managed"><input type="checkbox" checked={managedPreparation} onChange={(event) => { setManagedPreparation(event.target.checked); if (event.target.checked && !timetableSlotId) setTimetableSlotId(slotId(usableSlots[0] || {})); }} /><span>由 Core 准备教学产物</span></label>
+        <label className="edupi-task-board-create__managed"><input type="checkbox" checked={managedPreparation} onChange={(event) => { setManagedPreparation(event.target.checked); if (event.target.checked && !timetableSlotId) setTimetableSlotId(slotId(usableSlots[0] || {})); }} /><span>自动准备教学产物</span></label>
         {managedPreparation ? <div className="edupi-task-board-create__source">
           <label><span>课次</span><select value={activeSlotId} onChange={(event) => { setTimetableSlotId(event.target.value); setMaterialIds([]); }}><option value="">选择课次</option>{usableSlots.map((slot) => <option key={slotId(slot)} value={slotId(slot)}>{weekdayLabels[timetableDayOfWeek(slot) || 0]} · {rawText(slot.subject)} · {rawText(slot.class_name)} · 第 {String(slot.period ?? "?")} 节</option>)}</select></label>
           <label><span>上课日期</span><input type="date" value={lessonDate} onChange={(event) => { const nextDate = event.target.value; setLessonDate(nextDate); if (!dueDateManuallyEditedRef.current) setDueDate(dateBefore(nextDate)); }} /></label>

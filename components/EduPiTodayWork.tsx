@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
 import type {
   EducationContract,
-  EducationWorkCase,
   EducationWorkCandidate,
   EducationWorkCandidateDecision,
+  TeacherTask,
   WorkCandidateReviewCapability,
 } from "@/lib/edupi-education-contract";
 import {
@@ -18,12 +18,12 @@ import {
   TodayWorkReviewError,
 } from "@/lib/edupi-today-work";
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
-import { activeLivingWorkCases, workCaseStateLabel } from "@/lib/edupi-work-case";
+import { todayActiveTasks } from "@/lib/edupi-work-case";
 
 type Props = {
   data: EducationContract;
   onEducation: (data: EducationContract) => void;
-  onWorkCaseDetail: (workCase: EducationWorkCase) => void;
+  onTaskDetail: (task: TeacherTask) => void;
 };
 
 type EditorMode = "modify" | "snooze" | "suppress";
@@ -141,8 +141,8 @@ function readableDate(value: string | null): string {
   return value;
 }
 
-function actionSuccess(decision: EducationWorkCandidateDecision, receiptId: string): string {
-  return `✓ ${DECISION_LABELS[decision]}：${DECISION_EFFECTS[decision]} 回执 ${receiptId}`;
+function actionSuccess(decision: EducationWorkCandidateDecision): string {
+  return `✓ ${DECISION_LABELS[decision]}：${DECISION_EFFECTS[decision]}`;
 }
 
 function submittingLabel(decision: EducationWorkCandidateDecision): string {
@@ -177,9 +177,10 @@ function capabilityCopy(capability: WorkCandidateReviewCapability): string | nul
   return capability.enabled ? null : "当前仅可查看，待办审核暂不可用。";
 }
 
-export function EduPiTodayWork({ data, onEducation, onWorkCaseDetail }: Props) {
+export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const groups = groupWorkCandidates(data.workCandidates);
-  const livingCases = activeLivingWorkCases(data.workCases);
+  const activeTasks = useMemo(() => todayActiveTasks(data), [data]);
+  const taskById = useMemo(() => new Map(data.tasks.filter((task) => task.id).map((task) => [task.id!, task])), [data.tasks]);
   const capability = data.capabilities.workCandidateReview;
   const busy = useSyncExternalStore(subscribeTodayWorkMutation, getTodayWorkMutationSnapshot, getTodayWorkMutationSnapshot);
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -211,7 +212,7 @@ export function EduPiTodayWork({ data, onEducation, onWorkCaseDetail }: Props) {
       onEducation(result.data);
       setEditor(null);
       setChangingDecisionId(null);
-      setFeedback({ kind: "success", text: actionSuccess(decision, result.receiptId) });
+      setFeedback({ kind: "success", text: actionSuccess(decision) });
     } catch (error) {
       if (error instanceof TodayWorkReviewError) {
         if (error.data) onEducation(error.data);
@@ -311,13 +312,14 @@ export function EduPiTodayWork({ data, onEducation, onWorkCaseDetail }: Props) {
   };
 
   const renderCandidate = (candidate: EducationWorkCandidate, actionable: boolean) => {
+    const task = taskById.get(candidate.taskId) || null;
     const isEditing = editorCurrent && editor?.candidateId === candidate.candidateId;
     const decisionRecorded = candidate.status !== "pending_review";
     const changingDecision = changingDecisionId === candidate.candidateId;
     const showActions = actionable && (!decisionRecorded || changingDecision);
     const submittingCandidate = submission?.candidateId === candidate.candidateId;
     return <article className={`edupi-today-work__item is-${candidate.status}`} key={candidate.candidateId}>
-      <header className="edupi-today-work__item-header"><div><span>{candidateMeta(candidate)}</span><h4>{candidate.title}</h4></div><strong className={`edupi-today-work__status is-${candidate.status}`}>{STATUS_LABELS[candidate.status]}</strong></header>
+      <header className="edupi-today-work__item-header"><div><span>{candidateMeta(candidate)}</span><h4>{task ? <button type="button" className="edupi-today-work__item-title" disabled={busy} onClick={() => onTaskDetail(task)} aria-label={`打开任务：${candidate.title}`}>{candidate.title}<span aria-hidden="true">›</span></button> : candidate.title}</h4></div><strong className={`edupi-today-work__status is-${candidate.status}`}>{STATUS_LABELS[candidate.status]}</strong></header>
       <p className="edupi-today-work__summary">{candidate.summary}</p>
       <div className="edupi-today-work__reason"><span>原因</span>{workCandidateReasonLabel(candidate.reason)}</div>
       <details className="edupi-today-work__details"><summary>来源与依据</summary><dl><div><dt>来源</dt><dd>{candidate.sourceIds.join("、")}</dd></div><div><dt>依据</dt><dd>{candidate.evidenceIds.join("、")}</dd></div><div><dt>下一步</dt><dd>{NEXT_CYCLE_LABELS[candidate.nextCycleState] || candidate.nextCycleState}</dd></div><div><dt>候选 ID</dt><dd>{candidate.candidateId}</dd></div></dl></details>
@@ -346,7 +348,7 @@ export function EduPiTodayWork({ data, onEducation, onWorkCaseDetail }: Props) {
   const unavailableCopy = capabilityCopy(capability);
   return <section className="edupi-today-work" aria-labelledby="edupi-today-work-title" aria-busy={busy}>
     <header className="edupi-today-work__header"><div><span>教师工作</span><h2 id="edupi-today-work-title">今天要判断</h2></div><span>{data.workCandidates.length} 项 · 教师内部</span></header>
-    {livingCases.length > 0 ? <div className="edupi-today-flow" aria-label="EduPi 当前工作流"><header><span>EduPi 流</span><strong>{livingCases.length} 项</strong></header><div>{livingCases.slice(0, 4).map((workCase) => <button type="button" key={workCase.id} onClick={() => onWorkCaseDetail(workCase)}><i className={`edupi-flow-state is-${workCase.currentState}`} aria-hidden="true" /><span><strong>{workCase.title}</strong><small>{workCaseStateLabel(workCase.currentState)}{workCase.dueDate ? ` · ${workCase.dueDate}` : ""}</small></span><em aria-hidden="true">›</em></button>)}</div></div> : null}
+    {activeTasks.length > 0 ? <div className="edupi-today-flow" aria-label="正在进行的任务"><header><span>正在进行</span><strong>{activeTasks.length} 项</strong></header><div>{activeTasks.slice(0, 4).map(({ task, title, dueDate, state, stateLabel }) => <button type="button" key={task.id} onClick={() => onTaskDetail(task)}><i className={`edupi-flow-state is-${state}`} aria-hidden="true" /><span><strong>{title}</strong><small>{stateLabel}{dueDate ? ` · ${dueDate}` : ""}</small></span><em aria-hidden="true">›</em></button>)}</div></div> : null}
     {unavailableCopy ? <p className="edupi-today-work__notice">{unavailableCopy}</p> : null}
     {feedback ? <div className={`edupi-today-work__feedback is-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite"><span>{feedback.text}</span>{feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button> : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button> : null}</div> : null}
     <div className="edupi-today-work__groups">{(["now", "later", "done"] as const).map(renderGroup)}</div>

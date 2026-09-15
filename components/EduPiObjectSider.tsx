@@ -7,7 +7,7 @@ import { isRecognizedTimetableNote } from "@/lib/edupi-recognition-markers";
 import { INSIGHT_CATEGORIES, INSIGHT_STATUSES, MATERIAL_CATEGORIES, MEMORY_CATEGORIES, TEACHING_SECTIONS, filterSubjectKnowledgeItems, filterTeachingPriorityItems, insightCategory, materialCategoryRoute, matchesWorkspaceQuery as match, memoryCategoryRoute, memoryObjectId, memorySemesterRoute, routePart, type InsightCategoryId, type InsightStatusId, type MaterialCategoryId } from "@/lib/edupi-domain-navigation";
 import { scopedMemoryIds, type EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import type { EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
-import { groupTasksByCategory, taskCategory, TASK_CATEGORY_CONFIG } from "@/lib/edupi-task-category";
+import { groupTasksByCategory, matchesTaskQuery, taskCategory, TASK_CATEGORY_CONFIG } from "@/lib/edupi-task-category";
 import { studentRecordKey, studentRecordName } from "@/lib/edupi-student-roster-model";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { confirmedTaskArtifacts, isTaskActionable, isUserFacingMemory, recordLabel, taskArtifacts, taskDisplayTitle, taskKey, taskStatusLabel, taskStatusTone, taskTypeLabel, type TaskStage, type WorkbenchView } from "@/lib/edupi-workbench";
@@ -88,7 +88,7 @@ function ObjectStudentRow({ student, index, selected, onClick }: { student: Reco
 }
 
 export function EduPiObjectSider({ view, data, context, memoryScopes, teachingSkills, query, onQuery, selectedStudentId, onStudent, selectedObjectId, onObject, selectedTaskKey, onTask, onReviewTarget, selectedCalendarSourceId, onCalendarItem, onUpload, onCollapse }: Props) {
-  const tasks = data.tasks.filter((task) => match(`${task.title} ${task.sourceEventName || ""} ${task.student || ""}`, query));
+  const tasks = data.tasks.filter((task) => matchesTaskQuery(task, query));
   const pending = tasks.filter((task) => isTaskActionable(task));
   const pendingC1: C1ObjectTarget[] = [
     ...data.observations.filter((item) => (item.teacherReview.state === "pending_review" || item.teacherReview.state === "held") && match(`${item.text} ${item.observationId} ${item.evidenceIds.join(" ")}`, query)).map((item) => ({ kind: "observation" as const, item, id: item.observationId })),

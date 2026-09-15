@@ -1,5 +1,15 @@
 import type { EducationModule } from "./edupi-education-ui";
 import type { EducationInsight, EducationMemory, EducationWorkCandidate, TeacherTask } from "./edupi-education-contract";
+import { taskCategory } from "./edupi-task-category.ts";
+
+const TASK_TYPE_LABELS = {
+  teaching: "教学准备",
+  student: "学生跟进",
+  calendar: "校历节点",
+  material: "材料证据",
+  activity: "活动安排",
+  other: "教师任务",
+} as const;
 
 export type WorkbenchView =
   | "chat"
@@ -106,7 +116,7 @@ export type TaskPresentation = {
 export function taskPresentation(task: TeacherTask): TaskPresentation {
   if (task.status === "rejected") return { label: "已拒绝", tone: "danger" };
   if (task.boardStage === "done") return { label: "已完成", tone: "success" };
-  if (task.boardRevision > 0 && task.boardStage === "progress") return { label: "正在准备", tone: "warning" };
+  if (task.boardRevision > 0 && task.boardStage === "progress") return { label: "进行中", tone: "warning" };
   if (task.boardRevision > 0 && task.boardStage === "review") return { label: "待你确认", tone: "warning" };
   if (task.boardRevision > 0 && task.boardStage === "todo") return { label: "待开始", tone: "warning" };
   const contentStatus = taskContentStatusLabel(task);
@@ -130,9 +140,9 @@ export function taskStatusTone(task: TeacherTask): TaskPresentationTone {
 }
 
 export function workCandidateReasonLabel(reason: string): string {
-  return /校历节奏规则\s+[^；;\n]+?\s+触发(?:[；;]\s*来源\b[^\n]*)?/u.test(reason)
-    ? "校历节点临近"
-    : reason;
+  if (/校历节奏规则\s+[^；;\n]+?\s+触发(?:[；;]\s*来源\b[^\n]*)?/u.test(reason)) return "校历节点临近";
+  if (/^课表课次\s+\S+\s+提前\s+\d+\s+天进入教师内部准备。[\s]*$/u.test(reason)) return "临近上课时间";
+  return reason;
 }
 
 export type WorkCandidateGroups = {
@@ -158,11 +168,7 @@ export function groupWorkCandidates(candidates: EducationWorkCandidate[]): WorkC
 }
 
 export function taskTypeLabel(task: TeacherTask): string {
-  if (task.trigger === "student_follow_up") return "学生跟进";
-  if (task.trigger === "teaching_adjustment_candidate") return "教学调整";
-  if (task.trigger === "calendar_event_internal") return "学期准备";
-  if (task.trigger === "festival") return "节点准备";
-  return "教学准备";
+  return TASK_TYPE_LABELS[taskCategory(task)];
 }
 
 export function isTaskActionable(task: TeacherTask, today = new Date()): boolean {
@@ -246,8 +252,15 @@ export function taskEvidenceRows(task: TeacherTask): Array<{ label: string; valu
   const displayValue = (key: string, value: unknown): string => {
     const raw = typeof value === "string" ? value : JSON.stringify(value);
     const values: Record<string, string> = {
+      observed: "已观察",
       candidate_only: "候选",
+      confirmed: "已确认",
       explicit: "日期明确",
+      timetable_class: "课表课次",
+      teaching: "教学安排",
+      observation: "观察记录",
+      festival: "节日节点",
+      deadline: "截止事项",
       teacher_material_adjustment: "材料教学调整",
       student_event_follow_up: "学生事件跟进",
       calendar_event_internal: "校历内部准备",

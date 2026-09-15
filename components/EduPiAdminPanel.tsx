@@ -93,7 +93,7 @@ async function readJson<T>(url: string, signal: AbortSignal): Promise<T | null> 
 function AdminSectionHeader({ title, meta, onRefresh }: { title: string; meta?: string; onRefresh?: () => void }) {
   return <header className="edupi-admin-section__header">
     <div><span>管理中心</span><h1>{title}</h1>{meta ? <small>{meta}</small> : null}</div>
-    {onRefresh ? <button type="button" onClick={onRefresh}>刷新</button> : null}
+    {onRefresh ? <button type="button" onClick={onRefresh}>刷新状态</button> : null}
   </header>;
 }
 
@@ -281,7 +281,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <EduPiCoreCompatibility value={snapshot.compatibility} onNavigate={onNavigate} onOpenContext={onOpenContext} />
         <div className="edupi-admin-list">
           <div><span><strong>EduPi Desktop</strong><small>当前安装版本</small></span><em>v{APP_VERSION_DISPLAY}</em></div>
-          <div><span><strong>EduPi Core</strong><small>{snapshot.status?.core?.reason || snapshot.status?.core?.lifecycle || snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreConnected ? "已连接" : snapshot.status?.core?.status === "degraded" ? "需处理" : "检查"}</em></div>
+          <button type="button" onClick={refresh} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small>{snapshot.status?.core?.reason || snapshot.status?.core?.lifecycle || snapshot.status?.core?.status || "不可用"}</small></span><em className={coreConnected ? "is-ready" : ""}>{loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
           <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.status || "不可用"}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
           <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.status || "不可用"}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
           <button type="button" onClick={onOpenSettings}><span><strong>应用更新</strong><small>检查、下载并安装新版本</small></span><em>检查更新</em></button>

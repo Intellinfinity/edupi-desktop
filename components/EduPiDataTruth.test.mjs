@@ -26,7 +26,7 @@ test("long-term workspaces expose real source state instead of ambiguous empty s
   assert.match(insights, /数据已连接，当前没有该类记录/);
   assert.match(sider, /status === "observation"/);
   assert.match(growth, /dataSources\.growth/);
-  assert.match(growth, /数据已连接，暂无专业成长记录/);
+  assert.match(growth, /暂无成长记录/);
   assert.match(materials, /dataSources\.materials/);
   assert.match(materials, /材料索引尚未接入/);
   assert.match(materials, /data\.continuity\.documents\.map/);

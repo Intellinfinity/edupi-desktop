@@ -101,7 +101,7 @@ test("growth and materials use explicit databases and right-side material detail
   assert.match(growth, /教师专业成长/);
   assert.match(growth, /EduPi 能力成长/);
   assert.match(growth, /teachingSkills\.skills/);
-  assert.match(growth, /复用状态/);
+  assert.match(growth, /记录试用/);
   assert.match(growth, /confirmedTaskArtifacts\(data\.tasks, query\)/);
   assert.match(sider, /documents\.filter\(item => item\.kind === "weekly"\)\.length \+ confirmedGrowthArtifacts\.length/);
   assert.match(materials, /edupi-material-db-grid/);

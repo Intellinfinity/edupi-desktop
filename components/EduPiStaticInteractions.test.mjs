@@ -26,7 +26,7 @@ test("EduPi content rows use disclosures inside category databases and drawers",
   assert.doesNotMatch(views, /JSON\.stringify\(item\)/);
   assert.doesNotMatch(views, /evidenceIds\.join/);
   assert.doesNotMatch(sider, /String\(pattern\.(?:status|last_seen)\)|String\(student\.updated_at\)/);
-  assert.match(growth, /SKILL_STATE_LABELS/);
+  assert.match(growth, /METHOD_STATE_LABELS/);
   assert.match(growth, /teachingSkills\.skills/);
   assert.match(navigation, /待验证/);
   assert.doesNotMatch(growth, /审核状态：\{item\.reviewState\}/);

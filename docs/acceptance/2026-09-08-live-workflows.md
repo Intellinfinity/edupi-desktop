@@ -1,5 +1,14 @@
 # 实际流程验收
 
+## 2026-09-15 R11 教学方法、后续备课与教师成长
+
+- 验收版本为 Core [#111](https://github.com/PIGU-PPPgu/edupi/pull/111) merge commit `f6145130dad4250864a3c6cd404f121be08fad17`，Desktop 为 [#115](https://github.com/PIGU-PPPgu/edupi-desktop/pull/115)。最终 pin：Desktop component `sha256:c8a1529495adb2a2c796f2bcbab388b3c160ab0e8e37cb54b5913cfe4e6e620e`、Runtime component `sha256:303e904b9d82839d3acba06e10e9d0170ee6ebc373eff7a59444ea0c3c3f4e08`，v1.1 schema 与 fixture identity 保持 `sha256:190f2673a1c36d00cd52b0c7887d0bfa7bb0ffb7ca739eb4b5e443255858b0d5` / `sha256:9f002bc018d36f91720945e3c9213120df827793dae6bc4c2e639c6ff44f4e88`。
+- 在 0700 权限隔离数据根创建“正方体展开图折叠验证”，页面立即显示草稿；选择已完成的“703班正方体展开图课堂复盘”，输入效果与反馈后变为试用中，教师专业成长同步增加一条“方法试用”，点击打开同一 `task-r11-classroom` 任务。教师验证后状态为已验证，发布后为已发布。服务停止后以新的端口、独立 HOME 和同一数据根重启，方法、反馈、成长数量与任务链接保持，浏览器 console error/warning 为 `[]`。
+- 已发布正文修订为单图流程后，状态自动回到草稿且正文版本从1变为2；第一轮试用仍显示，但不能直接发布。第二次试用写入当前正文版本，教师再次验证和发布后，持久化记录为 `status=published`、对象 revision 7、正文 revision 2、两条试用及八个生命周期事件。
+- 并发验收在 revision 4 保留一个旧修订表单，另一请求先写入第二次试用并推进到 revision 5；旧表单提交返回 HTTP 409，页面显示“教学方法已更新，请刷新后重试”。刷新后第二条试用仍在，旧表单文字未进入 Core 正文。试用选择器只列教师自建或已接受任务，不再默认列出21个尚未确认的学期计划。
+- Core localhost 真实 G1 回归捕获后续备课模型请求，确认 `teaching_methods` 中包含已发布方法的标题、正文哈希、正文版本和正文；方法证据与任务记录不一致时按 `stale_source` 拒绝。旧 evolution 自修改测试继续证明0次文件写入和0次 provider 调用。
+- Core `npm test` 与 `npm run typecheck` 全部通过。Desktop 最终为1213 tests、1188 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`npm run security:audit`、精确 Core pin 和 packaged closure 检查通过。测试中的课堂反馈明确标注为隔离验收输入，没有写入真实教师或学生数据，也不宣称真实课堂效果。
+
 ## 2026-09-15 R08 Today、工作区与教学共享任务
 
 - 验收版本为 Desktop [#114](https://github.com/PIGU-PPPgu/edupi-desktop/pull/114)，配套 Core 保持 `9a969879c7cb7a45ce180a6e725188dfa377b244`。测试从真实工作区制作 0700 权限的本地临时副本，所有写操作仅进入副本；验收后副本与隔离 Pi 配置均已删除，真实教师数据只读。

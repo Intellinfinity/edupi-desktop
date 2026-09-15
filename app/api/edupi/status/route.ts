@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { EduPiCoreProcessError } from "@/lib/edupi-core-process-client";
 import { EduPiSnapshotError, readEduPiCoreHealth, readEduPiEducationSnapshot, readEduPiKernelProjection, resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { loadEduPiCompatManifest } from "@/lib/edupi-bridge-manifest";
-import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
+import { describeEduPiRuntimeStartupFailure, ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { projectCoreRuntimeHealth, type ProjectedCoreRuntimeHealth } from "@/lib/edupi-runtime-health";
 
 export const dynamic = "force-dynamic";
 
 function failureReason(error: unknown, label: string): string {
+  const runtimeReason = describeEduPiRuntimeStartupFailure(error);
+  if (runtimeReason) return runtimeReason;
   if (error instanceof EduPiCoreProcessError || error instanceof EduPiSnapshotError) return `${label}（${error.code}）`;
   return label;
 }

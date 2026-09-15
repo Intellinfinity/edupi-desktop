@@ -2,6 +2,28 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+const STARTUP_ERROR_CODES = Object.freeze({
+  database_unavailable: "runtime_database_unavailable",
+  runtime_store_unavailable: "runtime_database_unavailable",
+  runtime_store_busy: "runtime_writer_unavailable",
+  authority_unavailable: "runtime_writer_unavailable",
+  writer_admission_unavailable: "runtime_writer_unavailable",
+  schema_mismatch: "runtime_state_invalid",
+  root_fingerprint_mismatch: "runtime_state_invalid",
+  invalid_state: "runtime_state_invalid",
+  unsupported_root: "runtime_root_invalid",
+  native_attestation_required: "runtime_root_invalid",
+  invalid_root: "runtime_root_invalid",
+  runtime_path_invalid: "runtime_root_invalid",
+  writer_admission_root_mismatch: "runtime_root_invalid",
+  writer_admission_path_invalid: "runtime_root_invalid",
+});
+
+export function classifyCoreRuntimeStartupError(error) {
+  const code = typeof error?.code === "string" ? error.code : "";
+  return STARTUP_ERROR_CODES[code] || (code.startsWith("writer_admission_") ? "runtime_writer_unavailable" : "runtime_unavailable");
+}
+
 export function createParentModelExecutor(channel = process) {
   const pending = new Map();
   let closed = false;
@@ -70,6 +92,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
       if (!process.connected || closing) return;
       const { endpoint, host, port, protocol, protocolVersion, contractVersion, schemaHash, supervisorSessionId, instanceNonce, coreCommit, componentManifestHash, dataRootFingerprint, fencingGeneration } = daemon;
       process.send({ type: "runtime-ready", endpoint, host, port, protocolVersion, protocol, contractVersion, schemaHash, supervisorSessionId, instanceNonce, coreCommit, componentManifestHash, dataRootFingerprint, fencingGeneration });
-    }, () => { if (process.connected) process.send({ type: "runtime-error", code: "runtime_unavailable" }, () => process.exit(1)); else process.exit(1); });
+    }, error => { if (process.connected) process.send({ type: "runtime-error", code: classifyCoreRuntimeStartupError(error) }, () => process.exit(1)); else process.exit(1); });
   });
 }

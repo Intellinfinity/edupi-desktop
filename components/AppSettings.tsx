@@ -651,13 +651,13 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
                     setNotificationTest("");
                     try {
                       await testDesktopNotification();
-                      setNotificationTest("已请求发送；未看到时请检查系统通知设置或勿扰模式");
+                      setNotificationTest("已请求发送；点击通知应打开提醒");
                     } catch (error) {
                       setNotificationTest(error instanceof Error ? error.message : "通知测试失败");
                     } finally { setTestingNotification(false); }
                   }}
                 >
-                  {testingNotification ? "发送中…" : "测试通知"}
+                  {testingNotification ? "发送中…" : "测试通知跳转"}
                 </button>
                 {notificationTest ? <p role="status">{notificationTest}</p> : null}
                 <button

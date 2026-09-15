@@ -46,7 +46,8 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /APP_VERSION_DISPLAY/);
   assert.match(admin, /当前安装版本/);
   assert.match(admin, />刷新状态<\/button>/);
-  assert.match(admin, /onClick=\{refresh\} aria-label=\{coreConnected \? "检查 Core 状态" : "重新连接 Core"\}/);
+  assert.match(admin, /reconnectEduPiCore/);
+  assert.match(admin, /onClick=\{coreConnected \? refresh : \(\) => void reconnectCore\(\)\}/);
   assert.match(admin, /coreConnected \? "已连接" : "重新连接"/);
   assert.match(admin, /aria-current=\{activeSection === section\.id \? "page" : undefined\}/);
   assert.match(admin, /modelsPanel/);

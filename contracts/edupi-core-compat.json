@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "9a969879c7cb7a45ce180a6e725188dfa377b244",
+    "core_commit": "f6145130dad4250864a3c6cd404f121be08fad17",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:55248c561339f0199f11f85c209c5b70175c63247feb95625342b3d27a83df4e",
-    "runtime_component_manifest_hash": "sha256:04163cb8a319767d1de4103ab8fa393d16fdda5f7044e3d62724b4f58699dec9"
+    "component_manifest_hash": "sha256:c8a1529495adb2a2c796f2bcbab388b3c160ab0e8e37cb54b5913cfe4e6e620e",
+    "runtime_component_manifest_hash": "sha256:303e904b9d82839d3acba06e10e9d0170ee6ebc373eff7a59444ea0c3c3f4e08"
   },
   "contract_identities": [
     {
@@ -113,7 +113,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/107",
     "https://github.com/PIGU-PPPgu/edupi/pull/108",
     "https://github.com/PIGU-PPPgu/edupi/pull/109",
-    "https://github.com/PIGU-PPPgu/edupi/pull/110"
+    "https://github.com/PIGU-PPPgu/edupi/pull/110",
+    "https://github.com/PIGU-PPPgu/edupi/pull/111"
   ],
-  "change_note": "Paired Core PRs #107–#110 expose managed education-fact lifecycle, conflict-safe revisions, paginated recovery, authoritative restore modes, lineage-safe public review state, deterministic replay, and refreshed snapshots; PR #105 remains the material-metadata baseline."
+  "change_note": "Core PR #111 adds the writer-admitted teaching-method lifecycle, task-bound teacher feedback, deterministic mutation receipts, and published-method injection into later G1 preparation while the historical self-modifying skill path remains frozen; PRs #107–#110 remain the education-fact baseline."
 }

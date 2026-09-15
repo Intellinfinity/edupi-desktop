@@ -15,7 +15,9 @@ test("growth uses confirmed teacher work and the real teaching skill lifecycle",
   assert.match(panel, /setTeachingSkills/);
   assert.match(views, /teachingSkills=\{props\.teachingSkills\}/);
   assert.match(growth, /teachingSkills\.skills/);
-  assert.match(growth, /教学能力生命周期已连接/);
+  assert.match(growth, /教学方法从试用到后续备课复用的记录/);
+  assert.match(growth, /teacherGrowth/);
+  assert.match(sider, /teachingSkills\.teacherGrowth\.length/);
   assert.match(growth, /item\.kind === "weekly"/);
   assert.match(growth, /confirmedTaskArtifacts/);
   assert.doesNotMatch(growth, /data\.continuity\.themes/);

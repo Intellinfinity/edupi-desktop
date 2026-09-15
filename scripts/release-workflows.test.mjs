@@ -60,8 +60,10 @@ test("signed releases and updater metadata belong to the EduPi Desktop repositor
   assert.match(release, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(release, /owner:\s*PIGU-PPPgu/);
   assert.match(release, /repo:\s*edupi-desktop/);
-  assert.match(release, /releaseCommitish:\s*main/);
-  assert.match(release, /--repo "\$RELEASE_REPOSITORY"/);
+  assert.match(release, /--arg target "\$GITHUB_SHA"/);
+  assert.match(release, /target_commitish: \$target/);
+  assert.match(release, /releaseId: \$\{\{ needs\.release\.outputs\.release_id \}\}/);
+  assert.match(release, /repos\/\$RELEASE_REPOSITORY\/releases/);
   assert.doesNotMatch(release, /abcwyc\/pi-agent-desktop/);
   assert.deepEqual(tauriConfig.plugins.updater.endpoints, [
     "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json",
@@ -173,7 +175,7 @@ test("a failed release build is reported instead of failing silently", async () 
   assert.match(workflow, /if: failure\(\)/);
   assert.match(workflow, /gh issue create/);
   assert.match(workflow, /release-failure/);
-  assert.match(workflow, /needs: \[build, manifest\]/);
+  assert.match(workflow, /needs: \[release, build, manifest\]/);
 });
 
 test("the manifest job only publishes when every platform succeeded", async () => {
@@ -183,9 +185,26 @@ test("the manifest job only publishes when every platform succeeded", async () =
   const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
   const manifestJob = workflow.slice(workflow.indexOf("\n  manifest:"), workflow.indexOf("\n  notify:"));
 
-  assert.match(manifestJob, /needs: build/);
+  assert.match(manifestJob, /needs: \[release, build\]/);
   assert.doesNotMatch(manifestJob, /if: (always|success\(\) \|\|)/);
-  assert.match(manifestJob, /--draft=false --latest/);
+  assert.match(manifestJob, /scripts\/updater-manifest\.mjs/);
+  assert.match(manifestJob, /-F draft=false/);
+  assert.match(manifestJob, /-f make_latest=true/);
+});
+
+test("parallel builders share one commit-bound draft release", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  const releaseJob = workflow.slice(workflow.indexOf("\n  release:"), workflow.indexOf("\n  build:"));
+  const buildJob = workflow.slice(workflow.indexOf("\n  build:"), workflow.indexOf("\n  manifest:"));
+
+  assert.match(releaseJob, /Create one draft release/);
+  assert.match(releaseJob, /release_count.*-gt 1/);
+  assert.match(releaseJob, /release_draft.*!= "true"/);
+  assert.match(releaseJob, /release_target.*!= "\$GITHUB_SHA"/);
+  assert.match(buildJob, /needs: release/);
+  assert.match(buildJob, /releaseId: \$\{\{ needs\.release\.outputs\.release_id \}\}/);
+  assert.match(buildJob, /tagName: \$\{\{ needs\.release\.outputs\.tag \}\}/);
+  assert.doesNotMatch(buildJob, /releaseCommitish:/);
 });
 
 test("release workflow publishes Apple Silicon, Linux x64, and Windows x64 installers", async () => {
@@ -206,12 +225,14 @@ test("release workflow publishes Apple Silicon, Linux x64, and Windows x64 insta
   assert.match(workflow, /'windows-latest'/);
   assert.match(workflow, /\["x86_64-pc-windows-msvc"\]/);
   assert.match(workflow, /'nsis'/);
-  assert.match(workflow, /Missing signed update/);
+  assert.match(workflow, /EduPi_aarch64\.app\.tar\.gz\.sig/);
+  assert.match(workflow, /EduPi_\$\{RELEASE_VERSION\}_x64-setup\.exe\.sig/);
   assert.doesNotMatch(workflow, /x86_64-apple-darwin/);
   assert.doesNotMatch(workflow, /macos-15-intel/);
-  assert.match(workflow, /includeUpdaterJson: true/);
+  assert.match(workflow, /includeUpdaterJson: false/);
   assert.doesNotMatch(workflow, /uploadUpdaterJson:/);
-  assert.match(workflow, /gh release edit "v\$version" --draft=false --latest/);
+  assert.doesNotMatch(workflow, /gh release download .*latest\.json/);
+  assert.match(workflow, /https:\/\/uploads\.github\.com\/repos\/\$RELEASE_REPOSITORY\/releases\/\$RELEASE_ID\/assets\?name=latest\.json/);
 });
 
 test("release validates the Cargo lock before packaging any platform", async () => {
@@ -232,12 +253,12 @@ test("macOS releases accept stable Developer ID signing without hiding the ad-ho
   assert.match(workflow, /CODE_SIGN_CERTIFICATE: \$\{\{ secrets\.APPLE_CERTIFICATE \}\}/);
   assert.match(workflow, /CODE_SIGN_CERTIFICATE_PASSWORD: \$\{\{ secrets\.APPLE_CERTIFICATE_PASSWORD \}\}/);
   assert.match(workflow, /CODE_SIGN_IDENTITY: \$\{\{ secrets\.APPLE_SIGNING_IDENTITY \}\}/);
-  assert.match(workflow, /echo "APPLE_CERTIFICATE=\$CODE_SIGN_CERTIFICATE" >> "\$GITHUB_ENV"/);
-  assert.match(workflow, /echo "APPLE_CERTIFICATE_PASSWORD=\$CODE_SIGN_CERTIFICATE_PASSWORD" >> "\$GITHUB_ENV"/);
-  assert.match(workflow, /echo "APPLE_ID=\$NOTARY_APPLE_ID" >> "\$GITHUB_ENV"/);
-  assert.match(workflow, /echo "APPLE_PASSWORD=\$NOTARY_PASSWORD" >> "\$GITHUB_ENV"/);
-  assert.match(workflow, /echo "APPLE_TEAM_ID=\$NOTARY_TEAM_ID" >> "\$GITHUB_ENV"/);
-  assert.match(workflow, /echo "APPLE_SIGNING_IDENTITY=-" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /append_env "APPLE_CERTIFICATE=\$CODE_SIGN_CERTIFICATE"/);
+  assert.match(workflow, /append_env "APPLE_CERTIFICATE_PASSWORD=\$CODE_SIGN_CERTIFICATE_PASSWORD"/);
+  assert.match(workflow, /append_env "APPLE_ID=\$NOTARY_APPLE_ID"/);
+  assert.match(workflow, /append_env "APPLE_PASSWORD=\$NOTARY_PASSWORD"/);
+  assert.match(workflow, /append_env "APPLE_TEAM_ID=\$NOTARY_TEAM_ID"/);
+  assert.match(workflow, /append_env "APPLE_SIGNING_IDENTITY=-"/);
   assert.match(workflow, /macOS is ad-hoc signed; Accessibility and Screen Recording grants may need to be renewed after an update/);
   assert.doesNotMatch(workflow, /APPLE_SIGNING_IDENTITY: \$\{\{ runner\.os == 'macOS'/);
   assert.doesNotMatch(workflow, /\n\s{10}APPLE_(?:CERTIFICATE|ID|PASSWORD|TEAM_ID): \$\{\{ secrets\./);

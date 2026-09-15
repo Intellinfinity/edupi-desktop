@@ -8,7 +8,8 @@
 - R01/R02：直接运行公开包中的 server 与 bundled Core，真实模型会话 `01a0a63d-1f70-7fbf-a21d-63f568b0b646` 调用 `write` 生成 60 字节 Markdown。Core 自动登记产物 `40aa911b-62f8-4e94-8672-24c0ef19bcd0` 并绑定该会话；重启后会话仍可列出、产物 available 且同一路径只有一条。文件 read/meta API 在重启后重新读取标题、验收标记、`language=markdown`、`mime=text/plain` 和相同大小。
 - R13：公开包隔离任务 `agent_job_d34fc703130ecca83c82ada39bdb9023` 对合成中文课堂图片执行 OCR，首次尝试完成且 error 为空，登记 176 字节 Markdown。日期、班级、`-3` 的相反数、绝对值、数轴原点和 `EDUPI-OCR-314` 共 7 项语义逐项通过；重启后任务仍 completed、产物仍 available。
 - Desktop [#127](https://github.com/PIGU-PPPgu/edupi-desktop/pull/127) 与 [#128](https://github.com/PIGU-PPPgu/edupi-desktop/pull/128) 已合并但尚未发布：Runtime 启动错误现在使用有限分类，管理中心显示恢复入口。[#129](https://github.com/PIGU-PPPgu/edupi-desktop/pull/129) 将“重新连接 Core”接成真实重启。隔离源代码页面先显示 `runtime_root_invalid`，点击后显示“连接中”与“Core 已重新连接”；API 回读 Core/教育投影/Kernel ready，旧 Core PID 退出，只留下一个新实例。1280×720 页面按钮完整可点击，恢复后没有新增 console error；跨站重连请求为 403。
-- #129 全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。公开包隔离目录、复制的临时凭据和测试服务均已删除。尚未验证的是安装 `v0.3.14` 后的原生文件按钮/OCR 打开、#127–#129 的发布包、真实睡眠唤醒、系统通知点击、零 API 首次完整备课、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署。
+- Desktop [#130](https://github.com/PIGU-PPPgu/edupi-desktop/pull/130) 把系统操作列表移到兼容性详情前，Core 按钮在 1280×720 首屏的 y=233；Core、教育投影和自动内核均显示中文“已就绪”。兼容卡显示“版本与能力一致 / 已匹配”，四个身份列完整，三个技术详情默认收起；实际页面 console/page error 均为空。
+- #129/#130 全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。公开包隔离目录、复制的临时凭据和测试服务均已删除。尚未验证的是安装 `v0.3.14` 后的原生文件按钮/OCR 打开、#127–#130 的发布包、真实睡眠唤醒、系统通知点击、零 API 首次完整备课、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署。
 
 ## 2026-09-16 设置热修、正式发布与旧客户端检测
 

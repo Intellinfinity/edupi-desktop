@@ -8,7 +8,8 @@
 - R01/R02 公开包 E2：从 `v0.3.14` 公开 updater 解出的原样 server 与 bundled Core 启动隔离环境，真实模型会话 `01a0a63d-1f70-7fbf-a21d-63f568b0b646` 通过 `write` 生成 `.edupi/output/chat-file-check.md`；Core 自动登记产物 `40aa911b-62f8-4e94-8672-24c0ef19bcd0` 并绑定会话。服务重启后会话仍在、产物仍 available、同一路径只有一条登记；`/api/files` 的 read/meta 重新读取 60 字节 Markdown 正文、语言与 MIME 成功。隔离数据和临时凭据副本已删除。
 - R13 公开包 E2：同一公开包完成中文图片 OCR 后台任务 `agent_job_d34fc703130ecca83c82ada39bdb9023`，首次尝试即 completed、error 为空，登记 176 字节可编辑 Markdown；日期、班级、两条数学结论、数轴原点和验收标记 7/7 核对通过。服务重启后任务仍 completed、产物仍 available；隔离数据与临时凭据副本已删除。
 - Desktop [#127](https://github.com/PIGU-PPPgu/edupi-desktop/pull/127) 将 Runtime 启动失败收敛为数据库、状态、写入占用和数据根四类有限错误；[#128](https://github.com/PIGU-PPPgu/edupi-desktop/pull/128) 在管理中心提供明确恢复动作。[#129](https://github.com/PIGU-PPPgu/edupi-desktop/pull/129) 进一步把原先只刷新页面的“重新连接 Core”改为真实的受控进程重启与健康检查。隔离页面实际经历 `runtime_root_invalid` → 点击重连 → Core/教育投影/Kernel 全部 ready；第二次重连确认旧 Core PID 退出且只留下一个新实例，跨站请求为 403。
-- 当前边界：`v0.3.14` 已公开且 `v0.3.13` 能检测到它，但本机尚未安装 `v0.3.14`；#127–#129 也尚未进入公开版本。安装后的原生文件按钮、OCR 文件打开、真实睡眠唤醒、系统通知点击、零 API 首次完整备课、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署继续保留待验收。
+- Desktop [#130](https://github.com/PIGU-PPPgu/edupi-desktop/pull/130) 将系统页的 Desktop/Core/教育投影/自动内核与更新操作移到兼容详情之前，运行状态统一为中文；Runtime 断开显示“未连接”，版本身份不一致才显示“版本不匹配”。1280×720 实际页面中 Core 操作位于首屏，四项身份完整排布，能力详情默认收起，console/page error 均为空。
+- 当前边界：`v0.3.14` 已公开且 `v0.3.13` 能检测到它，但本机尚未安装 `v0.3.14`；#127–#130 也尚未进入公开版本。安装后的原生文件按钮、OCR 文件打开、真实睡眠唤醒、系统通知点击、零 API 首次完整备课、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署继续保留待验收。
 
 ## 2026-09-16 `v0.3.13` 设置与更新热修
 

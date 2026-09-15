@@ -14,6 +14,7 @@ import { formatCoreSchedulerStatus } from "@/lib/edupi-schedule-display";
 import type { CoreRuntimeScheduler } from "@/lib/edupi-runtime-health";
 import { EduPiCoreCompatibility, type CoreCompatibilitySnapshot } from "./EduPiCoreCompatibility";
 import { reconnectEduPiCore } from "@/lib/edupi-runtime-client";
+import { kernelRunAction, kernelRunDetail, kernelRunTitle, type KernelRunDisplayInput } from "@/lib/edupi-kernel-display";
 
 type AdminSnapshot = {
   context: TeacherContextSnapshot | null;
@@ -25,7 +26,7 @@ type AdminSnapshot = {
       status?: string;
       reason?: string | null;
       summary?: { total?: number; running?: number; failed?: number; needs_review?: number; succeeded?: number; skipped?: number };
-      runs?: Array<{ run_id?: string; trigger_id?: string; status?: string; updated_at?: string; result_summary?: string | null; attempt_count?: number }>;
+      runs?: Array<KernelRunDisplayInput & { run_id?: string; updated_at?: string }>;
     };
   } | null;
   compatibility?: CoreCompatibilitySnapshot | null;
@@ -235,12 +236,15 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <AdminSectionHeader title="自动运行" meta={snapshot.status?.core?.status === "ready" ? formatCoreSchedulerStatus(snapshot.status.core.scheduler, kernelRuns.length) : snapshot.status?.core?.reason || "运行状态不可用"} onRefresh={refresh} />
         <div className="edupi-admin-metrics"><AdminMetric value={kernelSummary?.running ?? "—"} label="运行中" /><AdminMetric value={kernelSummary?.needs_review ?? "—"} label="待确认" /><AdminMetric value={kernelSummary?.succeeded ?? "—"} label="已完成" /></div>
         <div className="edupi-admin-runtime" role="list" aria-label="最近自动运行">
-          {kernelRuns.length > 0 ? kernelRuns.slice(0, 12).map((run) => <div role="listitem" key={run.run_id}>
-            <i className={`is-${run.status || "unknown"}`} aria-hidden="true" />
-            <span><strong>{run.trigger_id || "EduPi 任务"}</strong><small>{run.result_summary || `第 ${run.attempt_count || 1} 次执行`}</small></span>
-            <em>{run.status === "running" || run.status === "awaiting_delivery" ? "运行中" : run.status === "needs_review" ? "待确认" : run.status === "failed" ? "失败" : run.status === "succeeded" ? "完成" : "无内容"}</em>
-            {run.updated_at ? <time dateTime={run.updated_at}>{new Date(run.updated_at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time> : null}
-          </div>) : <div className="is-empty" role="status">还没有运行记录</div>}
+          {kernelRuns.length > 0 ? kernelRuns.slice(0, 12).map((run) => {
+            const action = kernelRunAction(run);
+            return <div role="listitem" key={run.run_id}>
+              <i className={`is-${run.status || "unknown"}`} aria-hidden="true" />
+              <span><strong>{kernelRunTitle(run, education?.tasks || [])}</strong><small>{kernelRunDetail(run)}</small></span>
+              {action ? <button type="button" onClick={() => { const target = action.target; if (target === "models") setActiveSection("models"); else leaveAdmin(() => onNavigate(target)); }}>{action.label}</button> : <em>{run.status === "running" || run.status === "awaiting_delivery" ? "运行中" : run.status === "needs_review" ? "待确认" : run.status === "failed" ? "失败" : run.status === "succeeded" ? "完成" : "无内容"}</em>}
+              {run.updated_at ? <time dateTime={run.updated_at}>{new Date(run.updated_at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time> : null}
+            </div>;
+          }) : <div className="is-empty" role="status">还没有运行记录</div>}
         </div>
       </section> : null}
 

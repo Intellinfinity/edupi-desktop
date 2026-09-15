@@ -122,6 +122,9 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Validate Cargo lockfile
+        run: cargo metadata --locked --no-deps --manifest-path src-tauri/Cargo.toml --format-version 1
+
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |

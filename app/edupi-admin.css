@@ -328,7 +328,7 @@
 }
 
 .edupi-core-compatibility {
-  margin: 0 0 18px;
+  margin: 18px 0 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-panel);
@@ -340,7 +340,7 @@
 .edupi-core-compatibility__header > strong { flex: 0 0 auto; color: var(--text-muted); font-size: 11px; font-weight: 600; }
 .edupi-core-compatibility__header > strong.is-ready { color: #18805a; }
 .edupi-core-compatibility__header > strong.is-warning { color: #b66a00; }
-.edupi-core-compatibility__identity { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border-bottom: 1px solid var(--border); background: var(--border); }
+.edupi-core-compatibility__identity { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; border-bottom: 1px solid var(--border); background: var(--border); }
 .edupi-core-compatibility__identity > div { display: grid; min-width: 0; gap: 5px; padding: 11px 14px; background: var(--bg-panel); }
 .edupi-core-compatibility__identity span { color: var(--text-muted); font-size: 9px; }
 .edupi-core-compatibility code { overflow: hidden; color: var(--text); font-family: var(--font-mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
@@ -387,6 +387,10 @@
   }
   .edupi-connector-setup form { grid-template-columns: 1fr; }
   .edupi-connector-setup__primary { align-items: stretch; flex-direction: column; }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .edupi-core-compatibility__identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 520px) {

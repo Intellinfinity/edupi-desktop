@@ -87,14 +87,16 @@ export function EduPiCoreCompatibility({ value, onNavigate, onOpenContext }: Pro
   const actual = value.actual;
   const commandsMatch = Boolean(actual && sameList(actual.supportedCommands, value.expected.supportedCommands));
   const projectionsMatch = Boolean(actual && sameList(actual.supportedProjections, value.expected.supportedProjections));
+  const runtimeConnected = typeof actual?.runtimeComponentManifestHash === "string";
   const matched = identityMatches(value) && commandsMatch && projectionsMatch;
-  const status = !actual ? "不可用" : matched ? "已匹配" : "有差异";
+  const status = !actual || !runtimeConnected ? "未连接" : matched ? "已匹配" : "版本不匹配";
+  const summary = value.reason || (matched ? "版本与能力一致" : runtimeConnected ? "桌面端与 Core 配置不一致" : "Core Runtime 未连接");
   const actionProps = { value, onNavigate, onOpenContext };
 
   return <section className="edupi-core-compatibility" aria-labelledby="edupi-core-compatibility-title">
     <header className="edupi-core-compatibility__header">
-      <div><h2 id="edupi-core-compatibility-title">Core 兼容性</h2><span>{value.reason || "桌面端按 pinned contract 运行"}</span></div>
-      <strong className={`is-${matched ? "ready" : actual ? "warning" : "unavailable"}`}>{status}</strong>
+      <div><h2 id="edupi-core-compatibility-title">Core 兼容性</h2><span>{summary}</span></div>
+      <strong className={`is-${matched ? "ready" : runtimeConnected ? "warning" : "unavailable"}`}>{status}</strong>
     </header>
     <div className="edupi-core-compatibility__identity">
       <div><span>Core</span><code title={actual?.coreCommit || value.expected.coreCommit}>{short(actual?.coreCommit || value.expected.coreCommit, 12)}</code></div>
@@ -102,7 +104,7 @@ export function EduPiCoreCompatibility({ value, onNavigate, onOpenContext }: Pro
       <div><span>组件清单</span><code title={actual?.componentManifestHash || value.expected.componentManifestHash}>{short(actual?.componentManifestHash || value.expected.componentManifestHash, 18)}</code></div>
       <div><span>Runtime 清单</span><code title={actual?.runtimeComponentManifestHash || value.expected.runtimeComponentManifestHash}>{short(actual?.runtimeComponentManifestHash || value.expected.runtimeComponentManifestHash, 18)}</code></div>
     </div>
-    <details open>
+    <details>
       <summary>可交互能力 <span>{actual?.supportedCommands?.length || 0} / {value.expected.supportedCommands.length}</span></summary>
       <div className="edupi-core-compatibility__commands">
         {value.expected.supportedCommands.map((command) => {

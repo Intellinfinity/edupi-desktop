@@ -188,6 +188,8 @@ test("the manifest job only publishes when every platform succeeded", async () =
   assert.match(manifestJob, /needs: \[release, build\]/);
   assert.doesNotMatch(manifestJob, /if: (always|success\(\) \|\|)/);
   assert.match(manifestJob, /scripts\/updater-manifest\.mjs/);
+  assert.doesNotMatch(manifestJob, /npm (?:ci|run release:manifest)/);
+  assert.match(manifestJob, /Committed component manifest does not match the release version/);
   assert.match(manifestJob, /-F draft=false/);
   assert.match(manifestJob, /-f make_latest=true/);
 });

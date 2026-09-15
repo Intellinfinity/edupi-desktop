@@ -16,7 +16,7 @@ import { PRODUCT_NAME } from "./branding";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "./pi-types";
 import type { ExtensionUiRequest, ExtensionUiResponse, ExtensionWidgetItem } from "./types";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "./custom-ui-terminal";
-import { EDUPI_ROOT, extensionPaths, prepareEducationResources } from "./edupi-runtime";
+import { EDUPI_CODE_ROOT, EDUPI_ROOT, extensionPaths, prepareEducationResources } from "./edupi-runtime";
 import { createEduPiAppControlTool } from "./edupi-desktop-tool";
 import { createEduPiTaskTool } from "./edupi-task-tool";
 import { createEduPiUpdateTaskTool } from "./edupi-update-task-tool";
@@ -35,6 +35,7 @@ import { createDesktopSafeBashOperations, redactDesktopSpawnContext } from "./de
 import { createEduPiTeacherContextAppendSystemPromptOverride } from "./edupi-teacher-context-prompt";
 import { withEducationModel } from "./edupi-model-context";
 import { ensureLoopbackModelAuth } from "./loopback-model-auth";
+import type { PermissionMode } from "./tool-presets";
 
 // ============================================================================
 // Types
@@ -106,6 +107,7 @@ export interface RpcSessionStartOptions {
   toolNames?: string[];
   initialModel?: { provider: string; modelId: string };
   thinkingLevel?: ThinkingLevel;
+  accessMode?: PermissionMode;
 }
 
 /**
@@ -196,8 +198,13 @@ export class AgentSessionWrapper {
   private artifactPendingWrites = new Map<string, string>();
   private artifactOutputDirectory: string | undefined;
   private artifactTaskId: string | null = null;
+  private accessMode: PermissionMode = "workspace";
 
   constructor(public readonly inner: AgentSessionLike) {}
+
+  setAccessMode(mode: PermissionMode): void {
+    this.accessMode = mode;
+  }
 
   setArtifactOutputDirectory(directory: string): void {
     this.artifactOutputDirectory = directory;
@@ -568,6 +575,7 @@ export class AgentSessionWrapper {
             : null,
           systemPrompt: this.inner.agent.state?.systemPrompt ?? "",
           thinkingLevel: this.inner.agent.state?.thinkingLevel ?? "off",
+          accessMode: this.accessMode,
           extensionStatuses: this.getExtensionStatuses(),
           extensionWidgets: this.getExtensionWidgets(),
         };
@@ -742,6 +750,15 @@ export class AgentSessionWrapper {
         this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
         this.applyForcedEmptySystemPrompt();
         return null;
+      }
+
+      case "set_access_mode": {
+        const mode = command.mode;
+        if (mode !== "approval" && mode !== "workspace" && mode !== "full") {
+          throw new Error("Invalid access mode");
+        }
+        this.accessMode = mode;
+        return { accessMode: mode };
       }
 
       case "reload": {
@@ -1351,7 +1368,7 @@ export async function startRpcSession(
   cwd: string | undefined,
   options: RpcSessionStartOptions = {},
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
-  const { toolNames, initialModel, thinkingLevel } = options;
+  const { toolNames, initialModel, thinkingLevel, accessMode } = options;
   const registry = getRegistry();
   const locks = getLocks();
 
@@ -1369,6 +1386,9 @@ export async function startRpcSession(
     sessionManager = SessionManager.create(cwd, undefined);
   }
   const sessionCwd = sessionManager.getCwd();
+  const normalizedSessionCwd = normalizeRpcCwd(sessionCwd);
+  const sessionIsEduPiDataRoot = normalizedSessionCwd === EDUPI_ROOT;
+  const sessionIsEduPiCoreRoot = normalizedSessionCwd === EDUPI_CODE_ROOT;
   const finishStartingSession = trackStartingSession(sessionCwd);
   const starting = (async () => {
     let requestEduPiAppAction: (action: DesktopControlInput, signal?: AbortSignal) => Promise<boolean> = async () => false;
@@ -1407,7 +1427,7 @@ export async function startRpcSession(
       agentDir,
       resourceLoaderOptions: {
         additionalExtensionPaths: extensionPaths,
-        additionalSkillPaths: normalizeRpcCwd(sessionCwd) === EDUPI_ROOT ? [prepareEducationResources()] : [],
+        additionalSkillPaths: sessionIsEduPiDataRoot ? [prepareEducationResources()] : [],
         ...(teacherContextAppendSystemPromptOverride
           ? { appendSystemPromptOverride: teacherContextAppendSystemPromptOverride }
           : {}),
@@ -1449,13 +1469,14 @@ export async function startRpcSession(
       ...(toolsOption !== undefined ? { tools: toolsOption } : {}),
       customTools: [
         defineTool(createBashToolDefinition(sessionCwd, { shellPath: services.settingsManager.getShellPath(), spawnHook: redactDesktopSpawnContext })),
-        ...(normalizeRpcCwd(sessionCwd) === EDUPI_ROOT ? [createPreparationArtifactTool(EDUPI_ROOT), createEduPiDocumentTool(EDUPI_ROOT), createEduPiPresentationTool(EDUPI_ROOT), createPrepareTaskTool(EDUPI_ROOT), createStudentEventTool(EDUPI_ROOT), createMemoryWriteTool(EDUPI_ROOT), createMemoryForgetTool(EDUPI_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiAppControlTool({
+        ...(sessionIsEduPiDataRoot ? [createPreparationArtifactTool(EDUPI_ROOT), createEduPiDocumentTool(EDUPI_ROOT), createEduPiPresentationTool(EDUPI_ROOT), createPrepareTaskTool(EDUPI_ROOT), createStudentEventTool(EDUPI_ROOT), createMemoryWriteTool(EDUPI_ROOT), createMemoryForgetTool(EDUPI_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiAppControlTool({
           projectRoot: EDUPI_ROOT,
           requestAction: (action, signal) => requestEduPiAppAction(action, signal),
         }), createEduPiComputerUseTool({
           projectRoot: EDUPI_ROOT,
           requestAction: (action, signal) => requestEduPiComputerAction(action, signal),
         })] : []),
+        ...(sessionIsEduPiCoreRoot && !sessionIsEduPiDataRoot ? [createStudentEventTool(EDUPI_CODE_ROOT), createMemoryWriteTool(EDUPI_CODE_ROOT), createMemoryForgetTool(EDUPI_CODE_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_CODE_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_CODE_ROOT })] : []),
       ],
     });
 
@@ -1489,6 +1510,7 @@ export async function startRpcSession(
     }
 
     const wrapper = new AgentSessionWrapper(inner);
+    if (accessMode) wrapper.setAccessMode(accessMode);
     requestEduPiAppAction = (action, signal) => wrapper.requestEduPiAppAction(action, signal);
     requestEduPiComputerAction = (action, signal) => wrapper.requestEduPiComputerAction(action, signal);
     // When all tools are disabled, clear the system prompt entirely.

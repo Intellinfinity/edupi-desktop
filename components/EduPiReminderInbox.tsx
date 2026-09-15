@@ -4,9 +4,9 @@ import type { Reminder } from "@/lib/edupi-reminder-store";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import { useSearchParams } from "next/navigation";
 
-export function EduPiReminderInbox({ onAction, onContinue }: { onAction: (action: DesktopControlInput) => boolean | Promise<boolean>; onContinue?: (taskId: string) => Promise<void> }) {
+export function EduPiReminderInbox({ onAction, onContinue, standalone = false, onClose }: { onAction: (action: DesktopControlInput) => boolean | Promise<boolean>; onContinue?: (taskId: string) => Promise<void>; standalone?: boolean; onClose?: () => void }) {
   const params = useSearchParams();
-  const [open, setOpen] = useState(params.get("reminders") === "1");
+  const [open, setOpen] = useState(standalone || params.get("reminders") === "1");
   useEffect(() => { if (params.get("reminders") === "1") setOpen(true); }, [params]);
   const [items, setItems] = useState<Reminder[]>([]);
   const [error, setError] = useState("");
@@ -38,9 +38,9 @@ export function EduPiReminderInbox({ onAction, onContinue }: { onAction: (action
   const visible = items.filter(item => filter === "handled" ? item.handled || item.withdrawn : filter === "snoozed" ? !item.withdrawn && !item.handled && Boolean(item.snoozedUntil) : !item.withdrawn && !item.handled && !item.snoozedUntil).reverse();
   const pageCount = Math.max(1, Math.ceil(visible.length / 8));
   const currentPage = Math.min(page, pageCount - 1);
-  return <section aria-label="提醒" style={{ padding: "8px 12px" }}>
-    <button className="native-button" aria-expanded={open} onClick={() => setOpen(!open)}>提醒 {pending.filter(item => !item.read).length || ""}</button>
-    {open ? <div style={{ maxHeight: 320, overflowY: "auto" }}>
+  return <section className={standalone ? "edupi-reminder-inbox is-standalone" : "edupi-reminder-inbox"} aria-label="提醒" style={standalone ? undefined : { padding: "8px 12px" }}>
+    {standalone ? <header className="edupi-reminder-inbox__header"><div><h1>提醒</h1><span>{pending.filter(item => !item.read).length ? `${pending.filter(item => !item.read).length} 条待处理` : "没有待处理提醒"}</span></div><button type="button" className="native-button" onClick={onClose}>返回对话</button></header> : <button className="native-button" aria-expanded={open} onClick={() => setOpen(!open)}>提醒 {pending.filter(item => !item.read).length || ""}</button>}
+    {open ? <div className={standalone ? "edupi-reminder-inbox__body" : undefined} style={standalone ? undefined : { maxHeight: 320, overflowY: "auto" }}>
       <select aria-label="提醒状态" value={filter} onChange={event => { setFilter(event.target.value); setPage(0); }}><option value="pending">待处理</option><option value="snoozed">稍后提醒</option><option value="handled">已移除</option></select>
       {error ? <p role="alert">{error}</p> : null}
       {!visible.length && !error ? <p>{filter === "handled" ? "暂无已移除提醒" : filter === "snoozed" ? "暂无稍后提醒" : "暂无待处理提醒"}</p> : null}

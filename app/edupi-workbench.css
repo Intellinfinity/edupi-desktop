@@ -241,6 +241,12 @@ html.dark .edupi-teacher-shell {
 .edupi-chat-surface,
 .edupi-chat-surface > * { height: 100%; min-height: 0; }
 .edupi-teacher-main { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ep-canvas); }
+.edupi-reminder-surface { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--ep-canvas); }
+.edupi-reminder-inbox.is-standalone { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; padding: 24px 28px; box-sizing: border-box; overflow: hidden; }
+.edupi-reminder-inbox__header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--ep-border); }
+.edupi-reminder-inbox__header h1 { margin: 0; font-size: 20px; }
+.edupi-reminder-inbox__header span { color: var(--ep-muted); font-size: 11px; }
+.edupi-reminder-inbox__body { min-height: 0; overflow-y: auto; padding-top: 16px; }
 
 /* Context/object browser */
 .edupi-content-sider { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--ep-border); background: var(--ep-surface-soft); }

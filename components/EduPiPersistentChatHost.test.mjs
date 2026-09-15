@@ -17,7 +17,9 @@ test("the persistent chat host renders one stable child for every presentation m
   assert.match(panel, /<EduPiPersistentChatHost/);
   assert.doesNotMatch(panel, /agentPanel/);
   assert.doesNotMatch(panel, /activeView === "chat" \? <div className="edupi-chat-surface">\{chatPanel\}/);
-  assert.match(panel, /mode=\{drawer === "agent" \? "drawer" : activeView === "chat" \? "main" : "hidden"\}/);
+  assert.match(panel, /mode=\{showingReminders \? "hidden" : drawer === "agent" \? "drawer" : activeView === "chat" \? "main" : "hidden"\}/);
+  assert.match(panel, /reminderPanel/);
+  assert.match(appShell, /reminderPanel=\{edupiReminderPanel\}/);
   assert.match(appShell, /chatPanel=\{edupiChatWindow\}/);
   assert.doesNotMatch(appShell, /agentPanel=\{edupiChatWindow\}/);
 });

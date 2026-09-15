@@ -12,6 +12,7 @@ import { readEduPiWorkspace } from "@/lib/edupi-education-client";
 import { SessionSidebar } from "./SessionSidebar";
 import { EduPiAdminPanel, type AdminSectionId } from "./EduPiAdminPanel";
 import { EduPiEducationPanel } from "./EduPiEducationPanel";
+import { EduPiReminderInbox } from "./EduPiReminderInbox";
 import { EduPiFirstRunGuide } from "./EduPiFirstRunGuide";
 import "@/app/edupi-first-run.css";
 import type { EducationModule } from "@/lib/edupi-education-ui";
@@ -873,6 +874,13 @@ export function AppShell() {
     chatInputRef.current?.focus();
   }, [handleActivateEducationAgentSession, router]);
 
+  const closeReminderPanel = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("reminders");
+    params.set("view", "chat");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
   const handleEduPiComputerAction = useCallback((action: ComputerUseInput, expiresAt?: number): Promise<ComputerUseBridgeResult> => {
     return runComputerUseFromAgent(action, expiresAt);
   }, []);
@@ -1332,7 +1340,6 @@ export function AppShell() {
       onContextUsageChange={handleContextUsageChange}
       onEducationImportCompleted={handleEducationImportCompleted}
       onEduPiAction={handleEduPiAppAction}
-      onContinueReminder={continueReminder}
       reminderText={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.text : undefined}
       reminderTitle={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.title : undefined}
       reminderDraftKey={!selectedSession && searchParams.get("task") && effectiveNewSessionCwd ? `reminder:${effectiveNewSessionCwd}:${searchParams.get("task")}` : undefined}
@@ -1344,6 +1351,8 @@ export function AppShell() {
     />
     </>
   );
+
+  const edupiReminderPanel = <EduPiReminderInbox standalone onAction={handleEduPiAppAction} onContinue={continueReminder} onClose={closeReminderPanel} />;
 
   return (
     <>
@@ -1983,6 +1992,7 @@ export function AppShell() {
               onFocusAgentChat={focusEducationChat}
               refreshKey={educationRefreshKey}
               chatPanel={edupiChatWindow}
+              reminderPanel={edupiReminderPanel}
               chatSidebar={renderSessionSidebar("embedded-chat")}
               renderFilePreview={(filePath) => (
                 <FileViewer
@@ -2012,7 +2022,6 @@ export function AppShell() {
               onContextUsageChange={handleContextUsageChange}
               onEducationImportCompleted={handleEducationImportCompleted}
               onEduPiAction={handleEduPiAppAction}
-              onContinueReminder={continueReminder}
               reminderText={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.text : undefined}
               reminderTitle={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.title : undefined}
               reminderDraftKey={!selectedSession && searchParams.get("task") && effectiveNewSessionCwd ? `reminder:${effectiveNewSessionCwd}:${searchParams.get("task")}` : undefined}

@@ -67,6 +67,7 @@ type Props = {
   activeAgentSessionId: string | null;
   onActivateAgentSession: (input: { taskId: string; sessionId: string | null; cwd: string; view: "tasks" | "review"; stage: TaskStage; signal: AbortSignal }) => Promise<"existing" | "new">;
   chatPanel: ReactNode;
+  reminderPanel: ReactNode;
   chatSidebar: ReactNode;
   renderFilePreview: (path: string) => ReactNode;
   onOpenAdmin: () => void;
@@ -114,7 +115,7 @@ function hasDroppedFiles(event: ReactDragEvent): boolean {
   return Array.from(event.dataTransfer.types).includes("Files");
 }
 
-export function EduPiEducationPanel({ initialModule = "home", refreshKey, activeAgentSessionId, onActivateAgentSession, chatPanel, chatSidebar, renderFilePreview, onOpenAdmin, onOpenGuide, onPrepareAgentPrompt, onReplaceAgentPrompt, quickEntryOpen, onCloseQuickEntry, onFocusAgentChat }: Props) {
+export function EduPiEducationPanel({ initialModule = "home", refreshKey, activeAgentSessionId, onActivateAgentSession, chatPanel, reminderPanel, chatSidebar, renderFilePreview, onOpenAdmin, onOpenGuide, onPrepareAgentPrompt, onReplaceAgentPrompt, quickEntryOpen, onCloseQuickEntry, onFocusAgentChat }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const desktopChrome = useDesktopChrome();
@@ -993,6 +994,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const inspectorAvailable = (activeView === "tasks" || activeView === "review") && Boolean(activeTask);
   const objectSiderAvailable = activeView !== "dashboard" && activeView !== "chat" && activeView !== "workspace";
   const showObjectSider = objectSiderAvailable && !objectSider.collapsed;
+  const showingReminders = activeView === "chat" && searchParams.get("reminders") === "1";
   const taskDetail = taskDetailTask ? tasks.find((task) => taskKey(task) === taskKey(taskDetailTask)) || taskDetailTask : null;
   const currentAgentTask = agentTask ? tasks.find((task) => taskKey(task) === taskKey(agentTask)) || agentTask : null;
   return (
@@ -1011,9 +1013,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       <div className="edupi-teacher-app">
         <div className={`edupi-teacher-body${activeView === "chat" ? " is-chat" : ""}${objectSiderAvailable ? " has-object-sider" : ""}${objectSiderAvailable && objectSider.collapsed ? " is-object-sider-collapsed" : ""}${inspectorAvailable && inspectorOpen ? " has-inspector" : ""}`}>
           {(loadError || inspectorAvailable || education.entityDeletionLedgerUnavailable || (education.entityDeletionCount ?? 0) > 0 || (education.entityDeletionHistoryCount ?? 0) > 0) ? <div className="edupi-teacher-body__controls">{loadError ? <button type="button" onClick={retryLoadWorkspace} title={loadError}>重试</button> : null}<EduPiDeletedEntities activeCount={education.entityDeletionCount ?? 0} historyCount={education.entityDeletionHistoryCount ?? 0} countUnavailable={education.entityDeletionLedgerUnavailable} onLoad={readEducationEntityDeletions} onRestore={restoreEntity} />{inspectorAvailable ? <button type="button" onClick={toggleInspector}>{inspectorOpen ? "收起检查" : "检查"}</button> : null}</div> : null}
-          {activeView === "chat" ? <aside className="edupi-chat-session-sidebar" aria-label="对话与文件">{chatSidebar}</aside> : showObjectSider ? <EduPiObjectSider view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} query={query} onQuery={setQuery} selectedStudentId={selectedStudentId} onStudent={selectStudent} selectedObjectId={selectedObjectId} onObject={selectObject} selectedTaskKey={activeTask ? taskKey(activeTask) : null} onTask={selectTask} onReviewTarget={focusC1Review} selectedCalendarSourceId={calendarSelection?.sourceId ?? null} onCalendarItem={setCalendarSelection} onUpload={openUpload} onCollapse={objectSider.toggle} /> : objectSiderAvailable ? <button type="button" className="edupi-object-sider-strip" onClick={objectSider.toggle} aria-label="展开列表"><span aria-hidden="true">›</span></button> : null}
+          {activeView === "chat" && !showingReminders ? <aside className="edupi-chat-session-sidebar" aria-label="对话与文件">{chatSidebar}</aside> : showObjectSider ? <EduPiObjectSider view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} query={query} onQuery={setQuery} selectedStudentId={selectedStudentId} onStudent={selectStudent} selectedObjectId={selectedObjectId} onObject={selectObject} selectedTaskKey={activeTask ? taskKey(activeTask) : null} onTask={selectTask} onReviewTarget={focusC1Review} selectedCalendarSourceId={calendarSelection?.sourceId ?? null} onCalendarItem={setCalendarSelection} onUpload={openUpload} onCollapse={objectSider.toggle} /> : objectSiderAvailable ? <button type="button" className="edupi-object-sider-strip" onClick={objectSider.toggle} aria-label="展开列表"><span aria-hidden="true">›</span></button> : null}
           <div className={`edupi-teacher-main${activeView === "chat" ? " is-chat" : ""}`}>
-            <EduPiPersistentChatHost mode={drawer === "agent" ? "drawer" : activeView === "chat" ? "main" : "hidden"} task={drawer === "agent" ? currentAgentTask : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt}>{chatPanel}</EduPiPersistentChatHost>
+            <EduPiPersistentChatHost mode={showingReminders ? "hidden" : drawer === "agent" ? "drawer" : activeView === "chat" ? "main" : "hidden"} task={drawer === "agent" ? currentAgentTask : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt}>{chatPanel}</EduPiPersistentChatHost>
+            {showingReminders ? <div className="edupi-reminder-surface">{reminderPanel}</div> : null}
             {activeView === "review" ? <div className="edupi-review-surface">
             {reviewMode === "board" ? <EduPiReviewBoard data={education} query={query} onTask={(task) => selectTask(task, "review")} onReviewTarget={focusC1Review} onEducation={commitEducationSnapshot} reviewer={context?.name || "teacher"} /> : null}
             {reviewMode === "task" && activeTask ? <section className="edupi-c1-review-task-bridge"><div className="edupi-c1-review-task-bridge__heading"><h2>任务审核</h2><span>{pendingCount} 项</span></div><EduPiTaskWorkspace workReview={activeWorkReview} files={education.generatedArtifacts} task={activeTask} workCase={workCaseForTask(education, activeTask.id)} stage={taskStage} workspace={education.workspace} context={context} reviewEnabled={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).enabled} reviewReason={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).reason} reviewBusy={reviewBusy} reviewMessage={reviewMessage} agentSession={activeTask.id ? education.taskSessions[activeTask.id] ?? null : null} taskSessionBusy={taskSessionBusy} taskSessionError={taskSessionError} onStage={selectStage} onReview={reviewTask} onOpenAgent={openAgent} onOpenFile={openFile} /></section> : null}

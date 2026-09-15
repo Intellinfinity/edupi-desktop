@@ -32,11 +32,14 @@ export async function POST(req: Request) {
     }
 
     // Use a one-time key so the Pi runtime lock doesn't conflict with real session ids
-    const { provider, modelId, toolNames, thinkingLevel, ...promptCommand } = command as { provider?: string; modelId?: string; toolNames?: string[]; thinkingLevel?: unknown; [key: string]: unknown };
+    const { provider, modelId, toolNames, thinkingLevel, accessMode, ...promptCommand } = command as { provider?: string; modelId?: string; toolNames?: string[]; thinkingLevel?: unknown; accessMode?: unknown; [key: string]: unknown };
     if ((provider && !modelId) || (!provider && modelId)) {
       throw new Error("provider and modelId must be provided together");
     }
     const explicitThinkingLevel = parseThinkingLevel(thinkingLevel);
+    if (accessMode !== undefined && accessMode !== "approval" && accessMode !== "workspace" && accessMode !== "full") {
+      throw new Error("Invalid access mode");
+    }
 
     // Must be unique per request: the Pi runtime coalesces concurrent callers
     // that share a key onto one session. Date.now() (ms resolution) collides for
@@ -44,6 +47,7 @@ export async function POST(req: Request) {
     const tempKey = `__new__${randomUUID()}`;
     const { session, realSessionId } = await startHarnessSession(tempKey, "", cwd, {
       ...(toolNames ? { toolNames } : {}),
+      ...(accessMode ? { accessMode } : {}),
       ...(provider && modelId ? { initialModel: { provider, modelId } } : {}),
       ...(explicitThinkingLevel ? { thinkingLevel: explicitThinkingLevel } : {}),
     });

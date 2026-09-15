@@ -37,6 +37,40 @@ jobs:
           test -n "$UPDATER_PRIVATE_KEY"
           test -n "$UPDATER_PUBLIC_KEY"
 
+      - name: Configure macOS code signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          CODE_SIGN_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          CODE_SIGN_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          CODE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          NOTARY_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CODE_SIGN_CERTIFICATE" ] || [ -n "$CODE_SIGN_CERTIFICATE_PASSWORD" ]; then
+            test -n "$CODE_SIGN_CERTIFICATE"
+            test -n "$CODE_SIGN_CERTIFICATE_PASSWORD"
+            echo "APPLE_CERTIFICATE=$CODE_SIGN_CERTIFICATE" >> "$GITHUB_ENV"
+            echo "APPLE_CERTIFICATE_PASSWORD=$CODE_SIGN_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+            if [ -n "$CODE_SIGN_IDENTITY" ]; then
+              echo "APPLE_SIGNING_IDENTITY=$CODE_SIGN_IDENTITY" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::macOS is ad-hoc signed; Accessibility and Screen Recording grants may need to be renewed after an update."
+          fi
+          if [ -n "$NOTARY_APPLE_ID" ] || [ -n "$NOTARY_PASSWORD" ] || [ -n "$NOTARY_TEAM_ID" ]; then
+            test -n "$CODE_SIGN_CERTIFICATE"
+            test -n "$NOTARY_APPLE_ID"
+            test -n "$NOTARY_PASSWORD"
+            test -n "$NOTARY_TEAM_ID"
+            echo "APPLE_ID=$NOTARY_APPLE_ID" >> "$GITHUB_ENV"
+            echo "APPLE_PASSWORD=$NOTARY_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$NOTARY_TEAM_ID" >> "$GITHUB_ENV"
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -124,7 +158,6 @@ jobs:
           PI_AGENT_DESKTOP_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
           NO_STRIP: ${{ runner.os == 'Linux' && 'true' || '' }}
         with:
           owner: PIGU-PPPgu

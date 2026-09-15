@@ -11,7 +11,24 @@ export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, sig
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
 const shared = globalThis as typeof globalThis & { __edupiRuntimeSupervisors?: Map<string, Entry>; __edupiRuntimeExitHook?: boolean };
 const entries = shared.__edupiRuntimeSupervisors ||= new Map<string, Entry>();
-const unavailable = () => Object.assign(new Error("EduPi runtime unavailable."), { code: "runtime_unavailable" });
+const STARTUP_FAILURE_REASONS = Object.freeze({
+  runtime_database_unavailable: "Core Runtime 数据库不可用（runtime_database_unavailable）",
+  runtime_root_invalid: "Core Runtime 数据目录校验失败（runtime_root_invalid）",
+  runtime_state_invalid: "Core Runtime 状态需要修复（runtime_state_invalid）",
+  runtime_writer_unavailable: "Core Runtime 正被另一个写入进程占用（runtime_writer_unavailable）",
+});
+type StartupFailureCode = keyof typeof STARTUP_FAILURE_REASONS | "runtime_unavailable";
+const STARTUP_FAILURE_CODES = new Set<StartupFailureCode>([...(Object.keys(STARTUP_FAILURE_REASONS) as Array<keyof typeof STARTUP_FAILURE_REASONS>), "runtime_unavailable"]);
+function startupFailureCode(value: unknown): StartupFailureCode {
+  const code = typeof value === "object" && value && "code" in value ? (value as { code?: unknown }).code : value;
+  return typeof code === "string" && STARTUP_FAILURE_CODES.has(code as StartupFailureCode) ? code as StartupFailureCode : "runtime_unavailable";
+}
+const unavailable = (code: StartupFailureCode = "runtime_unavailable") => Object.assign(new Error("EduPi runtime unavailable."), { code: startupFailureCode(code) });
+
+export function describeEduPiRuntimeStartupFailure(error: unknown): string | null {
+  const code = startupFailureCode(error);
+  return code === "runtime_unavailable" ? null : STARTUP_FAILURE_REASONS[code];
+}
 if (!shared.__edupiRuntimeExitHook) {
   shared.__edupiRuntimeExitHook = true;
   process.once("exit", () => { for (const entry of entries.values()) entry.kill?.(); });
@@ -32,7 +49,7 @@ export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEdu
   }
   const entry: Entry = { identity, startup: Promise.resolve(null as unknown as EduPiRuntimeHandle) };
   entries.set(dataRoot.root, entry);
-  entry.startup = start(runtime, dataRoot, entry).then(handle => { entry.handle = handle; return handle; }).catch(() => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(); });
+  entry.startup = start(runtime, dataRoot, entry).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
   return entry.startup;
 }
 
@@ -82,12 +99,13 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   try {
     endpoint = await new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => { cleanup(); reject(unavailable()); }, 15000);
-      const failed = () => { cleanup(); reject(unavailable()); };
-      const cleanup = () => { clearTimeout(timer); child.off("message", ready); child.off("exit", failed); child.off("error", failed); child.off("disconnect", failed); };
+      const failed = (code: StartupFailureCode = "runtime_unavailable") => { cleanup(); reject(unavailable(code)); };
+      const failedGenerically = () => { failed(); };
+      const cleanup = () => { clearTimeout(timer); child.off("message", ready); child.off("exit", failedGenerically); child.off("error", failedGenerically); child.off("disconnect", failedGenerically); };
       const ready = (message: unknown) => {
         if (!message || typeof message !== "object") return;
         const value = message as Record<string, unknown>;
-        if (value.type === "runtime-error") { failed(); return; }
+        if (value.type === "runtime-error") { failed(startupFailureCode(value.code)); return; }
         if (value.type !== "runtime-ready") return;
         try {
           const url = new URL(String(value.endpoint));
@@ -97,10 +115,10 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
           cleanup(); resolve(url.href);
         } catch { failed(); }
       };
-      child.on("message", ready); child.once("exit", failed); child.once("error", failed); child.once("disconnect", failed);
+      child.on("message", ready); child.once("exit", failedGenerically); child.once("error", failedGenerically); child.once("disconnect", failedGenerically);
       child.send({ type: "runtime-start", coreRoot: runtime.root, options: { dataRoot: dataRoot.root, token, supervisorSessionId, coreCommit: runtime.coreCommit, componentManifestHash: manifest.component_manifest_hash, port: 0 } }, error => { if (error) failed(); });
     });
-  } catch { await close(); throw unavailable(); }
+  } catch (error) { await close(); throw unavailable(startupFailureCode(error)); }
   return {
     close,
     async callBridge(this: EduPiRuntimeHandle, request: unknown, signal?: AbortSignal) {

@@ -14,6 +14,7 @@
 - 组合流程发现并修复三个页面问题：首配完成后的旧状态会把默认模型从刚测试成功的模型改走；手动教师资料的成功提示会被刷新 effect 清除；展开引导条遮挡右上角侧栏关闭键。Desktop [#131](https://github.com/PIGU-PPPgu/edupi-desktop/pull/131) 修复后用第二个干净配置重跑：默认仍为 `deepseek-flash`，发现的 2 个模型都已持久化，“已保存”可见；引导右边缘 x=920，教师资料关闭键 x=1006、文件侧栏关闭键 x=1235，均用真实点击关闭，无 console/page error。
 - R03 使用真实教师数据的只读临时副本检查自动运行历史：原文件有 421 条 run，325 条 `g1_prepare_due/source_unavailable` 来自 13 个逻辑课次，说明旧 Runtime 每五分钟重复记错。Core [#122](https://github.com/PIGU-PPPgu/edupi/pull/122) 与 [#123](https://github.com/PIGU-PPPgu/edupi/pull/123) 后，首次和第二次 `prepare_due` 均保持 421 条不增长，投影只显示 13 条失败；测试补回来源后同一 run 转为 succeeded。原始审计字节不因投影折叠删除。
 - Desktop [#134](https://github.com/PIGU-PPPgu/edupi-desktop/pull/134) pin 最终 Core `19c0fd5182c6c20d6534973e506d6fa36acc1b06`。管理中心“自动运行”实际显示“第3周 · 数学 · 703 · 第1节课前准备 / 缺少可用材料 / 补充材料”，不出现原始 trigger/error code；12 条最近记录对应 13 条逻辑失败，点击动作进入材料页。Core 全量、Desktop 34 项精确 Core 集成及 1229 项全量回归通过，页面 console/page error 为空；私有数据副本已删除。
+- R05 设置页此前的普通测试通知不带提醒 target，点击无法触发 AppShell 路由。Desktop [#136](https://github.com/PIGU-PPPgu/edupi-desktop/pull/136) 改为同一 `send_reminder_notification` 原生命令，使用有界测试 claim 与空 target；生产监听收到点击后按既有逻辑打开提醒收件箱。按钮和反馈改为“测试通知跳转 / 点击通知应打开提醒”。1231 项全量测试中 1206 passed、25 skipped、0 failed，类型和 lint 通过；真实 macOS 通知中心点击仍不以源码测试替代。
 - #129–#131 全量回归为 1227 tests、1202 passed、25 skipped、0 failed；TypeScript、ESLint 和高危依赖审计通过。公开包隔离目录、复制的临时凭据和测试服务均已删除。尚未验证的是安装 `v0.3.14` 后的原生文件按钮/OCR 打开、#127–#131 的发布包与 R06 原生壳首配、真实睡眠唤醒、系统通知点击、Windows/Linux 应用内升级、Apple 稳定签名/公证、真实课堂质量和外部账号/学校部署。
 
 ## 2026-09-16 设置热修、正式发布与旧客户端检测

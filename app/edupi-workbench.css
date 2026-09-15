@@ -376,20 +376,28 @@ html.dark .edupi-teacher-shell {
 .edupi-student-events__actions {display:flex;gap:8px;margin-top:8px;}
 .edupi-student-events form {display:grid;gap:10px;margin-top:10px;}
 .edupi-student-events label {display:grid;gap:5px;}
-.edupi-student-events input,.edupi-student-events textarea {border:1px solid var(--ep-border);border-radius:5px;padding:8px;background:var(--ep-surface);color:var(--ep-text);font:inherit;}
+.edupi-student-events input,.edupi-student-events select,.edupi-student-events textarea {border:1px solid var(--ep-border);border-radius:5px;padding:8px;background:var(--ep-surface);color:var(--ep-text);font:inherit;}
 .edupi-student-events footer {margin-top:12px;}
+.edupi-student-event-filters {display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.edupi-student-event-filters > div {display:flex;gap:6px;}
+.edupi-student-event-filters label {display:flex;align-items:center;gap:5px;color:var(--ep-muted);}
+.edupi-student-event-filters input {width:142px;}
 .edupi-student-graph-toggle {display:flex;gap:6px;margin:12px 0;}
 .edupi-student-graph__legend {display:flex;gap:18px;font-size:11px;color:var(--ep-muted);margin:8px 0;}
 .edupi-student-graph__viewport {overflow:auto;max-height:400px;border:1px solid var(--ep-border);border-radius:6px;background:var(--ep-surface-soft);}
-.edupi-student-graph__canvas {position:relative;min-width:760px;}
+.edupi-student-graph__scaled,.edupi-student-graph__canvas {position:relative;}
 .edupi-student-graph__canvas svg {position:absolute;inset:0;}
 .edupi-student-graph__hit {stroke:transparent;stroke-width:14;fill:none;cursor:pointer;}
-.edupi-student-graph__edge {stroke:var(--ep-border);stroke-width:2;fill:none;pointer-events:none;}
+.edupi-student-graph__edge {stroke:var(--ep-border);stroke-width:2;fill:none;pointer-events:none;transition:stroke .15s ease,opacity .15s ease;}
+.edupi-student-graph g.is-dimmed {opacity:.18;}
 .edupi-student-graph g:hover .edupi-student-graph__edge,.edupi-student-graph g:focus .edupi-student-graph__edge,.edupi-student-graph .is-selected .edupi-student-graph__edge {stroke:var(--ep-blue);stroke-width:3;}
 .edupi-student-events .edupi-student-graph__node {position:absolute;width:180px;min-height:42px;display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:6px 10px;font-size:12px;}
+.edupi-student-events .edupi-student-graph__node:focus-visible {outline:2px solid var(--ep-blue);outline-offset:2px;}
 .edupi-student-graph__node span {max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .edupi-student-graph__node small {font-size:9px;color:var(--ep-muted);}
 .edupi-student-graph__related {display:grid;gap:6px;margin:10px 0;}
+.edupi-student-graph__related span,.edupi-student-graph>small,.edupi-student-graph>p {color:var(--ep-muted);font-size:10px;}
+.edupi-student-graph>p {margin:8px 0 0;}
 .edupi-student-graph__related button {text-align:left;}
 .edupi-student-profile { padding-top: 20px; }
 .edupi-student-profile__identity { display: grid; min-height: 84px; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 14px; border-bottom: 1px solid var(--ep-border); }

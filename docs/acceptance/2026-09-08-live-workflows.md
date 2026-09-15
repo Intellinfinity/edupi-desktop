@@ -1,5 +1,12 @@
 # 实际流程验收
 
+## 2026-09-15 R12/R17 学生知识与互动网络
+
+- 在 `/tmp/edupi-r12-network.AdWO8Q` 隔离数据根运行 Desktop 开发版，创建 63 名学生（含 703/704 两名同名“张三”）、45 条学习记录和45条互动记录；未写入真实教师或学生数据。班级名单显示三页，第三页仍可访问，两个同名学生可分别打开详情。
+- 选中 703 班“张三”后，知识图谱按20→40→45条加载，点击“加载更多”两次后显示完整总数；点击底部记录会把节点滚动到当前视野，点击知识点显示“一元一次方程 23 条关联记录”。“本学期”根据导入周次筛选 `2026-09-07` 至 `2027-01-31`，结果为29条；切回“全部时间”恢复45条。
+- 切换人际互动网络后图例变为“学生 / 互动事件 / 活动主题”。三人同场记录只生成一个互动事件节点并分别连接参与学生，没有推断两两好友关系；事件和关联记录可从图谱入口打开。修订/删除刷新事件已接入列表与图谱读回。
+- 相关回归：`npm test` 为 1218 tests、1193 passed、25 skipped、0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`npm audit --audit-level=high`、`git diff --check` 通过。仍未把安装版和 Windows 页面交互写入本条通过证据，发布验收继续归入 R15。
+
 ## 2026-09-15 R11 教学方法、后续备课与教师成长
 
 - 验收版本为 Core [#111](https://github.com/PIGU-PPPgu/edupi/pull/111) merge commit `f6145130dad4250864a3c6cd404f121be08fad17`，Desktop 为 [#115](https://github.com/PIGU-PPPgu/edupi-desktop/pull/115)。最终 pin：Desktop component `sha256:c8a1529495adb2a2c796f2bcbab388b3c160ab0e8e37cb54b5913cfe4e6e620e`、Runtime component `sha256:303e904b9d82839d3acba06e10e9d0170ee6ebc373eff7a59444ea0c3c3f4e08`，v1.1 schema 与 fixture identity 保持 `sha256:190f2673a1c36d00cd52b0c7887d0bfa7bb0ffb7ca739eb4b5e443255858b0d5` / `sha256:9f002bc018d36f91720945e3c9213120df827793dae6bc4c2e639c6ff44f4e88`。

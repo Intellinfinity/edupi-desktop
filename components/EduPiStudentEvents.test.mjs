@@ -8,5 +8,9 @@ test("student event history restores an old version through the current revision
   assert.match(source, /version\.topic/);
   assert.match(source, /version\.observed_on/);
   assert.match(source, /恢复此版本/);
-  assert.match(source, /save\(\{\.\.\.item,summary:version\.summary,topic:version\.topic,observed_on:version\.observed_on\},"update_event"\)/);
+  assert.match(source, /save\(\{ \.\.\.item, summary: version\.summary, topic: version\.topic, observed_on: version\.observed_on \}, "update_event"\)/);
+  assert.match(source, /STUDENT_GRAPH_RECORD_LIMIT/);
+  assert.match(source, /加载更多/);
+  assert.match(source, /semesterRange/);
+  assert.match(source, /本学期/);
 });

@@ -1216,7 +1216,7 @@ dependencies = [
 
 [[package]]
 name = "errno"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
@@ -3350,7 +3350,7 @@ dependencies = [
 
 [[package]]
 name = "pi-agent-desktop"
-version = "0.3.14"
+version = "0.3.15"
 dependencies = [
  "dunce",
  "getrandom 0.3.4",

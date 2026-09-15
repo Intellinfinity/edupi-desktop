@@ -36,6 +36,7 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /workspaceRef\.current\?\.scrollTo\(\{ top: 0 \}\)/);
   assert.match(admin, /modelSettingsDirty && !window\.confirm/);
   assert.match(admin, /coreConnected && projectionConnected/);
+  assert.match(admin, /systemStatusLabel/);
   assert.match(admin, /EduPiCoreCompatibility/);
   assert.match(admin, /snapshot\.compatibility/);
   assert.match(compatibility, /runtimeComponentManifestHash/);
@@ -85,6 +86,7 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(appShell, /onAskStudentUpdate=\{askEduPiToUpdateStudents\}/);
   assert.match(appShell, /onOpenSettings=\{\(\) => \{ setEduPiAdminOpen\(false\); setAppSettingsOpen\(true\); \}\}/);
   assert.match(admin, /<strong>应用更新<\/strong><small>检查、下载并安装新版本<\/small><\/span><em>检查更新<\/em>/);
+  assert.ok(admin.indexOf('className="edupi-admin-list"', admin.indexOf('activeSection === "system"')) < admin.indexOf("<EduPiCoreCompatibility", admin.indexOf('activeSection === "system"')));
   assert.match(appShell, /params\.set\("view", view\)/);
   assert.doesNotMatch(workspace, /edupi-dashboard-readiness/);
   assert.match(workspace, /onOpenAdmin/);

@@ -214,6 +214,15 @@ test("release workflow publishes Apple Silicon, Linux x64, and Windows x64 insta
   assert.match(workflow, /gh release edit "v\$version" --draft=false --latest/);
 });
 
+test("release validates the Cargo lock before packaging any platform", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  const rustSetup = workflow.indexOf("name: Set up Rust");
+  const lockValidation = workflow.indexOf("name: Validate Cargo lockfile");
+  const packageBuild = workflow.indexOf("name: Prepare packaged Next.js server");
+  assert.ok(rustSetup >= 0 && lockValidation > rustSetup && packageBuild > lockValidation);
+  assert.match(workflow, /cargo metadata --locked --no-deps --manifest-path src-tauri\/Cargo\.toml --format-version 1/);
+});
+
 test("macOS releases accept stable Developer ID signing without hiding the ad-hoc fallback", async () => {
   const workflow = await readFile(
     join(root, ".github", "workflows", "release.yml"),

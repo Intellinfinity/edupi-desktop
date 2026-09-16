@@ -20,6 +20,7 @@ import {
 } from "@/lib/desktop-computer-use";
 import {
   installLatestDesktopRelease,
+  desktopUpgradeErrorKind,
   isTauriDesktop,
   type DesktopUpgradeProgress,
 } from "@/lib/desktop-updater";
@@ -458,7 +459,8 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
       }
     } catch (error) {
       setUpgradeProgress(null);
-      setUpgradeError(error instanceof Error ? error.message : String(error));
+      const kind = desktopUpgradeErrorKind(error);
+      setUpgradeError(t(kind === "download" ? "appSettings.downloadFailed" : kind === "signature" ? "appSettings.signatureFailed" : "appSettings.updateFailed"));
     }
   };
 

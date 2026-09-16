@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { useRouter, useSearchParams } from "next/navigation";
 import type { EducationContract, EducationEntityDeleteKind, TaskReviewAction, TeacherTask } from "@/lib/edupi-education-contract";
 import { calendarSelectionForSource, calendarSelectionFromLink, calendarSelectionLink, type CalendarItemSelection } from "@/lib/edupi-calendar-model";
-import type { EducationModule } from "@/lib/edupi-education-ui";
+import { isEducationModule, type EducationModule } from "@/lib/edupi-education-ui";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import {
   isTaskStage,
@@ -128,15 +128,17 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const searchParams = useSearchParams();
   const desktopChrome = useDesktopChrome();
   const requestedView = searchParams.get("view");
+  const requestedModule = searchParams.get("module");
   const requestedStage = searchParams.get("stage");
   const requestedStudentId = searchParams.get("student");
+  const requestedObjectId = searchParams.get("item");
   const requestedReviewTarget = reviewTargetRoute(searchParams.get("reviewTarget"));
-  const routeView = isWorkbenchView(requestedView) ? requestedView : viewFromModule(initialModule);
+  const routeView = isWorkbenchView(requestedView) ? requestedView : viewFromModule(isEducationModule(requestedModule) ? requestedModule : initialModule);
   const [activeView, setActiveView] = useState<WorkbenchView>(() => routeView);
   const [activeStage, setActiveStage] = useState<TaskStage>(() => isTaskStage(requestedStage) ? requestedStage : "brief");
   const [selectedTaskKey, setSelectedTaskKey] = useState<string | null>(() => searchParams.get("task"));
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(() => requestedStudentId);
-  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(() => searchParams.get("item"));
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(() => objectItemForView(routeView, requestedObjectId));
   const [reviewMode, setReviewMode] = useState<"board" | "task" | "c1">(() => searchParams.get("task") && requestedStage === "review" ? "task" : requestedReviewTarget ? "c1" : "board");
   const [selectedC1Target, setSelectedC1Target] = useState<ReviewTargetRoute | null>(() => requestedReviewTarget);
   const [education, setEducation] = useState<EducationContract | null>(null);
@@ -449,6 +451,15 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     params.delete("student");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [education, requestedStudentId, routeView, router, searchParams]);
+
+  useEffect(() => {
+    const nextObjectId = objectItemForView(routeView, requestedObjectId);
+    setSelectedObjectId(nextObjectId);
+    if (!requestedObjectId || nextObjectId) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("item");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [requestedObjectId, routeView, router, searchParams]);
 
   useEffect(() => {
     const id = searchParams.get("calendarItem");

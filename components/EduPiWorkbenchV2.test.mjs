@@ -55,7 +55,7 @@ test("class and student modules select one student and expose real import and ex
   assert.match(panel, /selectedStudentId/);
   assert.match(panel, /onStudent=\{selectStudent\}/);
   assert.match(panel, /const requestedStudentId = searchParams\.get\("student"\)/);
-  assert.match(panel, /const routeView = isWorkbenchView\(requestedView\) \? requestedView : viewFromModule\(initialModule\)/);
+  assert.match(panel, /viewFromModule\(isEducationModule\(requestedModule\) \? requestedModule : initialModule\)/);
   assert.match(panel, /setSelectedStudentId\(routeView === "homeroom" \|\| routeView === "students" \? requestedStudentId : null\)/);
   assert.match(panel, /education\.students\.some\(\(student, index\) => studentRecordKey\(student, index\) === requestedStudentId\)/);
   assert.match(panel, /params\.delete\("student"\)/);
@@ -88,6 +88,10 @@ test("teaching prepares the next class and continuity modules render one selecte
   assert.match(teaching, /请为\$\{nextSubject\}/);
   assert.match(panel, /selectedObjectId/);
   assert.match(panel, /onObject=\{selectObject\}/);
+  assert.match(panel, /const requestedObjectId = searchParams\.get\("item"\)/);
+  assert.match(panel, /objectItemForView\(routeView, requestedObjectId\)/);
+  assert.match(panel, /setSelectedObjectId\(nextObjectId\)/);
+  assert.match(panel, /params\.delete\("item"\)/);
   assert.match(sider, /MEMORY_CATEGORIES\.map/);
   assert.match(sider, /INSIGHT_CATEGORIES\.map/);
   assert.match(memory, /edupi-database/);

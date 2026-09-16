@@ -15,7 +15,7 @@ import { EduPiEducationPanel } from "./EduPiEducationPanel";
 import { EduPiReminderInbox } from "./EduPiReminderInbox";
 import { EduPiFirstRunGuide } from "./EduPiFirstRunGuide";
 import "@/app/edupi-first-run.css";
-import type { EducationModule } from "@/lib/edupi-education-ui";
+import { isEducationModule, type EducationModule } from "@/lib/edupi-education-ui";
 import { moduleFromView, viewFromModule, type TaskStage, type WorkbenchView } from "@/lib/edupi-workbench";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-computer-use";
@@ -253,8 +253,7 @@ export function AppShell() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const requestedEducationModule = searchParams.get("module");
-    const allowed: EducationModule[] = ["home", "context", "students", "calendar", "materials", "tasks"];
-    if (requestedEducationModule && allowed.includes(requestedEducationModule as EducationModule)) setEduPiEducationModule(requestedEducationModule as EducationModule);
+    if (isEducationModule(requestedEducationModule)) setEduPiEducationModule(requestedEducationModule);
     else if (searchParams.get("edupi") === "1") setEduPiEducationModule("home");
   }, [searchParams]);
   const chatInputRef = useRef<ChatInputHandle | null>(null);

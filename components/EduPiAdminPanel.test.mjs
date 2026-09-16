@@ -72,7 +72,8 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.doesNotMatch(admin, /education\?\.[a-zA-Z]+\.length \|\| 0/);
   assert.doesNotMatch(admin, /snapshot\.models\?\.modelList\?\.length \|\| 0/);
   assert.doesNotMatch(admin, /配置模块即将接入/);
-  assert.match(admin, /configurableConnectors = new Set\(\["feishu", "dingtalk"\]\)/);
+  assert.match(admin, /connectorSetupIds = new Set<string>\(CONNECTOR_SETUP_IDS\)/);
+  assert.match(admin, /connectorSetupIds\.has\(id\)/);
   assert.match(admin, /status === "configured"\) return "已配置"/);
 
   assert.match(rail, /APP_VERSION_DISPLAY/);

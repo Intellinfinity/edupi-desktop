@@ -5,6 +5,7 @@ import { openExternal } from "@/lib/desktop-native";
 
 const DINGTALK_CONNECTOR_COMMAND = "npx -y @dingtalk-real-ai/dingtalk-connector@0.8.25 install";
 const GUIDES: Record<string, { title: string; note: string }> = { email: { title: "邮箱", note: "向邮箱管理员申请 IMAP/SMTP 或 OAuth 应用信息。" }, sis: { title: "教务系统", note: "向学校教务管理员申请课表、校历和名单接口。" }, cloud_drive: { title: "云盘", note: "选择学校正在使用的云盘，再授权指定材料目录。" } };
+export const CONNECTOR_SETUP_IDS = ["feishu", "dingtalk", ...Object.keys(GUIDES)] as const;
 
 async function copyText(value: string): Promise<void> { await navigator.clipboard.writeText(value); }
 
@@ -50,5 +51,5 @@ export function EduPiConnectorSetup(props: { connectorId: string; status: string
   if (props.connectorId === "feishu") return <FeishuSetup {...props} />;
   if (props.connectorId === "dingtalk") return <DingTalkSetup {...props} />;
   const guide = GUIDES[props.connectorId] || { title: props.connectorId, note: "该连接器需要管理员提供接入信息。" };
-  return <section className="edupi-connector-setup" aria-label={`${guide.title}连接设置`}><SetupHeader title={guide.title} status={props.status} onClose={props.onClose} /><p>{guide.note}</p></section>;
+  return <section className="edupi-connector-setup" aria-label={`${guide.title}连接设置`}><SetupHeader title={guide.title} status={props.status} onClose={props.onClose} /><div className="edupi-connector-setup__requirement"><strong>需要管理员接入</strong><span>{guide.note}</span></div></section>;
 }

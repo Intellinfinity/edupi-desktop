@@ -19,3 +19,10 @@ test("configured and connected remain distinct connector states", () => {
   assert.match(source, /飞书应用配置已保存/);
   assert.doesNotMatch(source, /status === "configured" \|\| status === "connected" \? "已连接"/);
 });
+
+test("every projected connector has one reachable setup or requirement surface", () => {
+  assert.match(source, /CONNECTOR_SETUP_IDS = \["feishu", "dingtalk", \.\.\.Object\.keys\(GUIDES\)\]/);
+  for (const id of ["email", "sis", "cloud_drive"]) assert.match(source, new RegExp(`${id}: \\{ title:`));
+  for (const text of ["需要管理员接入", "IMAP/SMTP", "课表、校历和名单接口", "授权指定材料目录"]) assert.match(source, new RegExp(text));
+  assert.match(source, /edupi-connector-setup__requirement/);
+});

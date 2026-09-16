@@ -281,6 +281,9 @@
 .edupi-connector-setup__message { margin: 12px 0 0; color: var(--text-muted); font-size: 11px; }
 .edupi-connector-setup details { margin-top: 14px; border-top: 1px solid var(--border); }
 .edupi-connector-setup details summary { padding-top: 12px; color: var(--text-muted); cursor: pointer; font-size: 11px; }
+.edupi-connector-setup__requirement { display: grid; gap: 5px; margin-top: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); }
+.edupi-connector-setup__requirement strong { font-size: 12px; }
+.edupi-connector-setup__requirement span { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
 
 .edupi-admin-runtime {
   overflow: hidden;

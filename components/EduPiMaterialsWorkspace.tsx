@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { EducationContract, EducationEntityDeleteKind, TeacherTask } from "@/lib/edupi-education-contract";
-import { MATERIAL_CATEGORIES, materialCategoryRoute, materialItemRoute } from "@/lib/edupi-domain-navigation";
+import { MATERIAL_CATEGORIES, materialCategoryRoute, materialItemRoute, materialObjectId } from "@/lib/edupi-domain-navigation";
 import type { MaterialStagingDescriptor } from "@/lib/edupi-material-staging-client";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
@@ -23,13 +23,21 @@ function shortDate(value: string | null): string {
 }
 
 
-export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId, stagedMaterials, stagingBusy, stagingMessage, onTask, onUpload, onIntakeMaterial, onRemoveStagedMaterial, onOpenFile, onStartAgent, onEducation, onDeleteEntity }: { data: EducationContract; context: TeacherContextSnapshot | null; query: string; selectedObjectId: string | null; stagedMaterials: MaterialStagingDescriptor[]; stagingBusy: boolean; stagingMessage: string | null; onTask: (task: TeacherTask) => void; onUpload: () => void; onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => Promise<unknown>; onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>; onOpenFile: (path: string) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onEducation: (data: EducationContract) => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
+export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId, onObject, stagedMaterials, stagingBusy, stagingMessage, onTask, onUpload, onIntakeMaterial, onRemoveStagedMaterial, onOpenFile, onStartAgent, onEducation, onDeleteEntity }: { data: EducationContract; context: TeacherContextSnapshot | null; query: string; selectedObjectId: string | null; onObject: (id: string) => void; stagedMaterials: MaterialStagingDescriptor[]; stagingBusy: boolean; stagingMessage: string | null; onTask: (task: TeacherTask) => void; onUpload: () => void; onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => Promise<unknown>; onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>; onOpenFile: (path: string) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onEducation: (data: EducationContract) => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
   const category = materialCategoryRoute(selectedObjectId);
   const focusedMaterialId = materialItemRoute(selectedObjectId);
   const categoryLabel = MATERIAL_CATEGORIES.find((item) => item.id === category)?.label || "全部材料";
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<MaterialRow | null>(null);
-  const drawerRef = useModalDismiss<HTMLElement>(() => setSelected(null), Boolean(selected));
+  const closeSelected = useCallback(() => {
+    setSelected(null);
+    onObject(materialObjectId(category));
+  }, [category, onObject]);
+  const openSelected = useCallback((item: MaterialRow) => {
+    setSelected(item);
+    onObject(materialObjectId(category, item.id));
+  }, [category, onObject]);
+  const drawerRef = useModalDismiss<HTMLElement>(closeSelected, Boolean(selected));
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [archivedId, setArchivedId] = useState<string | null>(null);
   const [operationError, setOperationError] = useState("");
@@ -39,20 +47,20 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   const materialIntakeReady = data.capabilities.materialIntake.enabled;
   const allRows = useMemo(() => buildMaterialRows(data, query), [data, query]);
   const rows = useMemo(() => allRows.filter(item => category === "all" || item.category === category), [allRows, category]);
-  useEffect(() => { setPage(0); setSelected(null); }, [category, query]);
+  useEffect(() => { setPage(0); }, [category, query]);
   useEffect(() => {
-    if (!focusedMaterialId) return;
+    if (!focusedMaterialId) { setSelected(null); return; }
     const index = rows.findIndex((item) => item.id === focusedMaterialId);
-    if (index < 0) return;
+    if (index < 0) { closeSelected(); return; }
     setPage(Math.floor(index / PAGE_SIZE));
     setSelected(rows[index]);
-  }, [focusedMaterialId, rows]);
+  }, [closeSelected, focusedMaterialId, rows]);
   useEffect(() => {
     if (!selected) return;
     const current = allRows.find((item) => item.id === selected.id);
-    if (!current) setSelected(null);
+    if (!current) closeSelected();
     else if (current !== selected) setSelected(current);
-  }, [allRows, selected]);
+  }, [allRows, closeSelected, selected]);
   useEffect(() => {
     if (intakeDraft && !stagedMaterials.some(item => item.staging_id === intakeDraft.stagingId)) setIntakeDraft(null);
   }, [intakeDraft, stagedMaterials]);
@@ -75,16 +83,16 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
     setOperationError("");
     try {
       if (selected.deleteKind === "generated") {
-        const response = await fetch("/api/edupi/artifacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "archive", artifactId: selected.id }) });
-        if (!response.ok) throw new Error("移除失败");
-        setArchivedId(selected.id); setSelected(null);
+      const response = await fetch("/api/edupi/artifacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "archive", artifactId: selected.id }) });
+      if (!response.ok) throw new Error("移除失败");
+        setArchivedId(selected.id); closeSelected();
         window.dispatchEvent(new Event("edupi-artifacts-updated"));
         return;
       }
       const deleted = selected.deleteKind === "task" && selected.task?.id
         ? await onDeleteEntity("task", selected.task.id, selected.title)
         : await onDeleteEntity("material", selected.id, selected.title);
-      if (deleted) setSelected(null);
+      if (deleted) closeSelected();
     } catch {
       setOperationError("材料操作失败，请重试");
     } finally {
@@ -123,8 +131,8 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
     {generatedError ? <p className="edupi-material-message" role="status">对话生成文件索引暂不可用</p> : null}
     {operationError ? <p role="alert">{operationError}</p> : null}
     {archivedId ? <p role="status">已移出材料，原文件保留。<button className="native-button" onClick={async () => { const response = await fetch("/api/edupi/artifacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "restore", artifactId: archivedId }) }); if (response.ok) { setArchivedId(null); window.dispatchEvent(new Event("edupi-artifacts-updated")); } }}>撤销</button></p> : null}
-    <section className="edupi-database"><div className="edupi-database__head edupi-material-db-grid"><span>材料</span><span>类型</span><span>学科 / 班级</span><span>来源</span><span>日期</span><span>状态</span></div>{visible.map((item) => <button type="button" className="edupi-database-button-row edupi-material-db-grid" key={item.id} onClick={() => setSelected(item)}><strong>{item.title}</strong><span>{item.type}</span><span>{item.subject}</span><span>{item.source}</span><time>{shortDate(item.date)}</time><span>{item.status}</span></button>)}{visible.length === 0 ? <div className="edupi-database__empty">{materialSource.present || stagedMaterials.length > 0 ? "数据已连接，当前分类暂无材料" : "材料索引尚未接入"}</div> : null}</section>
+    <section className="edupi-database"><div className="edupi-database__head edupi-material-db-grid"><span>材料</span><span>类型</span><span>学科 / 班级</span><span>来源</span><span>日期</span><span>状态</span></div>{visible.map((item) => <button type="button" className="edupi-database-button-row edupi-material-db-grid" key={item.id} onClick={() => openSelected(item)}><strong>{item.title}</strong><span>{item.type}</span><span>{item.subject}</span><span>{item.source}</span><time>{shortDate(item.date)}</time><span>{item.status}</span></button>)}{visible.length === 0 ? <div className="edupi-database__empty">{materialSource.present || stagedMaterials.length > 0 ? "数据已连接，当前分类暂无材料" : "材料索引尚未接入"}</div> : null}</section>
     <nav className="edupi-database-pagination" aria-label="材料分页"><button type="button" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>上一页</button><span>{page + 1} / {pages}</span><button type="button" disabled={page >= pages - 1} onClick={() => setPage((value) => value + 1)}>下一页</button></nav>
-    {selected ? <aside ref={drawerRef} className="edupi-material-drawer" role="dialog" aria-modal="true" aria-label={`${selected.title}材料详情`}><header><div><span>{selected.type}</span><h2>{selected.title}</h2></div><button type="button" data-autofocus onClick={() => setSelected(null)} aria-label="关闭材料详情">×</button></header><div className="edupi-material-drawer__body"><dl className="edupi-material-drawer__facts"><div><dt>状态</dt><dd>{selected.status}</dd></div><div><dt>来源</dt><dd>{selected.source}</dd></div><div><dt>学科 / 班级</dt><dd>{selected.subject}</dd></div><div><dt>日期</dt><dd>{shortDate(selected.date)}</dd></div><div><dt>说明</dt><dd>{selected.summary}</dd></div></dl><EduPiOperationHistory rows={selectedHistory} />{selected.material ? <EduPiMaterialMetadataEditor material={selected.material} classes={classes} onEducation={onEducation} onStartAgent={onStartAgent} /> : null}{selected.deleteKind === "material" ? <EduPiMaterialExcerpt key={selected.id} materialId={selected.id} onPreview={selected.filePath ? () => onOpenFile(selected.filePath!) : undefined} /> : null}</div><footer>{selected.filePath ? <button type="button" onClick={() => onOpenFile(selected.filePath!)}>预览</button> : null}{selected.filePath && isTauriDesktop() ? <><button type="button" onClick={() => void openNative("open")}>打开文件</button><button type="button" onClick={() => void openNative("reveal")}>显示所在文件夹</button></> : null}{selected.task ? <button type="button" onClick={() => onTask(selected.task!)}>关联任务</button> : null}{canDeleteSelected ? <button type="button" className="is-delete" disabled={deleteBusy} onClick={() => void deleteSelected()}>{deleteBusy ? "删除中…" : "删除材料"}</button> : null}{!selected.material ? <button type="button" className="is-primary" onClick={openMaterialAgent}>补充 / 修订</button> : null}</footer></aside> : null}
+    {selected ? <aside ref={drawerRef} className="edupi-material-drawer" role="dialog" aria-modal="true" aria-label={`${selected.title}材料详情`}><header><div><span>{selected.type}</span><h2>{selected.title}</h2></div><button type="button" data-autofocus onClick={closeSelected} aria-label="关闭材料详情">×</button></header><div className="edupi-material-drawer__body"><dl className="edupi-material-drawer__facts"><div><dt>状态</dt><dd>{selected.status}</dd></div><div><dt>来源</dt><dd>{selected.source}</dd></div><div><dt>学科 / 班级</dt><dd>{selected.subject}</dd></div><div><dt>日期</dt><dd>{shortDate(selected.date)}</dd></div><div><dt>说明</dt><dd>{selected.summary}</dd></div></dl><EduPiOperationHistory rows={selectedHistory} />{selected.material ? <EduPiMaterialMetadataEditor material={selected.material} classes={classes} onEducation={onEducation} onStartAgent={onStartAgent} /> : null}{selected.deleteKind === "material" ? <EduPiMaterialExcerpt key={selected.id} materialId={selected.id} onPreview={selected.filePath ? () => onOpenFile(selected.filePath!) : undefined} /> : null}</div><footer>{selected.filePath ? <button type="button" onClick={() => onOpenFile(selected.filePath!)}>预览</button> : null}{selected.filePath && isTauriDesktop() ? <><button type="button" onClick={() => void openNative("open")}>打开文件</button><button type="button" onClick={() => void openNative("reveal")}>显示所在文件夹</button></> : null}{selected.task ? <button type="button" onClick={() => onTask(selected.task!)}>关联任务</button> : null}{canDeleteSelected ? <button type="button" className="is-delete" disabled={deleteBusy} onClick={() => void deleteSelected()}>{deleteBusy ? "删除中…" : "删除材料"}</button> : null}{!selected.material ? <button type="button" className="is-primary" onClick={openMaterialAgent}>补充 / 修订</button> : null}</footer></aside> : null}
   </main>;
 }

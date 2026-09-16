@@ -94,6 +94,12 @@ test("review keeps the selected task visible after its decision changes", async 
   const selection = source.slice(source.indexOf("const activeTask = useMemo"), source.indexOf("const activeWorkReview"));
   assert.match(selection, /return requested \?\? tasks\.find\(reviewable\)/);
   assert.doesNotMatch(selection, /requested && reviewable\(requested\)/);
+  assert.match(source, /const requestedTaskKey = searchParams\.get\("task"\)/);
+  assert.match(source, /setSelectedTaskKey\(routeView === "tasks" \|\| routeView === "review" \? requestedTaskKey : null\)/);
+  assert.match(source, /education\.tasks\.some\(\(task\) => taskKey\(task\) === requestedTaskKey\)/);
+  assert.match(source, /setActiveStage\(isTaskStage\(requestedStage\) \? requestedStage : "brief"\)/);
+  assert.match(source, /setSelectedTaskKey\(null\);\s*setActiveStage\("brief"\)/);
+  assert.match(source, /params\.delete\("task"\);\s*params\.delete\("stage"\)/);
 });
 
 test("growth and materials use explicit databases and right-side material details", async () => {

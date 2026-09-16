@@ -7,7 +7,7 @@ import type { WorkbenchView } from "@/lib/edupi-workbench";
 import type { EduPiWorkspaceBundle } from "@/lib/edupi-education-client";
 import { APP_VERSION_DISPLAY } from "@/lib/branding";
 import { useDesktopChrome, WindowControls } from "./desktop";
-import { EduPiConnectorSetup } from "./EduPiConnectorSetup";
+import { CONNECTOR_SETUP_IDS, EduPiConnectorSetup } from "./EduPiConnectorSetup";
 import { EduPiBackgroundJobs } from "./EduPiBackgroundJobs";
 import { startWindowDragging } from "@/lib/desktop-window";
 import { formatCoreSchedulerStatus } from "@/lib/edupi-schedule-display";
@@ -75,7 +75,7 @@ const FALLBACK_CHECKLIST: OnboardingChecklistItem[] = [
   { id: "roster", label: "导入班级名单（可选）", status: "optional", description: "先有名字即可" },
   { id: "material", label: "放入第一份真实材料", status: "optional", description: "作业、错题或课堂记录" },
 ];
-const configurableConnectors = new Set(["feishu", "dingtalk"]);
+const connectorSetupIds = new Set<string>(CONNECTOR_SETUP_IDS);
 function connectorStatusLabel(status: string | undefined): string {
   if (status === "connected" || status === "conversation_verified") return "已连接";
   if (status === "configured") return "已配置";
@@ -260,8 +260,8 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <div className="edupi-admin-list">{snapshot.platform?.connectors?.connectors?.map((connector) => {
           const id = connector.connector_id || "";
           const connected = connector.status === "connected" || connector.status === "conversation_verified";
-          const content = <><span><strong>{connector.label || id}</strong><small>{connector.capabilities?.join(" · ")}</small></span><em className={connected ? "is-ready" : ""}>{connectorStatusLabel(connector.status)}{configurableConnectors.has(id) ? " ›" : ""}</em></>;
-          return configurableConnectors.has(id)
+          const content = <><span><strong>{connector.label || id}</strong><small>{connector.capabilities?.join(" · ")}</small></span><em className={connected ? "is-ready" : ""}>{connectorStatusLabel(connector.status)}{connectorSetupIds.has(id) ? " ›" : ""}</em></>;
+          return connectorSetupIds.has(id)
             ? <button type="button" key={id} onClick={() => setSelectedConnector(id)}>{content}</button>
             : <div key={id}>{content}</div>;
         })}</div>

@@ -138,6 +138,35 @@ test("seeds eight independent labeled targets through the Core adapter and resto
   }
 });
 
+test("restores the caller environment when writer admission release fails", async () => {
+  const parent = tempDirectory("edupi-c1-visible-release-failure-");
+  const dataRoot = makeDataRoot(parent);
+  const originalDataRoot = process.env.EDUPI_DATA_ROOT;
+  const originalHome = process.env.EDUPI_HOME;
+  const sentinelDataRoot = path.join(parent, "caller-data");
+  const sentinelHome = path.join(parent, "caller-home");
+  let captureCount = 0;
+  try {
+    process.env.EDUPI_DATA_ROOT = sentinelDataRoot;
+    process.env.EDUPI_HOME = sentinelHome;
+    await assert.rejects(seedVisibleTargets({
+      coreRoot: path.join(parent, "pinned-core"),
+      dataRoot,
+      prepareWriterRoot: (root) => ({ ok: true, root }),
+      acquireWriterAdmission: async () => ({ release: async () => { throw new Error("release failed"); } }),
+      jitiFactory: () => ({ import: async () => ({ captureTeacherObservation: () => ({ created: true, observation_id: `observation-${++captureCount}`, candidate_id: `candidate-${captureCount}` }) }) }),
+    }), /release failed/);
+    assert.equal(process.env.EDUPI_DATA_ROOT, sentinelDataRoot);
+    assert.equal(process.env.EDUPI_HOME, sentinelHome);
+  } finally {
+    if (originalDataRoot === undefined) delete process.env.EDUPI_DATA_ROOT;
+    else process.env.EDUPI_DATA_ROOT = originalDataRoot;
+    if (originalHome === undefined) delete process.env.EDUPI_HOME;
+    else process.env.EDUPI_HOME = originalHome;
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
 test("creates one temporary data root, detached Desktop worktree, and node_modules link", async () => {
   const calls = [];
   const symlinks = [];

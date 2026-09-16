@@ -647,6 +647,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     cancelActivation();
     setActiveView("review");
     setSelectedTaskKey(null);
+    setQuery("");
     setReviewMode("c1");
     setSelectedC1Target(target);
     setDrawer(null);

@@ -375,8 +375,11 @@ export async function seedVisibleTargets({
       counts: { observations: 8, memoryCandidates: 8, memories: 0 },
     };
   } finally {
-    await writerAdmission?.release();
-    restoreEnvironment();
+    try {
+      await writerAdmission?.release();
+    } finally {
+      restoreEnvironment();
+    }
   }
 }
 

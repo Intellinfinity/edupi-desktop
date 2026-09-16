@@ -7,6 +7,6 @@ test("startup reminder bypasses an old release cache once, then returns to sched
   assert.match(source, /let forceRefresh = true/);
   assert.match(source, /fetch\(appUpdateRequestUrl\(forceRefresh\)/);
   const parsed = source.indexOf("await response.json()");
-  const reset = source.indexOf("forceRefresh = false");
+  const reset = source.indexOf('if (!hasAppUpdateCheckError(data, "edupi-desktop")) forceRefresh = false');
   assert.ok(parsed >= 0 && reset > parsed, "the startup force flag must clear only after a successful response");
 });

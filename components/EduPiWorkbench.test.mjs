@@ -533,9 +533,15 @@ test("the CSS defines a harness workspace with an optional object browser and re
 
 test("background jobs expose every available artifact for native opening", async () => {
   const jobs = await read("./EduPiBackgroundJobs.tsx");
+  const admin = await read("./EduPiAdminPanel.tsx");
   const css = await read("../app/edupi-admin.css");
   assert.match(jobs, /job\.artifacts\.map/);
   assert.match(jobs, /workspaceFile\(data\.workspace, file\.relative_path\)/);
   assert.match(jobs, /openPathNative/);
+  assert.match(jobs, /backgroundJobRecovery/);
+  assert.match(jobs, /查看“\$\{job\.title\}”技术详情/);
+  assert.match(jobs, /failureLabels\[job\.error \|\| ""\] \|\| "处理未完成"/);
+  assert.match(admin, /onModels=\{\(\) => setActiveSection\("models"\)\}/);
   assert.match(css, /\.edupi-background-job-artifacts/);
+  assert.match(css, /\.edupi-background-job-details/);
 });

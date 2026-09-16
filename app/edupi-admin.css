@@ -247,6 +247,12 @@
 .edupi-admin-list small { color: var(--text-muted); font-size: 11px; }
 .edupi-admin-list em { color: var(--text-muted); font-size: 11px; font-style: normal; white-space: nowrap; }
 .edupi-admin-list em.is-ready { color: #18805a; }
+.edupi-background-job-row { flex-wrap: wrap; }
+.edupi-background-job-actions { display: flex; max-width: 56%; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.edupi-background-job-details { color: var(--text-muted); font-size: 10px; text-align: right; }
+.edupi-background-job-details summary { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; list-style: none; }
+.edupi-background-job-details summary::-webkit-details-marker { display: none; }
+.edupi-background-job-details code { display: block; max-width: 360px; margin-top: 6px; padding: 6px 8px; border-radius: 5px; background: var(--bg-hover); color: var(--text-muted); overflow-wrap: anywhere; white-space: normal; }
 .edupi-background-job-artifacts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 .edupi-background-job-artifacts button { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -381,6 +387,8 @@
   .edupi-admin-metrics > div:last-child { border-bottom: 0; }
   .edupi-admin-runtime > div { grid-template-columns: 8px minmax(0, 1fr) auto; }
   .edupi-admin-runtime time { display: none; }
+  .edupi-background-job-row > span,
+  .edupi-background-job-actions { width: 100%; max-width: none; }
   .edupi-core-compatibility__identity { grid-template-columns: 1fr; }
   .edupi-core-compatibility__commands { grid-template-columns: 1fr; }
   .edupi-admin-embedded-models .models-settings-embedded {

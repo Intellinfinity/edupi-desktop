@@ -384,6 +384,10 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(panel, /const \[taskDetailTask, setTaskDetailTask\]/);
   assert.match(panel, /const \[fileReturnTaskKey, setFileReturnTaskKey\]/);
   assert.match(panel, /const openTaskDetail = useCallback/);
+  assert.match(panel, /params\.set\("taskDetail", key\)/);
+  assert.match(panel, /searchParams\.get\("taskDetail"\)/);
+  assert.match(panel, /tasks\.find\(\(task\) => taskKey\(task\) === requested\)/);
+  assert.match(panel, /if \(!selected && education\) updateTaskDetailLocation\(null\)/);
   assert.match(panel, /<EduPiTaskDetailDrawer/);
   assert.match(panel, /files=\{education\.generatedArtifacts\}/);
   assert.match(panel, /onTaskDetail=\{openTaskDetail\}/);
@@ -392,6 +396,7 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(panel, /activateAgent\(task, "tasks", "run"\)/);
   assert.match(panel, /onOpenTask=\{selectTask\}/);
   assert.match(panel, /onOpenAgent=\{openAgentForTask\}/);
+  assert.match(panel, /updateTaskDetailLocation\(taskKey\(task\)\)/);
   assert.match(panel, /tasks\.find\(\(task\) => taskKey\(task\) === fileReturnTaskKey\)/);
   assert.match(panel, /closeDrawer\(false\); startAgent/);
   assert.doesNotMatch(panel, /continueTask/);

@@ -30,10 +30,10 @@ function isInterruptedDownload(error: unknown): boolean {
   return /error decoding response body|connection (?:reset|closed)|timed? out|error sending request|incomplete message|body error/i.test(errorText(error));
 }
 
-export function desktopUpgradeErrorMessage(error: unknown): string {
-  if (isInterruptedDownload(error)) return "更新包下载中断，请检查网络后重试。";
-  if (/signature|签名|verification/i.test(errorText(error))) return "更新包验证失败，请稍后重试。";
-  return "更新未完成，请稍后重试。";
+export function desktopUpgradeErrorKind(error: unknown): "download" | "signature" | "unknown" {
+  if (isInterruptedDownload(error)) return "download";
+  if (/signature|签名|verification/i.test(errorText(error))) return "signature";
+  return "unknown";
 }
 
 export async function downloadVerifiedUpdate(

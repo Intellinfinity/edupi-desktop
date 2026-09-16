@@ -16,6 +16,12 @@ export type CalendarItemSelection = {
   statusLabel: string;
 };
 
+export type CalendarSelectionLink = {
+  kind: "calendar" | "timetable";
+  id: string;
+  date: string | null;
+};
+
 export type CalendarEntry = {
   id: string;
   sourceId: string | null;
@@ -581,11 +587,20 @@ export function calendarSelectionForSource(
   };
 }
 
+export function calendarSelectionLink(selection: CalendarItemSelection | null): CalendarSelectionLink | null {
+  if (!selection?.sourceId || (selection.kind !== "calendar" && selection.kind !== "timetable")) return null;
+  const date = parseIsoDate(selection.date);
+  if (selection.kind === "calendar" && !date) return null;
+  return { kind: selection.kind, id: selection.sourceId, date };
+}
+
 export function calendarSelectionFromLink(
   data: Pick<EducationContract, "calendar" | "tasks" | "timetable">,
   link: { kind: string | null; id: string | null; date: string | null },
 ): CalendarItemSelection | null {
-  if (!link.id || !parseIsoDate(link.date) || (link.kind !== "calendar" && link.kind !== "timetable")) return null;
+  if (!link.id || (link.kind !== "calendar" && link.kind !== "timetable")) return null;
+  if (link.kind === "timetable" && !link.date) return calendarSelectionForSource(data, "timetable", link.id);
+  if (!parseIsoDate(link.date)) return null;
   const entry = createCalendarProjection(data, { view: "day", anchorDate: link.date! }).entries.find(item => item.kind === link.kind && item.sourceId === link.id);
   return entry ? { kind: entry.kind, sourceId: entry.sourceId, date: entry.date, title: entry.title, detail: entry.detail, sourceLabel: entry.sourceLabel, statusLabel: entry.statusLabel } : null;
 }

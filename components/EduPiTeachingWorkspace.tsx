@@ -73,7 +73,7 @@ export function EduPiTeachingWorkspace({ data, context, query, selectedObjectId,
   const nextSubject = String(nextTeachingTask?.sourceEventName || nextSlot?.subject || context?.subject || "下一节课");
   const subjectLabel = [context?.subject, context?.grade].filter(Boolean).join(" · ") || "教学工作区";
   const priorityPrompt = buildTeachingPriorityConversationPrompt({ subject: context?.subject || null, grade: context?.grade || null, currentTopics: [...activePriorities.map((item) => item.topic), ...knowledge.map((item) => item.topic)] });
-  const selectCourse = (selection: CalendarItemSelection) => { onCalendarSelection(selection); onNavigate("calendar"); };
+  const selectCourse = (selection: CalendarItemSelection) => onCalendarSelection(selection);
   const openNextPreparation = () => nextTeachingTask ? onTask(nextTeachingTask) : onStartAgent(`请为${nextSubject}准备下一节课的重点、材料和课堂检查点，结合现有学情与教育记忆，先给我可审核候选。`);
 
   const header = <><header className="edupi-module-heading edupi-teaching-heading"><div>{section !== "home" ? <button type="button" className="edupi-back-link" onClick={() => onObject("teaching:home")}>← 教学首页</button> : <span>教学工作区</span>}<h1>{section === "home" ? "教学" : section === "schedule" ? "课程表" : section === "knowledge" ? "教学重点" : section === "tasks" ? "备课任务" : "教学记忆"}</h1><p>{subjectLabel}</p></div><div className="edupi-teaching-heading__actions"><button type="button" onClick={() => onStartAgent(priorityPrompt, "replace")}>对话补充重点</button><button type="button" className="is-primary" onClick={openNextPreparation}>{nextTeachingTask ? "查看下一节准备" : "准备下一节课"}</button></div></header><EduPiPreparationStatus /></>;

@@ -49,6 +49,11 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(workbench, /id: "workspace", label: "工作区", shortLabel: "任务板"/);
   assert.match(objectSider, /calendar: "日程"/);
   assert.match(workspaceViews, /EduPiCalendarWorkspace/);
+  assert.match(panel, /calendarSelectionLink\(nextCalendarSelection\)/);
+  assert.match(panel, /params\.set\("calendarKind", calendarLink\.kind\)/);
+  assert.match(panel, /params\.set\("calendarItem", calendarLink\.id\)/);
+  assert.match(panel, /onCalendarItem=\{selectCalendarItem\}/);
+  assert.match(panel, /onCalendarSelection=\{selectCalendarItem\}/);
   assert.match(workspaceViews, /EduPiWorkspaceBoard/);
   assert.match(workbench, /export function taskPresentation/);
   assert.match(taskBoard, /taskPresentation\(task\)/);
@@ -113,6 +118,7 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(workspaceViews, /EduPiInsightDatabase/);
   assert.match(workspaceViews, /calendarFactSelection/);
   assert.match(workspaceViews, /onCalendarSelection\(calendarFactSelection\(event\)\)/);
+  assert.doesNotMatch(workspaceViews, /onCalendarSelection\(calendarFactSelection\(event\)\); onNavigate\("calendar"\)/);
   assert.match(workspaceViews, /onNavigate\("insights", `insights:\$\{insightCategory\(latestInsight\.content\)\}:surfaced`\)/);
   assert.match(workspaceViews, /EduPiGrowthWorkspace/);
   assert.match(memoryDatabase, /edupi-database/);

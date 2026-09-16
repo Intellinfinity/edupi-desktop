@@ -13,7 +13,9 @@ test("deleted entity control exposes the Core-backed count", () => {
     onLoad: async () => ({ deletions: [], history: [] }),
     onRestore: async () => {},
   }));
-  assert.match(html, />已删除 1</);
+  assert.match(html, /aria-label="已删除 1 项"/);
+  assert.match(html, /edupi-deleted-entities-trigger__badge[^>]*>1</);
+  assert.doesNotMatch(html, />已删除 1</);
 });
 
 test("deleted entity control remains available while the summary is unavailable", () => {
@@ -24,7 +26,8 @@ test("deleted entity control remains available while the summary is unavailable"
     onLoad: async () => ({ deletions: [], history: [] }),
     onRestore: async () => {},
   }));
-  assert.match(html, />删除记录</);
+  assert.match(html, /aria-label="删除记录数量暂不可用"/);
+  assert.doesNotMatch(html, />删除记录</);
 });
 
 test("loaded history replaces a missing summary count without reducing a known total", () => {

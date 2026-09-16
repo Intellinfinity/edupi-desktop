@@ -230,6 +230,10 @@ html.dark .edupi-teacher-shell {
 .edupi-teacher-body { position: relative; display: grid; min-width: 0; min-height: 0; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
 .edupi-teacher-body__controls { position: absolute; z-index: 72; top: 12px; right: 14px; display: flex; gap: 6px; }
 .edupi-teacher-body__controls button { height: 30px; padding: 0 10px; border: 1px solid var(--ep-border); border-radius: 6px; background: color-mix(in srgb, var(--ep-surface) 94%, transparent); color: var(--ep-muted); box-shadow: 0 2px 8px rgba(18, 24, 32, .06); cursor: pointer; font-size: 11px; backdrop-filter: blur(10px); }
+.edupi-teacher-body__icon-button { display: grid; width: 30px; min-width: 30px; padding: 0 !important; place-items: center; }
+.edupi-teacher-body__icon-button.is-open { border-color: color-mix(in srgb, var(--ep-blue) 38%, var(--ep-border)); color: var(--ep-blue); }
+.edupi-deleted-entities-trigger { position: relative; display: grid; width: 30px; min-width: 30px; padding: 0 !important; place-items: center; }
+.edupi-deleted-entities-trigger__badge { position: absolute; top: -6px; right: -6px; display: grid; min-width: 15px; height: 15px; padding: 0 3px; place-items: center; border: 2px solid var(--ep-canvas); border-radius: 999px; background: var(--ep-red); color: #fff; font-size: 8px; font-weight: 700; line-height: 1; box-sizing: border-box; }
 .edupi-teacher-body.has-object-sider { grid-template-columns: 264px minmax(0, 1fr); }
 .edupi-teacher-body.has-object-sider.has-inspector { grid-template-columns: 264px minmax(0, 1fr) 300px; }
 .edupi-teacher-body.has-object-sider.is-object-sider-collapsed { grid-template-columns: 18px minmax(0, 1fr); }
@@ -238,6 +242,16 @@ html.dark .edupi-teacher-shell {
 .edupi-teacher-body.is-chat { grid-template-columns: 280px minmax(0, 1fr); }
 .edupi-chat-session-sidebar { min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--ep-border); background: var(--ep-surface-soft); }
 .edupi-chat-session-sidebar > * { height: 100%; }
+.edupi-conversation-files { display: flex; min-height: 42px; max-width: 100%; padding: 6px 12px; align-self: stretch; align-items: flex-end; flex-direction: column; box-sizing: border-box; transition: padding-right 120ms ease; }
+.edupi-teacher-body.is-chat.has-body-controls .edupi-conversation-files { padding-right: calc(12px + var(--edupi-body-controls-width, 0px)); }
+.edupi-conversation-files__toggle,
+.edupi-conversation-files__icon-button { display: grid; width: 30px; min-width: 30px; height: 30px; padding: 0 !important; place-items: center; }
+.edupi-conversation-files__toggle.is-open { border-color: color-mix(in srgb, var(--ep-blue) 38%, var(--ep-border)); color: var(--ep-blue); }
+.edupi-conversation-files__panel { width: min(560px, 100%); max-height: 260px; margin-top: 6px; padding: 10px; overflow: auto; border: 1px solid var(--ep-border); border-radius: 8px; background: var(--ep-surface); box-shadow: 0 8px 24px rgba(18, 24, 32, .08); box-sizing: border-box; }
+.edupi-conversation-files__row { display: flex; margin-bottom: 6px; align-items: center; justify-content: flex-end; gap: 8px; }
+.edupi-conversation-files__row > button:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-conversation-files__icon-button.is-busy svg { animation: edupi-conversation-files-spin 800ms linear infinite; }
+@keyframes edupi-conversation-files-spin { to { transform: rotate(360deg); } }
 .edupi-chat-surface,
 .edupi-chat-surface > * { height: 100%; min-height: 0; }
 .edupi-teacher-main { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ep-canvas); }

@@ -744,9 +744,10 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
 
         {/* 教师任务入口；底层仍复用 Pi session/runtime。 */}
         <button
-          className="sidebar-header-row sidebar-new-row"
+          className={`sidebar-header-row sidebar-new-row${embeddedChat ? " is-icon-only" : ""}`}
           onClick={handleNewSession}
           disabled={!selectedCwd}
+          aria-label={embeddedChat ? "新建对话" : undefined}
           title={selectedCwd ? `${embeddedChat ? "新建对话" : "新建教学任务"} (⌘/Ctrl+N)` : t("sidebar.selectProject")}
         >
           <span className="sidebar-new-plus" aria-hidden="true">
@@ -755,7 +756,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               <line x1="1.5" y1="6" x2="10.5" y2="6" />
             </svg>
           </span>
-          {embeddedChat ? "新建对话" : "新建教学任务"}
+          {embeddedChat ? null : "新建教学任务"}
         </button>
 
         {/* 当前学校/班级工作区；底层仍对应原有 cwd。 */}
@@ -1155,19 +1156,23 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               type="button"
               role="tab"
               aria-selected={sidebarView === "chats"}
+              aria-label={embeddedChat ? "对话" : undefined}
+              title={embeddedChat ? "对话" : undefined}
               className={sidebarView === "chats" ? "is-active" : undefined}
               onClick={() => setSidebarView("chats")}
             >
-              {embeddedChat ? "对话" : "教学任务"}
+              {embeddedChat ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6.5 5.5h11A2.5 2.5 0 0 1 20 8v7a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 3v-3A2.5 2.5 0 0 1 4 15V8a2.5 2.5 0 0 1 2.5-2.5Z" /><path d="M8 10h8M8 13.5h5" /></svg> : "教学任务"}
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={sidebarView === "files"}
+              aria-label={embeddedChat ? "文件" : undefined}
+              title={embeddedChat ? "文件" : undefined}
               className={sidebarView === "files" ? "is-active" : undefined}
               onClick={() => setSidebarView("files")}
             >
-              {embeddedChat ? "文件" : "材料与文件"}
+              {embeddedChat ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h4l2 2h6A2.5 2.5 0 0 1 20.5 8.5v8A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5Z" /></svg> : "材料与文件"}
             </button>
           </div>
         </div>

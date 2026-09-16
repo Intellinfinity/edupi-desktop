@@ -65,6 +65,18 @@ test("keeps the model selector visible when a model error leaves no options", ()
   assert.match(html, /title="No available models"/);
 });
 
+test("the send action is icon-only with an accessible name", () => {
+  const html = renderWithI18n(React.createElement(ChatInput, {
+    onSend() {},
+    onAbort() {},
+    isStreaming: false,
+  }));
+
+  assert.match(html, /aria-label="Send"/);
+  assert.match(html, /title="Send"/);
+  assert.doesNotMatch(html, />Send<\/button>/);
+});
+
 test("filters model options by name and id", () => {
   const options = [
     { provider: "ollama", modelId: "qwen3:latest", name: "Qwen 3" },

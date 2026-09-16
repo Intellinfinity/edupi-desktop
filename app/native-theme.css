@@ -457,6 +457,18 @@ pre, code {
   font-weight: 600;
 }
 
+.sidebar-new-row.is-icon-only {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar-new-row.is-icon-only .sidebar-new-plus {
+  width: 24px;
+  height: 24px;
+}
+
 .sidebar-new-row:disabled {
   color: var(--text-dim);
   cursor: not-allowed;
@@ -568,6 +580,11 @@ html.dark .sidebar-view-switcher-thumb {
   font-weight: 550;
   cursor: pointer;
   transition: color 180ms var(--ease-native);
+}
+
+.sidebar-view-switcher button > svg {
+  display: block;
+  margin: auto;
 }
 
 .sidebar-view-switcher button:hover:not(.is-active) {

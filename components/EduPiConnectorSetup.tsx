@@ -10,8 +10,14 @@ export const CONNECTOR_SETUP_IDS = ["feishu", "dingtalk", ...Object.keys(GUIDES)
 async function copyText(value: string): Promise<void> { await navigator.clipboard.writeText(value); }
 
 function SetupHeader({ title, status, onClose }: { title: string; status: string; onClose: () => void }) {
-  const label = status === "connected" ? "已连接" : status === "configured" ? "已配置" : status === "credentials_verified" ? "凭据已验证" : "待设置";
+  const label = status === "connected" || status === "conversation_verified" ? "已连接" : status === "configured" ? "已配置" : status === "credentials_verified" ? "凭据已验证" : "待设置";
   return <header><div><span>连接设置</span><h2>{title}</h2><small>{label}</small></div><button type="button" onClick={onClose} aria-label="关闭连接设置">×</button></header>;
+}
+
+export function connectorRequirement(status: string, note: string): { title: string; detail: string; ready: boolean } {
+  if (status === "connected" || status === "conversation_verified" || status === "configured") return { title: "已完成接入", detail: "当前连接已由管理员配置。", ready: true };
+  if (status === "credentials_verified") return { title: "凭据已验证", detail: "运行连接仍由管理员维护。", ready: false };
+  return { title: "需要管理员接入", detail: note, ready: false };
 }
 
 function FeishuSetup({ status, onClose, onConfigured }: { status: string; onClose: () => void; onConfigured: () => void }) {
@@ -51,5 +57,6 @@ export function EduPiConnectorSetup(props: { connectorId: string; status: string
   if (props.connectorId === "feishu") return <FeishuSetup {...props} />;
   if (props.connectorId === "dingtalk") return <DingTalkSetup {...props} />;
   const guide = GUIDES[props.connectorId] || { title: props.connectorId, note: "该连接器需要管理员提供接入信息。" };
-  return <section className="edupi-connector-setup" aria-label={`${guide.title}连接设置`}><SetupHeader title={guide.title} status={props.status} onClose={props.onClose} /><div className="edupi-connector-setup__requirement"><strong>需要管理员接入</strong><span>{guide.note}</span></div></section>;
+  const requirement = connectorRequirement(props.status, guide.note);
+  return <section className="edupi-connector-setup" aria-label={`${guide.title}连接设置`}><SetupHeader title={guide.title} status={props.status} onClose={props.onClose} /><div className={`edupi-connector-setup__requirement${requirement.ready ? " is-ready" : ""}`}><strong>{requirement.title}</strong><span>{requirement.detail}</span></div></section>;
 }

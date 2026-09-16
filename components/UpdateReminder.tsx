@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { AppUpdateInfo, AppUpdatesResponse } from "@/lib/app-update-types";
 import { PRODUCT_NAME } from "@/lib/branding";
 import { APP_PREF_KEYS, getPrefJson, setPrefJson } from "@/lib/app-prefs";
+import { appUpdateRequestUrl } from "@/lib/app-updates";
 import { handleExternalLinkClick } from "@/lib/desktop-native";
 import { useI18n } from "@/hooks/useI18n";
 
@@ -50,6 +51,7 @@ export function UpdateReminder({ onOpenSettings }: { onOpenSettings: () => void 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | undefined;
+    let forceRefresh = true;
 
     const schedule = (delay: number) => {
       if (cancelled) return;
@@ -60,13 +62,14 @@ export function UpdateReminder({ onOpenSettings }: { onOpenSettings: () => void 
       controller?.abort();
       controller = new AbortController();
       try {
-        const response = await fetch("/api/updates", {
+        const response = await fetch(appUpdateRequestUrl(forceRefresh), {
           cache: "no-store",
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json() as AppUpdatesResponse;
         if (cancelled) return;
+        forceRefresh = false;
         if (Array.isArray(data.updates) && data.updates.length > 0 && !isSnoozed(data.updates)) {
           setUpdates(data.updates);
         }

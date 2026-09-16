@@ -30,3 +30,11 @@
 - 尚未安装包含 #156 的 Tauri 包，因此原生 28px 拖动标题栏、Windows 和 Linux 窗口仍待安装版验收；窄屏抽屉使用应用内容区内的绝对定位，静态回归锁定其不会覆盖标题栏。
 - 普通浏览器没有桌面 API token，`/api/edupi/materials/staging` 在该环境返回 503；本轮已验证目标页面行为与 console error，但不能用此开发环境宣称安装版“无失败请求”。
 - 未触发删除、AI 写回或文件打开等会改变状态或依赖原生壳的动作；这些继续沿各自现有验收记录与安装版流程验证。
+
+## 追加批次：日程、任务与检查器抽屉
+
+- 代码版本：Desktop `ae1b9181169fc583cee87ad705d4c01ce0e408f9`，PR [#158](https://github.com/PIGU-PPPgu/edupi-desktop/pull/158)。
+- 同一 macOS、固定 Core 和临时教师数据副本环境中，日程详情的编辑/删除/关闭显示为有名称的图标；实际点击编辑后原名称、日期、类型和备注表单出现，取消后无写入。
+- 任务详情在 1458×900 与 800×900 下将删除和关闭收为图标；“进入任务”“继续让 EduPi 做”继续保留文字，均无重叠。检查器关闭使用同一图标组件。
+- 两个页面的浏览器 console error 均为 0；没有触发删除、保存或 AI 协作。
+- `npm test`：1249 tests，1224 passed，25 skipped，0 failed；TypeScript 与 ESLint 通过。

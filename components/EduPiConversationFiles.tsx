@@ -5,6 +5,18 @@ import type { GeneratedArtifact } from "@/lib/edupi-generated-artifacts";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { revealItemInDirNative } from "@/lib/desktop-native";
 
+function ConversationFilesIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h8l3 3V20H7z" /><path d="M15 3.5V7h3M10 11h5M10 15h5" /><path d="M4 7v13h10" /></svg>;
+}
+
+function RevealFolderIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5Z" /><path d="m12 11 3 3m0-3v3h-3" /></svg>;
+}
+
+function SyncIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.5A7 7 0 0 1 18.8 7L20 12M4 12l1.2 5A7 7 0 0 0 17.9 15.5" /></svg>;
+}
+
 export function EduPiConversationFiles({ sessionId, taskId, cwd, onOpen }: { sessionId: string; taskId?: string; cwd: string; onOpen?: (path: string) => void }) {
   const [open, setOpen] = useState(Boolean(taskId));
   const [files, setFiles] = useState<GeneratedArtifact[]>([]);
@@ -37,15 +49,17 @@ export function EduPiConversationFiles({ sessionId, taskId, cwd, onOpen }: { ses
     } catch (error) { setMessage(error instanceof Error ? error.message : "同步失败"); }
     finally { setBusy(false); }
   };
-  return <div style={{ alignSelf: "flex-end", padding: "6px 12px", maxWidth: "100%" }}>
-    <button className="native-button" aria-expanded={open} onClick={() => setOpen(value => !value)}>文件 {open ? "⌃" : "⌄"}</button>
-    {open ? <section aria-label="本次对话文件" style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 8, maxHeight: 260, overflow: "auto" }} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false); } }}>
+  const toggleLabel = open ? "收起对话文件" : "展开对话文件";
+  return <div className="edupi-conversation-files">
+    <button type="button" className={`native-button edupi-conversation-files__toggle${open ? " is-open" : ""}`} aria-expanded={open} aria-label={toggleLabel} title={toggleLabel} onClick={() => setOpen(value => !value)}><ConversationFilesIcon /></button>
+    {open ? <section className="edupi-conversation-files__panel" aria-label="本次对话文件" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false); } }}>
       {files.map(file => {
         const fullPath = `${cwd.replace(/[\\/]$/, "")}/${file.relative_path}`;
-        return <div key={file.artifact_id} style={{ display: "flex", gap: 8, marginBottom: 6 }}><button className="native-button" onClick={() => onOpen?.(fullPath)}>{file.title}</button>{isTauriDesktop() ? <button className="native-button" aria-label={`${file.title}所在文件夹`} onClick={() => void revealItemInDirNative(fullPath).catch(() => setMessage("文件夹打开失败"))}>文件夹</button> : null}</div>;
+        const revealLabel = `显示“${file.title}”所在文件夹`;
+        return <div className="edupi-conversation-files__row" key={file.artifact_id}><button className="native-button" onClick={() => onOpen?.(fullPath)}>{file.title}</button>{isTauriDesktop() ? <button type="button" className="native-button edupi-conversation-files__icon-button" aria-label={revealLabel} title={revealLabel} onClick={() => void revealItemInDirNative(fullPath).catch(() => setMessage("文件夹打开失败"))}><RevealFolderIcon /></button> : null}</div>;
       })}
       {files.length === 0 ? <p>暂无已登记文件</p> : null}
-      {sessionId ? <button className="native-button" disabled={busy} onClick={() => void sync()}>{busy ? "同步中…" : "同步对话文件"}</button> : null}
+      {sessionId ? <button type="button" className={`native-button edupi-conversation-files__icon-button${busy ? " is-busy" : ""}`} disabled={busy} aria-label={busy ? "正在同步对话文件" : "同步对话文件"} title={busy ? "正在同步" : "同步对话文件"} onClick={() => void sync()}><SyncIcon /></button> : null}
       {message ? <p role="status">{message}</p> : null}
     </section> : null}
   </div>;

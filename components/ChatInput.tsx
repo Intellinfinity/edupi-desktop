@@ -1964,11 +1964,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               className="native-primary-button composer-send-button"
               onClick={handleSend}
               disabled={!value.trim() && !attachedImages.length}
+              aria-label={t("chat.send")}
+              title={t("chat.send")}
               style={{
                 flexShrink: 0,
                 alignSelf: "flex-end",
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "7px 14px",
+                display: "flex", width: 38, height: 34, padding: 0, alignItems: "center", justifyContent: "center",
                 background: (value.trim() || attachedImages.length) ? "var(--accent)" : "var(--bg-panel)",
                 border: "none",
                 borderRadius: 8,
@@ -1985,7 +1986,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 <line x1="2" y1="7" x2="11" y2="7" />
                 <polyline points="7.5 3 12 7 7.5 11" />
               </svg>
-              {t("chat.send")}
             </button>
           )}
           </div>

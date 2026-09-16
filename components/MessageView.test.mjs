@@ -95,3 +95,27 @@ test("keeps attached images when restoring a compact command for editing", () =>
     image,
   ]);
 });
+
+test("message actions use icons while keeping accessible names", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(MessageView, {
+        message: { role: "user", content: "Edit this" },
+        entryId: "entry-1",
+        prevAssistantEntryId: "entry-0",
+        onFork() {},
+        onNavigate() {},
+        onEditContent() {},
+      }),
+    ),
+  );
+
+  assert.match(html, /aria-label="Copy message"/);
+  assert.match(html, /aria-label="Edit from here/);
+  assert.match(html, /aria-label="New session/);
+  assert.doesNotMatch(html, />Copy</);
+  assert.doesNotMatch(html, />Edit from here</);
+  assert.doesNotMatch(html, />New session</);
+});

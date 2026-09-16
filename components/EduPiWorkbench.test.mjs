@@ -146,7 +146,8 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(workspaceViews, /Agent 就绪/);
   assert.match(workspaceViews, /个 Agent 运行中/);
   assert.match(panel, /searchParams\.get\("inspector"\) === "1"/);
-  assert.match(panel, /inspectorOpen \? "收起检查" : "检查"/);
+  assert.match(panel, /aria-label=\{inspectorOpen \? "收起检查" : "打开检查"\}/);
+  assert.match(panel, /aria-pressed=\{inspectorOpen\}/);
   assert.doesNotMatch(inspector, /edupi-inspector-reopen/);
   assert.doesNotMatch(workspaceViews, /edupi-dashboard-columns/);
   for (const action of ["accept", "modify", "hold", "reject", "rollback"]) {
@@ -241,13 +242,28 @@ test("refreshes education data after Core imports without remounting chat", asyn
   assert.match(loadEffect, /\}, \[loadWorkspace, refreshKey\]\);/);
 });
 
+test("chat utility icons reserve one shared top-right lane", async () => {
+  const panel = await read("./EduPiEducationPanel.tsx");
+  const conversationFiles = await read("./EduPiConversationFiles.tsx");
+  const styles = await read("../app/edupi-workbench.css");
+
+  assert.match(panel, /--edupi-body-controls-width/);
+  assert.match(panel, /has-body-controls/);
+  assert.match(panel, /aria-label="重试读取工作区"/);
+  assert.match(panel, /edupi-teacher-body__icon-button/);
+  assert.match(conversationFiles, /className="edupi-conversation-files"/);
+  assert.match(conversationFiles, /aria-label=\{toggleLabel\}/);
+  assert.match(styles, /\.edupi-teacher-body\.is-chat\.has-body-controls \.edupi-conversation-files/);
+  assert.match(styles, /padding-right: calc\(12px \+ var\(--edupi-body-controls-width, 0px\)\)/);
+});
+
 test("keeps the existing Chat subtree mounted during background education refreshes", async () => {
   const panel = await read("./EduPiEducationPanel.tsx");
 
   assert.match(panel, /shouldShowBlockingEducationLoad\(/);
   assert.match(panel, /aria-busy=\{loading \? true : undefined\}/);
   assert.match(panel, /onClick=\{retryLoadWorkspace\}/);
-  assert.match(panel, /title=\{loadError\}>重试/);
+  assert.match(panel, /title=\{`重试读取工作区：\$\{loadError\}`\}/);
   assert.match(panel, /className=\{`edupi-teacher-shell is-loading\$\{desktopChrome\.isDesktop \? " has-desktop-drag-region" : ""\}`\}/);
   assert.match(panel, /<EduPiPersistentChatHost/);
   assert.equal((panel.match(/\{chatPanel\}/g) || []).length, 1);

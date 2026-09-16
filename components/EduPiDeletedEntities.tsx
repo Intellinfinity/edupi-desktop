@@ -83,8 +83,19 @@ export function EduPiDeletedEntities({
     }
   };
 
+  const triggerLabel = countUnavailable
+    ? "删除记录数量暂不可用"
+    : activeCount > 0
+      ? `已删除 ${activeCount} 项`
+      : "删除记录";
+
   return <>
-    <button type="button" onClick={() => void show()}>{activeCount > 0 ? `已删除 ${activeCount}` : "删除记录"}</button>
+    <button className="edupi-deleted-entities-trigger" type="button" onClick={() => void show()} aria-label={triggerLabel} title={triggerLabel}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 7h16" /><path d="M9 3h6l1 4H8z" /><path d="m6.5 7 1 14h9l1-14" /><path d="M10 11v6M14 11v6" />
+      </svg>
+      {activeCount > 0 ? <span className="edupi-deleted-entities-trigger__badge" aria-hidden="true">{activeCount > 99 ? "99+" : activeCount}</span> : null}
+    </button>
     {open && typeof document !== "undefined" ? createPortal(<div className="edupi-deleted-entities-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOpen(false); }}>
       <div ref={modalRef} className="edupi-deleted-entities" role="dialog" aria-modal="true" aria-labelledby="edupi-deleted-title" tabIndex={-1}>
         <header><h2 id="edupi-deleted-title">已删除</h2><button type="button" data-autofocus disabled={Boolean(busy)} onClick={() => setOpen(false)} aria-label="关闭已删除记录">×</button></header>

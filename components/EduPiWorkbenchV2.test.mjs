@@ -138,7 +138,7 @@ test("education memory uses Core semesters before category and pagination", asyn
   assert.match(sider, />学期</);
   assert.match(database, /semester\?\.label/);
   assert.match(database, /scopedMemoryIds/);
-  assert.match(database, /edupi-database-pagination/);
+  assert.match(database, /<EduPiPagination label="记忆分页"/);
 });
 
 test("narrow screens retain the object selector and exports neutralize spreadsheet formulas", async () => {
@@ -148,6 +148,7 @@ test("narrow screens retain the object selector and exports neutralize spreadshe
     read("./EduPiObjectSider.tsx"),
   ]);
   assert.match(css, /\.edupi-content-sider \{ position: absolute;[^}]*display: flex;/);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.edupi-teacher-app \{ grid-column: 1; grid-row: 1; \}/);
   assert.doesNotMatch(css, /\.edupi-content-sider \{ display: none; \}/);
   assert.match(student, /\^\\s\*\[=\+\\-@\]/);
   assert.doesNotMatch(student, /mode === "students" \? students\[0\] : null/);

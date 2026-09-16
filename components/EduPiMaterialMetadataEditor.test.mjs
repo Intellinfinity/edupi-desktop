@@ -11,8 +11,9 @@ const material = { material_id: "material-1", title: "移项教案", kind: "less
 test("renders direct material metadata editing, AI collaboration, and truthful history count", () => {
   const html = renderToStaticMarkup(React.createElement(EduPiMaterialMetadataEditor, { material, classes: ["703", "704"], onEducation() {}, onStartAgent() {} }));
   assert.match(html, /材料信息/);
-  assert.match(html, /修改信息/);
-  assert.match(html, /AI 协作/);
+  assert.match(html, /aria-label="修改材料信息"/);
+  assert.match(html, /aria-label="AI 协作"/);
+  assert.doesNotMatch(html, />修改材料信息</);
   assert.match(html, /信息历史/);
   assert.match(html, />2<\/span>/);
   assert.match(html, /正在读取…/);

@@ -7,6 +7,7 @@ import { INSIGHT_CATEGORIES, INSIGHT_STATUSES, insightCategory, routePart, type 
 import { factInsightCategory, factInsightStatus, factStatusLabel } from "@/lib/edupi-fact-lifecycle-model";
 import { EduPiFactActions } from "./EduPiFactActions";
 import { EduPiDeletedFacts } from "./EduPiDeletedFacts";
+import { EduPiPagination } from "./EduPiActionIcon";
 
 const PAGE_SIZE = 8;
 
@@ -138,6 +139,6 @@ export function EduPiInsightDatabase({ data, query, selectedObjectId, onReviewTa
       </details>)}
       {studentObservations.loading ? <div role="status">读取中…</div> : visible.length === 0 && !studentObservations.error ? <div className="edupi-database__empty">{emptyMessage}</div> : null}
     </section>
-    <nav className="edupi-database-pagination" aria-label="观察与洞察分页"><button type="button" disabled={currentPage === 0 || studentObservations.loading} onClick={() => setPage(currentPage - 1)}>上一页</button><span>{currentPage + 1} / {pages}</span><button type="button" disabled={currentPage >= pages - 1 || studentObservations.loading} onClick={() => setPage(currentPage + 1)}>下一页</button></nav>
+    <EduPiPagination label="观察与洞察分页" page={currentPage} pages={pages} previousDisabled={currentPage === 0 || studentObservations.loading} nextDisabled={currentPage >= pages - 1 || studentObservations.loading} onPrevious={() => setPage(currentPage - 1)} onNext={() => setPage(currentPage + 1)}/>
   </main>;
 }

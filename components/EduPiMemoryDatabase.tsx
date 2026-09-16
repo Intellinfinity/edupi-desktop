@@ -7,6 +7,7 @@ import { scopedMemoryIds, type EducationMemoryScopeProjection } from "@/lib/edup
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { isUserFacingMemory } from "@/lib/edupi-workbench";
 import { EduPiMemoryHistory } from "./EduPiMemoryHistory";
+import { EduPiPagination } from "./EduPiActionIcon";
 
 const PAGE_SIZE = 8;
 
@@ -114,6 +115,6 @@ export function EduPiMemoryDatabase({ data, memoryScopes, query, selectedObjectI
       </details>)}
       {visible.length === 0 ? <div className="edupi-database__empty">此分类暂无记忆</div> : null}
     </section>
-    <nav className="edupi-database-pagination" aria-label="记忆分页"><button type="button" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>上一页</button><span>{page + 1} / {pages}</span><button type="button" disabled={page >= pages - 1} onClick={() => setPage((value) => value + 1)}>下一页</button></nav>
+    <EduPiPagination label="记忆分页" page={page} pages={pages} previousDisabled={page === 0} nextDisabled={page >= pages - 1} onPrevious={() => setPage((value) => value - 1)} onNext={() => setPage((value) => value + 1)}/>
   </main>;
 }

@@ -31,7 +31,7 @@ test("every directly editable teacher object exposes the shared Core delete acti
 
   assert.match(students, /onDeleteEntity/);
   assert.match(students, /onDeleteEntity\("student", selectedStudentId \|\| selectedName, label\)/);
-  assert.match(students, /"删除"/);
+  assert.match(students, /删除学生档案/);
 
   assert.match(tasks, /onDelete/);
   assert.match(tasks, /onDelete\(task\)/);

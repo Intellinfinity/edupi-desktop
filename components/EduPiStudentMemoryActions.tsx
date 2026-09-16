@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { EducationContract, EducationMemory } from "@/lib/edupi-education-contract";
 import { EduPiMemoryHistory } from "./EduPiMemoryHistory";
+import { EduPiIconButton } from "./EduPiActionIcon";
 
 export function EduPiStudentMemoryActions({ memory, onEducation, onAgent, onDelete }: { memory: EducationMemory; onEducation: (data: EducationContract) => void; onAgent: () => void; onDelete: () => void }) {
   const [editing, setEditing] = useState(false), [draft, setDraft] = useState(memory.content), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
@@ -16,7 +17,7 @@ export function EduPiStudentMemoryActions({ memory, onEducation, onAgent, onDele
     finally { setBusy(false); }
   };
   return <div style={{ padding: "8px 0" }}>
-    {editing ? <form onSubmit={event => { event.preventDefault(); void save(draft); }}><textarea rows={3} maxLength={4000} value={draft} onChange={event => setDraft(event.target.value)} aria-label="修改学生记忆" /><button disabled={busy || !draft.trim()} type="submit">保存</button><button type="button" onClick={() => setEditing(false)}>取消</button></form> : <div style={{ display: "flex", gap: 8 }}><button onClick={() => { setDraft(memory.content); setEditing(true); }}>手动修改</button><button onClick={onAgent}>AI 协作</button><button onClick={onDelete}>删除</button></div>}
+    {editing ? <form onSubmit={event => { event.preventDefault(); void save(draft); }}><textarea rows={3} maxLength={4000} value={draft} onChange={event => setDraft(event.target.value)} aria-label="修改学生记忆" /><button disabled={busy || !draft.trim()} type="submit">保存</button><button type="button" onClick={() => setEditing(false)}>取消</button></form> : <div className="edupi-student-memory-actions"><EduPiIconButton type="button" icon="edit" label="手动修改记忆" onClick={() => { setDraft(memory.content); setEditing(true); }}/><EduPiIconButton type="button" icon="agent" label="AI 协作" onClick={onAgent}/><EduPiIconButton type="button" icon="delete" label="删除记忆" className="is-delete" onClick={onDelete}/></div>}
     {message ? <small role="status">{message}</small> : null}
     <EduPiMemoryHistory id={memory.id} revision={memory.revision} onRestore={save} />
   </div>;

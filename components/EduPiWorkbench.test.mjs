@@ -382,6 +382,7 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(workspaceViews, /<EduPiWorkspaceBoard[^>]+onTaskDetail=\{props\.onTaskDetail\}/);
   assert.match(workspaceViews, /<EduPiCalendarWorkspace[^>]+onTaskDetail=\{onTaskDetail\}/);
   assert.match(panel, /const \[taskDetailTask, setTaskDetailTask\]/);
+  assert.match(panel, /const \[fileReturnTaskKey, setFileReturnTaskKey\]/);
   assert.match(panel, /const openTaskDetail = useCallback/);
   assert.match(panel, /<EduPiTaskDetailDrawer/);
   assert.match(panel, /files=\{education\.generatedArtifacts\}/);
@@ -391,6 +392,8 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(panel, /activateAgent\(task, "tasks", "run"\)/);
   assert.match(panel, /onOpenTask=\{selectTask\}/);
   assert.match(panel, /onOpenAgent=\{openAgentForTask\}/);
+  assert.match(panel, /tasks\.find\(\(task\) => taskKey\(task\) === fileReturnTaskKey\)/);
+  assert.match(panel, /closeDrawer\(false\); startAgent/);
   assert.doesNotMatch(panel, /continueTask/);
   assert.match(panel, /<EduPiPersistentChatHost/);
 
@@ -411,6 +414,7 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(drawer, /taskArtifactFile\(task, workspace\)/);
   assert.match(drawer, /onOpenTask\(task\)/);
   assert.match(drawer, /onOpenAgent\(task\)/);
+  assert.doesNotMatch(drawer, /onClose\(\); onOpenFile/);
   assert.doesNotMatch(drawer, /onStartAgent/);
   assert.match(drawer, /useModalDismiss<HTMLElement>\(onClose\)/);
   assert.match(drawer, /data-autofocus/);

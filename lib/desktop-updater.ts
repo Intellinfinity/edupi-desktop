@@ -22,6 +22,37 @@ export function isTauriDesktop(): boolean {
   return typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
 }
 
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isInterruptedDownload(error: unknown): boolean {
+  return /error decoding response body|connection (?:reset|closed)|timed? out|error sending request|incomplete message|body error/i.test(errorText(error));
+}
+
+export function desktopUpgradeErrorMessage(error: unknown): string {
+  if (isInterruptedDownload(error)) return "更新包下载中断，请检查网络后重试。";
+  if (/signature|签名|verification/i.test(errorText(error))) return "更新包验证失败，请稍后重试。";
+  return "更新未完成，请稍后重试。";
+}
+
+export async function downloadVerifiedUpdate(
+  download: () => Promise<void>,
+  onRetry: () => void,
+  pause: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await download();
+      return;
+    } catch (error) {
+      if (attempt === 3 || !isInterruptedDownload(error)) throw error;
+      onRetry();
+      await pause(750 * attempt);
+    }
+  }
+}
+
 export async function installLatestDesktopRelease(
   onProgress: (progress: DesktopUpgradeProgress) => void,
 ): Promise<DesktopUpgradeResult> {
@@ -39,29 +70,26 @@ export async function installLatestDesktopRelease(
 
   let downloadedBytes = 0;
   let totalBytes: number | undefined;
-  await update.downloadAndInstall((event) => {
-    if (event.event === "Started") {
-      totalBytes = event.data.contentLength;
-      onProgress({
-        phase: "downloading",
-        downloadedBytes,
-        totalBytes,
-        targetVersion: update.version,
-      });
-    } else if (event.event === "Progress") {
-      downloadedBytes += event.data.chunkLength;
-      onProgress({
-        phase: "downloading",
-        downloadedBytes,
-        totalBytes,
-        targetVersion: update.version,
-      });
-    } else {
-      onProgress({ phase: "installing", targetVersion: update.version });
-    }
-  });
-
-  onProgress({ phase: "installing", targetVersion: update.version });
+  const resetProgress = () => {
+    downloadedBytes = 0;
+    totalBytes = undefined;
+    onProgress({ phase: "downloading", downloadedBytes, targetVersion: update.version });
+  };
+  resetProgress();
+  try {
+    await downloadVerifiedUpdate(() => update.download((event) => {
+      if (event.event === "Started") {
+        totalBytes = event.data.contentLength;
+      } else if (event.event === "Progress") {
+        downloadedBytes += event.data.chunkLength;
+      } else return;
+      onProgress({ phase: "downloading", downloadedBytes, totalBytes, targetVersion: update.version });
+    }), resetProgress);
+    onProgress({ phase: "installing", targetVersion: update.version });
+    await update.install();
+  } finally {
+    await update.close().catch(() => {});
+  }
   await relaunch();
   return { installed: true, targetVersion: update.version };
 }

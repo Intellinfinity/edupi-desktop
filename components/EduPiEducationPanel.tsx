@@ -171,7 +171,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const [educationIntakeBusy, setEducationIntakeBusy] = useState(false);
   const [materialStagingMessage, setMaterialStagingMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [calendarSelection, setCalendarSelection] = useState<CalendarItemSelection | null>(null);
-  const appliedCalendarLink = useRef<string | null>(null);
+  const appliedCalendarLink = useRef<{ key: string; education: EducationContract } | null>(null);
   const [taskDetailTask, setTaskDetailTask] = useState<TeacherTask | null>(null);
   const [agentTask, setAgentTask] = useState<TeacherTask | null>(null);
   const [deleteBusy, setDeleteBusy] = useState<string | null>(null);
@@ -477,16 +477,30 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const id = searchParams.get("calendarItem");
     const kind = searchParams.get("calendarKind");
     const date = searchParams.get("date");
+    const clearCalendarLink = () => {
+      setCalendarSelection(null);
+      appliedCalendarLink.current = null;
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("calendarKind");
+      params.delete("calendarItem");
+      params.delete("date");
+      router.replace(`/?${params.toString()}`, { scroll: false });
+    };
     if (!id) {
       if (appliedCalendarLink.current !== null) setCalendarSelection(null);
       appliedCalendarLink.current = null;
+      if (kind || date) clearCalendarLink();
       return;
     }
+    if (routeView !== "calendar") { clearCalendarLink(); return; }
     const key = JSON.stringify([kind, id, date]);
-    if (appliedCalendarLink.current === key || !education) return;
+    if (!education) return;
+    const applied = appliedCalendarLink.current;
+    if (applied?.key === key && applied.education === education) return;
     const selection = calendarSelectionFromLink(education, { kind, id, date });
-    if (selection) { setCalendarSelection(selection); appliedCalendarLink.current = key; }
-  }, [searchParams, education]);
+    if (selection) { setCalendarSelection(selection); appliedCalendarLink.current = { key, education }; }
+    else clearCalendarLink();
+  }, [education, routeView, router, searchParams]);
 
   useEffect(() => {
     const requested = searchParams.get("inspector");

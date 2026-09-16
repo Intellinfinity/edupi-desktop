@@ -418,6 +418,7 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(drawer, /taskContentReady\(task\)/);
   assert.match(drawer, /taskArtifactFile\(task, workspace\)/);
   assert.match(drawer, /onOpenTask\(task\)/);
+  assert.doesNotMatch(drawer, /onOpenTask\(task\); onClose\(\)/);
   assert.match(drawer, /onOpenAgent\(task\)/);
   assert.doesNotMatch(drawer, /onClose\(\); onOpenFile/);
   assert.doesNotMatch(drawer, /onStartAgent/);

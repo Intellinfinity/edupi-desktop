@@ -126,7 +126,7 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
             <dl className="edupi-task-detail-feedback">{feedbackRows.map((row) => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
           </section> : null}
         </div>
-        <footer className="edupi-task-detail-drawer__footer"><button type="button" className="is-delete" disabled={deleteBusy || !task.id} onClick={() => onDelete(task)}>删除任务</button><button type="button" onClick={() => { onOpenTask(task); onClose(); }}>进入任务</button><button type="button" className="is-primary" onClick={() => { onOpenAgent(task); onClose(); }}>继续让 EduPi 做</button></footer>
+        <footer className="edupi-task-detail-drawer__footer"><button type="button" className="is-delete" disabled={deleteBusy || !task.id} onClick={() => onDelete(task)}>删除任务</button><button type="button" onClick={() => onOpenTask(task)}>进入任务</button><button type="button" className="is-primary" onClick={() => { onOpenAgent(task); onClose(); }}>继续让 EduPi 做</button></footer>
       </aside>
     </div>
   );

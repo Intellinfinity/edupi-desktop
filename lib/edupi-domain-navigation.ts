@@ -36,6 +36,26 @@ export const INSIGHT_STATUSES: ReadonlyArray<{ id: InsightStatusId; label: strin
   { id: "signal", label: "弱信号" },
 ];
 
+export type ReviewTargetRoute = { kind: "observation" | "memory_candidate"; id: string };
+
+export function reviewTargetObjectId(target: ReviewTargetRoute): string {
+  return `${target.kind}:${encodeURIComponent(target.id)}`;
+}
+
+export function reviewTargetRoute(value: string | null | undefined): ReviewTargetRoute | null {
+  if (!value) return null;
+  const separator = value.indexOf(":");
+  if (separator <= 0 || separator === value.length - 1) return null;
+  const kind = value.slice(0, separator);
+  if (kind !== "observation" && kind !== "memory_candidate") return null;
+  try {
+    const id = decodeURIComponent(value.slice(separator + 1)).trim();
+    return id ? { kind, id } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function insightCategory(content: string): InsightCategoryId {
   if (/学生|学习|错因|掌握|成绩|学情/.test(content)) return "learning";
   if (/班级|安全|家长|家校|纪律|活动/.test(content)) return "class";

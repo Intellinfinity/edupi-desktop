@@ -101,9 +101,17 @@ test("review renders one selected decision and the rail exposes real EduPi activ
     read("../app/edupi-workbench.css"),
   ]);
   assert.match(panel, /reviewMode/);
-  assert.match(panel, /searchParams\.get\("task"\) && requestedStage === "review" \? "task" : "board"/);
+  assert.match(panel, /requestedReviewTarget \? "c1" : "board"/);
   assert.match(panel, /selectedC1Target/);
+  assert.match(panel, /params\.set\("reviewTarget", reviewTargetObjectId\(nextReviewTarget\)\)/);
+  assert.match(panel, /reviewTargetRoute\(searchParams\.get\("reviewTarget"\)\)/);
+  assert.match(panel, /setReviewMode\("c1"\)/);
+  assert.match(panel, /params\.delete\("reviewTarget"\)/);
+  assert.match(panel, /requestedView !== "review" \|\| !requested/);
+  assert.match(panel, /reviewMode === "c1" \? selectedC1Target : null/);
+  assert.match(panel, /setSelectedTaskKey\(null\);\s*setQuery\(""\);\s*setReviewMode\("c1"\)/);
   assert.match(review, /visibleTarget/);
+  assert.match(review, /selectedTarget\s*\?/);
   assert.doesNotMatch(review, /targets\.map\(\(target\)/);
   assert.match(rail, /runningAgentCount/);
   assert.match(rail, /memoryCount/);

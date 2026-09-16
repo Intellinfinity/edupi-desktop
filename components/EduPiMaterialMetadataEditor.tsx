@@ -14,6 +14,7 @@ import {
   type MaterialMetadataVersionHistory,
   type MaterialMetadataVersionSide,
 } from "@/lib/edupi-material-metadata-model";
+import { EduPiIconButton } from "./EduPiActionIcon";
 
 const KIND_LABELS: Record<MaterialMetadataKind, string> = {
   worksheet: "学案 / 练习",
@@ -199,7 +200,7 @@ export function EduPiMaterialMetadataEditor({ material, classes, onEducation, on
   };
 
   return <section className="edupi-material-metadata-editor">
-    <header><h3>材料信息</h3><div><button type="button" className="is-primary" onClick={() => { const values = materialMetadataValues(material); setEditor({ baseRevision: material.metadata_revision, baseValues: values, values }); }} disabled={busy}>修改信息</button><button type="button" onClick={collaborate} disabled={busy}>AI 协作</button></div></header>
+    <header><h3>材料信息</h3><div><EduPiIconButton type="button" icon="edit" label="修改材料信息" className="is-primary" onClick={() => { const values = materialMetadataValues(material); setEditor({ baseRevision: material.metadata_revision, baseValues: values, values }); }} disabled={busy}/><EduPiIconButton type="button" icon="agent" label="AI 协作" onClick={collaborate} disabled={busy}/></div></header>
     {message ? <p className={`edupi-material-metadata-message is-${message.tone}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p> : null}
     {editor ? <form onSubmit={save}><label><span>名称</span><input required maxLength={240} value={editor.values.title} onChange={(event) => setEditor({ ...editor, values: { ...editor.values, title: event.target.value } })} /></label><label><span>类型</span><select value={editor.values.kind} onChange={(event) => setEditor({ ...editor, values: { ...editor.values, kind: event.target.value as MaterialMetadataKind } })}>{Object.entries(KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label><span>学科</span><input maxLength={120} value={editor.values.subject || ""} placeholder="可留空" onChange={(event) => setEditor({ ...editor, values: { ...editor.values, subject: event.target.value } })} /></label><label><span>班级</span>{classOptions.length > 0 ? <select value={editor.values.classId || ""} onChange={(event) => setEditor({ ...editor, values: { ...editor.values, classId: event.target.value } })}><option value="">未设置</option>{classOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select> : <input maxLength={160} value={editor.values.classId || ""} placeholder="可留空" onChange={(event) => setEditor({ ...editor, values: { ...editor.values, classId: event.target.value } })} />}</label><div><button type="button" onClick={() => setEditor(null)} disabled={busy}>取消</button><button type="submit" className="is-primary" disabled={busy || !normalizedEditor?.title || Object.keys(editorPatch).length === 0}>{busy ? "保存中…" : "保存"}</button></div></form> : null}
     <History material={material} history={history} loading={historyLoading} error={historyError} open={historyOpen} busy={busy} restoring={restoring} onToggle={setHistoryOpen} onRetry={() => void loadHistory()} onRestore={(version, side) => void restore(version, side)} />

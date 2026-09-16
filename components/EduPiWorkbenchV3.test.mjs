@@ -18,7 +18,7 @@ test("memory sidebar selects categories while the main database owns rows and pa
   assert.match(memory, /PAGE_SIZE = 8/);
   assert.match(memory, /memoryCategoryRoute\(selectedObjectId\)/);
   assert.match(memory, /edupi-memory-db-grid/);
-  assert.match(memory, /edupi-database-pagination/);
+  assert.match(memory, /<EduPiPagination label="记忆分页"/);
   assert.match(memory, /手动修改/);
   assert.match(memory, /AI 协作/);
 });
@@ -106,7 +106,7 @@ test("growth and materials use explicit databases and right-side material detail
   assert.match(sider, /documents\.filter\(item => item\.kind === "weekly"\)\.length \+ confirmedGrowthArtifacts\.length/);
   assert.match(materials, /edupi-material-db-grid/);
   assert.match(materials, /edupi-material-drawer/);
-  assert.match(materials, /补充 \/ 修订/);
+  assert.match(materials, /补充或修订材料/);
   assert.match(materials, /PAGE_SIZE = 8/);
   assert.match(await read("../lib/edupi-material-rows.ts"), /item\.subject\} \$\{item\.source\} \$\{item\.summary/);
   assert.match(materials, /edupi-material-message/);

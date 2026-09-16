@@ -332,7 +332,9 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
   const latestReceipts = data.receipts.slice(-3).reverse();
   const latestHistory = data.reviewHistory.slice(-3).reverse();
   const reviewCapability = data.capabilities.c1Review;
-  const visibleTarget = targets.find((target) => target.kind === selectedTarget?.kind && target.id === selectedTarget.id) || targets[0] || null;
+  const visibleTarget = selectedTarget
+    ? targets.find((target) => target.kind === selectedTarget.kind && target.id === selectedTarget.id) || null
+    : targets[0] || null;
 
   return (
     <main className="edupi-c1-review" aria-labelledby="edupi-c1-review-title">

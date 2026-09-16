@@ -45,7 +45,7 @@ import type { TaskBoardLaneId } from "@/lib/edupi-task-board";
 import { calendarQuickEntryKey, calendarQuickEntryStatusLabel, type EduPiQuickEntryItem } from "@/lib/edupi-quick-entry";
 import { isTaskReviewable, workCaseForTask } from "@/lib/edupi-work-case";
 import { studentRecordKey } from "@/lib/edupi-student-roster-model";
-import { materialObjectId, memoryObjectId, objectItemForView, viewKeepsObjectItem } from "@/lib/edupi-domain-navigation";
+import { materialObjectId, memoryObjectId, objectItemForView, reviewTargetObjectId, reviewTargetRoute, viewKeepsObjectItem, type ReviewTargetRoute } from "@/lib/edupi-domain-navigation";
 import { APP_PREF_KEYS } from "@/lib/app-prefs";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { preserveUnavailableWorkspaceResources, readEduPiWorkspace } from "@/lib/edupi-education-client";
@@ -129,13 +129,14 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const desktopChrome = useDesktopChrome();
   const requestedView = searchParams.get("view");
   const requestedStage = searchParams.get("stage");
+  const requestedReviewTarget = reviewTargetRoute(searchParams.get("reviewTarget"));
   const [activeView, setActiveView] = useState<WorkbenchView>(() => isWorkbenchView(requestedView) ? requestedView : viewFromModule(initialModule));
   const [activeStage, setActiveStage] = useState<TaskStage>(() => isTaskStage(requestedStage) ? requestedStage : "brief");
   const [selectedTaskKey, setSelectedTaskKey] = useState<string | null>(() => searchParams.get("task"));
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(() => searchParams.get("student"));
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(() => searchParams.get("item"));
-  const [reviewMode, setReviewMode] = useState<"board" | "task" | "c1">(() => searchParams.get("task") && requestedStage === "review" ? "task" : "board");
-  const [selectedC1Target, setSelectedC1Target] = useState<{ kind: "observation" | "memory_candidate"; id: string } | null>(null);
+  const [reviewMode, setReviewMode] = useState<"board" | "task" | "c1">(() => searchParams.get("task") && requestedStage === "review" ? "task" : requestedReviewTarget ? "c1" : "board");
+  const [selectedC1Target, setSelectedC1Target] = useState<ReviewTargetRoute | null>(() => requestedReviewTarget);
   const [education, setEducation] = useState<EducationContract | null>(null);
   const [context, setContext] = useState<TeacherContextSnapshot | null>(null);
   const [memoryScopes, setMemoryScopes] = useState<EducationMemoryScopeProjection | null>(null);
@@ -494,7 +495,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (activeView === "review" && reviewMode === "c1" && c1PendingCount === 0) setReviewMode("board");
   }, [activeView, c1PendingCount, pendingCount, reviewMode]);
 
-  const updateLocation = useCallback((view: WorkbenchView, task: TeacherTask | undefined, stage: TaskStage | undefined, nextInspector = inspectorOpen, nextStudentId = selectedStudentId, nextObjectId = selectedObjectId, nextCalendarSelection = calendarSelection) => {
+  const updateLocation = useCallback((view: WorkbenchView, task: TeacherTask | undefined, stage: TaskStage | undefined, nextInspector = inspectorOpen, nextStudentId = selectedStudentId, nextObjectId = selectedObjectId, nextCalendarSelection = calendarSelection, nextReviewTarget: ReviewTargetRoute | null = null) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("edupi", "1");
     params.set("module", moduleFromView(view));
@@ -502,6 +503,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (task) params.set("task", taskKey(task)); else params.delete("task");
     params.delete("taskDetail");
     if (stage) params.set("stage", stage); else params.delete("stage");
+    if (view === "review" && nextReviewTarget) params.set("reviewTarget", reviewTargetObjectId(nextReviewTarget)); else params.delete("reviewTarget");
     if ((view === "homeroom" || view === "students") && nextStudentId) params.set("student", nextStudentId); else params.delete("student");
     if (viewKeepsObjectItem(view) && nextObjectId) params.set("item", nextObjectId); else params.delete("item");
     const calendarLink = view === "calendar" ? calendarSelectionLink(nextCalendarSelection) : null;
@@ -540,6 +542,28 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (!selected && education) updateTaskDetailLocation(null);
   }, [drawer, education, searchParams, tasks, updateTaskDetailLocation]);
 
+  useEffect(() => {
+    const requested = reviewTargetRoute(searchParams.get("reviewTarget"));
+    if (activeView !== "review" || !requested) {
+      if (!requested) setSelectedC1Target(null);
+      return;
+    }
+    if (!education) return;
+    const available = requested.kind === "observation"
+      ? education.observations.some((item) => item.observationId === requested.id && (item.teacherReview.state === "pending_review" || item.teacherReview.state === "held"))
+      : education.memoryCandidates.some((item) => item.candidateId === requested.id && (item.teacherReview.state === "pending_review" || item.teacherReview.state === "held"));
+    if (available) {
+      setSelectedC1Target(requested);
+      setReviewMode("c1");
+      return;
+    }
+    setSelectedC1Target(null);
+    setReviewMode("board");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("reviewTarget");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [activeView, education, router, searchParams]);
+
   const selectView = useCallback((view: WorkbenchView, requestedObjectId?: string, requestedStudentId?: string | null, requestedCalendarSelection?: CalendarItemSelection | null) => {
     const stage = view === "tasks" ? activeStage : undefined;
     const nextObjectId = objectItemForView(view, requestedObjectId ?? selectedObjectId);
@@ -554,6 +578,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setPendingTaskBinding(null);
     setCalendarSelection(nextCalendarSelection);
     if (view === "review") setReviewMode("board");
+    setSelectedC1Target(null);
     setActiveView(view);
     setSelectedObjectId(nextObjectId);
     if (requestedStudentId !== undefined) setSelectedStudentId(requestedStudentId);
@@ -586,6 +611,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setActiveView(view);
     setActiveStage(stage);
     setReviewMessage(null);
+    setSelectedC1Target(null);
     setDrawer(null);
     setFileReturnTaskKey(null);
     setTaskDetailTask(null);
@@ -607,14 +633,22 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     updateLocation(activeView, activeTask, activeView === "tasks" || activeView === "review" ? activeStage : undefined, next);
   }, [activeStage, activeTask, activeView, inspectorOpen, updateLocation]);
 
-  const focusC1Review = useCallback((target: { kind: "observation" | "memory_candidate"; id: string }) => {
-    if (activeView !== "review") selectView("review");
+  const focusC1Review = useCallback((target: ReviewTargetRoute) => {
+    cancelActivation();
+    setActiveView("review");
+    setSelectedTaskKey(null);
     setReviewMode("c1");
     setSelectedC1Target(target);
+    setDrawer(null);
+    setFileReturnTaskKey(null);
+    setTaskDetailTask(null);
+    setAgentTask(null);
+    setPendingTaskBinding(null);
+    updateLocation("review", undefined, undefined, inspectorOpen, null, null, null, target);
     requestAnimationFrame(() => {
       document.getElementById(`edupi-c1-review-${target.kind}-${target.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  }, [activeView, selectView]);
+  }, [cancelActivation, inspectorOpen, updateLocation]);
 
   const selectStudent = useCallback((student: Record<string, unknown> | null) => {
     if (!student) {

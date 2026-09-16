@@ -477,16 +477,28 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const id = searchParams.get("calendarItem");
     const kind = searchParams.get("calendarKind");
     const date = searchParams.get("date");
+    const clearCalendarLink = () => {
+      setCalendarSelection(null);
+      appliedCalendarLink.current = null;
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("calendarKind");
+      params.delete("calendarItem");
+      params.delete("date");
+      router.replace(`/?${params.toString()}`, { scroll: false });
+    };
     if (!id) {
       if (appliedCalendarLink.current !== null) setCalendarSelection(null);
       appliedCalendarLink.current = null;
+      if (kind || date) clearCalendarLink();
       return;
     }
+    if (routeView !== "calendar") { clearCalendarLink(); return; }
     const key = JSON.stringify([kind, id, date]);
     if (appliedCalendarLink.current === key || !education) return;
     const selection = calendarSelectionFromLink(education, { kind, id, date });
     if (selection) { setCalendarSelection(selection); appliedCalendarLink.current = key; }
-  }, [searchParams, education]);
+    else clearCalendarLink();
+  }, [education, routeView, router, searchParams]);
 
   useEffect(() => {
     const requested = searchParams.get("inspector");

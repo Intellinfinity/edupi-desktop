@@ -52,6 +52,9 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(panel, /calendarSelectionLink\(nextCalendarSelection\)/);
   assert.match(panel, /params\.set\("calendarKind", calendarLink\.kind\)/);
   assert.match(panel, /params\.set\("calendarItem", calendarLink\.id\)/);
+  assert.match(panel, /if \(routeView !== "calendar"\) \{ clearCalendarLink\(\); return; \}/);
+  assert.match(panel, /else clearCalendarLink\(\)/);
+  assert.match(panel, /params\.delete\("calendarKind"\);\s*params\.delete\("calendarItem"\);\s*params\.delete\("date"\)/);
   assert.match(panel, /onCalendarItem=\{selectCalendarItem\}/);
   assert.match(panel, /onCalendarSelection=\{selectCalendarItem\}/);
   assert.match(workspaceViews, /EduPiWorkspaceBoard/);

@@ -318,7 +318,7 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   const css = `${await read("../app/edupi-workspace.css")}\n${await read("../app/edupi-workbench.css")}`;
   assert.match(panel, /calendarSelection/);
   assert.match(calendarWorkspace, /CalendarDetailDrawer/);
-  assert.match(calendarWorkspace, /className="is-edit"[\s\S]*>编辑<\/button>/);
+  assert.match(calendarWorkspace, /icon="edit" label="编辑" className="is-edit"/);
   assert.match(calendarWorkspace, /eventId: calendarEvent\?\.id \|\| null/);
   assert.match(calendarWorkspace, /calendarEvent\?\.notes \|\| ""/);
   assert.match(calendarWorkspace, /editingCalendarId/);
@@ -403,6 +403,8 @@ test("board and calendar task entries share a mounted task peek drawer", async (
   assert.match(panel, /<EduPiPersistentChatHost/);
 
   for (const label of ["任务进度", "已准备", "计划交付", "依据", "教师反馈", "打开产物", "进入任务", "继续让 EduPi 做"]) assert.match(drawer, new RegExp(label));
+  assert.match(drawer, /icon="delete" label=\{deleteBusy \? "正在删除任务" : "删除任务"\}/);
+  assert.match(drawer, /icon="close" label="关闭任务详情"/);
   assert.doesNotMatch(`${drawer}\n${await read("./EduPiTodayWork.tsx")}`, /EduPi 流/);
   assert.match(drawer, /次流转/);
   assert.match(drawer, /const flowStatus = taskWorkStatusLabel\(task, workCase\)/);

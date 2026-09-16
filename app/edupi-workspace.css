@@ -661,8 +661,8 @@
 .edupi-calendar-detail > header button { width: 28px; height: 28px; border: 0; border-radius: 5px; background: transparent; color: var(--ep-muted); cursor: pointer; font-size: 18px; }
 .edupi-calendar-detail > header button:hover { background: var(--ep-surface-soft); color: var(--ep-text); }
 .edupi-calendar-detail__actions { display: flex; gap: 6px; align-items: center; }
-.edupi-calendar-detail > header button.is-edit { width: auto; padding: 0 10px; border: 1px solid var(--ep-border); color: var(--ep-text); font-size: 11px; }
-.edupi-calendar-detail > header button.is-delete { width: auto; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--ep-red) 35%, var(--ep-border)); color: var(--ep-red); font-size: 11px; }
+.edupi-calendar-detail > header button.is-edit { border: 1px solid var(--ep-border); color: var(--ep-text); }
+.edupi-calendar-detail > header button.is-delete { border: 1px solid color-mix(in srgb, var(--ep-red) 35%, var(--ep-border)); color: var(--ep-red); }
 .edupi-calendar-detail dl { margin: 0; }
 .edupi-calendar-detail dl > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--ep-border); }
 .edupi-calendar-detail dt { color: var(--ep-muted); font-size: 11px; }

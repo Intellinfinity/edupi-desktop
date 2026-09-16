@@ -1802,6 +1802,7 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-task-detail-file small { color: var(--ep-muted); font-size: 10px; }
 .edupi-task-detail-file button { height: 28px; padding: 0 8px; border: 1px solid var(--ep-border-strong); border-radius: 5px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 10px; white-space: nowrap; }
 .edupi-task-detail-file button:hover { border-color: var(--ep-blue); color: var(--ep-blue); }
+.edupi-task-detail-file .edupi-icon-action { width: 28px; min-width: 28px; padding: 0; }
 .edupi-task-detail-evidence { margin: 0; padding: 0 16px 12px; }
 .edupi-task-detail-evidence > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px; padding: 7px 0; }
 .edupi-task-detail-evidence > div + div { border-top: 1px solid color-mix(in srgb, var(--ep-border) 76%, transparent); }
@@ -1816,6 +1817,7 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-task-detail-drawer__footer { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 7px; padding: 11px 16px; border-top: 1px solid var(--ep-border); background: var(--ep-surface); }
 .edupi-task-detail-drawer__footer button { height: 34px; padding: 0 12px; border: 1px solid var(--ep-border-strong); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 12px; font-weight: 600; }
 .edupi-task-detail-drawer__footer button.is-delete { border-color: color-mix(in srgb, var(--ep-red) 35%, var(--ep-border)); color: var(--ep-red); }
+.edupi-task-detail-drawer__footer .edupi-icon-action.is-delete { width: 34px; min-width: 34px; padding: 0; }
 .edupi-task-detail-drawer__footer button.is-primary { border-color: var(--ep-blue); background: var(--ep-blue); color: white; font-weight: 650; }
 .edupi-task-detail-drawer__footer button:hover { filter: brightness(.96); }
 .edupi-context-modal { position: absolute; z-index: 150; inset: 0; display: grid; place-items: center; padding: 28px; overflow: hidden; background: rgba(20, 26, 35, .38); backdrop-filter: blur(4px); }

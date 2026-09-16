@@ -16,6 +16,7 @@ import {
   type AgentStep,
 } from "@/lib/edupi-workbench";
 import type { GeneratedArtifact } from "@/lib/edupi-generated-artifacts";
+import { EduPiIconButton } from "./EduPiActionIcon";
 
 type Props = {
   task: TeacherTask;
@@ -88,7 +89,7 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
       <aside ref={drawerRef} className="edupi-task-detail-drawer" role="dialog" aria-modal="true" aria-labelledby="edupi-task-detail-title" tabIndex={-1}>
         <header className="edupi-task-detail-drawer__header">
           <div><span>教师任务</span><h2 id="edupi-task-detail-title">{title}</h2></div>
-          <button data-autofocus type="button" className="edupi-task-detail-drawer__close" onClick={onClose} aria-label="关闭任务详情">×</button>
+          <EduPiIconButton data-autofocus type="button" icon="close" label="关闭任务详情" className="edupi-task-detail-drawer__close" onClick={onClose}/>
         </header>
         <div className="edupi-task-detail-drawer__body">
           <section className="edupi-task-detail-summary" aria-label="任务概览">
@@ -114,7 +115,7 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
             <header><h3 id="edupi-task-detail-ready">已准备</h3><span>{artifacts.length} 项</span></header>
             {preparedFiles.length > 0 ? <ul className="edupi-task-detail-artifacts">{preparedFiles.map((artifact) => <li key={artifact.id}><button type="button" disabled={!artifact.available} onClick={() => { if (!artifact.available) return; onOpenFile(`${workspaceRoot}/${artifact.relativePath}`); }}><strong>{artifact.title}</strong><small>{!artifact.available ? "文件不可用" : task.status === "accepted" || task.status === "modified" ? "已确认" : "候选"}</small></button></li>)}</ul> : artifacts.length > 0 ? <ul className="edupi-task-detail-artifacts">{artifacts.map((artifact) => <li key={artifact.id}><div><strong>{artifact.title}</strong><small>{artifact.state === "confirmed" ? "已确认" : "候选"}</small></div></li>)}</ul> : <p className="edupi-task-detail-empty">暂无已准备内容</p>}
             {plans.length > 0 ? <div className="edupi-task-detail-plans"><strong>计划交付</strong><ul>{plans.map((plan) => <li key={plan}>{plan}</li>)}</ul></div> : null}
-            {file && preparedFiles.length === 0 ? <div className="edupi-task-detail-file"><span aria-hidden="true">文</span><div><strong>{fileName(file.path)}</strong><small>{fileHasVerification ? "文件已核验" : "文件已留存"}</small></div><button type="button" onClick={() => onOpenFile(file.path)}>打开产物</button></div> : null}
+            {file && preparedFiles.length === 0 ? <div className="edupi-task-detail-file"><span aria-hidden="true">文</span><div><strong>{fileName(file.path)}</strong><small>{fileHasVerification ? "文件已核验" : "文件已留存"}</small></div><EduPiIconButton type="button" icon="open" label="打开产物" onClick={() => onOpenFile(file.path)}/></div> : null}
           </section>
 
           <section className="edupi-task-detail-section" aria-labelledby="edupi-task-detail-evidence">
@@ -126,7 +127,7 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
             <dl className="edupi-task-detail-feedback">{feedbackRows.map((row) => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
           </section> : null}
         </div>
-        <footer className="edupi-task-detail-drawer__footer"><button type="button" className="is-delete" disabled={deleteBusy || !task.id} onClick={() => onDelete(task)}>删除任务</button><button type="button" onClick={() => onOpenTask(task)}>进入任务</button><button type="button" className="is-primary" onClick={() => { onOpenAgent(task); onClose(); }}>继续让 EduPi 做</button></footer>
+        <footer className="edupi-task-detail-drawer__footer"><EduPiIconButton type="button" icon="delete" label={deleteBusy ? "正在删除任务" : "删除任务"} className="is-delete" busy={deleteBusy} disabled={deleteBusy || !task.id} onClick={() => onDelete(task)}/><button type="button" onClick={() => onOpenTask(task)}>进入任务</button><button type="button" className="is-primary" onClick={() => { onOpenAgent(task); onClose(); }}>继续让 EduPi 做</button></footer>
       </aside>
     </div>
   );

@@ -3,6 +3,7 @@
 import type { EducationContract, TeacherTask } from "@/lib/edupi-education-contract";
 import { taskChecklist, taskStatusLabel, taskStatusTone, type TaskStage } from "@/lib/edupi-workbench";
 import { isTaskReviewable, workCaseForTask } from "@/lib/edupi-work-case";
+import { EduPiIconButton } from "./EduPiActionIcon";
 
 type Props = {
   open: boolean;
@@ -25,7 +26,7 @@ export function EduPiInspector({ open, data, task, onClose, onOpenAgent, onStage
   };
   return (
     <aside className="edupi-task-inspector" aria-label="任务检查">
-      <header><div><h2>属性</h2></div><button type="button" onClick={onClose} aria-label="隐藏任务检查">×</button></header>
+      <header><div><h2>属性</h2></div><EduPiIconButton type="button" icon="close" label="隐藏任务检查" onClick={onClose}/></header>
       {task ? <>
         <section><h3>状态</h3><dl><div><dt>任务状态</dt><dd><span className={`edupi-task-status is-${taskStatusTone(task)}`}>{taskStatusLabel(task)}</span></dd></div><div><dt>协作会话</dt><dd>{agentSessionLabel}</dd></div><div><dt>版本</dt><dd>{task.revision}</dd></div></dl></section>
         <section><h3>安全边界</h3><dl><div><dt>范围</dt><dd>教师内部</dd></div><div><dt>受众</dt><dd>教师</dd></div><div><dt>外发</dt><dd>{task.externalSend ? "异常开启" : "关闭"}</dd></div><div><dt>审核</dt><dd>{task.requiresTeacherReview ? "必须" : "异常关闭"}</dd></div></dl></section>

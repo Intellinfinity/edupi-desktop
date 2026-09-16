@@ -6,8 +6,12 @@ import type {
 } from "@/lib/app-update-types";
 import { APP_DISTRIBUTION_NAME, APP_VERSION } from "./branding";
 
-export const APP_UPDATE_CHECK_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+export const APP_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const APP_UPDATE_RETRY_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+export function appUpdateRequestUrl(forceRefresh: boolean): string {
+  return forceRefresh ? "/api/updates?refresh=1" : "/api/updates";
+}
 
 export interface AppUpdateProject {
   id: AppUpdateProjectId;

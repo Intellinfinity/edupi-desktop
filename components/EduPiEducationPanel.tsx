@@ -463,10 +463,13 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       setAgentTask(null);
       if (!contextBusy) setContextOpen(false);
       setPendingTaskBinding(null);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("taskDetail");
+      router.replace(`/?${params.toString()}`, { scroll: false });
     };
     window.addEventListener("edupi-close-panel", close);
     return () => window.removeEventListener("edupi-close-panel", close);
-  }, [cancelActivation, contextBusy]);
+  }, [cancelActivation, contextBusy, router, searchParams]);
 
   useEffect(() => () => cancelActivation(), [cancelActivation]);
 
@@ -497,6 +500,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     params.set("module", moduleFromView(view));
     params.set("view", view);
     if (task) params.set("task", taskKey(task)); else params.delete("task");
+    params.delete("taskDetail");
     if (stage) params.set("stage", stage); else params.delete("stage");
     if ((view === "homeroom" || view === "students") && nextStudentId) params.set("student", nextStudentId); else params.delete("student");
     if (viewKeepsObjectItem(view) && nextObjectId) params.set("item", nextObjectId); else params.delete("item");
@@ -513,6 +517,28 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     params.set("inspector", nextInspector ? "1" : "0");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [calendarSelection, inspectorOpen, router, searchParams, selectedObjectId, selectedStudentId]);
+
+  const updateTaskDetailLocation = useCallback((key: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (key) {
+      params.set("taskDetail", key);
+      params.delete("calendarKind");
+      params.delete("calendarItem");
+      params.delete("date");
+    } else {
+      params.delete("taskDetail");
+    }
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (drawer === "file") return;
+    const requested = searchParams.get("taskDetail");
+    if (!requested) { setTaskDetailTask(null); return; }
+    const selected = tasks.find((task) => taskKey(task) === requested) || null;
+    setTaskDetailTask(selected);
+    if (!selected && education) updateTaskDetailLocation(null);
+  }, [drawer, education, searchParams, tasks, updateTaskDetailLocation]);
 
   const selectView = useCallback((view: WorkbenchView, requestedObjectId?: string, requestedStudentId?: string | null, requestedCalendarSelection?: CalendarItemSelection | null) => {
     const stage = view === "tasks" ? activeStage : undefined;
@@ -779,9 +805,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setFileReturnTaskKey(null);
     setAgentTask(null);
     setPendingTaskBinding(null);
-    selectCalendarItem(null);
+    setCalendarSelection(null);
     setTaskDetailTask(task);
-  }, [cancelActivation, selectCalendarItem]);
+    updateTaskDetailLocation(taskKey(task));
+  }, [cancelActivation, updateTaskDetailLocation]);
 
   const selectQuickEntry = useCallback((item: EduPiQuickEntryItem) => {
     onCloseQuickEntry();
@@ -819,7 +846,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const closeTaskDetail = useCallback(() => {
     setFileReturnTaskKey(null);
     setTaskDetailTask(null);
-  }, []);
+    updateTaskDetailLocation(null);
+  }, [updateTaskDetailLocation]);
 
   const createBoardTask = useCallback(async (input: CreateTeacherTaskInput): Promise<CreateTeacherTaskOutcome> => {
     const response = await fetch("/api/edupi/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
@@ -856,7 +884,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setMaterialStagingMessage({ tone: "success", text: "删除中…" });
     try {
       const result = await deleteEducationEntity(kind, id);
-      if (kind === "task") { stopTaskTracking(id); setTaskDetailTask(null); setSelectedTaskKey(null); }
+      if (kind === "task") { stopTaskTracking(id); closeTaskDetail(); setSelectedTaskKey(null); }
       commitEducationSnapshot(education && result.data.workspaceResourcesUnavailable
         ? preserveUnavailableWorkspaceResources(education, result.data, { removedMaterialId: kind === "material" ? result.target.id : null })
         : result.data);
@@ -870,7 +898,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     } finally {
       setDeleteBusy(null);
     }
-  }, [commitEducationSnapshot, deleteBusy, education, selectCalendarItem, stopTaskTracking]);
+  }, [closeTaskDetail, commitEducationSnapshot, deleteBusy, education, selectCalendarItem, stopTaskTracking]);
 
   const restoreEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string, label: string): Promise<void> => {
     const result = await restoreEducationEntity(kind, id, restoreRequestId);

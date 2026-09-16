@@ -1128,7 +1128,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const currentAgentTask = agentTask ? tasks.find((task) => taskKey(task) === taskKey(agentTask)) || agentTask : null;
   const deletionControlVisible = Boolean(education.entityDeletionLedgerUnavailable || (education.entityDeletionCount ?? 0) > 0 || (education.entityDeletionHistoryCount ?? 0) > 0);
   const bodyControlCount = Number(Boolean(loadError)) + Number(deletionControlVisible) + Number(inspectorAvailable);
-  const detailSurfaceOpen = Boolean(drawer || taskDetail || calendarSelection || ((activeView === "homeroom" || activeView === "students") && selectedStudentId) || (activeView === "materials" && materialItemRoute(selectedObjectId)));
+  const studentDetailOpen = (activeView === "homeroom" || activeView === "students") && Boolean(selectedStudentId) && education.students.some((student, index) => studentRecordKey(student, index) === selectedStudentId);
+  const detailSurfaceOpen = Boolean(drawer || taskDetail || calendarSelection || studentDetailOpen || (activeView === "materials" && materialItemRoute(selectedObjectId)));
   const bodyControlsVisible = bodyControlCount > 0 && !detailSurfaceOpen;
   const bodyControlStyle = bodyControlsVisible ? { "--edupi-body-controls-width": `${bodyControlCount * 36}px` } as CSSProperties : undefined;
   return (

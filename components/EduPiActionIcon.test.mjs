@@ -38,7 +38,8 @@ test("student and material drawers use icon actions for direct operations", asyn
   assert.match(css, /\.edupi-teacher-body\.has-body-controls \.edupi-module-heading/);
   assert.match(css, /padding-right: calc\(12px \+ var\(--edupi-body-controls-width, 0px\)\)/);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.edupi-teacher-app \{ grid-column: 1; grid-row: 1; \}/);
-  assert.match(panel, /const detailSurfaceOpen = Boolean\(drawer \|\| taskDetail \|\| calendarSelection/);
+  assert.match(panel, /education\.students\.some\(\(student, index\) => studentRecordKey\(student, index\) === selectedStudentId\)/);
+  assert.match(panel, /const detailSurfaceOpen = Boolean\(drawer \|\| taskDetail \|\| calendarSelection \|\| studentDetailOpen/);
   assert.match(panel, /bodyControlCount > 0 && !detailSurfaceOpen/);
   assert.match(panel, /detailSurfaceOpen \? " has-detail-surface"/);
   assert.match(css, /\.edupi-teacher-body\.has-detail-surface > \.edupi-content-sider/);

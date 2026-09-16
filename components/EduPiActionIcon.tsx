@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-export type EduPiActionIconName = "agent" | "close" | "delete" | "edit" | "loading" | "next" | "open" | "preview" | "previous" | "records" | "reveal" | "task";
+export type EduPiActionIconName = "agent" | "close" | "delete" | "edit" | "loading" | "next" | "open" | "preview" | "previous" | "reveal" | "task";
 
 export function EduPiActionIcon({ name, size = 16 }: { name: EduPiActionIconName; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -13,7 +13,6 @@ export function EduPiActionIcon({ name, size = 16 }: { name: EduPiActionIconName
   if (name === "open") return <svg {...common}><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6H5V6h6"/></svg>;
   if (name === "preview") return <svg {...common}><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>;
   if (name === "previous") return <svg {...common}><path d="m15 5-7 7 7 7"/></svg>;
-  if (name === "records") return <svg {...common}><circle cx="6" cy="6" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="18" r="2"/><path d="m7.7 7.1 3.1 8.9M16.2 8.2l-3.1 7.8M8 6.2l8-.1"/></svg>;
   if (name === "reveal") return <svg {...common}><path d="M3 7h7l2 2h9v10H3V7Z"/><path d="M3 7V5h7l2 2"/></svg>;
   return <svg {...common}><path d="M7 3h8l4 4v14H7V3Z"/><path d="M15 3v5h5M10 13h6M10 17h4"/></svg>;
 }

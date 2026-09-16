@@ -488,7 +488,6 @@ html.dark .edupi-teacher-shell {
 .edupi-student-drawer__actions button.is-delete { border-color: color-mix(in srgb, var(--ep-red) 35%, var(--ep-border)); color: var(--ep-red); }
 .edupi-student-drawer__actions button:disabled { cursor: not-allowed; opacity: .45; }
 .edupi-student-drawer__actions .edupi-icon-action { width: 28px; padding: 0; }
-.edupi-student-drawer__actions .edupi-icon-action[aria-pressed="true"] { border-color: color-mix(in srgb, var(--ep-blue) 38%, var(--ep-border)); color: var(--ep-blue); }
 .edupi-student-drawer__actions button:last-child { width: 28px; padding: 0; border-color: transparent; background: transparent; font-size: 18px; }
 .edupi-student-memory-actions { display: flex; gap: 6px; padding-top: 8px; }
 .edupi-student-memory-actions .edupi-icon-action { width: 28px; height: 28px; padding: 0; border: 1px solid var(--ep-border); border-radius: 5px; background: var(--ep-surface); color: var(--ep-muted); cursor: pointer; }

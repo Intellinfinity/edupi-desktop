@@ -129,11 +129,12 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const desktopChrome = useDesktopChrome();
   const requestedView = searchParams.get("view");
   const requestedStage = searchParams.get("stage");
+  const requestedStudentId = searchParams.get("student");
   const requestedReviewTarget = reviewTargetRoute(searchParams.get("reviewTarget"));
   const [activeView, setActiveView] = useState<WorkbenchView>(() => isWorkbenchView(requestedView) ? requestedView : viewFromModule(initialModule));
   const [activeStage, setActiveStage] = useState<TaskStage>(() => isTaskStage(requestedStage) ? requestedStage : "brief");
   const [selectedTaskKey, setSelectedTaskKey] = useState<string | null>(() => searchParams.get("task"));
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(() => searchParams.get("student"));
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(() => requestedStudentId);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(() => searchParams.get("item"));
   const [reviewMode, setReviewMode] = useState<"board" | "task" | "c1">(() => searchParams.get("task") && requestedStage === "review" ? "task" : requestedReviewTarget ? "c1" : "board");
   const [selectedC1Target, setSelectedC1Target] = useState<ReviewTargetRoute | null>(() => requestedReviewTarget);
@@ -434,6 +435,20 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const requestedTask = searchParams.get("task");
     if (requestedTask) setSelectedTaskKey(requestedTask);
   }, [searchParams]);
+
+  useEffect(() => {
+    setSelectedStudentId(requestedView === "homeroom" || requestedView === "students" ? requestedStudentId : null);
+  }, [requestedStudentId, requestedView]);
+
+  useEffect(() => {
+    if (!education || !requestedStudentId || (requestedView !== "homeroom" && requestedView !== "students")) return;
+    const exists = education.students.some((student, index) => studentRecordKey(student, index) === requestedStudentId);
+    if (exists) return;
+    setSelectedStudentId(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("student");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [education, requestedStudentId, requestedView, router, searchParams]);
 
   useEffect(() => {
     const id = searchParams.get("calendarItem");

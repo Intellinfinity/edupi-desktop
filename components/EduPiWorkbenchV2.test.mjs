@@ -54,6 +54,10 @@ test("class and student modules select one student and expose real import and ex
   ]);
   assert.match(panel, /selectedStudentId/);
   assert.match(panel, /onStudent=\{selectStudent\}/);
+  assert.match(panel, /const requestedStudentId = searchParams\.get\("student"\)/);
+  assert.match(panel, /setSelectedStudentId\(requestedView === "homeroom" \|\| requestedView === "students" \? requestedStudentId : null\)/);
+  assert.match(panel, /education\.students\.some\(\(student, index\) => studentRecordKey\(student, index\) === requestedStudentId\)/);
+  assert.match(panel, /params\.delete\("student"\)/);
   assert.match(sider, /edupi-object-student/);
   assert.doesNotMatch(sider, /<details className="edupi-object-person"/);
   assert.match(views, /mode=\{props\.view\}/);

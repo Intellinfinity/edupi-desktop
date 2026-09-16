@@ -266,7 +266,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
             : <div key={id}>{content}</div>;
         })}</div>
         {selectedConnector ? <EduPiConnectorSetup connectorId={selectedConnector} status={snapshot.platform?.connectors?.connectors?.find((item) => item.connector_id === selectedConnector)?.status || "not_configured"} onClose={() => setSelectedConnector(null)} onConfigured={refresh} /> : null}
-        <EduPiBackgroundJobs data={snapshot.education} onMaterials={() => onNavigate("materials")} />
+        <EduPiBackgroundJobs data={snapshot.education} onMaterials={() => onNavigate("materials")} onModels={() => setActiveSection("models")} />
       </section> : null}
 
       {activeSection === "platform" ? <section className="edupi-admin-section">

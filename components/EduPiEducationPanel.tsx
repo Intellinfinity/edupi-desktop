@@ -543,9 +543,19 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [drawer, education, searchParams, tasks, updateTaskDetailLocation]);
 
   useEffect(() => {
-    const requested = reviewTargetRoute(searchParams.get("reviewTarget"));
-    if (activeView !== "review" || !requested) {
-      if (!requested) setSelectedC1Target(null);
+    const rawTarget = searchParams.get("reviewTarget");
+    const requested = reviewTargetRoute(rawTarget);
+    if (!rawTarget) {
+      setSelectedC1Target(null);
+      setReviewMode((current) => current === "c1" ? "board" : current);
+      return;
+    }
+    if (requestedView !== "review" || !requested) {
+      setSelectedC1Target(null);
+      setReviewMode((current) => current === "c1" ? "board" : current);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("reviewTarget");
+      router.replace(`/?${params.toString()}`, { scroll: false });
       return;
     }
     if (!education) return;
@@ -562,7 +572,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     const params = new URLSearchParams(searchParams.toString());
     params.delete("reviewTarget");
     router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [activeView, education, router, searchParams]);
+  }, [education, requestedView, router, searchParams]);
 
   const selectView = useCallback((view: WorkbenchView, requestedObjectId?: string, requestedStudentId?: string | null, requestedCalendarSelection?: CalendarItemSelection | null) => {
     const stage = view === "tasks" ? activeStage : undefined;
@@ -630,8 +640,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const toggleInspector = useCallback(() => {
     const next = !inspectorOpen;
     setInspectorOpen(next);
-    updateLocation(activeView, activeTask, activeView === "tasks" || activeView === "review" ? activeStage : undefined, next);
-  }, [activeStage, activeTask, activeView, inspectorOpen, updateLocation]);
+    updateLocation(activeView, activeTask, activeView === "tasks" || activeView === "review" ? activeStage : undefined, next, selectedStudentId, selectedObjectId, calendarSelection, activeView === "review" && reviewMode === "c1" ? selectedC1Target : null);
+  }, [activeStage, activeTask, activeView, calendarSelection, inspectorOpen, reviewMode, selectedC1Target, selectedObjectId, selectedStudentId, updateLocation]);
 
   const focusC1Review = useCallback((target: ReviewTargetRoute) => {
     cancelActivation();

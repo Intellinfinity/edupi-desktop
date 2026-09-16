@@ -107,6 +107,8 @@ test("review renders one selected decision and the rail exposes real EduPi activ
   assert.match(panel, /reviewTargetRoute\(searchParams\.get\("reviewTarget"\)\)/);
   assert.match(panel, /setReviewMode\("c1"\)/);
   assert.match(panel, /params\.delete\("reviewTarget"\)/);
+  assert.match(panel, /requestedView !== "review" \|\| !requested/);
+  assert.match(panel, /reviewMode === "c1" \? selectedC1Target : null/);
   assert.match(review, /visibleTarget/);
   assert.match(review, /selectedTarget\s*\?/);
   assert.doesNotMatch(review, /targets\.map\(\(target\)/);

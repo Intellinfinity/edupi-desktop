@@ -130,13 +130,14 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const requestedView = searchParams.get("view");
   const requestedModule = searchParams.get("module");
   const requestedStage = searchParams.get("stage");
+  const requestedTaskKey = searchParams.get("task");
   const requestedStudentId = searchParams.get("student");
   const requestedObjectId = searchParams.get("item");
   const requestedReviewTarget = reviewTargetRoute(searchParams.get("reviewTarget"));
   const routeView = isWorkbenchView(requestedView) ? requestedView : viewFromModule(isEducationModule(requestedModule) ? requestedModule : initialModule);
   const [activeView, setActiveView] = useState<WorkbenchView>(() => routeView);
   const [activeStage, setActiveStage] = useState<TaskStage>(() => isTaskStage(requestedStage) ? requestedStage : "brief");
-  const [selectedTaskKey, setSelectedTaskKey] = useState<string | null>(() => searchParams.get("task"));
+  const [selectedTaskKey, setSelectedTaskKey] = useState<string | null>(() => requestedTaskKey);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(() => requestedStudentId);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(() => objectItemForView(routeView, requestedObjectId));
   const [reviewMode, setReviewMode] = useState<"board" | "task" | "c1">(() => searchParams.get("task") && requestedStage === "review" ? "task" : requestedReviewTarget ? "c1" : "board");
@@ -430,13 +431,24 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [initialModule]);
 
   useEffect(() => {
-    if (isTaskStage(requestedStage)) setActiveStage(requestedStage);
+    setActiveStage(isTaskStage(requestedStage) ? requestedStage : "brief");
   }, [requestedStage]);
 
   useEffect(() => {
-    const requestedTask = searchParams.get("task");
-    if (requestedTask) setSelectedTaskKey(requestedTask);
-  }, [searchParams]);
+    setSelectedTaskKey(routeView === "tasks" || routeView === "review" ? requestedTaskKey : null);
+  }, [requestedTaskKey, routeView]);
+
+  useEffect(() => {
+    if (!education || !requestedTaskKey || (routeView !== "tasks" && routeView !== "review")) return;
+    if (education.tasks.some((task) => taskKey(task) === requestedTaskKey)) return;
+    setSelectedTaskKey(null);
+    setActiveStage("brief");
+    setReviewMode((current) => current === "task" ? "board" : current);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("task");
+    params.delete("stage");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [education, requestedTaskKey, routeView, router, searchParams]);
 
   useEffect(() => {
     setSelectedStudentId(routeView === "homeroom" || routeView === "students" ? requestedStudentId : null);

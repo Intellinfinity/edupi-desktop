@@ -18,6 +18,7 @@ const NEXT_RELATIVE_PATH = ["node_modules", "next", "dist", "bin", "next"];
 const PRODUCTION_PORT = 30141;
 export const DEFAULT_PORT = 30142;
 export const EXPECTED_C1_COMMANDS = Object.freeze(["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"]);
+export const EXPECTED_C1_REVIEW_COMMANDS = Object.freeze(["review_observation", "review_memory_candidate"]);
 export const EXPECTED_C1_ACTIONS = Object.freeze(["accept", "modify", "reject", "hold"]);
 export const REVIEW_PATH = "/?edupi=1&module=tasks&view=review&inspector=0";
 export const SEED_TIME = "2026-08-27T09:00:00.000Z";
@@ -292,6 +293,8 @@ export async function seedVisibleTargets({
   outputDir = path.join(dataRoot, ".edupi", "output"),
   lockDir = path.join(dataRoot, ".edupi", "locks"),
   jitiFactory,
+  prepareWriterRoot,
+  acquireWriterAdmission,
 } = {}) {
   const resolvedCoreRoot = requireAbsolute(coreRoot, "Core root");
   const workspace = {
@@ -313,8 +316,15 @@ export async function seedVisibleTargets({
     EDUPI_MEMORY_DIR: workspace.memoryDir,
     EDUPI_OUTPUT_DIR: workspace.outputDir,
     EDUPI_LOCK_DIR: workspace.lockDir,
+    EDUPI_HOME: path.join(workspace.dataRoot, ".edupi"),
   });
+  let writerAdmission = null;
   try {
+    const prepare = prepareWriterRoot || (await import(path.join(resolvedCoreRoot, "scripts", "core_runtime_root.mjs"))).prepareCoreRuntimeRoot;
+    const acquire = acquireWriterAdmission || (await import(path.join(resolvedCoreRoot, "scripts", "core_runtime_writer_admission.mjs"))).acquireCoreRuntimeWriterAdmission;
+    const preparedRoot = prepare(workspace.dataRoot);
+    if (!preparedRoot?.ok) throw new Error("Core Runtime writer root could not be prepared.");
+    writerAdmission = await acquire({ root: preparedRoot, kind: "legacy_desktop_c1_visible", busyTimeoutMs: 250 });
     const factory = jitiFactory || (await import("jiti")).createJiti;
     const jiti = factory(import.meta.url, { tsconfigPaths: true, moduleCache: false });
     const adapter = await jiti.import(adapterPath);
@@ -365,6 +375,7 @@ export async function seedVisibleTargets({
       counts: { observations: 8, memoryCandidates: 8, memories: 0 },
     };
   } finally {
+    await writerAdmission?.release();
     restoreEnvironment();
   }
 }
@@ -381,6 +392,7 @@ export function buildLaunchEnvironment({ core, workspace, environment = process.
     EDUPI_MEMORY_DIR: workspace.memoryDir,
     EDUPI_OUTPUT_DIR: workspace.outputDir,
     EDUPI_LOCK_DIR: workspace.lockDir,
+    EDUPI_HOME: path.join(workspace.dataRoot, ".edupi"),
   };
 }
 
@@ -419,7 +431,7 @@ export function isReadyForVisibleCheckpoint({ status, education } = {}) {
     && statusProjection?.projection === "education_workspace"
     && education?.externalSend === false
     && c1Review?.enabled === true
-    && exactList(c1Review.commands, EXPECTED_C1_COMMANDS)
+    && exactList(c1Review.commands, EXPECTED_C1_REVIEW_COMMANDS)
     && exactList(c1Review.actions, EXPECTED_C1_ACTIONS)
     && Array.isArray(education?.observations)
     && education.observations.length === 8

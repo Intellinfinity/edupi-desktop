@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   EXPECTED_C1_COMMANDS,
+  EXPECTED_C1_REVIEW_COMMANDS,
   buildLaunchEnvironment,
   buildNextLaunchSpec,
   cleanupVisibleCheckpoint,
@@ -74,17 +75,25 @@ test("seeds eight independent labeled targets through the Core adapter and resto
   const before = process.env.EDUPI_DATA_ROOT;
   const calls = [];
   let importedWithTemporaryRoots = false;
+  let admissionReleased = false;
   try {
     process.env.EDUPI_DATA_ROOT = realDataRoot;
     const seeded = await seedVisibleTargets({
       coreRoot: path.join(parent, "pinned-core"),
       dataRoot,
+      prepareWriterRoot: (root) => ({ ok: true, root }),
+      acquireWriterAdmission: async ({ root, kind }) => {
+        assert.equal(root.root, dataRoot);
+        assert.equal(kind, "legacy_desktop_c1_visible");
+        return { release: async () => { admissionReleased = true; } };
+      },
       jitiFactory: () => ({
         import: async () => {
           importedWithTemporaryRoots = process.env.EDUPI_DATA_ROOT === dataRoot
             && process.env.EDUPI_MEMORY_DIR === path.join(dataRoot, ".edupi", "memory")
             && process.env.EDUPI_OUTPUT_DIR === path.join(dataRoot, ".edupi", "output")
-            && process.env.EDUPI_LOCK_DIR === path.join(dataRoot, ".edupi", "locks");
+            && process.env.EDUPI_LOCK_DIR === path.join(dataRoot, ".edupi", "locks")
+            && process.env.EDUPI_HOME === path.join(dataRoot, ".edupi");
           return {
             captureTeacherObservation(input) {
               calls.push(input);
@@ -100,6 +109,7 @@ test("seeds eight independent labeled targets through the Core adapter and resto
     });
 
     assert.equal(importedWithTemporaryRoots, true);
+    assert.equal(admissionReleased, true);
     assert.equal(calls.length, 8);
     assert.equal(new Set(calls.map((call) => call.source_message_id)).size, 8);
     assert.equal(seeded.observations.length, 8);
@@ -248,7 +258,7 @@ test("forwards every Core/data root explicitly to the secondary Desktop process"
     environment: { EDUPI_DATA_ROOT: "/real/data", EDUPI_CORE_ROOT: "/real/core", PATH: "/bin" },
   });
   assert.deepEqual(
-    Object.fromEntries(["EDUPI_CORE_ROOT", "EDUPI_CORE_ALLOWED_ROOT", "EDUPI_DATA_ROOT", "EDUPI_DATA_ALLOWED_ROOT", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR"].map((key) => [key, environment[key]])),
+    Object.fromEntries(["EDUPI_CORE_ROOT", "EDUPI_CORE_ALLOWED_ROOT", "EDUPI_DATA_ROOT", "EDUPI_DATA_ALLOWED_ROOT", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR", "EDUPI_HOME"].map((key) => [key, environment[key]])),
     {
       EDUPI_CORE_ROOT: "/tmp/pinned-core",
       EDUPI_CORE_ALLOWED_ROOT: "/tmp",
@@ -257,6 +267,7 @@ test("forwards every Core/data root explicitly to the secondary Desktop process"
       EDUPI_MEMORY_DIR: "/tmp/c1-data/.edupi/memory",
       EDUPI_OUTPUT_DIR: "/tmp/c1-data/.edupi/output",
       EDUPI_LOCK_DIR: "/tmp/c1-data/.edupi/locks",
+      EDUPI_HOME: "/tmp/c1-data/.edupi",
     },
   );
 });
@@ -279,7 +290,7 @@ function readyEducation() {
     capabilities: {
       c1Review: {
         enabled: true,
-        commands: [...EXPECTED_C1_COMMANDS],
+        commands: [...EXPECTED_C1_REVIEW_COMMANDS],
         actions: ["accept", "modify", "reject", "hold"],
       },
     },

@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { useModalDismiss } from "@/hooks/useModalDismiss";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EducationEntityDeleteKind } from "@/lib/edupi-education-contract";
 import type { EntityDeletionHistory, EntityDeletionRestoreRecord } from "@/lib/edupi-entity-delete";
 
@@ -26,6 +24,10 @@ function historyLabel(item: EntityDeletionHistory): string {
   return item.targetLabel || item.targetId;
 }
 
+function RefreshIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.5A7 7 0 0 1 18.8 7L20 12M4 12l1.2 5A7 7 0 0 0 17.9 15.5" /></svg>;
+}
+
 export function deletedHistoryBadgeCount(summaryCount: number, loadedCount: number): number {
   return Math.max(summaryCount, loadedCount);
 }
@@ -43,30 +45,28 @@ export function EduPiDeletedEntities({
   onLoad: () => Promise<{ deletions: EntityDeletionRestoreRecord[]; history: EntityDeletionHistory[] }>;
   onRestore: (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string, label: string) => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
   const [ledger, setLedger] = useState<{ deletions: EntityDeletionRestoreRecord[]; history: EntityDeletionHistory[] } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const modalRef = useModalDismiss<HTMLDivElement>(() => { if (!busy) setOpen(false); }, open);
   const ordered = useMemo(() => (ledger?.deletions ?? []).slice().sort((left, right) => right.deletedAt.localeCompare(left.deletedAt)), [ledger]);
   const pages = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
   const visible = ordered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const recentHistory = useMemo(() => (ledger?.history ?? []).slice().sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 50), [ledger]);
   const visibleHistoryCount = deletedHistoryBadgeCount(historyCount, ledger?.history.length ?? 0);
+  const visibleActiveCount = Math.max(activeCount, ledger?.deletions.length ?? 0);
   useEffect(() => setPage((current) => Math.min(current, pages - 1)), [pages]);
 
-  if (activeCount === 0 && historyCount === 0 && !countUnavailable) return null;
-
-  const show = async () => {
-    setOpen(true);
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try { setLedger(await onLoad()); }
     catch (cause) { setLedger(null); setError(cause instanceof Error ? cause.message : "删除记录读取失败"); }
     finally { setLoading(false); }
-  };
+  }, [onLoad]);
+
+  useEffect(() => { void load(); }, [load]);
 
   const restore = async (item: EntityDeletionRestoreRecord) => {
     const key = `${item.kind}:${item.id}`;
@@ -75,7 +75,7 @@ export function EduPiDeletedEntities({
     setError(null);
     try {
       await onRestore(item.kind, item.id, item.restoreRequestId, item.label || kindLabels[item.kind]);
-      setOpen(false);
+      await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "恢复失败");
     } finally {
@@ -83,30 +83,17 @@ export function EduPiDeletedEntities({
     }
   };
 
-  const triggerLabel = countUnavailable
-    ? "删除记录数量暂不可用"
-    : activeCount > 0
-      ? `已删除 ${activeCount} 项`
-      : "删除记录";
-
-  return <>
-    <button className="edupi-deleted-entities-trigger" type="button" onClick={() => void show()} aria-label={triggerLabel} title={triggerLabel}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M4 7h16" /><path d="M9 3h6l1 4H8z" /><path d="m6.5 7 1 14h9l1-14" /><path d="M10 11v6M14 11v6" />
-      </svg>
-      {activeCount > 0 ? <span className="edupi-deleted-entities-trigger__badge" aria-hidden="true">{activeCount > 99 ? "99+" : activeCount}</span> : null}
-    </button>
-    {open && typeof document !== "undefined" ? createPortal(<div className="edupi-deleted-entities-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOpen(false); }}>
-      <div ref={modalRef} className="edupi-deleted-entities" role="dialog" aria-modal="true" aria-labelledby="edupi-deleted-title" tabIndex={-1}>
-        <header><h2 id="edupi-deleted-title">已删除</h2><button type="button" data-autofocus disabled={Boolean(busy)} onClick={() => setOpen(false)} aria-label="关闭已删除记录">×</button></header>
-        {error ? <p className="edupi-deleted-entities__message" role="alert">{error}</p> : null}
-        {loading ? <p className="edupi-deleted-entities__empty" role="status">正在读取…</p> : visible.length > 0 ? <ol className="edupi-deleted-entities__list">{visible.map((item) => {
-          const key = `${item.kind}:${item.id}`;
-          return <li key={key}><div><strong>{item.label || kindLabels[item.kind]}</strong><span>{kindLabels[item.kind]} · {time(item.deletedAt)}</span><small>{item.id}</small>{item.note ? <p>{item.note}</p> : null}</div><button type="button" disabled={Boolean(busy)} onClick={() => void restore(item)}>{busy === key ? "恢复中…" : "恢复"}</button></li>;
-        })}</ol> : !error ? <p className="edupi-deleted-entities__empty">当前没有已删除项目</p> : null}
-        {pages > 1 ? <nav className="edupi-deleted-entities__pagination" aria-label="已删除项目分页"><button type="button" disabled={page === 0 || Boolean(busy)} onClick={() => setPage((value) => value - 1)}>上一页</button><span>{page + 1} / {pages}</span><button type="button" disabled={page >= pages - 1 || Boolean(busy)} onClick={() => setPage((value) => value + 1)}>下一页</button></nav> : null}
-        {recentHistory.length > 0 ? <details className="edupi-deleted-entities__history"><summary>操作记录 <span>{visibleHistoryCount}</span></summary><ol>{recentHistory.map((item) => <li key={item.historyId}><div><strong>{item.action === "delete" ? "删除" : "恢复"} · {historyLabel(item)}</strong><span>{kindLabels[item.kind]} · 记录版本 {item.tombstoneRevision}</span></div><time>{time(item.occurredAt)}</time>{item.note ? <p>{item.note}</p> : null}</li>)}</ol></details> : null}
-      </div>
-    </div>, document.body) : null}
-  </>;
+  return <section className="edupi-admin-recycle" aria-label="回收站">
+    <div className="edupi-admin-recycle__toolbar">
+      <span>{countUnavailable && !ledger ? "数量暂不可用" : `${visibleActiveCount} 项可恢复`}</span>
+      <button type="button" disabled={loading || Boolean(busy)} onClick={() => void load()} aria-label="刷新回收站" title="刷新回收站"><RefreshIcon /></button>
+    </div>
+    {error ? <p className="edupi-admin-recycle__message" role="alert">{error}</p> : null}
+    {loading ? <div className="edupi-admin-recycle__empty" role="status">正在读取…</div> : visible.length > 0 ? <ol className="edupi-admin-recycle__list">{visible.map((item) => {
+      const key = `${item.kind}:${item.id}`;
+      return <li key={key}><div><strong>{item.label || kindLabels[item.kind]}</strong><span>{kindLabels[item.kind]} · {time(item.deletedAt)}</span>{item.note ? <p>{item.note}</p> : null}<details><summary>技术详情</summary><code>{item.id}</code></details></div><button type="button" disabled={Boolean(busy)} onClick={() => void restore(item)}>{busy === key ? "恢复中…" : "恢复"}</button></li>;
+    })}</ol> : !error ? <div className="edupi-admin-recycle__empty">当前没有可恢复项目</div> : null}
+    {pages > 1 ? <nav className="edupi-admin-recycle__pagination" aria-label="回收站分页"><button type="button" aria-label="上一页" disabled={page === 0 || Boolean(busy)} onClick={() => setPage((value) => value - 1)}>‹</button><span>{page + 1} / {pages}</span><button type="button" aria-label="下一页" disabled={page >= pages - 1 || Boolean(busy)} onClick={() => setPage((value) => value + 1)}>›</button></nav> : null}
+    {recentHistory.length > 0 ? <details className="edupi-admin-recycle__history"><summary>操作记录 <span>{visibleHistoryCount}</span></summary><ol>{recentHistory.map((item) => <li key={item.historyId}><div><strong>{item.action === "delete" ? "删除" : "恢复"} · {historyLabel(item)}</strong><span>{kindLabels[item.kind]} · 记录版本 {item.tombstoneRevision}</span></div><time>{time(item.occurredAt)}</time>{item.note ? <p>{item.note}</p> : null}</li>)}</ol></details> : null}
+  </section>;
 }

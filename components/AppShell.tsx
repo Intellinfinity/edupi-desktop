@@ -19,6 +19,7 @@ import { isEducationModule, type EducationModule } from "@/lib/edupi-education-u
 import { moduleFromView, viewFromModule, type TaskStage, type WorkbenchView } from "@/lib/edupi-workbench";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-computer-use";
+import type { KernelRunAction } from "@/lib/edupi-kernel-display";
 import { runComputerUseFromAgent, setComputerUseEnabledNative } from "@/lib/desktop-computer-use";
 import { ChatWindow } from "./ChatWindow";
 import { clearDraft, getDraft, setDraft } from "@/lib/draft-store";
@@ -146,6 +147,7 @@ export function AppShell() {
   const [edupiAdminOpen, setEduPiAdminOpen] = useState(false);
   const [edupiAdminSection, setEduPiAdminSection] = useState<AdminSectionId>("readiness");
   const [adminModelsDirty, setAdminModelsDirty] = useState(false);
+  const [proactiveOpenRequest, setProactiveOpenRequest] = useState(0);
   const [edupiEducationModule, setEduPiEducationModule] = useState<EducationModule | null>("home");
   const edupiChatActive = edupiEducationModule !== null && searchParams.get("view") === "chat";
   const [projectTrust, setProjectTrust] = useState<ProjectTrustStatus | null>(null);
@@ -433,6 +435,16 @@ export function AppShell() {
     params.delete("stage");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
+
+  const openEduPiProactive = useCallback(() => {
+    openEducationView("chat");
+    setProactiveOpenRequest((value) => value + 1);
+  }, [openEducationView]);
+
+  const openEduPiProactiveTarget = useCallback((target: KernelRunAction["target"]) => {
+    if (target === "models") { openEduPiAdmin("models"); return; }
+    openEducationView(target);
+  }, [openEducationView, openEduPiAdmin]);
 
   const finishFirstRunGuide = useCallback(() => {
     setPrefBool(APP_PREF_KEYS.edupiFirstRunGuideComplete, true);
@@ -877,6 +889,15 @@ export function AppShell() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("reminders");
     params.set("view", "chat");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  const openReminderPanel = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("edupi", "1");
+    params.set("module", "home");
+    params.set("view", "chat");
+    params.set("reminders", "1");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
@@ -1339,6 +1360,9 @@ export function AppShell() {
       onContextUsageChange={handleContextUsageChange}
       onEducationImportCompleted={handleEducationImportCompleted}
       onEduPiAction={handleEduPiAppAction}
+      onEduPiProactiveTarget={openEduPiProactiveTarget}
+      onOpenEduPiReminders={openReminderPanel}
+      proactiveOpenRequest={proactiveOpenRequest}
       reminderText={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.text : undefined}
       reminderTitle={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.title : undefined}
       reminderDraftKey={!selectedSession && searchParams.get("task") && effectiveNewSessionCwd ? `reminder:${effectiveNewSessionCwd}:${searchParams.get("task")}` : undefined}
@@ -1983,6 +2007,7 @@ export function AppShell() {
               activeAgentSessionId={selectedSession?.id ?? null}
               onActivateAgentSession={handleActivateEducationAgentSession}
               onOpenAdmin={() => openEduPiAdmin()}
+              onOpenProactive={openEduPiProactive}
               onOpenGuide={() => setFirstRunGuideOpen(true)}
               onPrepareAgentPrompt={(prompt) => chatInputRef.current?.insertText(`${prompt}\n`)}
               onReplaceAgentPrompt={(prompt) => chatInputRef.current?.replaceText(prompt)}
@@ -2021,6 +2046,9 @@ export function AppShell() {
               onContextUsageChange={handleContextUsageChange}
               onEducationImportCompleted={handleEducationImportCompleted}
               onEduPiAction={handleEduPiAppAction}
+              onEduPiProactiveTarget={openEduPiProactiveTarget}
+              onOpenEduPiReminders={openReminderPanel}
+              proactiveOpenRequest={proactiveOpenRequest}
               reminderText={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.text : undefined}
               reminderTitle={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.title : undefined}
               reminderDraftKey={!selectedSession && searchParams.get("task") && effectiveNewSessionCwd ? `reminder:${effectiveNewSessionCwd}:${searchParams.get("task")}` : undefined}

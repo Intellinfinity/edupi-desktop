@@ -7,6 +7,7 @@ import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
 import { countToolCallBlocks, getDisplayableAssistantBlocks, splitFinalAssistantBlocks } from "@/lib/message-display";
 import { MessageView } from "./MessageView";
 import { EduPiConversationFiles } from "./EduPiConversationFiles";
+import { EduPiProactiveHub } from "./EduPiProactiveHub";
 import { EduPiRuntimeFlow } from "./EduPiRuntimeFlow";
 import { ConversationNavigator, type ConversationTurnLocation } from "./ConversationNavigator";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
@@ -27,6 +28,7 @@ import {
 import { sessionVisibleCounts } from "@/lib/scroll-memory";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-computer-use";
+import type { KernelRunAction } from "@/lib/edupi-kernel-display";
 
 interface Props {
   session: SessionInfo | null;
@@ -48,6 +50,9 @@ interface Props {
   onProjectFilesImported?: () => void;
   onEducationImportCompleted?: (toolName: EducationImportToolName) => void;
   onEduPiAction?: (action: DesktopControlInput) => boolean | Promise<boolean>;
+  onEduPiProactiveTarget?: (target: KernelRunAction["target"]) => void | Promise<void>;
+  onOpenEduPiReminders?: () => void;
+  proactiveOpenRequest?: number;
   reminderText?: string;
   reminderTitle?: string;
   reminderDraftKey?: string;
@@ -228,7 +233,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, children, t }: { mes
   );
 }
 
-export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, reminderText, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
+export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, onEduPiProactiveTarget, onOpenEduPiReminders, proactiveOpenRequest = 0, reminderText, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
   const appliedReminderText = useRef<string | null>(null);
   useEffect(() => {
     if (!reminderText || !chatInputRef?.current || appliedReminderText.current === reminderText) return;
@@ -237,6 +242,10 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   }, [reminderText, chatInputRef, newSessionCwd, session?.id]);
   const { t } = useI18n();
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
+  const [openEduPiUtility, setOpenEduPiUtility] = useState<"proactive" | "files" | null>(null);
+  useEffect(() => {
+    if (proactiveOpenRequest > 0) setOpenEduPiUtility("proactive");
+  }, [proactiveOpenRequest]);
 
   // Wrap onAgentEnd to play the completion sound. This is more reliable than
   // wrapping handleAgentEventRef because useAgentSession overwrites that ref
@@ -887,7 +896,10 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     >
       {onEduPiAction ? <EduPiRuntimeFlow running={sessionBusy} toolRunning={bashRunning} compacting={isCompacting} activeTools={agentPhase?.kind === "running_tools" ? agentPhase.tools.map(tool => tool.name) : []} /> : null}
       {reminderTitle ? <div role="status" style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{reminderTitle}</div> : null}
-      {onEduPiAction && (session?.id || sessionIdRef.current) && messageCwd ? <EduPiConversationFiles sessionId={(session?.id || sessionIdRef.current)!} cwd={messageCwd} onOpen={onOpenFile} /> : null}
+      {onEduPiAction && onEduPiProactiveTarget && onOpenEduPiReminders ? <div className="edupi-chat-utilities">
+        <EduPiProactiveHub open={openEduPiUtility === "proactive"} onOpenChange={(next) => setOpenEduPiUtility(next ? "proactive" : null)} onAction={onEduPiAction} onTarget={onEduPiProactiveTarget} onOpenReminders={onOpenEduPiReminders} />
+        {(session?.id || sessionIdRef.current) && messageCwd ? <EduPiConversationFiles sessionId={(session?.id || sessionIdRef.current)!} cwd={messageCwd} onOpen={onOpenFile} open={openEduPiUtility === "files"} onOpenChange={(next) => setOpenEduPiUtility(next ? "files" : null)} /> : null}
+      </div> : null}
       {isDragOver && (
         <div className="pointer-events-none absolute inset-0 z-50 flex animate-[drop-zone-in_0.15s_ease_both] items-center justify-center bg-[var(--accent-soft)] backdrop-blur-[1px]">
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

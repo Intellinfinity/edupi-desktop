@@ -67,6 +67,7 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /<EduPiDeletedEntities/);
   assert.match(admin, /readEducationEntityDeletions/);
   assert.match(admin, /restoreEducationEntity/);
+  assert.match(admin, /window\.dispatchEvent\(new Event\("edupi-education-refresh"\)\)/);
   assert.doesNotMatch(panel, /<EduPiDeletedEntities/);
   assert.equal((admin.match(/<p(?:\s|>)/g) || []).length, 0);
   assert.match(admin, /FALLBACK_CHECKLIST/);

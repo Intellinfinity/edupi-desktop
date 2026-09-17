@@ -193,6 +193,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
   const restoreDeletedEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string): Promise<void> => {
     const result = await restoreEducationEntity(kind, id, restoreRequestId);
     setSnapshot((current) => ({ ...current, education: result.data }));
+    window.dispatchEvent(new Event("edupi-education-refresh"));
   }, []);
   const reconnectCore = async () => {
     if (coreReconnecting) return;

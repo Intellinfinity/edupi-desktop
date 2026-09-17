@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import type { EducationContract } from "@/lib/edupi-education-contract";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
@@ -59,6 +59,7 @@ export function EduPiProactiveHub({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useModalDismiss<HTMLElement>(() => onOpenChange(false), open);
 
   const load = useCallback(async (signal?: AbortSignal, showLoading = false) => {
@@ -82,15 +83,24 @@ export function EduPiProactiveHub({
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal, true);
-    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(controller.signal); }, 30_000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    let visible = false;
+    const refreshIfVisible = () => {
+      if (visible && document.visibilityState === "visible") void load(controller.signal, true);
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      refreshIfVisible();
+    });
+    if (rootRef.current) observer.observe(rootRef.current);
+    const timer = window.setInterval(refreshIfVisible, 30_000);
+    return () => { controller.abort(); observer.disconnect(); window.clearInterval(timer); };
   }, [load]);
 
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
     void (async () => {
+      await load(controller.signal, true);
       for (let attempt = 0; attempt < 2 && !controller.signal.aborted; attempt += 1) {
         try {
           const response = await fetch("/api/edupi/workspace", { cache: "no-store", signal: controller.signal });
@@ -104,7 +114,7 @@ export function EduPiProactiveHub({
       }
     })();
     return () => controller.abort();
-  }, [open]);
+  }, [load, open]);
 
   const pendingReminders = useMemo(() => reminders.filter((item) => !item.withdrawn && !item.handled && !item.snoozedUntil).slice().reverse(), [reminders]);
   const runs = useMemo(() => kernel.runs.slice().sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 8), [kernel.runs]);
@@ -132,7 +142,7 @@ export function EduPiProactiveHub({
     finally { setBusy(null); }
   };
 
-  return <div className="edupi-chat-utility edupi-proactive-hub">
+  return <div ref={rootRef} className="edupi-chat-utility edupi-proactive-hub">
     <button type="button" className={`edupi-chat-utility__trigger${open ? " is-open" : ""}${kernel.running > 0 ? " is-running" : ""}`} aria-expanded={open} aria-label={triggerLabel} title={triggerLabel} onClick={() => onOpenChange(!open)}><RadarIcon />{badge > 0 ? <span aria-hidden="true">{badge > 99 ? "99+" : badge}</span> : null}</button>
     {open ? <section ref={panelRef} className="edupi-chat-utility__panel edupi-proactive-hub__panel" role="dialog" aria-modal="false" aria-label="主动协作" tabIndex={-1}>
       <header><div><strong>主动协作</strong><span>{kernel.running > 0 ? `${kernel.running} 项正在运行` : pendingReminders.length > 0 ? `${pendingReminders.length} 项等你处理` : "Core 当前没有待处理事项"}</span></div><button type="button" data-autofocus aria-label="关闭主动协作" title="关闭" onClick={() => onOpenChange(false)}>×</button></header>

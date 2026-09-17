@@ -1,7 +1,7 @@
 # R18/R21 主动协作与聊天浮层验收
 
 - 状态：开发版真实页面验收通过；尚未进入公开安装包。
-- 代码版本：Desktop `0dcd54d91e04e38c792cda94a9e7cf4a32837a3f`，PR [#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165)。
+- 代码版本：Desktop `4cf2740e6987a9c39eebe6d74c1f827fa7605ff8`，PR [#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165)。
 - 环境：macOS、Next.js development server、Codex in-app browser、已安装 `v0.3.19` bundled Core；教师数据临时副本，验收后删除。
 
 ## 操作与结果

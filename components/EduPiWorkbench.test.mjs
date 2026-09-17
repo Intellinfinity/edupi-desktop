@@ -254,19 +254,26 @@ test("refreshes education data after Core imports without remounting chat", asyn
   assert.match(loadEffect, /\}, \[loadWorkspace, refreshKey\]\);/);
 });
 
-test("chat utility icons reserve one shared top-right lane", async () => {
+test("chat utilities float above conversation content without changing its height", async () => {
   const panel = await read("./EduPiEducationPanel.tsx");
+  const chat = await read("./ChatWindow.tsx");
   const conversationFiles = await read("./EduPiConversationFiles.tsx");
+  const proactive = await read("./EduPiProactiveHub.tsx");
   const styles = await read("../app/edupi-workbench.css");
 
   assert.match(panel, /--edupi-body-controls-width/);
   assert.match(panel, /has-body-controls/);
   assert.match(panel, /aria-label="重试读取工作区"/);
   assert.match(panel, /edupi-teacher-body__icon-button/);
-  assert.match(conversationFiles, /className="edupi-conversation-files"/);
+  assert.doesNotMatch(panel, /EduPiDeletedEntities/);
+  assert.match(chat, /className="edupi-chat-utilities"/);
+  assert.match(chat, /<EduPiProactiveHub/);
+  assert.match(conversationFiles, /edupi-conversation-files/);
   assert.match(conversationFiles, /aria-label=\{toggleLabel\}/);
-  assert.match(styles, /\.edupi-teacher-body\.is-chat\.has-body-controls \.edupi-conversation-files/);
-  assert.match(styles, /padding-right: calc\(12px \+ var\(--edupi-body-controls-width, 0px\)\)/);
+  assert.match(proactive, /proactive_work_kernel|readEduPiKernel/);
+  assert.match(styles, /\.edupi-chat-utilities \{ position: absolute;/);
+  assert.match(styles, /\.edupi-chat-utility__panel \{ position: absolute;/);
+  assert.doesNotMatch(styles, /\.edupi-conversation-files \{[^}]*min-height:/);
 });
 
 test("keeps the existing Chat subtree mounted during background education refreshes", async () => {

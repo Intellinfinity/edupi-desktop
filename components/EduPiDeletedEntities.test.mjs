@@ -6,19 +6,21 @@ import { createJiti } from "jiti";
 
 const { EduPiDeletedEntities, deletedHistoryBadgeCount } = await createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } }).import("./EduPiDeletedEntities.tsx");
 
-test("deleted entity control exposes the Core-backed count", () => {
+test("deleted entities render as an embedded management surface", () => {
   const html = renderToStaticMarkup(React.createElement(EduPiDeletedEntities, {
     activeCount: 1,
     historyCount: 1,
     onLoad: async () => ({ deletions: [], history: [] }),
     onRestore: async () => {},
   }));
-  assert.match(html, /aria-label="已删除 1 项"/);
-  assert.match(html, /edupi-deleted-entities-trigger__badge[^>]*>1</);
-  assert.doesNotMatch(html, />已删除 1</);
+  assert.match(html, /class="edupi-admin-recycle"/);
+  assert.match(html, /aria-label="回收站"/);
+  assert.match(html, />1 项可恢复</);
+  assert.match(html, /aria-label="刷新回收站"/);
+  assert.doesNotMatch(html, /createPortal|edupi-deleted-entities-backdrop/);
 });
 
-test("deleted entity control remains available while the summary is unavailable", () => {
+test("recycle bin remains available while the summary is unavailable", () => {
   const html = renderToStaticMarkup(React.createElement(EduPiDeletedEntities, {
     activeCount: 0,
     historyCount: 0,
@@ -26,8 +28,8 @@ test("deleted entity control remains available while the summary is unavailable"
     onLoad: async () => ({ deletions: [], history: [] }),
     onRestore: async () => {},
   }));
-  assert.match(html, /aria-label="删除记录数量暂不可用"/);
-  assert.doesNotMatch(html, />删除记录</);
+  assert.match(html, /aria-label="回收站"/);
+  assert.match(html, />数量暂不可用</);
 });
 
 test("loaded history replaces a missing summary count without reducing a known total", () => {

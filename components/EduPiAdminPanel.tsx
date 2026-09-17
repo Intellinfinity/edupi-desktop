@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { EducationContract } from "@/lib/edupi-education-contract";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { EducationContract, EducationEntityDeleteKind } from "@/lib/edupi-education-contract";
 import type { OnboardingChecklistItem, TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import type { WorkbenchView } from "@/lib/edupi-workbench";
 import type { EduPiWorkspaceBundle } from "@/lib/edupi-education-client";
@@ -15,6 +15,8 @@ import type { CoreRuntimeScheduler } from "@/lib/edupi-runtime-health";
 import { EduPiCoreCompatibility, type CoreCompatibilitySnapshot } from "./EduPiCoreCompatibility";
 import { reconnectEduPiCore } from "@/lib/edupi-runtime-client";
 import { kernelRunAction, kernelRunDetail, kernelRunTitle, type KernelRunDisplayInput } from "@/lib/edupi-kernel-display";
+import { EduPiDeletedEntities } from "./EduPiDeletedEntities";
+import { readEducationEntityDeletions, restoreEducationEntity } from "@/lib/edupi-entity-delete-client";
 
 type AdminSnapshot = {
   context: TeacherContextSnapshot | null;
@@ -40,7 +42,7 @@ type AdminSnapshot = {
   } | null;
 };
 
-export type AdminSectionId = "readiness" | "automation" | "teachingSkills" | "connections" | "platform" | "models" | "people" | "calendar" | "materials" | "tasks" | "system";
+export type AdminSectionId = "readiness" | "automation" | "teachingSkills" | "connections" | "platform" | "models" | "people" | "calendar" | "materials" | "tasks" | "deleted" | "system";
 
 type Props = {
   onClose: () => void;
@@ -65,6 +67,7 @@ export const ADMIN_SECTIONS: Array<{ id: AdminSectionId; label: string }> = [
   { id: "calendar", label: "校历与课表" },
   { id: "materials", label: "上传内容" },
   { id: "tasks", label: "任务与产物" },
+  { id: "deleted", label: "回收站" },
   { id: "system", label: "系统" },
 ];
 
@@ -187,6 +190,10 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
   const kernelRuns = kernel?.runs ?? [];
   const defaultModel = snapshot.models?.defaultModel;
   const refresh = () => setRefreshKey((value) => value + 1);
+  const restoreDeletedEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string): Promise<void> => {
+    const result = await restoreEducationEntity(kind, id, restoreRequestId);
+    setSnapshot((current) => ({ ...current, education: result.data }));
+  }, []);
   const reconnectCore = async () => {
     if (coreReconnecting) return;
     setCoreReconnecting(true);
@@ -306,6 +313,11 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <AdminSectionHeader title="任务与产物" meta="EduPi 工作流" onRefresh={refresh} />
         <div className="edupi-admin-metrics"><AdminMetric value={education?.tasks.length ?? "—"} label="教师任务" /><AdminMetric value={education?.tasks.filter((task) => task.requiresTeacherReview).length ?? "—"} label="需要确认" /></div>
         <button className="edupi-admin-primary" type="button" onClick={() => leaveAdmin(() => onNavigate("workspace"))}>进入任务工作区</button>
+      </section> : null}
+
+      {activeSection === "deleted" ? <section className="edupi-admin-section">
+        <AdminSectionHeader title="回收站" meta="删除与恢复记录" onRefresh={refresh} />
+        <EduPiDeletedEntities activeCount={education?.entityDeletionCount ?? 0} historyCount={education?.entityDeletionHistoryCount ?? 0} countUnavailable={education?.entityDeletionLedgerUnavailable ?? true} onLoad={readEducationEntityDeletions} onRestore={restoreDeletedEntity} />
       </section> : null}
 
       {activeSection === "system" ? <section className="edupi-admin-section">

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactElement, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { EducationContract, EducationEntityDeleteKind, TaskReviewAction, TeacherTask } from "@/lib/edupi-education-contract";
-import { calendarSelectionForSource, calendarSelectionFromLink, calendarSelectionLink, type CalendarItemSelection } from "@/lib/edupi-calendar-model";
+import { calendarSelectionFromLink, calendarSelectionLink, type CalendarItemSelection } from "@/lib/edupi-calendar-model";
 import { isEducationModule, type EducationModule } from "@/lib/edupi-education-ui";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import {
@@ -45,13 +45,12 @@ import type { TaskBoardLaneId } from "@/lib/edupi-task-board";
 import { calendarQuickEntryKey, calendarQuickEntryStatusLabel, type EduPiQuickEntryItem } from "@/lib/edupi-quick-entry";
 import { isTaskReviewable, workCaseForTask } from "@/lib/edupi-work-case";
 import { studentRecordKey } from "@/lib/edupi-student-roster-model";
-import { materialItemRoute, materialObjectId, memoryObjectId, objectItemForView, reviewTargetObjectId, reviewTargetRoute, viewKeepsObjectItem, type ReviewTargetRoute } from "@/lib/edupi-domain-navigation";
+import { materialItemRoute, objectItemForView, reviewTargetObjectId, reviewTargetRoute, viewKeepsObjectItem, type ReviewTargetRoute } from "@/lib/edupi-domain-navigation";
 import { APP_PREF_KEYS } from "@/lib/app-prefs";
 import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { preserveUnavailableWorkspaceResources, readEduPiWorkspace } from "@/lib/edupi-education-client";
 import { EduPiPreparationArtifactEditor } from "./EduPiPreparationArtifactEditor";
-import { deleteEducationEntity, readEducationEntityDeletions, restoreEducationEntity } from "@/lib/edupi-entity-delete-client";
-import { EduPiDeletedEntities } from "./EduPiDeletedEntities";
+import { deleteEducationEntity } from "@/lib/edupi-entity-delete-client";
 import { readEducationMemoryScopes, type EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import { readEduPiTeachingSkills, type EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
@@ -79,6 +78,7 @@ type Props = {
   chatSidebar: ReactNode;
   renderFilePreview: (path: string) => ReactNode;
   onOpenAdmin: () => void;
+  onOpenProactive: () => void;
   onOpenGuide: () => void;
   onPrepareAgentPrompt: (prompt: string) => void;
   onReplaceAgentPrompt: (prompt: string) => void;
@@ -123,7 +123,7 @@ function hasDroppedFiles(event: ReactDragEvent): boolean {
   return Array.from(event.dataTransfer.types).includes("Files");
 }
 
-export function EduPiEducationPanel({ initialModule = "home", refreshKey, activeAgentSessionId, onActivateAgentSession, chatPanel, reminderPanel, chatSidebar, renderFilePreview, onOpenAdmin, onOpenGuide, onPrepareAgentPrompt, onReplaceAgentPrompt, quickEntryOpen, onCloseQuickEntry, onFocusAgentChat }: Props) {
+export function EduPiEducationPanel({ initialModule = "home", refreshKey, activeAgentSessionId, onActivateAgentSession, chatPanel, reminderPanel, chatSidebar, renderFilePreview, onOpenAdmin, onOpenProactive, onOpenGuide, onPrepareAgentPrompt, onReplaceAgentPrompt, quickEntryOpen, onCloseQuickEntry, onFocusAgentChat }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const desktopChrome = useDesktopChrome();
@@ -997,46 +997,6 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [closeTaskDetail, commitEducationSnapshot, deleteBusy, education, selectCalendarItem, stopTaskTracking]);
 
-  const restoreEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string, label: string): Promise<void> => {
-    const result = await restoreEducationEntity(kind, id, restoreRequestId);
-    const committedData = education ? preserveUnavailableWorkspaceResources(education, result.data) : result.data;
-    commitEducationSnapshot(committedData);
-    const restoredMemoryScopes = kind === "memory" ? await readEducationMemoryScopes().catch(() => null) : memoryScopes;
-    if (kind === "memory") setMemoryScopes(restoredMemoryScopes);
-    if (result.data.workspaceResourcesUnavailable) void loadWorkspace().catch(() => {});
-    setMaterialStagingMessage({ tone: "success", text: `已恢复：${label}` });
-    if (kind === "task") {
-      const task = committedData.tasks.find((item) => item.id === result.target.id);
-      if (task) { selectTask(task); return; }
-    }
-    if (kind === "calendar" || kind === "timetable") {
-      const selection = calendarSelectionForSource(committedData, kind, result.target.id);
-      if (selection) selectCalendarItem(selection);
-      return;
-    }
-    if (kind === "memory") {
-      const memory = committedData.continuity.memories.find((item) => item.id === result.target.id);
-      const binding = restoredMemoryScopes?.bindings.find((item) => item.memory_id === result.target.id);
-      if (memory) {
-        selectView("memory", memoryObjectId(binding?.scope_path.semester_id || restoredMemoryScopes?.active_semester_id || null, memory.category, result.target.id));
-        return;
-      }
-    }
-    if (kind === "student") {
-      selectView("students", undefined, result.target.id);
-      return;
-    }
-    if (kind === "material") {
-      selectView("materials", materialObjectId("all", result.target.id));
-      return;
-    }
-    if (kind === "teaching_priority") {
-      selectView("teaching", "teaching:knowledge");
-      return;
-    }
-    selectView("tasks");
-  }, [commitEducationSnapshot, education, loadWorkspace, memoryScopes, selectCalendarItem, selectTask, selectView]);
-
   const closeDrawer = useCallback((restoreTask = true) => {
     const returnTask = restoreTask && drawer === "file" && fileReturnTaskKey
       ? tasks.find((task) => taskKey(task) === fileReturnTaskKey) || null
@@ -1178,8 +1138,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const showingReminders = activeView === "chat" && searchParams.get("reminders") === "1";
   const taskDetail = taskDetailTask ? tasks.find((task) => taskKey(task) === taskKey(taskDetailTask)) || taskDetailTask : null;
   const currentAgentTask = agentTask ? tasks.find((task) => taskKey(task) === taskKey(agentTask)) || agentTask : null;
-  const deletionControlVisible = Boolean(education.entityDeletionLedgerUnavailable || (education.entityDeletionCount ?? 0) > 0 || (education.entityDeletionHistoryCount ?? 0) > 0);
-  const bodyControlCount = Number(Boolean(loadError)) + Number(deletionControlVisible) + Number(inspectorAvailable);
+  const bodyControlCount = Number(Boolean(loadError)) + Number(inspectorAvailable);
   const studentDetailOpen = (activeView === "homeroom" || activeView === "students") && Boolean(selectedStudentId) && education.students.some((student, index) => studentRecordKey(student, index) === selectedStudentId);
   const detailSurfaceOpen = Boolean(drawer || taskDetail || calendarSelection || studentDetailOpen || (activeView === "materials" && materialItemRoute(selectedObjectId)));
   const bodyControlsVisible = bodyControlCount > 0 && !detailSurfaceOpen;
@@ -1196,10 +1155,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     >
       {desktopChrome.isDesktop ? <div className="edupi-window-drag-region" {...desktopChrome.dragRegionProps}><WindowControls /></div> : null}
       {educationFileDragOver ? <div className="edupi-global-material-drop" role="status" aria-live="polite"><strong>放入 EduPi</strong><span>松开后识别材料、日程与课表</span></div> : null}
-      <EduPiNavigationRail activeView={activeView} pendingReviewCount={pendingCount + c1PendingCount + factPendingCount + teacherContextPendingCount} runningAgentCount={runningAgentCount} memoryCount={education.continuity.memories.filter((memory) => memory.state === "active" && isUserFacingMemory(memory)).length} workspaceLabel={context?.school || context?.name || "教师工作区"} collapsed={navigationRail.collapsed} onSelect={selectView} onOpenAdmin={onOpenAdmin} onOpenGuide={onOpenGuide} onCollapse={navigationRail.toggle} />
+      <EduPiNavigationRail activeView={activeView} pendingReviewCount={pendingCount + c1PendingCount + factPendingCount + teacherContextPendingCount} runningAgentCount={runningAgentCount} memoryCount={education.continuity.memories.filter((memory) => memory.state === "active" && isUserFacingMemory(memory)).length} workspaceLabel={context?.school || context?.name || "教师工作区"} collapsed={navigationRail.collapsed} onSelect={selectView} onOpenAdmin={onOpenAdmin} onOpenProactive={onOpenProactive} onOpenGuide={onOpenGuide} onCollapse={navigationRail.toggle} />
       <div className="edupi-teacher-app">
         <div className={`edupi-teacher-body${activeView === "chat" ? " is-chat" : ""}${bodyControlsVisible ? " has-body-controls" : ""}${detailSurfaceOpen ? " has-detail-surface" : ""}${objectSiderAvailable ? " has-object-sider" : ""}${objectSiderAvailable && objectSider.collapsed ? " is-object-sider-collapsed" : ""}${inspectorAvailable && inspectorOpen ? " has-inspector" : ""}`} style={bodyControlStyle}>
-          {bodyControlsVisible ? <div className="edupi-teacher-body__controls">{loadError ? <button className="edupi-teacher-body__icon-button" type="button" onClick={retryLoadWorkspace} aria-label="重试读取工作区" title={`重试读取工作区：${loadError}`}><RetryWorkspaceIcon /></button> : null}{deletionControlVisible ? <EduPiDeletedEntities activeCount={education.entityDeletionCount ?? 0} historyCount={education.entityDeletionHistoryCount ?? 0} countUnavailable={education.entityDeletionLedgerUnavailable} onLoad={readEducationEntityDeletions} onRestore={restoreEntity} /> : null}{inspectorAvailable ? <button className={`edupi-teacher-body__icon-button${inspectorOpen ? " is-open" : ""}`} type="button" onClick={toggleInspector} aria-label={inspectorOpen ? "收起检查" : "打开检查"} title={inspectorOpen ? "收起检查" : "打开检查"} aria-pressed={inspectorOpen}><InspectorIcon /></button> : null}</div> : null}
+          {bodyControlsVisible ? <div className="edupi-teacher-body__controls">{loadError ? <button className="edupi-teacher-body__icon-button" type="button" onClick={retryLoadWorkspace} aria-label="重试读取工作区" title={`重试读取工作区：${loadError}`}><RetryWorkspaceIcon /></button> : null}{inspectorAvailable ? <button className={`edupi-teacher-body__icon-button${inspectorOpen ? " is-open" : ""}`} type="button" onClick={toggleInspector} aria-label={inspectorOpen ? "收起检查" : "打开检查"} title={inspectorOpen ? "收起检查" : "打开检查"} aria-pressed={inspectorOpen}><InspectorIcon /></button> : null}</div> : null}
           {activeView === "chat" && !showingReminders ? <aside className="edupi-chat-session-sidebar" aria-label="对话与文件">{chatSidebar}</aside> : showObjectSider ? <EduPiObjectSider view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} query={query} onQuery={setQuery} selectedStudentId={selectedStudentId} onStudent={selectStudent} selectedObjectId={selectedObjectId} onObject={selectObject} selectedTaskKey={activeTask ? taskKey(activeTask) : null} onTask={selectTask} onReviewTarget={focusC1Review} selectedCalendarSourceId={calendarSelection?.sourceId ?? null} onCalendarItem={selectCalendarItem} onUpload={openUpload} onCollapse={objectSider.toggle} /> : objectSiderAvailable ? <button type="button" className="edupi-object-sider-strip" onClick={objectSider.toggle} aria-label="展开列表"><span aria-hidden="true">›</span></button> : null}
           <div className={`edupi-teacher-main${activeView === "chat" ? " is-chat" : ""}`}>
             <EduPiPersistentChatHost mode={showingReminders ? "hidden" : drawer === "agent" ? "drawer" : activeView === "chat" ? "main" : "hidden"} task={drawer === "agent" ? currentAgentTask : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt}>{chatPanel}</EduPiPersistentChatHost>

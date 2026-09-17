@@ -18,7 +18,7 @@ test("management center is a full admin workspace with persistent navigation", a
 
   for (const endpoint of ["/api/edupi/workspace", "/api/edupi/status", "/api/models"]) assert.match(admin, new RegExp(endpoint.replaceAll("/", "\\/")));
   assert.doesNotMatch(admin, /\/api\/edupi\/(?:onboarding|education)/);
-  for (const label of ["管理中心", "EduPi 就绪度", "自动运行", "教学能力", "连接与后台", "学校平台", "AI 与模型", "教师与学生", "校历与课表", "上传内容", "任务与产物", "系统"]) assert.match(admin, new RegExp(label));
+  for (const label of ["管理中心", "EduPi 就绪度", "自动运行", "教学能力", "连接与后台", "学校平台", "AI 与模型", "教师与学生", "校历与课表", "上传内容", "任务与产物", "回收站", "系统"]) assert.match(admin, new RegExp(label));
   for (const label of ["运行中", "待确认", "已完成", "最近自动运行"]) assert.match(admin, new RegExp(label));
   assert.match(admin, /formatCoreSchedulerStatus/);
   assert.match(admin, /kernelRunTitle/);
@@ -64,6 +64,10 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /onNavigate\("calendar"\)/);
   assert.match(admin, /onNavigate\("materials"\)/);
   assert.match(admin, /onNavigate\("workspace"\)/);
+  assert.match(admin, /<EduPiDeletedEntities/);
+  assert.match(admin, /readEducationEntityDeletions/);
+  assert.match(admin, /restoreEducationEntity/);
+  assert.doesNotMatch(panel, /<EduPiDeletedEntities/);
   assert.equal((admin.match(/<p(?:\s|>)/g) || []).length, 0);
   assert.match(admin, /FALLBACK_CHECKLIST/);
   assert.match(admin, /数据读取失败/);

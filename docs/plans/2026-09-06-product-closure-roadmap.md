@@ -1,16 +1,24 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-17 `v0.3.20` 安装更新收口
+
+- Desktop [#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 已合并，merge commit `18cd6be232737a6c0972083065f08945b371b07d`：回收站移入管理中心，聊天产物改为悬浮面板，AI 协作新增主动协作浮层并读取真实 reminder、proactive kernel 与任务投影。发布前 `npm test` 1255 tests、1230 passed、25 skipped、0 failed，TypeScript、ESLint、安全审计、Cargo locked 元数据和 release verify 均通过。
+- Desktop [#166](https://github.com/PIGU-PPPgu/edupi-desktop/pull/166) 已把该批改动发布为正式 Latest `v0.3.20`，Release commit `3b173f6a95cb566bc69188542a5268d44c11c199`。Workflow [35210481151](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35210481151) 三平台构建、发布和 manifest 全部成功；11 项资产完整，`latest.json` 有 7 个签名平台键。
+- 本机已从运行中的 0.3.19 应用内原位升级到 0.3.20 并重启。磁盘仍只有一个 `/Applications/EduPi.app`；更新接口返回 0.3.20/0.3.20/false；Desktop、Pi、pi-web 组件版本分别为 0.3.20、0.84.1、0.8.7，Core commit `19c0fd5182c6c20d6534973e506d6fa36acc1b06`。
+- 升级后 Core/projection/kernel 均 ready，教师资料、50 名学生、240 个任务、43 个校历节点、9 个课表、45 条记忆、20 份产物、13 个可见模型和默认模型 `zai-coding-cn/glm-5.3-flash` 回读保持。安装版实际确认聊天无回收站、产物浮层不挤压聊天、主动协作显示待处理项并可进入材料；回收站读取 5 个可恢复对象和 5 条历史。完整证据见 [安装更新验收](../acceptance/2026-09-17-v0.3.20-installed-update.md)。
+- 剩余边界：Windows/Linux 应用内升级、真实系统通知点击、睡眠唤醒与重启幂等补跑未验收；macOS 仍为 ad-hoc 签名，稳定 Developer ID、公证与系统授权跨版本保持继续阻塞。
+
 ## 2026-09-16 下一轮 Core 中心桌面优化
 
 界面继续以 Core 对象、状态和可执行动作组织。图标只替代含义明确的直接动作，并始终保留 tooltip、ARIA 名称、键盘操作和必要的数量/状态；教学对象、权限模式、模型状态、错误原因及不可逆后果继续使用文字。
 
 | 编号 | 范围 | 验收条件 | 当前状态 |
 | --- | --- | --- | --- |
-| R18 | 桌面动作语言与布局：统一对话、模块标题、抽屉和工具条中的图标、徽标、悬浮说明与焦点状态，删除重复文字并消除浮层争位 | 1458px 与 800px 视口无重叠；可用 Escape/Tab；图标动作有可访问名称；页面无失败请求或脚本错误 | 第一批已随 `v0.3.18` 发布：Desktop #146 让对话文件与已删除入口共享右上角空间；[#156](https://github.com/PIGU-PPPgu/edupi-desktop/pull/156) 与 [#158](https://github.com/PIGU-PPPgu/edupi-desktop/pull/158) 统一详情动作并修复窄窗布局；[#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 将回收站移入管理中心，让产物和主动协作使用不挤压消息的悬浮面板。开发版 1458/800 视口、焦点、真实 Core 数据与零错误证据见 [动作验收](../acceptance/2026-09-16-core-action-icons.md) 和 [聊天浮层验收](../acceptance/2026-09-17-proactive-chat-surfaces.md)；安装版原生窗口仍待下一发布批次 |
+| R18 | 桌面动作语言与布局：统一对话、模块标题、抽屉和工具条中的图标、徽标、悬浮说明与焦点状态，删除重复文字并消除浮层争位 | 1458px 与 800px 视口无重叠；可用 Escape/Tab；图标动作有可访问名称；页面无失败请求或脚本错误 | 第一批已随 `v0.3.18` 发布：Desktop #146 让对话文件与已删除入口共享右上角空间；[#156](https://github.com/PIGU-PPPgu/edupi-desktop/pull/156) 与 [#158](https://github.com/PIGU-PPPgu/edupi-desktop/pull/158) 统一详情动作并修复窄窗布局；[#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 将回收站移入管理中心，让产物和主动协作使用不挤压消息的悬浮面板。开发版 1458/800 视口、焦点、真实 Core 数据与零错误证据见 [动作验收](../acceptance/2026-09-16-core-action-icons.md) 和 [聊天浮层验收](../acceptance/2026-09-17-proactive-chat-surfaces.md)；macOS `v0.3.20` 安装版已核对目标交互、真实数据和日志，安装版完整 Tab 遍历矩阵与 Windows/Linux 仍待验收 |
 | R19 | Core 行动入口：把任务失败、材料缺失、模型不可用、权限和 Runtime 状态投影成同一套教师语言与下一步，不在页面暴露内部 code | 每类失败都能从当前对象进入唯一处理入口；恢复后原页面同步；技术详情按需展开 | #129、#134、#139 已覆盖任务与 Runtime 基础；`v0.3.18` 的 #149 收口后台失败；Desktop #152 让 Core 已投影的邮箱、教务和云盘都能进入各自管理员接入要求，未伪造已配置状态；权限有效性仍受 Apple 稳定签名阻塞 |
 | R20 | Core 对象连续性：对话、今天、工作区、教学、日程、材料、学生与成长使用稳定对象身份、来源和返回位置 | 从任一入口编辑/审核/删除/恢复后其他入口读取同一结果；会话与产物不串任务；返回原位置 | 路由开发验收通过，跨入口编辑/审核/删除/恢复的完整安装版链路仍待验收；`v0.3.18` 的 #147 统一校历/课表/材料 Core 路由，#148 恢复产物预览前任务；Desktop #154 统一任务详情 `taskDetail`；[#155](https://github.com/PIGU-PPPgu/edupi-desktop/pull/155) 统一观察与记忆候选审核 ID；[#157](https://github.com/PIGU-PPPgu/edupi-desktop/pull/157) 同步学生 Core ID；[#159](https://github.com/PIGU-PPPgu/edupi-desktop/pull/159) 按模块同步 `item`；[#160](https://github.com/PIGU-PPPgu/edupi-desktop/pull/160) 让任务选择持续对账 Core 任务键，并在失效时同时清理任务与阶段；[#161](https://github.com/PIGU-PPPgu/edupi-desktop/pull/161) 清理跨模块和失效日历对象参数。证据见 [学生路由](../acceptance/2026-09-16-student-route-continuity.md)、[模块对象路由](../acceptance/2026-09-16-domain-object-routes.md)、[任务路由](../acceptance/2026-09-16-task-route-continuity.md) 与 [日历路由](../acceptance/2026-09-16-calendar-route-continuity.md)；待下一公开安装包升级验收 |
-| R21 | 主动运行生命周期：通知、睡眠唤醒、后台任务、重启恢复和完全访问都由 Core run/receipt 驱动 | 同一触发只运行一次；通知点击回到对象；睡眠/重启补跑不重复；失败可重试并保留证据 | 公开包与隔离恢复已通过；[#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 让 AI 协作直接显示 reminder 与 proactive kernel 的运行、待处理、失败和完成状态，并跳到真实对象入口，证据见 [聊天浮层验收](../acceptance/2026-09-17-proactive-chat-surfaces.md)。这只补桌面可见性；安装版通知点击、睡眠唤醒和补跑幂等仍待验收 |
-| R22 | 发布、迁移与部署：单实例原位更新、数据/模型/权限迁移、跨平台安装和学校环境 | macOS/Windows/Linux 旧版升级后对象与配置保持；稳定签名/公证；多租户、设备、备份恢复和连接器真实闭环 | `v0.3.18` updater 已公开且运行中的 `v0.3.17` 强制检查能发现；Desktop #153 进一步让每次桌面启动首次绕过旧发布缓存。2026-09-16 本机核对仍是 0.3.17，设置页残留 `error decoding response body`；[#163](https://github.com/PIGU-PPPgu/edupi-desktop/pull/163) 在下一包中只对下载中断自动重试，先验签再安装，证据见 [更新下载验收](../acceptance/2026-09-16-updater-download-retry.md)。本机实际安装回读、Apple 身份、Windows/Linux 实机及学校账号/设备仍待验收或外部阻塞 |
+| R21 | 主动运行生命周期：通知、睡眠唤醒、后台任务、重启恢复和完全访问都由 Core run/receipt 驱动 | 同一触发只运行一次；通知点击回到对象；睡眠/重启补跑不重复；失败可重试并保留证据 | 公开包与隔离恢复已通过；[#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 让 AI 协作直接显示 reminder 与 proactive kernel 的运行、待处理、失败和完成状态，并跳到真实对象入口。macOS `v0.3.20` 安装版已显示真实待处理项、Core run 和“补充材料”入口；系统通知点击、睡眠唤醒和补跑幂等仍待验收 |
+| R22 | 发布、迁移与部署：单实例原位更新、数据/模型/权限迁移、跨平台安装和学校环境 | macOS/Windows/Linux 旧版升级后对象与配置保持；稳定签名/公证；多租户、设备、备份恢复和连接器真实闭环 | [#163](https://github.com/PIGU-PPPgu/edupi-desktop/pull/163) 修复下载中断自动重试并保持先验签后安装。macOS 已由运行中的 0.3.19 原位升级到 `v0.3.20`：单一安装副本、版本/组件/Core 身份、教师数据、模型配置、目标 UI 和日志全部回读通过，证据见 [安装更新验收](../acceptance/2026-09-17-v0.3.20-installed-update.md)。Windows/Linux 实机升级、Apple Developer ID/公证、系统授权跨版本保持及学校账号/设备仍待验收或外部阻塞 |
 
 ### 0.3.19 后续执行顺序
 

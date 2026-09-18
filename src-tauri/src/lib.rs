@@ -64,6 +64,8 @@ const RESUME_MONITOR_INTERVAL: Duration = Duration::from_secs(15);
 const RESUME_GAP_THRESHOLD: Duration = Duration::from_secs(45);
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+const MIN_WINDOW_WIDTH: f64 = 800.0;
+const MIN_WINDOW_HEIGHT: f64 = 600.0;
 
 const LIGHT_WINDOW_BG: Color = Color(247, 247, 245, 255);
 const DARK_WINDOW_BG: Color = Color(28, 28, 30, 255);
@@ -803,7 +805,7 @@ fn build_window(app: &tauri::AppHandle, app_url: Url) -> tauri::Result<WebviewWi
         .title("EduPi")
         .inner_size(1440.0, 900.0)
         .center()
-        .min_inner_size(900.0, 600.0)
+        .min_inner_size(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
         .resizable(true)
         // Pi Agent already handles browser drag/drop for image attachments.
         .disable_drag_drop_handler()
@@ -1515,6 +1517,12 @@ mod tests {
     use std::time::{Duration, SystemTime};
 
     static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn native_window_allows_the_800px_accessibility_viewport() {
+        assert_eq!(super::MIN_WINDOW_WIDTH, 800.0);
+        assert_eq!(super::MIN_WINDOW_HEIGHT, 600.0);
+    }
 
     #[test]
     fn detects_a_long_system_clock_gap_without_treating_a_normal_poll_as_resume() {

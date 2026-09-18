@@ -1,6 +1,6 @@
 # R18/R21 v0.3.20 窄窗复核与通知边界
 
-- 状态：1458×900 与 800×900 安装版页面键盘/焦点/重叠复核通过；原生 800px 需要等待 v0.3.21。通知送达可进入原生等待线程，但通知中心和点击跳转仍未能验收。
+- 状态：v0.3.22 已在 macOS 原生 800×900 窗口完成重叠、Escape、焦点恢复和 worktree 下拉关闭验收；通知中心和点击跳转、真实睡眠唤醒仍未验收。
 - 代码版本：Desktop v0.3.20，Release commit 3b173f6a95cb566bc69188542a5268d44c11c199；800px 原生修复 PR #172，merge commit 1747af87bbb46e8d9dce516fa5b91bf04f2d357c。
 - 环境：macOS 安装版内置 server、Chrome DevTools 精确视口、Orca 原生窗口与系统通知数据库。
 
@@ -16,6 +16,18 @@
 | 通知发送 | 在教师设置点击“测试通知跳转” | 原生命令返回“已请求发送”；进程采样出现 edupi-notification 线程并停在等待交互，说明进入原生等待路径 |
 | 通知显示与点击 | 立即截屏/Vision OCR、打开通知中心、查询 usernoted DB 与系统通知设置 | 未验收；屏幕 OCR 未见 EduPi 通知，usernoted 未新增 com.abcwyc.pi-agent 记录，系统通知应用列表可见部分未找到 EduPi。不能证明通知中心实际显示或 edupi://reminder-open 点击回调 |
 | 真实睡眠唤醒 | 检查 sudo、pmset 与既有唤醒计划 | 外部阻塞；sudo 需要密码，系统睡眠当前被 powerd 阻止，已有系统唤醒计划不属于本测试，不能安全强制睡眠后保证唤醒 |
+
+## v0.3.21 与 v0.3.22 收口
+
+| 范围 | 实际操作 | 结果 |
+| --- | --- | --- |
+| v0.3.21 原位升级 | 从 0.3.20 执行应用内更新 | 通过；磁盘版本 0.3.21，新主进程 56910，更新接口 0.3.21/0.3.21/false，Core/projection/kernel ready，50/240/43/9 数据保持 |
+| 原生 800×900 窗口 | v0.3.21 设置窗口尺寸 | 通过；实际 accessibility window 为 800×900，不再被 900px 最小宽度挡住 |
+| v0.3.21 发现的键盘问题 | 原生窗口打开主动协作和 worktree 下拉 | 主动协作 Escape 能关闭但焦点留在 body；worktree 下拉在子项聚焦时 Escape 不关闭 |
+| v0.3.22 修复 | PR #176 合并，Release workflow 35301562660 | 通过；release、三平台 build、manifest 均 success，11 项公开资产，目标提交 801f877de8b597a367f5f83a45b158aed5ee2e01 |
+| v0.3.22 原位升级 | 从 0.3.21 执行应用内更新 | 通过；下载完成并自动重启，磁盘版本 0.3.22，新主进程 67460，更新接口 0.3.22/0.3.22/false，Core/projection/kernel ready，50/240/43/9 数据保持 |
+| 主动协作焦点 | 原生 800×900 点击聊天右上入口，再按 Escape | 通过；浮层打开后出现关闭按钮，Escape 关闭浮层，焦点回到“主动协作，16 项动态”入口 |
+| worktree 下拉 | 打开下拉，Tab 到子项，再按 Escape | 通过；Escape 后下拉从 271 个 accessibility 元素收回为 54 个，隐藏 worktree 条目不再留在键盘路径 |
 
 ## 关键证据
 

@@ -2,7 +2,7 @@
 
 ## 2026-09-17 `v0.3.20` 安装更新收口
 
-- R18/R21 追加安装版复核：1458×900 与 800×900 页面可见控件重叠 0，Tab 顺序完整循环，Escape 关闭主动协作并把焦点还给入口；原生窗口尝试 800×900 时被 900px 最小宽度限制，PR #172 已改为 800×600 并等待 v0.3.21 安装验收。测试通知进入 edupi-notification 原生等待线程，但屏幕、通知中心记录和点击回调均未证实；真实睡眠唤醒因 sudo 与唤醒保障缺失保留外部阻塞。证据见 [窄窗复核与通知边界](../acceptance/2026-09-18-r18-native-window-and-r21-boundaries.md)。
+- R18/R21 收口：v0.3.21 先修复 800px 原生最小宽度并完成原位升级；v0.3.22 再修复浮层焦点恢复与 worktree 下拉 Escape。macOS 原生 800×900 窗口实际可用，主动协作 Escape 后焦点回到入口，worktree 下拉从任意子项 Escape 后关闭；Core 与 50/240/43/9 数据在两次原位升级后保持。通知中心和点击回调仍无证据，真实睡眠唤醒继续外部阻塞。证据见 [窄窗复核与通知边界](../acceptance/2026-09-18-r18-native-window-and-r21-boundaries.md)。
 
 - R19/R21 追加补验：空模型安装版把模型缺失收敛为“连接模型/打开 AI 与模型”，后台管理显示“模型数据不可用”且不泄漏内部错误码；当前正式安装版连续两次 prepare ensure 后 Kernel 仍为 17 total / 15 failed / 2 succeeded，15 个缺材料 fire_key 无重复展开。系统通知点击与真实睡眠唤醒仍未验收。证据见 [行动入口与幂等补验](../acceptance/2026-09-18-r19-r21-action-recovery.md)。
 - R20 追加 macOS 安装版隔离数据实测：教学重点、学生档案、材料、任务审核、日程和成长方法在安装版页面完成创建/编辑/审核/删除/恢复中的适用链路，并跨 Today、教学、材料、班级、日程、成长与回收站回读；隔离 server 重启后 Core/projection/kernel ready，对象和任务状态仍保持。2026-09-18 补齐成长“验证/发布”与真实对话产物绑定后，R20 的 macOS 安装版隔离链路验收通过。证据见 [R20 安装版对象连续性验收](../acceptance/2026-09-17-r20-installed-object-continuity.md)。
@@ -18,11 +18,11 @@
 
 | 编号 | 范围 | 验收条件 | 当前状态 |
 | --- | --- | --- | --- |
-| R18 | 桌面动作语言与布局：统一对话、模块标题、抽屉和工具条中的图标、徽标、悬浮说明与焦点状态，删除重复文字并消除浮层争位 | 1458px 与 800px 视口无重叠；可用 Escape/Tab；图标动作有可访问名称；页面无失败请求或脚本错误 | 第一批已随 `v0.3.18` 发布：Desktop #146 让对话文件与已删除入口共享右上角空间；[#156](https://github.com/PIGU-PPPgu/edupi-desktop/pull/156) 与 [#158](https://github.com/PIGU-PPPgu/edupi-desktop/pull/158) 统一详情动作并修复窄窗布局；[#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 将回收站移入管理中心，让产物和主动协作使用不挤压消息的悬浮面板。开发版 1458/800 视口、焦点、真实 Core 数据与零错误证据见 [动作验收](../acceptance/2026-09-16-core-action-icons.md) 和 [聊天浮层验收](../acceptance/2026-09-17-proactive-chat-surfaces.md)；macOS `v0.3.20` 安装版已核对目标交互、真实数据和日志，安装版完整 Tab 遍历矩阵与 Windows/Linux 仍待验收 |
+| R18 | 桌面动作语言与布局：统一对话、模块标题、抽屉和工具条中的图标、徽标、悬浮说明与焦点状态，删除重复文字并消除浮层争位 | 1458px 与 800px 视口无重叠；可用 Escape/Tab；图标动作有可访问名称；页面无失败请求或脚本错误 | 第一批已随 `v0.3.18` 发布：Desktop #146 让对话文件与已删除入口共享右上角空间；[#156](https://github.com/PIGU-PPPgu/edupi-desktop/pull/156) 与 [#158](https://github.com/PIGU-PPPgu/edupi-desktop/pull/158) 统一详情动作并修复窄窗布局；[#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 将回收站移入管理中心，让产物和主动协作使用不挤压消息的悬浮面板。开发版 1458/800 视口、焦点、真实 Core 数据与零错误证据见 [动作验收](../acceptance/2026-09-16-core-action-icons.md) 和 [聊天浮层验收](../acceptance/2026-09-17-proactive-chat-surfaces.md)；v0.3.20 安装版页面完成 1458×900 与 800×900 重叠、Tab 循环和 Escape 复核，v0.3.21 解除 900px 最小宽度限制，v0.3.22 在原生 800×900 完成 Escape、焦点恢复和 worktree 下拉关闭。Windows/Linux 仍待验收 |
 | R19 | Core 行动入口：把任务失败、材料缺失、模型不可用、权限和 Runtime 状态投影成同一套教师语言与下一步，不在页面暴露内部 code | 每类失败都能从当前对象进入唯一处理入口；恢复后原页面同步；技术详情按需展开 | 功能验收通过（macOS v0.3.20）：任务缺材料进入“补充材料”，模型缺失进入“连接模型/打开 AI 与模型”，Runtime 失败与恢复沿用 #127–#129/#139，后台失败沿用 #149，连接器接入要求沿用 #152；页面不暴露内部错误码。系统授权有效性仍受 Apple Developer ID/公证缺失阻塞，R19 不把权限开关冒充有效权限 |
 | R20 | Core 对象连续性：对话、今天、工作区、教学、日程、材料、学生与成长使用稳定对象身份、来源和返回位置 | 从任一入口编辑/审核/删除/恢复后其他入口读取同一结果；会话与产物不串任务；返回原位置 | 验收通过（macOS v0.3.20 安装版隔离数据）。教学重点、学生档案、材料、任务审核、日程与成长生命周期完成创建/编辑/审核/删除/恢复并跨 Today、教学、材料、班级、日程、成长和回收站回读；真实对话 write 工具生成文件并绑定 session，重启后会话、94 字节产物和“本次产物”浮层保持。证据见 [R20 安装版对象连续性验收](../acceptance/2026-09-17-r20-installed-object-continuity.md)。真实数据迁移等价性归 R22；Windows/Linux 安装链路归 R22，不重复阻塞 R20 |
 | R21 | 主动运行生命周期：通知、睡眠唤醒、后台任务、重启恢复和完全访问都由 Core run/receipt 驱动 | 同一触发只运行一次；通知点击回到对象；睡眠/重启补跑不重复；失败可重试并保留证据 | macOS v0.3.20 已验证主动协作浮层、真实 reminder/run 展示、“补充材料”入口和重复 prepare ensure 幂等：两次调用后 Kernel 仍为 17 total / 15 failed / 2 succeeded，15 个缺材料 fire_key 无重复。公开包后台恢复已有证据；系统通知点击、真实睡眠唤醒和唤醒后的端到端补跑仍待验收 |
-| R22 | 发布、迁移与部署：单实例原位更新、数据/模型/权限迁移、跨平台安装和学校环境 | macOS/Windows/Linux 旧版升级后对象与配置保持；稳定签名/公证；多租户、设备、备份恢复和连接器真实闭环 | [#163](https://github.com/PIGU-PPPgu/edupi-desktop/pull/163) 修复下载中断自动重试并保持先验签后安装。macOS 已由运行中的 0.3.19 原位升级到 `v0.3.20`：单一安装副本、版本/组件/Core 身份、教师数据、模型配置、目标 UI 和日志全部回读通过，证据见 [安装更新验收](../acceptance/2026-09-17-v0.3.20-installed-update.md)。Windows/Linux 实机升级、Apple Developer ID/公证、系统授权跨版本保持及学校账号/设备仍待验收或外部阻塞 |
+| R22 | 发布、迁移与部署：单实例原位更新、数据/模型/权限迁移、跨平台安装和学校环境 | macOS/Windows/Linux 旧版升级后对象与配置保持；稳定签名/公证；多租户、设备、备份恢复和连接器真实闭环 | [#163](https://github.com/PIGU-PPPgu/edupi-desktop/pull/163) 修复下载中断自动重试并保持先验签后安装。macOS 已依次原位升级 v0.3.20→v0.3.21→v0.3.22：单一安装副本、版本/组件/Core 身份、教师数据、模型配置、目标 UI 和日志全部回读通过，证据见 [安装更新验收](../acceptance/2026-09-17-v0.3.20-installed-update.md) 与 [窄窗复核与通知边界](../acceptance/2026-09-18-r18-native-window-and-r21-boundaries.md)。Windows/Linux 实机升级、Apple Developer ID/公证、系统授权跨版本保持及学校账号/设备仍待验收或外部阻塞 |
 
 ### 0.3.19 后续执行顺序
 

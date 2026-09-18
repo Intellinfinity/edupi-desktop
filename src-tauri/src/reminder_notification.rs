@@ -55,6 +55,42 @@ fn activate(app: &AppHandle, target: &Option<Target>) {
 }
 
 #[cfg(target_os = "macos")]
+fn required_authorization_options() -> objc2_user_notifications::UNAuthorizationOptions {
+    use objc2_user_notifications::UNAuthorizationOptions;
+
+    UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound
+}
+
+#[cfg(target_os = "macos")]
+fn request_authorization(app: &AppHandle) -> Result<(), String> {
+    use block2::RcBlock;
+    use objc2::runtime::Bool;
+    use objc2_foundation::NSError;
+    use objc2_user_notifications::UNUserNotificationCenter;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let (sender, receiver) = mpsc::channel();
+    app.run_on_main_thread(move || {
+        let center = UNUserNotificationCenter::currentNotificationCenter();
+        let completion = RcBlock::new(move |granted: Bool, _error: *mut NSError| {
+            let _ = sender.send(granted.as_bool());
+        });
+        center.requestAuthorizationWithOptions_completionHandler(
+            required_authorization_options(),
+            &completion,
+        );
+    })
+    .map_err(|_| "notification_permission_unavailable")?;
+
+    receiver
+        .recv_timeout(Duration::from_secs(15))
+        .map_err(|_| "notification_permission_timeout")?
+        .then_some(())
+        .ok_or_else(|| "notification_permission_denied".to_string())
+}
+
+#[cfg(target_os = "macos")]
 fn deliver(app: &AppHandle, request: &ReminderNotification) -> Result<(), String> {
     mac_notification_sys::set_application(if tauri::is_dev() {
         "com.apple.Terminal"
@@ -117,6 +153,9 @@ pub fn send_reminder_notification(
     if !valid(&request) {
         return Err("invalid_notification".into());
     }
+    #[cfg(target_os = "macos")]
+    request_authorization(&app)?;
+
     WAITING
         .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
             (count < 16).then_some(count + 1)
@@ -138,6 +177,15 @@ pub fn send_reminder_notification(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_notification_authorization_requests_alert_and_sound() {
+        let options = required_authorization_options();
+        assert!(options.contains(objc2_user_notifications::UNAuthorizationOptions::Alert));
+        assert!(options.contains(objc2_user_notifications::UNAuthorizationOptions::Sound));
+        assert!(!options.contains(objc2_user_notifications::UNAuthorizationOptions::CriticalAlert));
+    }
     #[test]
     fn notification_targets_are_bounded_objects() {
         let mut value = ReminderNotification {

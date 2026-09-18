@@ -1,6 +1,6 @@
 [package]
 name = "pi-agent-desktop"
-version = "0.3.23"
+version = "0.3.24"
 description = "Desktop shell for Pi Agent"
 authors = ["pi-agent-desktop contributors"]
 license = "MIT"
@@ -40,7 +40,11 @@ notify-rust = "=4.17.0"
 tauri-plugin-single-instance = "2.4.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+block2 = "=0.6.2"
 mac-notification-sys = "=0.6.15"
+objc2 = "=0.6.4"
+objc2-foundation = "=0.3.2"
+objc2-user-notifications = { version = "=0.3.2", default-features = false, features = ["UNUserNotificationCenter", "block2"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 tauri-winrt-notification = "=0.7.3"

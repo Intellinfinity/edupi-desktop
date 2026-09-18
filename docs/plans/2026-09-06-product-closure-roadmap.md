@@ -2,6 +2,8 @@
 
 ## 2026-09-17 `v0.3.20` 安装更新收口
 
+- R18/R21 追加安装版复核：1458×900 与 800×900 页面可见控件重叠 0，Tab 顺序完整循环，Escape 关闭主动协作并把焦点还给入口；原生窗口尝试 800×900 时被 900px 最小宽度限制，PR #172 已改为 800×600 并等待 v0.3.21 安装验收。测试通知进入 edupi-notification 原生等待线程，但屏幕、通知中心记录和点击回调均未证实；真实睡眠唤醒因 sudo 与唤醒保障缺失保留外部阻塞。证据见 [窄窗复核与通知边界](../acceptance/2026-09-18-r18-native-window-and-r21-boundaries.md)。
+
 - R19/R21 追加补验：空模型安装版把模型缺失收敛为“连接模型/打开 AI 与模型”，后台管理显示“模型数据不可用”且不泄漏内部错误码；当前正式安装版连续两次 prepare ensure 后 Kernel 仍为 17 total / 15 failed / 2 succeeded，15 个缺材料 fire_key 无重复展开。系统通知点击与真实睡眠唤醒仍未验收。证据见 [行动入口与幂等补验](../acceptance/2026-09-18-r19-r21-action-recovery.md)。
 - R20 追加 macOS 安装版隔离数据实测：教学重点、学生档案、材料、任务审核、日程和成长方法在安装版页面完成创建/编辑/审核/删除/恢复中的适用链路，并跨 Today、教学、材料、班级、日程、成长与回收站回读；隔离 server 重启后 Core/projection/kernel ready，对象和任务状态仍保持。2026-09-18 补齐成长“验证/发布”与真实对话产物绑定后，R20 的 macOS 安装版隔离链路验收通过。证据见 [R20 安装版对象连续性验收](../acceptance/2026-09-17-r20-installed-object-continuity.md)。
 - Desktop [#165](https://github.com/PIGU-PPPgu/edupi-desktop/pull/165) 已合并，merge commit `18cd6be232737a6c0972083065f08945b371b07d`：回收站移入管理中心，聊天产物改为悬浮面板，AI 协作新增主动协作浮层并读取真实 reminder、proactive kernel 与任务投影。发布前 `npm test` 1255 tests、1230 passed、25 skipped、0 failed，TypeScript、ESLint、安全审计、Cargo locked 元数据和 release verify 均通过。

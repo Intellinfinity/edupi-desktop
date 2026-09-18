@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { AppComponentReleaseInfo, AppUpdatesResponse } from "@/lib/app-update-types";
 import {
   APP_DISTRIBUTION_NAME,
@@ -38,6 +38,12 @@ import {
 import { useI18n } from "@/hooks/useI18n";
 import { useTheme } from "@/hooks/useTheme";
 import { testDesktopNotification } from "@/lib/desktop-notify";
+import {
+  computerUsePermissionFlowAfterStatus,
+  computerUsePrimaryAction,
+  computerUsePrimaryActionLabel,
+  type ComputerUsePermissionFlow,
+} from "@/lib/computer-use-permissions";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { EduPiHelpPanel } from "./EduPiHelpPanel";
 import { announceComputerUseChanged, COMPUTER_USE_CHANGED_EVENT } from "./EduPiComputerUseStop";
@@ -70,20 +76,70 @@ function TeacherContextSettingsCard() {
 
 function ComputerUseSettingsCard() {
   const [status, setStatus] = useState<ComputerUseStatus | null>(null);
+  const [flow, setFlow] = useState<ComputerUsePermissionFlow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const flowRef = useRef<ComputerUsePermissionFlow | null>(null);
 
-  const refreshStatus = useCallback(async () => {
+  const setPermissionFlow = useCallback((next: ComputerUsePermissionFlow | null) => {
+    flowRef.current = next;
+    setFlow(next);
+  }, []);
+
+  const requestPermission = useCallback(async (permission: "accessibility" | "screen_recording") => {
     setBusy(true);
     setError(null);
     try {
-      setStatus(await getComputerUseStatusNative());
+      const pendingFlow: ComputerUsePermissionFlow = permission === "accessibility"
+        ? { permission, screenRecordingRequested: false }
+        : { permission, screenRecordingRequested: true };
+      setPermissionFlow(pendingFlow);
+      let next = await requestComputerUsePermissionNative(permission);
+
+      if (
+        permission === "accessibility"
+        && next.accessibility !== false
+        && next.screenRecording === false
+      ) {
+        const screenFlow: ComputerUsePermissionFlow = {
+          permission: "screen_recording",
+          screenRecordingRequested: true,
+        };
+        setPermissionFlow(screenFlow);
+        next = await requestComputerUsePermissionNative("screen_recording");
+        setPermissionFlow(computerUsePermissionFlowAfterStatus(next, screenFlow));
+      } else {
+        setPermissionFlow(computerUsePermissionFlowAfterStatus(next, pendingFlow));
+      }
+      setStatus(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [setPermissionFlow]);
+
+  const readStatus = useCallback(async (currentFlow: ComputerUsePermissionFlow | null) => {
+    const next = await getComputerUseStatusNative();
+    const resolvedFlow = computerUsePermissionFlowAfterStatus(next, currentFlow);
+    setStatus(next);
+    setPermissionFlow(resolvedFlow);
+    if (currentFlow?.permission === "accessibility" && resolvedFlow?.permission === "screen_recording") {
+      await requestPermission("screen_recording");
+    }
+  }, [requestPermission, setPermissionFlow]);
+
+  const refreshStatus = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await readStatus(flowRef.current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }, [readStatus]);
 
   useEffect(() => {
     let active = true;
@@ -108,6 +164,14 @@ function ComputerUseSettingsCard() {
     return () => window.removeEventListener("focus", refreshAfterSystemSettings);
   }, [refreshStatus]);
 
+  useEffect(() => {
+    if (flow?.permission !== "accessibility" || busy) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void readStatus(flowRef.current);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [busy, flow?.permission, readStatus]);
+
   const updateEnabled = async (enabled: boolean) => {
     setBusy(true);
     setError(null);
@@ -123,22 +187,11 @@ function ComputerUseSettingsCard() {
     }
   };
 
-  const requestPermission = async (permission: "accessibility" | "screen_recording") => {
+  const restartForPermission = async () => {
     setBusy(true);
     setError(null);
     try {
-      setStatus(await requestComputerUsePermissionNative(permission));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const restartApp = async () => {
-    setBusy(true);
-    setError(null);
-    try {
+      setPrefBool(APP_PREF_KEYS.computerUseEnabled, true);
       await relaunchAppNative();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -147,23 +200,29 @@ function ComputerUseSettingsCard() {
     }
   };
 
-  const permissionLabel = (value: boolean | null | undefined) => value === undefined || value === null ? "未知" : value ? "已授权" : "当前未生效";
-  const permissionNeedsRecovery = status?.accessibility === false || status?.screenRecording === false;
+  const permissionLabel = (value: boolean | null | undefined) => value === undefined || value === null ? "无需" : value ? "已授权" : "待授权";
+  const primaryAction = computerUsePrimaryAction({ status, flow });
+  const runPrimaryAction = async () => {
+    if (primaryAction.kind === "detect") return refreshStatus();
+    if (primaryAction.kind === "request") return requestPermission(primaryAction.permission);
+    if (primaryAction.kind === "restart") return restartForPermission();
+    return updateEnabled(primaryAction.kind === "enable");
+  };
+  const activePermission = flow?.permission;
   return <div className="native-settings-card" style={sectionCardStyle}>
     <div style={sectionTitleStyle}>桌面控制</div>
     <div style={sectionHintStyle}>默认关闭。开启后，每次读取或操作仍需你确认。</div>
     <div className="computer-use-settings">
       <div className="computer-use-status-row"><strong>总开关</strong><span className={status?.enabled ? "is-ready" : "is-off"}>{status?.enabled ? "已开启" : "已关闭"}</span></div>
-      <div className="computer-use-status-row"><strong>辅助功能</strong><span className={status?.accessibility ? "is-ready" : "is-off"}>{permissionLabel(status?.accessibility)}</span></div>
-      <div className="computer-use-status-row"><strong>屏幕录制</strong><span className={status?.screenRecording ? "is-ready" : "is-off"}>{permissionLabel(status?.screenRecording)}</span></div>
+      <div className={activePermission === "accessibility" ? "computer-use-status-row is-active" : "computer-use-status-row"}><strong>辅助功能</strong><span className={status?.accessibility ? "is-ready" : "is-off"}>{permissionLabel(status?.accessibility)}</span></div>
+      <div className={activePermission === "screen_recording" ? "computer-use-status-row is-active" : "computer-use-status-row"}><strong>屏幕录制</strong><span className={status?.screenRecording ? "is-ready" : "is-off"}>{permissionLabel(status?.screenRecording)}</span></div>
       <div className="computer-use-actions">
-        <button type="button" className={`native-button${status?.enabled ? "" : " native-button-primary"}`} disabled={busy} onClick={() => void updateEnabled(!status?.enabled)}>{status?.enabled ? "停止控制" : "开启控制"}</button>
-        <button type="button" className="native-button" disabled={busy} onClick={() => void refreshStatus()}>重新检测</button>
-        {status?.accessibility === false ? <button type="button" className="native-button" disabled={busy} onClick={() => void requestPermission("accessibility")}>打开辅助功能设置</button> : null}
-        {status?.screenRecording === false ? <button type="button" className="native-button" disabled={busy} onClick={() => void requestPermission("screen_recording")}>打开屏幕录制设置</button> : null}
-        {permissionNeedsRecovery ? <button type="button" className="native-button" disabled={busy} onClick={() => void restartApp()}>重启 EduPi</button> : null}
+        <button type="button" className="native-button native-button-primary computer-use-primary-action" disabled={busy} onClick={() => void runPrimaryAction()}>{computerUsePrimaryActionLabel(primaryAction)}</button>
+        <button type="button" className="native-button native-button-compact" disabled={busy} onClick={() => void refreshStatus()} aria-label="重新检测权限" title="重新检测权限">↻</button>
+        {status?.enabled && primaryAction.kind !== "stop" ? <button type="button" className="native-button native-button-compact" disabled={busy} onClick={() => void updateEnabled(false)} aria-label="停止控制" title="停止控制">×</button> : null}
       </div>
-      {permissionNeedsRecovery ? <div style={sectionHintStyle} role="status">系统设置已开启但这里仍未生效时，请关闭再重新开启对应权限，然后重启 EduPi。应用更新后可能需要重新开启一次。</div> : null}
+      {flow?.permission === "accessibility" ? <div style={sectionHintStyle} role="status">在系统设置允许 EduPi 后返回。</div> : null}
+      {flow?.permission === "screen_recording" && flow.screenRecordingRequested ? <div style={sectionHintStyle} role="status">在系统设置允许 EduPi，重启后开启控制。</div> : null}
       {error ? <div className="computer-use-error" role="alert">{error}</div> : null}
     </div>
   </div>;

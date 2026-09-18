@@ -21,14 +21,16 @@ test("settings keeps its header separate from the scrollable content", () => {
   assert.doesNotMatch(source, /<MetaChip/);
 });
 
-test("computer-use permissions can be rechecked and recovered after a system grant", () => {
-  assert.match(source, /getComputerUseStatusNative\(\)/);
-  assert.match(source, />重新检测<\/button>/);
-  assert.match(source, />打开辅助功能设置<\/button>/);
-  assert.match(source, />打开屏幕录制设置<\/button>/);
-  assert.match(source, />重启 EduPi<\/button>/);
-  assert.match(source, /value \? "已授权" : "当前未生效"/);
+test("computer-use permissions are driven by one primary action", () => {
+  assert.match(source, /computerUsePrimaryAction\(\{ status, flow \}\)/);
+  assert.match(source, /computerUsePrimaryActionLabel\(primaryAction\)/);
+  assert.match(source, /requestComputerUsePermissionNative\("screen_recording"\)/);
+  assert.match(source, /setInterval\(\(\) => \{/);
+  assert.match(source, /aria-label="重新检测权限"/);
+  assert.match(source, /aria-label="停止控制"/);
+  assert.match(source, /setPrefBool\(APP_PREF_KEYS\.computerUseEnabled, true\)/);
   assert.match(source, /await relaunchAppNative\(\)/);
-  assert.match(source, /window\.addEventListener\("focus", refreshAfterSystemSettings\)/);
+  assert.doesNotMatch(source, />打开辅助功能设置<\/button>/);
+  assert.doesNotMatch(source, />打开屏幕录制设置<\/button>/);
   assert.match(source, /title=\{t\("appSettings\.updateNote", \{ name: APP_DISTRIBUTION_NAME \}\)\}/);
 });

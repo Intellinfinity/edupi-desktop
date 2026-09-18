@@ -8,5 +8,9 @@
 .computer-use-status-row span { color: var(--text-muted); font-size: 11px; }
 .computer-use-status-row span.is-ready { color: var(--success, #16866d); }
 .computer-use-status-row span.is-off { color: var(--text-dim); }
+.computer-use-status-row.is-active { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.computer-use-status-row.is-active strong { color: var(--text); }
 .computer-use-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.computer-use-primary-action { min-width: 124px; }
+.computer-use-actions .native-button-compact { min-width: 32px; }
 .computer-use-error { color: var(--danger, #c04b4b); font-size: 11px; }

@@ -351,7 +351,15 @@ export type NativeReminderNotification = { title: string; body: string; target: 
 export async function sendReminderNotificationNative(request: NativeReminderNotification): Promise<void> {
   if (!isTauriDesktop()) throw new Error("请在桌面应用中使用通知");
   const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("send_reminder_notification", { request });
+  try {
+    await invoke("send_reminder_notification", { request });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : String(error);
+    if (code === "notification_permission_denied") throw new Error("通知权限未开启，请在系统设置中允许 EduPi 通知");
+    if (code === "notification_permission_timeout") throw new Error("系统未返回通知授权结果，请重试");
+    if (code === "notification_permission_unavailable") throw new Error("暂时无法请求通知授权，请重试");
+    throw error;
+  }
 }
 
 export async function listenReminderNotificationsNative(onOpen: (target: ReminderNotificationTarget | null) => void, onFailure: (claims: ReminderNotificationClaim[]) => void): Promise<() => void> {

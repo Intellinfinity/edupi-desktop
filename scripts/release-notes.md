@@ -1,7 +1,8 @@
-EduPi Desktop 0.3.21。
+EduPi Desktop 0.3.22。
 
-- 原生窗口最小宽度降为 800px，支持 800×900 键盘与布局验收
-- 保持 0.3.20 的主动协作、产物浮层、回收站与对象连续性能力
+- 修复聊天右上角浮层关闭后的焦点恢复
+- 修复 worktree 下拉在任意子项聚焦时 Escape 不关闭
+- 保持 0.3.21 的 800px 原生最小窗口
 
 - macOS Apple Silicon DMG
 - Windows x64 安装程序

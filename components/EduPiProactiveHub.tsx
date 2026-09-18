@@ -143,7 +143,7 @@ export function EduPiProactiveHub({
   };
 
   return <div ref={rootRef} className="edupi-chat-utility edupi-proactive-hub">
-    <button type="button" className={`edupi-chat-utility__trigger${open ? " is-open" : ""}${kernel.running > 0 ? " is-running" : ""}`} aria-expanded={open} aria-label={triggerLabel} title={triggerLabel} onClick={() => onOpenChange(!open)}><RadarIcon />{badge > 0 ? <span aria-hidden="true">{badge > 99 ? "99+" : badge}</span> : null}</button>
+    <button type="button" className={`edupi-chat-utility__trigger${open ? " is-open" : ""}${kernel.running > 0 ? " is-running" : ""}`} aria-expanded={open} aria-label={triggerLabel} title={triggerLabel} onMouseDown={event => event.currentTarget.focus()} onClick={event => { event.currentTarget.focus(); onOpenChange(!open); }}><RadarIcon />{badge > 0 ? <span aria-hidden="true">{badge > 99 ? "99+" : badge}</span> : null}</button>
     {open ? <section ref={panelRef} className="edupi-chat-utility__panel edupi-proactive-hub__panel" role="dialog" aria-modal="false" aria-label="主动协作" tabIndex={-1}>
       <header><div><strong>主动协作</strong><span>{kernel.running > 0 ? `${kernel.running} 项正在运行` : pendingReminders.length > 0 ? `${pendingReminders.length} 项等你处理` : "Core 当前没有待处理事项"}</span></div><button type="button" data-autofocus aria-label="关闭主动协作" title="关闭" onClick={() => onOpenChange(false)}>×</button></header>
       <div className="edupi-chat-utility__scroll">

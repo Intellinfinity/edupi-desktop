@@ -55,7 +55,7 @@ export function EduPiConversationFiles({ sessionId, taskId, cwd, onOpen, open: c
   };
   const toggleLabel = open ? "收起本次产物" : "查看本次产物";
   return <div className="edupi-chat-utility edupi-conversation-files">
-    <button type="button" className={`edupi-chat-utility__trigger${open ? " is-open" : ""}`} aria-expanded={open} aria-label={toggleLabel} title={toggleLabel} onClick={() => setOpen(!open)}><ConversationFilesIcon />{files.length > 0 ? <span aria-hidden="true">{files.length > 99 ? "99+" : files.length}</span> : null}</button>
+    <button type="button" className={`edupi-chat-utility__trigger${open ? " is-open" : ""}`} aria-expanded={open} aria-label={toggleLabel} title={toggleLabel} onMouseDown={event => event.currentTarget.focus()} onClick={event => { event.currentTarget.focus(); setOpen(!open); }}><ConversationFilesIcon />{files.length > 0 ? <span aria-hidden="true">{files.length > 99 ? "99+" : files.length}</span> : null}</button>
     {open ? <section ref={panelRef} className="edupi-chat-utility__panel edupi-conversation-files__panel" role="dialog" aria-modal="false" aria-label="本次产物" tabIndex={-1}>
       <header><div><strong>本次产物</strong><span>{files.length ? `${files.length} 份文件` : "当前对话"}</span></div><button type="button" data-autofocus aria-label="关闭本次产物" title="关闭" onClick={() => setOpen(false)}>×</button></header>
       <div className="edupi-chat-utility__scroll">

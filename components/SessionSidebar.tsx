@@ -790,7 +790,16 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                 (w.branch ?? displayCwd(w.path, homeDir)).toLowerCase().includes(wtFilter.trim().toLowerCase()))
             : worktreeState.worktrees;
           return (
-            <div ref={wtDropdownRef} style={{ position: "relative" }}>
+            <div
+              ref={wtDropdownRef}
+              style={{ position: "relative" }}
+              onKeyDown={event => {
+                if (event.key === "Escape" && wtDropdownOpen) {
+                  event.stopPropagation();
+                  setWtDropdownOpen(false);
+                }
+              }}
+            >
               <button
                 className="sidebar-header-row"
                 onClick={() => setWtDropdownOpen((v) => !v)}

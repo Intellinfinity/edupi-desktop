@@ -50,3 +50,11 @@ test("embedded chat uses named icon controls for new chat and view switching", (
   assert.match(source, /aria-label=\{embeddedChat \? "对话" : undefined\}/);
   assert.match(source, /aria-label=\{embeddedChat \? "文件" : undefined\}/);
 });
+
+test("Escape closes the worktree dropdown from any focused child", () => {
+  const start = source.indexOf("ref={wtDropdownRef}");
+  const block = source.slice(start, source.indexOf("<button", start));
+  assert.match(block, /onKeyDown=\{event => \{/);
+  assert.match(block, /event\.key === "Escape"/);
+  assert.match(block, /setWtDropdownOpen\(false\)/);
+});

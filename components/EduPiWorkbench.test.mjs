@@ -271,6 +271,8 @@ test("chat utilities float above conversation content without changing its heigh
   assert.match(conversationFiles, /edupi-conversation-files/);
   assert.match(conversationFiles, /aria-label=\{toggleLabel\}/);
   assert.match(proactive, /proactive_work_kernel|readEduPiKernel/);
+  assert.match(conversationFiles, /onMouseDown=\{event => event\.currentTarget\.focus\(\)\}/);
+  assert.match(proactive, /onMouseDown=\{event => event\.currentTarget\.focus\(\)\}/);
   assert.match(styles, /\.edupi-chat-utilities \{ position: absolute;/);
   assert.match(styles, /\.edupi-chat-utility__panel \{ position: absolute;/);
   assert.doesNotMatch(styles, /\.edupi-conversation-files \{[^}]*min-height:/);

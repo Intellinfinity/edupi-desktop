@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "e8623a34715a96a1ad94cc2971727c037886fbbd",
+    "core_commit": "d05cf89df067a78602883c6bd95a37f8b0c122f7",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:b3475c904d31bb928841dd3e11262ef738634ffc635889bc8f3f87d863f41699",
-    "runtime_component_manifest_hash": "sha256:41f630677371db59184ecd2ead4ddf97f19c38aff9bd90baa0dbbdd3a68235a6"
+    "component_manifest_hash": "sha256:f9393d0db6f773feeb0c2ff59ac19078fe8a45e6ae96613d0450407e6f12d133",
+    "runtime_component_manifest_hash": "sha256:409f93e72a10ff7a15c939607e0decf34016e65969e3641c1dac1d2ba8fa5cdc"
   },
   "contract_identities": [
     {
@@ -117,7 +117,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/111",
     "https://github.com/PIGU-PPPgu/edupi/pull/121",
     "https://github.com/PIGU-PPPgu/edupi/pull/141",
-    "https://github.com/PIGU-PPPgu/edupi/pull/143"
+    "https://github.com/PIGU-PPPgu/edupi/pull/143",
+    "https://github.com/PIGU-PPPgu/edupi/pull/145"
   ],
-  "change_note": "Core PR #141 routes due ambient preparation Goals through the existing G1 durable queue. Core PR #143 adds the optional l4_preparation projection for Today while keeping decisions apply=false and attention delivery desktop-only. Earlier PR #121 startup recovery and education/fact baselines remain included."
+  "change_note": "Core PR #141 routes due ambient preparation Goals through the existing G1 durable queue. Core PR #143 adds the optional l4_preparation projection for Today while keeping decisions apply=false and attention delivery desktop-only. Core PR #145 reflects G1 execution outcomes back into ambient planning so completed work projects as already_ready instead of perpetual automatic work. Earlier PR #121 startup recovery and education/fact baselines remain included."
 }

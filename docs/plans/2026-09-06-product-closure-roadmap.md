@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-19 Core 执行反馈配对
+
+- Core PR #145 将 G1 执行结果回流 Ambient planning：`draft_ready` 投影为 `already_ready`，失败进入分类等待/升级，恢复结清旧失败，stale 重新打开为 `update`；重复回放不追加事件。Desktop 已把 Core pin 更新到 merge commit `d05cf89df067a78602883c6bd95a37f8b0c122f7` 并同步 Runtime/Desktop manifest 身份。
+- 源码配对验收通过：C2/C3、packaged bundle、Ambient Today runtime、Desktop 全量 1243 passed / 0 failed、TypeScript、ESLint、audit 和 release verify 均通过。证据见 [Core 执行反馈配对验收](../acceptance/2026-09-19-core-ambient-feedback-pairing.md)。安装版与真实教师价值仍未验收。
+
 ## 2026-09-19 Core L4 Today 投影配对
 
 - Desktop 固定 Core `e8623a34715a96a1ad94cc2971727c037886fbbd`，Today 新增只读“自动准备”分区，消费 Core `l4_preparation` 投影并区分已准备好、自动进行、需要判断；Decision 保持 `apply=false`，attention 保持 `desktop_only`，ambient planning 默认关闭，仅在 `EDUPI_AMBIENT_PLANNING=1` 时启用。

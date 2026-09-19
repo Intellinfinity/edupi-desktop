@@ -1,6 +1,128 @@
+use objc2::{
+    define_class, msg_send,
+    runtime::{NSObject, NSObjectProtocol, ProtocolObject},
+    AnyThread, DefinedClass,
+};
+use objc2_foundation::NSString;
+use objc2_user_notifications::{
+    UNNotification, UNNotificationDefaultActionIdentifier, UNNotificationPresentationOptions,
+    UNNotificationRequest, UNNotificationResponse, UNUserNotificationCenter,
+    UNUserNotificationCenterDelegate,
+};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex, OnceLock,
+    },
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use tauri::{AppHandle, Emitter};
+
+const MAX_PENDING_NOTIFICATION_TARGETS: usize = 128;
+static NOTIFICATION_TARGETS: OnceLock<Mutex<VecDeque<(String, Option<Target>)>>> = OnceLock::new();
+
+fn pending_targets() -> &'static Mutex<VecDeque<(String, Option<Target>)>> {
+    NOTIFICATION_TARGETS.get_or_init(|| Mutex::new(VecDeque::new()))
+}
+
+fn store_notification_target(id: String, target: Option<Target>) {
+    if let Ok(mut targets) = pending_targets().lock() {
+        targets.push_front((id, target));
+        targets.truncate(MAX_PENDING_NOTIFICATION_TARGETS);
+    }
+}
+
+fn take_notification_target(id: &str) -> Option<Option<Target>> {
+    let index = {
+        let targets = pending_targets().lock().ok()?;
+        targets.iter().position(|(pending, _)| pending == id)
+    }?;
+    pending_targets()
+        .lock()
+        .ok()?
+        .remove(index)
+        .map(|(_, target)| target)
+}
+
+#[cfg(target_os = "macos")]
+fn foreground_presentation_options() -> UNNotificationPresentationOptions {
+    UNNotificationPresentationOptions::List
+        | UNNotificationPresentationOptions::Banner
+        | UNNotificationPresentationOptions::Sound
+}
+
+#[derive(Default)]
+struct NotificationDelegateIvars {
+    app: Option<AppHandle>,
+}
+
+define_class!(
+    // SAFETY: NSObject has no subclassing requirements and the delegate does
+    // not implement Drop.
+    #[unsafe(super(NSObject))]
+    #[ivars = NotificationDelegateIvars]
+    struct EduPiNotificationDelegate;
+
+    // SAFETY: NSObjectProtocol has no additional requirements.
+    unsafe impl NSObjectProtocol for EduPiNotificationDelegate {}
+
+    // SAFETY: The two implemented optional methods match the protocol selectors.
+    unsafe impl UNUserNotificationCenterDelegate for EduPiNotificationDelegate {
+        #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
+        fn will_present(
+            &self,
+            _center: &UNUserNotificationCenter,
+            _notification: &UNNotification,
+            completion_handler: &block2::DynBlock<dyn Fn(UNNotificationPresentationOptions)>,
+        ) {
+            completion_handler.call((foreground_presentation_options(),));
+        }
+
+        #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
+        fn did_receive(
+            &self,
+            _center: &UNUserNotificationCenter,
+            response: &UNNotificationResponse,
+            completion_handler: &block2::DynBlock<dyn Fn()>,
+        ) {
+            let request = response.notification().request();
+            let target = take_notification_target(&request.identifier().to_string());
+            // SAFETY: Apple defines this static as an immutable NSString.
+            let default_action = unsafe { UNNotificationDefaultActionIdentifier };
+            if &*response.actionIdentifier() == default_action {
+                if let Some(app) = self.ivars().app.as_ref() {
+                    let target = target.unwrap_or(None);
+                    activate(app, &target);
+                }
+            }
+            completion_handler.call(());
+        }
+    }
+);
+
+impl EduPiNotificationDelegate {
+    fn new(app: AppHandle) -> objc2::rc::Retained<Self> {
+        let this = Self::alloc().set_ivars(NotificationDelegateIvars { app: Some(app) });
+        // SAFETY: The selector and signature match NSObject init.
+        unsafe { msg_send![super(this), init] }
+    }
+}
+
+pub fn install_notification_delegate(app: &AppHandle) -> Result<(), String> {
+    if tauri::is_dev() {
+        return Ok(());
+    }
+
+    let center = UNUserNotificationCenter::currentNotificationCenter();
+    let delegate = EduPiNotificationDelegate::new(app.clone());
+    center.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+    // UNUserNotificationCenter keeps its delegate weak; retain this one
+    // process-lifetime object so it remains callable.
+    std::mem::forget(delegate);
+    Ok(())
+}
 
 static WAITING: AtomicUsize = AtomicUsize::new(0);
 struct Waiting;
@@ -92,26 +214,57 @@ fn request_authorization(app: &AppHandle) -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 fn deliver(app: &AppHandle, request: &ReminderNotification) -> Result<(), String> {
-    mac_notification_sys::set_application(if tauri::is_dev() {
-        "com.apple.Terminal"
-    } else {
-        &app.config().identifier
-    })
-    .map_err(|_| "notification_failed")?;
-    let response = mac_notification_sys::Notification::new()
-        .title(&request.title)
-        .message(&request.body)
-        .wait_for_click(true)
-        .send()
-        .map_err(|_| "notification_failed")?;
-    if matches!(
-        response,
-        mac_notification_sys::NotificationResponse::Click
-            | mac_notification_sys::NotificationResponse::ActionButton(_)
-    ) {
-        activate(app, &request.target);
+    if tauri::is_dev() {
+        notify_rust::Notification::new()
+            .summary(&request.title)
+            .body(&request.body)
+            .show()
+            .map_err(|_| "notification_failed".to_string())?;
+        return Ok(());
     }
-    Ok(())
+
+    use block2::RcBlock;
+    use objc2_foundation::NSError;
+    use objc2_user_notifications::{UNMutableNotificationContent, UNNotificationSound};
+    use std::sync::mpsc;
+
+    let identifier = format!(
+        "edupi-{}-{}",
+        request.claims[0].id,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    );
+    store_notification_target(identifier.clone(), request.target.clone());
+    let title = request.title.clone();
+    let body = request.body.clone();
+    let (sender, receiver) = mpsc::channel::<bool>();
+    app.run_on_main_thread(move || {
+        let content = UNMutableNotificationContent::new();
+        content.setTitle(&NSString::from_str(&title));
+        content.setBody(&NSString::from_str(&body));
+        content.setSound(Some(&UNNotificationSound::defaultSound()));
+        content.setThreadIdentifier(&NSString::from_str("edupi-reminders"));
+        let notification_request = UNNotificationRequest::requestWithIdentifier_content_trigger(
+            &NSString::from_str(&identifier),
+            &content,
+            None,
+        );
+        let completion = RcBlock::new(move |error: *mut NSError| {
+            let _ = sender.send(error.is_null());
+        });
+        let center = UNUserNotificationCenter::currentNotificationCenter();
+        center
+            .addNotificationRequest_withCompletionHandler(&notification_request, Some(&completion));
+    })
+    .map_err(|_| "notification_failed".to_string())?;
+
+    receiver
+        .recv_timeout(Duration::from_secs(10))
+        .map_err(|_| "notification_failed".to_string())?
+        .then_some(())
+        .ok_or_else(|| "notification_failed".to_string())
 }
 
 #[cfg(target_os = "windows")]
@@ -154,7 +307,9 @@ pub fn send_reminder_notification(
         return Err("invalid_notification".into());
     }
     #[cfg(target_os = "macos")]
-    request_authorization(&app)?;
+    if !tauri::is_dev() {
+        request_authorization(&app)?;
+    }
 
     WAITING
         .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
@@ -177,6 +332,36 @@ pub fn send_reminder_notification(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_notifications_remain_visible_while_edupi_is_foreground() {
+        let options = foreground_presentation_options();
+        assert!(options.contains(UNNotificationPresentationOptions::List));
+        assert!(options.contains(UNNotificationPresentationOptions::Banner));
+        assert!(options.contains(UNNotificationPresentationOptions::Sound));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn notification_targets_are_bounded_and_consumed_once() {
+        if let Ok(mut targets) = pending_targets().lock() {
+            targets.clear();
+        }
+        for index in 0..=(MAX_PENDING_NOTIFICATION_TARGETS + 1) {
+            store_notification_target(format!("target-{index}"), None);
+        }
+        let target_count = pending_targets()
+            .lock()
+            .map(|targets| targets.len())
+            .unwrap_or_default();
+        assert_eq!(target_count, MAX_PENDING_NOTIFICATION_TARGETS);
+        assert!(take_notification_target("target-0").is_none());
+        let consumed_target = take_notification_target("target-2");
+        assert!(consumed_target.is_some());
+        assert!(consumed_target.unwrap().is_none());
+        assert!(take_notification_target("target-2").is_none());
+    }
 
     #[cfg(target_os = "macos")]
     #[test]

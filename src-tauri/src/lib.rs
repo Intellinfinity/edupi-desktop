@@ -2135,6 +2135,8 @@ pub fn run() {
 
             app.manage(server);
             app.manage(start_desktop_resume_monitor(app.handle().clone())?);
+            #[cfg(target_os = "macos")]
+            reminder_notification::install_notification_delegate(app.handle())?;
             // Reconcile stale hashed web assets before the first window load.
             let webview_cache_reconciled = reconcile_webview_cache_for_version(app.handle());
             build_window(app.handle(), url)?;

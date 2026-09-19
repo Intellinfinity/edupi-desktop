@@ -2,18 +2,18 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "19c0fd5182c6c20d6534973e506d6fa36acc1b06",
+    "core_commit": "e8623a34715a96a1ad94cc2971727c037886fbbd",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:209233c9441de1828b26b6afd4b809ef9e5398404e28ca5daea05d60e52dcd51",
-    "runtime_component_manifest_hash": "sha256:49b3234065c344e8cf2b2c3274498e445edeae78f137fe17b888ffc3b8a90802"
+    "component_manifest_hash": "sha256:b3475c904d31bb928841dd3e11262ef738634ffc635889bc8f3f87d863f41699",
+    "runtime_component_manifest_hash": "sha256:41f630677371db59184ecd2ead4ddf97f19c38aff9bd90baa0dbbdd3a68235a6"
   },
   "contract_identities": [
     {
       "contract_id": "edupi-bridge-v1.1",
       "contract_version": "1.1",
-      "schema_hash": "sha256:190f2673a1c36d00cd52b0c7887d0bfa7bb0ffb7ca739eb4b5e443255858b0d5",
+      "schema_hash": "sha256:d4702ef3bb303996cea137f9f1337a20a8c6853b0b7d215cca64265bf2cd4daa",
       "fixture_manifest_path": "fixtures/bridge/v1.1/fixture-manifest.json",
-      "fixture_manifest_hash": "sha256:9f002bc018d36f91720945e3c9213120df827793dae6bc4c2e639c6ff44f4e88",
+      "fixture_manifest_hash": "sha256:455ca9489f582b3a41223ce2518436445ec1b25ec4fdd8e5d10e35b3387a253e",
       "supported_commands": [
         "review_observation",
         "review_memory_candidate",
@@ -115,7 +115,9 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/109",
     "https://github.com/PIGU-PPPgu/edupi/pull/110",
     "https://github.com/PIGU-PPPgu/edupi/pull/111",
-    "https://github.com/PIGU-PPPgu/edupi/pull/121"
+    "https://github.com/PIGU-PPPgu/edupi/pull/121",
+    "https://github.com/PIGU-PPPgu/edupi/pull/141",
+    "https://github.com/PIGU-PPPgu/edupi/pull/143"
   ],
-  "change_note": "Core PR #121 migrates legacy retry histories before source reconciliation so older attempt-2 preparation records cannot prevent Core Runtime startup; PR #111 remains the writer-admitted teaching-method lifecycle baseline and PRs #107–#110 remain the education-fact baseline."
+  "change_note": "Core PR #141 routes due ambient preparation Goals through the existing G1 durable queue. Core PR #143 adds the optional l4_preparation projection for Today while keeping decisions apply=false and attention delivery desktop-only. Earlier PR #121 startup recovery and education/fact baselines remain included."
 }

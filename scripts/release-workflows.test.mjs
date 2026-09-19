@@ -337,6 +337,22 @@ test("the Windows debug workflow cannot release or sign anything", async () => {
   assert.match(workflow, /trace-stray-scandir\.cjs/);
 });
 
+test("release verifies paired runtime where supported and exact bundle bytes on Windows", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  const buildJob = workflow.slice(workflow.indexOf("  build:"), workflow.indexOf("  manifest:"));
+
+  assert.ok(buildJob.includes("name: Verify paired Core runtime"));
+  assert.ok(buildJob.includes("if: runner.os != 'Windows'"));
+  assert.ok(buildJob.includes("test:edupi-ambient-today-runtime"));
+  assert.ok(buildJob.includes("scripts/test-edupi-c2-e2.mjs"));
+  assert.ok(buildJob.includes("scripts/test-edupi-c3-e2.mjs"));
+  assert.ok(buildJob.includes("scripts/packaged-core-bundle.test.mjs"));
+  assert.ok(buildJob.includes("name: Verify paired Core bundle on Windows"));
+  assert.ok(buildJob.includes("if: runner.os == 'Windows'"));
+  assert.ok(buildJob.includes("--test-name-pattern"));
+  assert.ok(buildJob.includes("bundled validation rejects|external mode still requires"));
+});
+
 test("every packaged workflow checks out the exact pinned Core runtime", async () => {
   const workflows = await Promise.all([
     readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8"),

@@ -172,7 +172,13 @@ jobs:
       - name: Install Core runtime dependencies
         run: npm ci --ignore-scripts --prefix .edupi-core-runtime
 
+      # Core's crash-released writer admission intentionally requires native
+      # attestation on Windows. A hosted-runner temporary directory cannot
+      # provide that evidence, so Windows verifies the exact paired bundle
+      # bytes and manifests here; the separate published-install workflow
+      # exercises the real installed application startup.
       - name: Verify paired Core runtime
+        if: runner.os != 'Windows'
         env:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: |
@@ -180,6 +186,15 @@ jobs:
           node scripts/test-edupi-c2-e2.mjs
           node scripts/test-edupi-c3-e2.mjs
           node --test scripts/packaged-core-bundle.test.mjs
+
+      - name: Verify paired Core bundle on Windows
+        if: runner.os == 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: >
+          node --test --test-name-pattern
+          "bundled validation rejects|external mode still requires"
+          scripts/packaged-core-bundle.test.mjs
 
       - name: Configure updater public key
         env:

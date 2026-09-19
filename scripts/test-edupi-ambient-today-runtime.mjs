@@ -27,6 +27,7 @@ for (const directory of [".edupi/memory", ".edupi/output", ".edupi/locks"]) {
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
 const { activeBridgeIdentity } = await jiti.import(path.join(desktopRoot, "lib", "edupi-bridge-manifest.ts"));
 const { resolveEduPiCoreRoot, resolveEduPiDataRoot } = await jiti.import(path.join(desktopRoot, "lib", "edupi-core-root.ts"));
+const { readEduPiEducationSnapshot } = await jiti.import(path.join(desktopRoot, "lib", "edupi-core-snapshot.ts"));
 const { ensureEduPiRuntime } = await jiti.import(path.join(desktopRoot, "lib", "edupi-runtime-supervisor.ts"));
 const { prepareCoreRuntimeRoot } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_root.mjs")));
 const { acquireCoreRuntimeWriterAdmission } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_writer_admission.mjs")));
@@ -67,6 +68,9 @@ try {
   }
 
   process.env.EDUPI_AMBIENT_PLANNING = "1";
+  process.env.EDUPI_CORE_ROOT = coreRoot;
+  process.env.EDUPI_DATA_ROOT = dataRootPath;
+  process.env.EDUPI_DATA_ALLOWED_ROOT = temporaryRoot;
   const identity = activeBridgeIdentity();
   const runtime = resolveEduPiCoreRoot({
     configuredRoot: coreRoot,
@@ -75,6 +79,8 @@ try {
     validationMode: "external",
   });
   const dataRoot = resolveEduPiDataRoot({ configuredRoot: dataRootPath, allowedRoot: temporaryRoot });
+  const directSnapshot = await readEduPiEducationSnapshot();
+  assert.equal(directSnapshot.workspace.l4_preparation.goals[0].id, goal.id);
   handle = await ensureEduPiRuntime({ runtime, dataRoot });
   const response = await handle.callBridge({
     protocol: "edupi-desktop-bridge", protocol_version: 1, producer: "edupi-desktop",

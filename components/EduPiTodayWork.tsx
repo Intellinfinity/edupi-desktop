@@ -17,6 +17,7 @@ import {
   todayWorkFailureDisposition,
   TodayWorkReviewError,
 } from "@/lib/edupi-today-work";
+import { summarizeL4Preparation, type L4PreparationSummaryItem } from "@/lib/edupi-l4-preparation";
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
 import { todayActiveTasks } from "@/lib/edupi-work-case";
 
@@ -119,6 +120,12 @@ const NEXT_CYCLE_LABELS: Record<string, string> = {
   reopened_snooze_expired: "稍后到期，待重审",
 };
 
+const L4_GROUP_LABELS: Array<{ key: "ready" | "running" | "attention"; title: string }> = [
+  { key: "ready", title: "已准备好" },
+  { key: "running", title: "自动进行" },
+  { key: "attention", title: "需要判断" },
+];
+
 function isDateOnly(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -189,6 +196,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const [retryReview, setRetryReview] = useState<ReviewRetry | null>(null);
   const [submission, setSubmission] = useState<Submission>(null);
   const editorCurrent = isTodayWorkEditorCurrent(editor, data.workCandidates, capability.enabled);
+  const l4Summary = useMemo(() => summarizeL4Preparation(data.l4Preparation ?? null), [data.l4Preparation]);
 
   useEffect(() => {
     if (editor && !editorCurrent) {
@@ -345,11 +353,34 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     </section>;
   };
 
+  const renderL4Group = (group: (typeof L4_GROUP_LABELS)[number], items: L4PreparationSummaryItem[]) => (
+    <section className={`edupi-today-l4__group is-${group.key}`} aria-label={group.title} key={group.key}>
+      <header><h4>{group.title}</h4><span>{items.length} 项</span></header>
+      <div className="edupi-today-l4__items">
+        {items.map(item => (
+          <article className="edupi-today-l4__item" key={item.workCaseId}>
+            <strong>{item.statusLabel}</strong>
+            <p>{item.title}</p>
+          </article>
+        ))}
+        {items.length === 0 ? <p className="edupi-today-l4__empty">暂无事项</p> : null}
+      </div>
+    </section>
+  );
+
   const unavailableCopy = capabilityCopy(capability);
   return <section className="edupi-today-work" aria-labelledby="edupi-today-work-title" aria-busy={busy}>
     <header className="edupi-today-work__header"><div><span>教师工作</span><h2 id="edupi-today-work-title">今天要判断</h2></div><span>{data.workCandidates.length} 项 · 教师内部</span></header>
     {activeTasks.length > 0 ? <div className="edupi-today-flow" aria-label="正在进行的任务"><header><span>正在进行</span><strong>{activeTasks.length} 项</strong></header><div>{activeTasks.slice(0, 4).map(({ task, title, dueDate, state, stateLabel }) => <button type="button" key={task.id} onClick={() => onTaskDetail(task)}><i className={`edupi-flow-state is-${state}`} aria-hidden="true" /><span><strong>{title}</strong><small>{stateLabel}{dueDate ? ` · ${dueDate}` : ""}</small></span><em aria-hidden="true">›</em></button>)}</div></div> : null}
     {unavailableCopy ? <p className="edupi-today-work__notice">{unavailableCopy}</p> : null}
+    {data.l4Preparation ? (
+      <section className="edupi-today-l4" aria-labelledby="edupi-today-l4-title">
+        <header><div><h3 id="edupi-today-l4-title">自动准备</h3></div><span>{data.l4Preparation.goals.length} 个目标</span></header>
+        <div className="edupi-today-l4__groups">
+          {L4_GROUP_LABELS.map(({ key, title }) => renderL4Group({ key, title }, l4Summary[key]))}
+        </div>
+      </section>
+    ) : null}
     {feedback ? <div className={`edupi-today-work__feedback is-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite"><span>{feedback.text}</span>{feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button> : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button> : null}</div> : null}
     <div className="edupi-today-work__groups">{(["now", "later", "done"] as const).map(renderGroup)}</div>
   </section>;

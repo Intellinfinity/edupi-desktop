@@ -62,7 +62,8 @@ export function createParentModelExecutor(channel = process) {
 }
 
 export async function startCoreRuntimeHost({ coreRoot, options }, channel = process) {
-  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port"].includes(key))) throw new Error("Invalid runtime bootstrap.");
+  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning"].includes(key))
+    || (options.ambientPlanning !== undefined && typeof options.ambientPlanning !== "boolean")) throw new Error("Invalid runtime bootstrap.");
   const hostExecutor = createParentModelExecutor(channel);
   try {
     const { createCoreRuntimeDaemon } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_daemon.mjs")).href);

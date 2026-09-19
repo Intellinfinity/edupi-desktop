@@ -192,6 +192,7 @@ test("the manifest job only publishes when every platform succeeded", async () =
   assert.match(manifestJob, /Committed component manifest does not match the release version/);
   assert.match(manifestJob, /-F draft=false/);
   assert.match(manifestJob, /-f make_latest=true/);
+  assert.doesNotMatch(manifestJob, /target_commitish="\$GITHUB_SHA"/);
 });
 
 test("parallel builders share one commit-bound draft release", async () => {

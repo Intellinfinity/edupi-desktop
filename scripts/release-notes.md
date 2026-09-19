@@ -1,8 +1,8 @@
-EduPi Desktop 0.3.25。
+EduPi Desktop 0.3.26。
 
-- macOS 通知改用 UserNotifications 交付，不再依赖旧 NSUserNotification 发送
-- 应用前台时显示横幅、列表和声音
-- 点击默认通知后回到 EduPi 对应提醒
+- 设置页显示系统通知授权、通知中心、横幅和声音状态
+- 测试通知等待系统接受或拒绝后再显示结果
+- 通知发送失败时给出可处理提示，不再显示笼统的已请求发送
 
 - macOS Apple Silicon DMG
 - Windows x64 安装程序

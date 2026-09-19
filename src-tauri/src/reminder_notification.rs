@@ -9,8 +9,8 @@ use objc2_foundation::NSString;
 #[cfg(target_os = "macos")]
 use objc2_user_notifications::{
     UNNotification, UNNotificationDefaultActionIdentifier, UNNotificationPresentationOptions,
-    UNNotificationRequest, UNNotificationResponse, UNUserNotificationCenter,
-    UNUserNotificationCenterDelegate,
+    UNNotificationRequest, UNNotificationResponse, UNNotificationSettings,
+    UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "macos")]
@@ -138,6 +138,74 @@ impl Drop for Waiting {
     fn drop(&mut self) {
         WAITING.fetch_sub(1, Ordering::SeqCst);
     }
+}
+
+fn acquire_waiting() -> Result<Waiting, String> {
+    WAITING
+        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
+            (count < 16).then_some(count + 1)
+        })
+        .map_err(|_| "notification_busy".to_string())?;
+    Ok(Waiting)
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationPermissionStatus {
+    authorization_status: isize,
+    notification_center_setting: isize,
+    alert_setting: isize,
+    sound_setting: isize,
+    alert_style: isize,
+}
+
+#[cfg(target_os = "macos")]
+fn read_notification_settings(app: &AppHandle) -> Result<NotificationPermissionStatus, String> {
+    use block2::RcBlock;
+    use objc2_user_notifications::UNUserNotificationCenter;
+    use std::ptr::NonNull;
+    use std::sync::mpsc;
+
+    let (sender, receiver) = mpsc::channel();
+    app.run_on_main_thread(move || {
+        let center = UNUserNotificationCenter::currentNotificationCenter();
+        let completion = RcBlock::new(move |settings: NonNull<UNNotificationSettings>| {
+            // SAFETY: UserNotifications keeps the settings object alive
+            // for the duration of this callback.
+            let settings = unsafe { settings.as_ref() };
+            let _ = sender.send(NotificationPermissionStatus {
+                authorization_status: settings.authorizationStatus().0,
+                notification_center_setting: settings.notificationCenterSetting().0,
+                alert_setting: settings.alertSetting().0,
+                sound_setting: settings.soundSetting().0,
+                alert_style: settings.alertStyle().0,
+            });
+        });
+        center.getNotificationSettingsWithCompletionHandler(&completion);
+    })
+    .map_err(|_| "notification_status_unavailable".to_string())?;
+
+    receiver
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| "notification_status_timeout".to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn read_notification_settings(_app: &AppHandle) -> Result<NotificationPermissionStatus, String> {
+    Ok(NotificationPermissionStatus {
+        authorization_status: -1,
+        notification_center_setting: -1,
+        alert_setting: -1,
+        sound_setting: -1,
+        alert_style: -1,
+    })
+}
+
+#[tauri::command]
+pub fn get_notification_permission_status(
+    app: AppHandle,
+) -> Result<NotificationPermissionStatus, String> {
+    read_notification_settings(&app)
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -319,22 +387,32 @@ pub fn send_reminder_notification(
         request_authorization(&app)?;
     }
 
-    WAITING
-        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
-            (count < 16).then_some(count + 1)
-        })
-        .map_err(|_| "notification_busy")?;
-    let waiting = Waiting;
-    std::thread::Builder::new()
-        .name("edupi-notification".into())
-        .spawn(move || {
-            let _waiting = waiting;
-            if deliver(&app, &request).is_err() {
-                let _ = app.emit("edupi://reminder-failed", &request.claims);
-            }
-        })
-        .map_err(|_| "notification_failed".to_string())?;
-    Ok(())
+    let waiting = acquire_waiting()?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let result = deliver(&app, &request);
+        drop(waiting);
+        if let Err(error) = result {
+            let _ = app.emit("edupi://reminder-failed", &request.claims);
+            return Err(error);
+        }
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        std::thread::Builder::new()
+            .name("edupi-notification".into())
+            .spawn(move || {
+                let _waiting = waiting;
+                if deliver(&app, &request).is_err() {
+                    let _ = app.emit("edupi://reminder-failed", &request.claims);
+                }
+            })
+            .map_err(|_| "notification_failed".to_string())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

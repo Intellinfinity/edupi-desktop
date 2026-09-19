@@ -344,6 +344,20 @@ export async function listenDesktopResumeNative(handler: () => void): Promise<()
   return listen("edupi://resume", () => handler());
 }
 
+export type NotificationPermissionStatus = {
+  authorizationStatus: number;
+  notificationCenterSetting: number;
+  alertSetting: number;
+  soundSetting: number;
+  alertStyle: number;
+};
+
+export async function getNotificationPermissionStatusNative(): Promise<NotificationPermissionStatus> {
+  if (!isTauriDesktop()) throw new Error("请在桌面应用中查看通知状态");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<NotificationPermissionStatus>("get_notification_permission_status");
+}
+
 export type ReminderNotificationTarget = { taskId: string; kind: "ready" | "failed" | "due" | "brief" };
 export type ReminderNotificationClaim = { id: string; attemptedAt: string };
 export type NativeReminderNotification = { title: string; body: string; target: ReminderNotificationTarget | null; claims: ReminderNotificationClaim[] };
@@ -358,6 +372,8 @@ export async function sendReminderNotificationNative(request: NativeReminderNoti
     if (code === "notification_permission_denied") throw new Error("通知权限未开启，请在系统设置中允许 EduPi 通知");
     if (code === "notification_permission_timeout") throw new Error("系统未返回通知授权结果，请重试");
     if (code === "notification_permission_unavailable") throw new Error("暂时无法请求通知授权，请重试");
+    if (code === "notification_failed") throw new Error("通知发送失败，请检查系统通知设置");
+    if (code === "notification_busy") throw new Error("通知发送繁忙，请稍后重试");
     throw error;
   }
 }

@@ -2095,6 +2095,7 @@ pub fn run() {
         .manage(computer_use::ComputerUseState::new())
         .invoke_handler(tauri::generate_handler![
             reminder_notification::send_reminder_notification,
+            reminder_notification::get_notification_permission_status,
             get_desktop_api_token,
             open_external_url,
             open_path,

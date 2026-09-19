@@ -1,22 +1,26 @@
+#[cfg(target_os = "macos")]
 use objc2::{
     define_class, msg_send,
     runtime::{NSObject, NSObjectProtocol, ProtocolObject},
     AnyThread, DefinedClass,
 };
+#[cfg(target_os = "macos")]
 use objc2_foundation::NSString;
+#[cfg(target_os = "macos")]
 use objc2_user_notifications::{
     UNNotification, UNNotificationDefaultActionIdentifier, UNNotificationPresentationOptions,
     UNNotificationRequest, UNNotificationResponse, UNUserNotificationCenter,
     UNUserNotificationCenterDelegate,
 };
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "macos")]
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::{
     collections::VecDeque,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Mutex, OnceLock,
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter};
 
@@ -53,11 +57,13 @@ fn foreground_presentation_options() -> UNNotificationPresentationOptions {
         | UNNotificationPresentationOptions::Sound
 }
 
+#[cfg(target_os = "macos")]
 #[derive(Default)]
 struct NotificationDelegateIvars {
     app: Option<AppHandle>,
 }
 
+#[cfg(target_os = "macos")]
 define_class!(
     // SAFETY: NSObject has no subclassing requirements and the delegate does
     // not implement Drop.
@@ -102,6 +108,7 @@ define_class!(
     }
 );
 
+#[cfg(target_os = "macos")]
 impl EduPiNotificationDelegate {
     fn new(app: AppHandle) -> objc2::rc::Retained<Self> {
         let this = Self::alloc().set_ivars(NotificationDelegateIvars { app: Some(app) });
@@ -110,6 +117,7 @@ impl EduPiNotificationDelegate {
     }
 }
 
+#[cfg(target_os = "macos")]
 pub fn install_notification_delegate(app: &AppHandle) -> Result<(), String> {
     if tauri::is_dev() {
         return Ok(());

@@ -16,6 +16,7 @@
     "core:image:allow-size",
     "notification:default",
     "allow-send-reminder-notification",
+    "allow-get-notification-permission-status",
     "allow-open-external-url",
     "allow-open-path",
     "allow-reveal-item-in-dir",

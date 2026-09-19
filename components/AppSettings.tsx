@@ -26,6 +26,7 @@ import {
 } from "@/lib/desktop-updater";
 import {
   getEduPiRootStatusNative,
+  getNotificationPermissionStatusNative,
   handleExternalLinkClick,
   quitAppNative,
   relaunchAppNative,
@@ -34,6 +35,7 @@ import {
   setCloseQuitsNative,
   setEduPiDataRootNative,
   type EduPiRootStatus,
+  type NotificationPermissionStatus,
 } from "@/lib/desktop-native";
 import { useI18n } from "@/hooks/useI18n";
 import { useTheme } from "@/hooks/useTheme";
@@ -66,6 +68,17 @@ const sectionHintStyle: CSSProperties = {
   fontSize: 11,
   lineHeight: 1.5,
 };
+
+function notificationStatusLabel(status: NotificationPermissionStatus | null): string {
+  if (!status) return "不可用";
+  if (status.authorizationStatus === 0) return "待授权";
+  if (status.authorizationStatus === 1) return "已拒绝";
+  if (status.authorizationStatus < 0) return "无需";
+  if (status.notificationCenterSetting !== 2) return "通知中心关闭";
+  if (status.alertSetting !== 2) return "横幅关闭";
+  if (status.soundSetting !== 2) return "声音关闭";
+  return "已开启";
+}
 
 function TeacherContextSettingsCard() {
   const [context, setContext] = useState<TeacherContextSnapshot | null>(null);
@@ -423,6 +436,20 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
   const [notifyOnComplete, setNotifyOnComplete] = useState(() => getPrefBool(APP_PREF_KEYS.notifyOnComplete, true));
   const [notificationTest, setNotificationTest] = useState("");
   const [testingNotification, setTestingNotification] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<NotificationPermissionStatus | null>(null);
+
+  const refreshNotificationStatus = useCallback(async () => {
+    if (!desktop) return;
+    try {
+      setNotificationStatus(await getNotificationPermissionStatusNative());
+    } catch {
+      setNotificationStatus(null);
+    }
+  }, [desktop]);
+
+  useEffect(() => {
+    void refreshNotificationStatus();
+  }, [refreshNotificationStatus]);
 
   const checkForUpdates = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -464,6 +491,8 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
     [components],
   );
   const updateAvailable = pendingUpdates.length > 0;
+  const notificationAuthorized = notificationStatus?.authorizationStatus !== undefined
+    && notificationStatus.authorizationStatus >= 2;
   const canUpgrade = desktop && !loading && updateAvailable && !upgradeProgress;
   const downloadPercent = upgradeProgress?.phase === "downloading"
     && upgradeProgress.totalBytes
@@ -712,14 +741,17 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
                     setNotificationTest("");
                     try {
                       await testDesktopNotification();
-                      setNotificationTest("已请求发送；点击通知应打开提醒");
+                      await refreshNotificationStatus();
+                      setNotificationTest("系统已接受通知；点击通知应打开提醒");
                     } catch (error) {
+                      await refreshNotificationStatus();
                       setNotificationTest(error instanceof Error ? error.message : "通知测试失败");
                     } finally { setTestingNotification(false); }
                   }}
                 >
                   {testingNotification ? "发送中…" : "测试通知跳转"}
                 </button>
+                <div className="computer-use-status-row"><strong>系统通知</strong><span className={notificationAuthorized ? "is-ready" : "is-off"}>{notificationStatusLabel(notificationStatus)}</span></div>
                 {notificationTest ? <p role="status">{notificationTest}</p> : null}
                 <button
                   type="button"

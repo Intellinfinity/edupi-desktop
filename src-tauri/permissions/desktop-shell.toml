@@ -4,6 +4,11 @@ description = "Allows opening http/https/mailto URLs in the system default handl
 commands.allow = ["open_external_url"]
 
 [[permission]]
+identifier = "allow-get-notification-permission-status"
+description = "Allows the trusted EduPi WebView to read macOS UserNotifications status."
+commands.allow = ["get_notification_permission_status"]
+
+[[permission]]
 identifier = "allow-send-reminder-notification"
 description = "Allows task reminders with a fixed in-app activation target."
 commands.allow = ["send_reminder_notification"]

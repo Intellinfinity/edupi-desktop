@@ -1,8 +1,8 @@
-EduPi Desktop 0.3.24。
+EduPi Desktop 0.3.25。
 
-- macOS 发送提醒前先请求系统通知授权
-- 授权拒绝或超时时返回可处理的教师提示
-- 保持点击提醒后回到对应事项
+- macOS 通知改用 UserNotifications 交付，不再依赖旧 NSUserNotification 发送
+- 应用前台时显示横幅、列表和声音
+- 点击默认通知后回到 EduPi 对应提醒
 
 - macOS Apple Silicon DMG
 - Windows x64 安装程序

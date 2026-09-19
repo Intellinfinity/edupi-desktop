@@ -3352,13 +3352,12 @@ dependencies = [
 
 [[package]]
 name = "pi-agent-desktop"
-version = "0.3.24"
+version = "0.3.25"
 dependencies = [
  "block2",
  "dunce",
  "getrandom 0.3.4",
  "libc",
- "mac-notification-sys",
  "nomi-computer",
  "nomi-config",
  "nomi-tools",

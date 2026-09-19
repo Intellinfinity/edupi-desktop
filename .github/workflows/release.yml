@@ -321,8 +321,10 @@ jobs:
           if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`Release assets differ: ${names.join(", ")}`);
           NODE
 
+          # The release job already binds this draft to this commit; do not
+          # rewrite target_commitish while publishing the validated assets.
           gh api --method PATCH "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID" \
-            -f target_commitish="$GITHUB_SHA" -F draft=false -F prerelease=false -f make_latest=true \
+            -F draft=false -F prerelease=false -f make_latest=true \
             --jq '{ tag: .tag_name, draft, prerelease, published_at, assets: (.assets | length) }'
 
   # A partially failed matrix leaves the release a draft and skips `manifest`,

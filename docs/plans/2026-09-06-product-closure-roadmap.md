@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-19 Core L4 Today 投影配对
+
+- Desktop 固定 Core `e8623a34715a96a1ad94cc2971727c037886fbbd`，Today 新增只读“自动准备”分区，消费 Core `l4_preparation` 投影并区分已准备好、自动进行、需要判断；Decision 保持 `apply=false`，attention 保持 `desktop_only`，ambient planning 默认关闭，仅在 `EDUPI_AMBIENT_PLANNING=1` 时启用。
+- 直接 education snapshot 读取在显式 ambient 模式下先确保受管 runtime，修复与 status ensure 的竞态，避免回落到一次性 Core 后丢失 active planning 投影。干净 Chrome 验证中 workspace、材料 staging、kernel 和 reminders 均 200，控制台 error/warning 为 0；证据见 [Core L4 Today 投影配对验收](../acceptance/2026-09-19-core-l4-today-pairing.md)。
+- 本批完成源码开发版隔离验收，Desktop 版本提升到 0.3.25 以满足 release verify 的公开 Latest 版本边界；v0.3.25 尚未构建发布，安装版冷启动、托盘、睡眠唤醒、通知点击、升级和数据保持仍归 R21/R22，不由开发版证据代替。
+
 ## 2026-09-17 `v0.3.20` 安装更新收口
 
 - R18/R21 收口：v0.3.21 先修复 800px 原生最小宽度并完成原位升级；v0.3.22 再修复浮层焦点恢复与 worktree 下拉 Escape。macOS 原生 800×900 窗口实际可用，主动协作 Escape 后焦点回到入口，worktree 下拉从任意子项 Escape 后关闭；Core 与 50/240/43/9 数据在两次原位升级后保持。通知中心和点击回调仍无证据，真实睡眠唤醒继续外部阻塞。证据见 [窄窗复核与通知边界](../acceptance/2026-09-18-r18-native-window-and-r21-boundaries.md)。

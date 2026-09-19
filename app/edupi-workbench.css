@@ -1261,6 +1261,20 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-today-flow button strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .edupi-today-flow button small { color: var(--ep-muted); font-size: 9px; }
 .edupi-today-flow button em { color: var(--ep-dim); font-size: 13px; font-style: normal; }
+.edupi-today-l4 { border-bottom: 1px solid var(--ep-border); }
+.edupi-today-l4 > header { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--ep-surface-soft); }
+.edupi-today-l4 > header h3 { margin: 0; font-size: 11px; }
+.edupi-today-l4 > header span { color: var(--ep-muted); font-size: 10px; }
+.edupi-today-l4__groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.edupi-today-l4__group { min-width: 0; }
+.edupi-today-l4__group + .edupi-today-l4__group { border-left: 1px solid var(--ep-border); }
+.edupi-today-l4__group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 7px; padding: 8px 10px 5px; }
+.edupi-today-l4__group h4 { margin: 0; font-size: 10px; }
+.edupi-today-l4__group header span { color: var(--ep-muted); font-size: 9px; }
+.edupi-today-l4__item { padding: 7px 10px 9px; border-top: 1px solid var(--ep-border); }
+.edupi-today-l4__item strong { color: var(--ep-text); font-size: 10px; }
+.edupi-today-l4__item p { margin: 3px 0 0; color: var(--ep-muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.edupi-today-l4__empty { margin: 0; padding: 8px 10px 10px; border-top: 1px solid var(--ep-border); color: var(--ep-dim); font-size: 10px; }
 .edupi-today-work__group { min-width: 0; }
 .edupi-today-work__group + .edupi-today-work__group { border-left: 1px solid var(--ep-border); }
 .edupi-today-work__group > header { display: flex; min-height: 38px; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 12px 6px; border-bottom: 1px solid var(--ep-border); background: var(--ep-surface-soft); }
@@ -2027,6 +2041,8 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-task-board { min-width: 980px; }
   .edupi-today-work__groups { grid-template-columns: 1fr; }
   .edupi-today-work__group + .edupi-today-work__group { border-top: 1px solid var(--ep-border); border-left: 0; }
+  .edupi-today-l4__groups { grid-template-columns: 1fr; }
+  .edupi-today-l4__group + .edupi-today-l4__group { border-top: 1px solid var(--ep-border); border-left: 0; }
 }
 
 @media (max-width: 820px) {

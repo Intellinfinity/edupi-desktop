@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { classifyCoreRuntimeStartupError, createParentModelExecutor } from "./core-runtime-host.mjs";
+import { classifyCoreRuntimeStartupError, createParentModelExecutor, startCoreRuntimeHost } from "./core-runtime-host.mjs";
 
 test("runtime startup errors expose only bounded operational categories", () => {
   assert.equal(classifyCoreRuntimeStartupError({ code: "database_unavailable", message: "/private/teacher/data" }), "runtime_database_unavailable");
@@ -61,4 +61,29 @@ test("private model IPC correlates results, forwards cancellation and rejects on
   channel.connected = false; channel.emit("disconnect");
   await assert.rejects(disconnected, { code: "model_unavailable" });
   host.close();
+});
+
+test("runtime host forwards explicit ambient planning activation to Core", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-runtime-host-ambient-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "scripts"));
+  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
+  fs.writeFileSync(path.join(root, "scripts/core_runtime_daemon.mjs"), `
+    let received = null;
+    export async function createCoreRuntimeDaemon(options) {
+      received = options;
+      return { async close() {} };
+    }
+    export function lastOptions() { return received; }
+  `);
+  const channel = new EventEmitter();
+  channel.connected = true;
+  channel.send = () => {};
+  const host = await startCoreRuntimeHost({
+    coreRoot: root,
+    options: { dataRoot: root, token: "token", supervisorSessionId: "session", coreCommit: "a".repeat(40), componentManifestHash: `sha256:${"b".repeat(64)}`, port: 0, ambientPlanning: true },
+  }, channel);
+  const { lastOptions } = await import(path.join(root, "scripts/core_runtime_daemon.mjs"));
+  assert.equal(lastOptions().ambientPlanning, true);
+  await host.close();
 });

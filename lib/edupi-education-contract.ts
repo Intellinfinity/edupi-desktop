@@ -1,4 +1,5 @@
 import type { TaskSessionBinding } from "./edupi-task-sessions";
+import { normalizeL4Preparation, type L4Preparation } from "./edupi-l4-preparation.ts";
 
 export type CalendarConfidence = "confirmed" | "teacher_confirmed" | "inferred" | "unknown";
 export type CalendarDateStatus = "explicit" | "missing" | "invalid";
@@ -464,6 +465,7 @@ export type EducationContract = {
   workCandidateReviewHistory: EducationWorkCandidateReviewHistory[];
   workCases: EducationWorkCase[];
   factSpine: EducationFactSpine | null;
+  l4Preparation?: L4Preparation | null;
   calendar: CalendarFact[];
   tasks: TeacherTask[];
   taskSessions: Record<string, TaskSessionBinding>;
@@ -1884,6 +1886,7 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
   }
   const workCases = normalizeWorkCases(snapshotPayload?.work_cases, tasks);
   const factSpine = normalizeFactSpine(workspace.fact_spine);
+  const l4Preparation = normalizeL4Preparation(workspace.l4_preparation);
   const continuity = record(workspace.continuity);
   const memories = normalizeMemories({
     semester: { entries: objectArray(continuity.memories).filter((item) => item.category === "semester").map((item) => ({ ...item, id: item.memory_id, created_at: item.created_at, updated_at: item.updated_at })) },
@@ -1939,6 +1942,7 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
     workCandidateReviewHistory,
     workCases,
     factSpine,
+    l4Preparation,
     calendar,
     tasks,
     taskSessions,
@@ -2011,6 +2015,7 @@ export function buildEducationContract(input: ContractInput = {}): EducationCont
   const workCandidateReviewHistory = normalizeWorkCandidateReviewHistory(snapshotPayload?.review_history);
   const workCases = normalizeWorkCases(snapshotPayload?.work_cases, tasks);
   const factSpine = normalizeFactSpine(record(snapshotPayload?.education_workspace).fact_spine);
+  const l4Preparation = normalizeL4Preparation(record(snapshotPayload?.education_workspace).l4_preparation);
   const signals = normalizeSignals(input.subconscious);
   const insights = normalizeInsights(input.subconscious);
   const themes = normalizeThemes(input.subconscious);
@@ -2042,6 +2047,7 @@ export function buildEducationContract(input: ContractInput = {}): EducationCont
     workCandidateReviewHistory,
     workCases,
     factSpine,
+    l4Preparation,
     calendar,
     tasks,
     taskSessions,

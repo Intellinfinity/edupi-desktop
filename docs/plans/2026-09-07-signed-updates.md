@@ -1,5 +1,13 @@
 # 自动下载安装
 
+## 2026-09-20 更新中断分层诊断
+
+- 安装版内置 server 的 `GET /api/updates?refresh=1` 返回 `currentVersion=0.3.25`、`latestVersion=0.3.28`、`releaseStatus=available`；该查询走 `api.github.com`，HTTP 200。
+- 当前 Tauri updater endpoint 仍是 `https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json`。从同一机器请求该 manifest，以及 `latest.json` 中的 macOS 资产 URL，均在 0 字节阶段超时；强制 HTTP/1.1 或 IPv4 也未改变结果。
+- 通过 GitHub API 的同一 Release asset（`Accept: application/octet-stream`）可以收到 302，并跟随到 `release-assets.githubusercontent.com`；`latest.json` 完整解析成功，macOS tar 通过该路径取得 1024 字节 gzip 分片。`api.github.com` 与 `release-assets.githubusercontent.com` 均可达。
+- 结论：故障是 `github.com` origin 下载路径的目的地主机/重定向链路，不是 Release 文件损坏、签名缺失或整个网络不可用。当前 UI 的“更新包下载中断”来自 `desktopUpgradeErrorKind` 对响应体/连接错误的统一映射，尚未记录具体 host 和阶段。
+- 本轮没有重复点击同一失败入口，也没有手动覆盖安装；下一步应把 updater manifest/资产下载从 `github.com` origin 解耦（API-backed stable manifest/proxy 或明确的网络 allowlist），再做一次完整验签、替换、重启验收。
+
 ## 2026-09-20 `v0.3.28` 提醒工作台发布
 
 - Release workflow [`35505373874`](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35505373874) 三平台质量门、固定 Core 配对、桌面壳测试、签名资产上传和 manifest 全部成功；正式 Latest [`v0.3.28`](https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v0.3.28) 固定到 `d3b96f96f9344a98dfba1cc145c84309c9dbf08d`。

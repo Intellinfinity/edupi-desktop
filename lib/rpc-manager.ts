@@ -524,10 +524,7 @@ export class AgentSessionWrapper {
         const message = typeof command.message === "string" ? command.message.trim() : "";
         if (!message) throw new Error("Mobile prompt cannot be empty");
         const activeTools = this.inner.getActiveToolNames();
-        const wasForcedEmpty = this.forceEmptySystemPrompt;
-        const previousSystemPrompt = this.inner.agent.state?.systemPrompt;
         this.inner.setActiveToolsByName([]);
-        this.setForceEmptySystemPrompt(true);
         this.promptRunning = true;
         notifyRunningChange();
         try {
@@ -537,8 +534,6 @@ export class AgentSessionWrapper {
           return null;
         } finally {
           this.inner.setActiveToolsByName(activeTools);
-          this.setForceEmptySystemPrompt(wasForcedEmpty);
-          if (!wasForcedEmpty && this.inner.agent.state) this.inner.agent.state.systemPrompt = previousSystemPrompt;
           this.promptRunning = false;
           this.resetIdleTimer();
           notifyRunningChange();

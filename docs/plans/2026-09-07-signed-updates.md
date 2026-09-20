@@ -5,7 +5,7 @@
 - 代码状态：更新 manifest、Tauri endpoint、release workflow、Safe Mode、手机 bridge 和 v0.3.29 版本元数据已落地，未执行 reset/clean 或重建分支。
 - 自动化证据：`npm test` 1332 项中 1307 passed、25 skipped、0 failed；`tsc --noEmit`、针对性 updater/Safe Mode/mobile 测试和 Cargo library tests 已通过。完整 lint、audit、打包和三平台 workflow 需在最终 diff 后复跑。
 - 未验收：公开 `updater-feed` 分支首次写入、v0.3.29 三平台 Release、旧客户端手动 bootstrap、安装版 Safe Mode、真实手机配对/续聊/撤销。源码测试或 API 可达性不替代安装版与手机端到端证据。
-- 本地交付提交：`45e1a55`（`feat: migrate updates and add safe mobile recovery`）。推送到既有 origin 分支时因本机 GitHub HTTPS 凭据失效而被拒绝，未尝试覆盖远端或重建分支。
+- 本地交付提交：`45e1a55`（主实现）、`93fc5e0`（执行记录）、`cff8dd6`（旧客户端 bootstrap 边界）、`4f599a3`（手机窄屏布局）。推送到既有 origin 分支时因本机 GitHub HTTPS 凭据失效而被拒绝，未尝试覆盖远端或重建分支。
 
 ## 2026-09-20 更新中断分层诊断
 

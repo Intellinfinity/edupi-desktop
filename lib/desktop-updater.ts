@@ -90,7 +90,11 @@ function hostFromUpdate(update: { rawJson?: Record<string, unknown> }): string {
     }
     return null;
   };
-  return visit(update.rawJson) ?? "api.github.com";
+  const raw = update.rawJson ?? {};
+  return visit(raw.platforms)
+    ?? hostFromText(typeof raw.url === "string" ? raw.url : "")
+    ?? hostFromText(typeof raw.download_url === "string" ? raw.download_url : "")
+    ?? "api.github.com";
 }
 
 function isInterruptedDownload(error: unknown): boolean {

@@ -110,6 +110,7 @@ export default function MobilePage() {
 
   return (
     <main style={{ minHeight: "100dvh", background: "var(--bg)", color: "var(--text)", padding: "env(safe-area-inset-top) 14px env(safe-area-inset-bottom)" }}>
+      <style>{`@media (max-width: 560px) { .edupi-mobile-workspace { display: flex !important; flex-direction: column !important; } .edupi-mobile-sidebar { max-height: 180px; border-right: 0 !important; border-bottom: 1px solid var(--border); padding: 0 0 8px !important; } }`}</style>
       <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 2px 14px", borderBottom: "1px solid var(--border)" }}>
           <div><strong style={{ fontSize: 18 }}>EduPi</strong><div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 3 }}>手机继续对话</div></div>
@@ -126,8 +127,8 @@ export default function MobilePage() {
             {error ? <div role="alert" style={{ marginTop: 12, color: "var(--danger, #b42318)", fontSize: 12 }}>{error}</div> : null}
           </section>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(150px, 0.42fr) minmax(0, 1fr)", flex: 1, minHeight: 0, gap: 12, paddingTop: 12 }}>
-            <aside style={{ minWidth: 0, overflowY: "auto", borderRight: "1px solid var(--border)", paddingRight: 8 }}>
+          <div className="edupi-mobile-workspace" style={{ display: "grid", gridTemplateColumns: "minmax(150px, 0.42fr) minmax(0, 1fr)", flex: 1, minHeight: 0, gap: 12, paddingTop: 12 }}>
+            <aside className="edupi-mobile-sidebar" style={{ minWidth: 0, overflowY: "auto", borderRight: "1px solid var(--border)", paddingRight: 8 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}><strong style={{ fontSize: 13 }}>对话</strong><button type="button" className="native-button" onClick={() => void loadSummary()}>提醒</button></div>
               {sessions.map((session) => <button key={session.id} type="button" onClick={() => void loadSession(session.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 8px", border: 0, borderRadius: 8, background: session.id === selectedId ? "var(--bg-selected)" : "transparent", color: "var(--text)", cursor: "pointer" }}><strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{session.name || session.firstMessage || "未命名对话"}</strong><span style={{ display: "block", marginTop: 3, color: "var(--text-muted)", fontSize: 10 }}>{session.messageCount} 条消息</span></button>)}
               {sessions.length === 0 ? <div style={{ color: "var(--text-muted)", fontSize: 12, padding: 8 }}>暂无已保存对话</div> : null}

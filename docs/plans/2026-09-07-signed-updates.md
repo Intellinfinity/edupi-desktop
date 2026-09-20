@@ -1,5 +1,13 @@
 # 自动下载安装
 
+## 2026-09-20 `v0.3.26` 发布与本机更新阻塞
+
+- Release workflow `35445254882` 的 macOS、Linux、Windows 与 manifest 全部成功；正式 `v0.3.26` 固定到 `4f85114942f4e65f9463ec5d3dd7ccf6e4c35b8b`，非草稿、非预发布，共 11 项资产和 7 个 updater 平台键。
+- 本机仍为 `v0.3.25`。设置页真实检测到 `v0.3.26`，两次点击应用内“更新”都在下载阶段返回“更新包下载中断”，没有进入验签、替换或重启；安装目录和进程保持原版。
+- 网络诊断显示 `api.github.com` HTTP 200，但 `github.com:443` 连接两次在 10 秒内超时，更新器连接同一地址停在 `SYN_SENT` 后消失。未用手动下载或覆盖安装替代应用内验收。
+- 升级前基线：Core/projection/kernel ready；51 名学生、240 个任务、43 个校历节点、9 个课表、28 个已登记产物；默认模型 `zai-coding-cn/glm-5.3-flash`，自定义配置 3 个 Provider/9 个模型；`.edupi` 147 个文件。模型和认证文件摘要已在本轮内存证据中核对，未写入密钥。
+- 当前状态为外部网络阻塞。待 `github.com` 恢复后从同一设置入口重试，成功后核对版本、进程、上述数据和模型摘要，再继续通知授权、显示与点击验收。
+
 ## 2026-09-16 `v0.3.15`–`v0.3.17` 发布与旧客户端检测
 
 - `v0.3.15` 首轮因 Cargo.lock 的无关 `errno` 版本被误改而失败且未生成 Release；Desktop [#133](https://github.com/PIGU-PPPgu/edupi-desktop/pull/133) 恢复依赖并在打包前强制校验 lockfile。workflow [35013486688](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35013486688) 随后以 macOS 15分57秒、Linux 16分05秒、Windows 21分36秒完成，发布 11 项资产。

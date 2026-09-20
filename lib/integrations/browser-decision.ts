@@ -1,3 +1,5 @@
+import { loadJevRuntimeEnvironment } from "./jev-settings";
+
 export type DecisionSurface = "browser" | "desktop";
 
 export type BrowserDecisionOperation =
@@ -675,7 +677,7 @@ export function createBrowserDecisionAdapterFromEnv(
     fetchImpl?: typeof fetch;
   } = {},
 ): BrowserDecisionAdapter | null {
-  const config = resolveJevConfig(options.env);
+  const config = resolveJevConfig(options.env ?? loadJevRuntimeEnvironment());
   if (!config.enabled || !options.fallback) return null;
   return new BrowserDecisionAdapter({
     provider: new JevDecisionProvider({

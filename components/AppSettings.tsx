@@ -48,6 +48,7 @@ import {
 } from "@/lib/computer-use-permissions";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { EduPiHelpPanel } from "./EduPiHelpPanel";
+import { JevSettingsCard } from "./JevSettingsCard";
 import { announceComputerUseChanged, COMPUTER_USE_CHANGED_EVENT } from "./EduPiComputerUseStop";
 
 const sectionCardStyle: CSSProperties = {
@@ -685,6 +686,8 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
           {desktop && (
             <EduPiDataSettingsCard />
           )}
+
+          <JevSettingsCard />
 
           {desktop && (
             <ComputerUseSettingsCard />

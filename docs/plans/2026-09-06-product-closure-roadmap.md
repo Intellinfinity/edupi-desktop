@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-20 提醒工作台重构
+
+- Desktop [#196](https://github.com/PIGU-PPPgu/edupi-desktop/pull/196) 将提醒页从窄列原生 disclosure 列表改为全宽主从工作台：左侧队列承载状态、标题和时间，右侧展示详情与“继续聊 / 查看事项 / 稍后提醒 / 从提醒中移除”；现有 Core 投影和 `/api/edupi/reminders` 读写语义保持不变。
+- 修复对话页两列网格在隐藏会话侧栏后仍保留 280px 列的问题；1440×900 使用 406px 队列 + 706px 详情，800×900 与 390×844 改为纵向队列 + 详情，均无横向溢出。隔离数据根中 5 条真实投影提醒完成选择、状态切换和刷新回读，“稍后提醒”从 `0` 变为 `1` 且待处理从 `5` 变为 `4`，刷新后保持；控制台 error/warning 为 0。证据见 [提醒工作台验收](../acceptance/2026-09-20-reminder-workbench.md)。
+- 本批状态为源码开发版验收通过；当前本机安装版仍是 v0.3.25，受 `github.com:443` 下载阻塞，不能把本次页面改动记为安装版通过，也不改变 R21 的系统通知点击与睡眠唤醒边界。
+
 ## 2026-09-20 v0.3.27 JEV 设置与连接适配器
 
 - Desktop PR [#192](https://github.com/PIGU-PPPgu/edupi-desktop/pull/192) 已合并，设置页提供独立 JEV URL/API Key/模型/阈值配置；API Key 只存服务端 0600 凭据文件，不进入聊天模型或浏览器 localStorage。PR [#194](https://github.com/PIGU-PPPgu/edupi-desktop/pull/194) 已发布正式 Latest `v0.3.27`，workflow `35484119032` 三平台和 manifest 全绿。

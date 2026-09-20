@@ -242,6 +242,7 @@ html.dark .edupi-teacher-shell {
 .edupi-teacher-body.has-object-sider.is-object-sider-collapsed.has-inspector { grid-template-columns: 18px minmax(0, 1fr) 300px; }
 .edupi-teacher-body.has-inspector:not(.has-object-sider) { grid-template-columns: minmax(0, 1fr) 300px; }
 .edupi-teacher-body.is-chat { grid-template-columns: 280px minmax(0, 1fr); }
+.edupi-teacher-body.is-chat.is-reminders { grid-template-columns: minmax(0, 1fr); }
 .edupi-chat-session-sidebar { min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--ep-border); background: var(--ep-surface-soft); }
 .edupi-chat-session-sidebar > * { height: 100%; }
 .edupi-teacher-body.has-body-controls .edupi-module-heading,
@@ -298,11 +299,134 @@ html.dark .edupi-teacher-shell {
 .edupi-chat-surface > * { height: 100%; min-height: 0; }
 .edupi-teacher-main { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ep-canvas); }
 .edupi-reminder-surface { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--ep-canvas); }
-.edupi-reminder-inbox.is-standalone { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; padding: 24px 28px; box-sizing: border-box; overflow: hidden; }
-.edupi-reminder-inbox__header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--ep-border); }
-.edupi-reminder-inbox__header h1 { margin: 0; font-size: 20px; }
-.edupi-reminder-inbox__header span { color: var(--ep-muted); font-size: 11px; }
-.edupi-reminder-inbox__body { min-height: 0; overflow-y: auto; padding-top: 16px; }
+.edupi-reminder-inbox {
+  color: var(--ep-text);
+}
+.edupi-reminder-inbox.is-standalone {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  padding: 28px clamp(22px, 3.2vw, 48px) 32px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.edupi-reminder-inbox.is-compact { padding: 8px 12px; }
+.edupi-reminder-inbox__header {
+  display: flex;
+  min-height: 54px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--ep-border);
+}
+.edupi-reminder-inbox__header h1 { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: -.025em; line-height: 1.2; }
+.edupi-reminder-inbox__header span { display: block; margin-top: 6px; color: var(--ep-muted); font-size: 12px; }
+.edupi-reminder-inbox__back {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ep-border);
+  border-radius: 7px;
+  background: var(--ep-surface);
+  color: var(--ep-text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.edupi-reminder-inbox__back:hover { border-color: var(--ep-border-strong); background: var(--ep-surface-soft); }
+.edupi-reminder-inbox__body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 18px;
+}
+.edupi-reminder-inbox.is-compact .edupi-reminder-inbox__body { max-height: 360px; overflow-y: auto; padding-top: 10px; }
+.edupi-reminder-inbox__toolbar { display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: 14px; }
+.edupi-reminder-inbox__tabs { display: flex; align-items: center; gap: 3px; }
+.edupi-reminder-inbox__tabs button {
+  display: inline-flex;
+  min-height: 31px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ep-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+.edupi-reminder-inbox__tabs button:hover { background: var(--ep-surface-soft); color: var(--ep-text); }
+.edupi-reminder-inbox__tabs button.is-active { border-color: var(--ep-border); background: var(--ep-surface); color: var(--ep-text); box-shadow: 0 1px 1px rgba(18, 24, 32, .04); }
+.edupi-reminder-inbox__tabs b { min-width: 18px; padding: 1px 4px; border-radius: 9px; background: var(--ep-surface-soft); color: var(--ep-dim); font-size: 10px; font-weight: 650; text-align: center; }
+.edupi-reminder-inbox__tabs button.is-active b { background: var(--ep-blue-soft); color: var(--ep-blue); }
+.edupi-reminder-inbox__toolbar-count { color: var(--ep-dim); font-size: 11px; }
+.edupi-reminder-inbox__message { margin: 0; padding: 8px 10px; border: 1px solid var(--ep-border); border-radius: 6px; font-size: 11px; }
+.edupi-reminder-inbox__message.is-error { border-color: color-mix(in srgb, var(--ep-red) 30%, var(--ep-border)); background: var(--ep-red-soft); color: var(--ep-red); }
+.edupi-reminder-inbox__workbench { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(300px, 36%) minmax(0, 1fr); gap: 16px; }
+.edupi-reminder-inbox__queue,
+.edupi-reminder-inbox__detail { min-width: 0; min-height: 0; border: 1px solid var(--ep-border); border-radius: 9px; background: var(--ep-surface); }
+.edupi-reminder-inbox__queue { display: flex; flex-direction: column; overflow: hidden; }
+.edupi-reminder-inbox__queue-heading { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--ep-border); }
+.edupi-reminder-inbox__queue-heading span { font-size: 12px; font-weight: 650; }
+.edupi-reminder-inbox__list { min-height: 0; flex: 1; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.edupi-reminder-inbox__list > li { margin: 0; padding: 0; }
+.edupi-reminder-inbox__row {
+  display: grid;
+  width: 100%;
+  min-height: 76px;
+  grid-template-columns: 8px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 0;
+  border-bottom: 1px solid var(--ep-border);
+  background: transparent;
+  color: var(--ep-text);
+  cursor: pointer;
+  text-align: left;
+}
+.edupi-reminder-inbox__row:hover { background: var(--ep-surface-soft); }
+.edupi-reminder-inbox__row.is-selected { background: color-mix(in srgb, var(--ep-blue) 7%, var(--ep-surface)); box-shadow: inset 3px 0 var(--ep-blue); }
+.edupi-reminder-inbox__row > i { width: 7px; height: 7px; border-radius: 50%; background: var(--ep-dim); }
+.edupi-reminder-inbox__row.is-unread > i { background: var(--ep-blue); }
+.edupi-reminder-inbox__row-copy { display: grid; min-width: 0; gap: 3px; }
+.edupi-reminder-inbox__row-copy small { overflow: hidden; color: var(--ep-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-reminder-inbox__row-copy strong { overflow: hidden; font-size: 12px; font-weight: 620; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-reminder-inbox__row-copy > span { overflow: hidden; color: var(--ep-dim); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-reminder-inbox__row > em { color: var(--ep-dim); font-size: 18px; font-style: normal; line-height: 1; text-align: center; }
+.edupi-reminder-inbox__row.is-selected > em { color: var(--ep-blue); }
+.edupi-reminder-inbox__empty { display: grid; min-height: 160px; place-items: center; padding: 18px; color: var(--ep-muted); font-size: 12px; }
+.edupi-reminder-inbox__pagination { display: flex; min-height: 44px; flex: 0 0 44px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; border-top: 1px solid var(--ep-border); color: var(--ep-dim); font-size: 10px; }
+.edupi-reminder-inbox__pagination button { min-height: 26px; padding: 0 7px; border: 1px solid var(--ep-border); border-radius: 5px; background: var(--ep-surface); color: var(--ep-muted); cursor: pointer; font-size: 10px; }
+.edupi-reminder-inbox__pagination button:hover:not(:disabled) { border-color: var(--ep-border-strong); color: var(--ep-text); }
+.edupi-reminder-inbox__pagination button:disabled { cursor: default; opacity: .35; }
+.edupi-reminder-inbox__detail { overflow-y: auto; padding: 28px 30px; }
+.edupi-reminder-inbox__detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.edupi-reminder-inbox__detail-header > div { min-width: 0; }
+.edupi-reminder-inbox__kind { display: inline-flex; min-height: 22px; align-items: center; padding: 0 7px; border-radius: 5px; background: var(--ep-blue-soft); color: var(--ep-blue); font-size: 10px; font-weight: 650; }
+.edupi-reminder-inbox__kind.is-failed { background: var(--ep-red-soft); color: var(--ep-red); }
+.edupi-reminder-inbox__kind.is-due { background: var(--ep-orange-soft); color: var(--ep-orange); }
+.edupi-reminder-inbox__kind.is-brief { background: var(--ep-green-soft); color: var(--ep-green); }
+.edupi-reminder-inbox__detail h2 { max-width: 720px; margin: 12px 0 0; overflow-wrap: anywhere; font-size: 22px; font-weight: 650; letter-spacing: -.025em; line-height: 1.3; }
+.edupi-reminder-inbox__detail time { flex: 0 0 auto; color: var(--ep-dim); font-size: 11px; white-space: nowrap; }
+.edupi-reminder-inbox__detail-message { max-width: 680px; margin: 22px 0 0; color: var(--ep-muted); font-size: 13px; line-height: 1.6; }
+.edupi-reminder-inbox__meta { display: flex; flex-wrap: wrap; gap: 24px; margin: 28px 0 0; padding: 18px 0; border-top: 1px solid var(--ep-border); border-bottom: 1px solid var(--ep-border); }
+.edupi-reminder-inbox__meta div { min-width: 120px; }
+.edupi-reminder-inbox__meta dt { color: var(--ep-dim); font-size: 10px; }
+.edupi-reminder-inbox__meta dd { margin: 4px 0 0; color: var(--ep-text); font-size: 12px; }
+.edupi-reminder-inbox__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.edupi-reminder-inbox__actions button { min-height: 32px; padding: 0 12px; border: 1px solid var(--ep-border-strong); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 11px; }
+.edupi-reminder-inbox__actions button:hover:not(:disabled) { border-color: var(--ep-text); background: var(--ep-surface-soft); }
+.edupi-reminder-inbox__actions button.is-primary { border-color: var(--ep-text); background: var(--ep-text); color: var(--ep-surface); }
+.edupi-reminder-inbox__actions button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ep-text) 86%, var(--ep-blue)); }
+.edupi-reminder-inbox__actions button.is-quiet { border-color: transparent; background: transparent; color: var(--ep-muted); }
+.edupi-reminder-inbox__actions button:disabled { cursor: default; opacity: .45; }
+.edupi-reminder-inbox__detail-empty { display: grid; min-height: 220px; place-items: center; align-content: center; color: var(--ep-muted); text-align: center; }
+.edupi-reminder-inbox__detail-empty strong { color: var(--ep-text); font-size: 14px; }
 
 /* Context/object browser */
 .edupi-content-sider { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--ep-border); background: var(--ep-surface-soft); }
@@ -1910,6 +2034,8 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-task-workspace { padding-inline: 28px; }
   .edupi-class-workspace.has-student-drawer { padding-right: 28px; }
   .edupi-student-drawer { width: min(430px, 94vw); }
+  .edupi-reminder-inbox__workbench { grid-template-columns: minmax(270px, 40%) minmax(0, 1fr); }
+  .edupi-reminder-inbox__detail { padding-inline: 24px; }
 }
 
 @media (max-width: 1000px) {
@@ -1989,11 +2115,16 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-teacher-body.has-detail-surface > .edupi-content-sider,
   .edupi-teacher-body.has-detail-surface > .edupi-object-sider-strip { display: none; }
   .edupi-teacher-body.is-chat { grid-template-columns: minmax(0, 1fr); grid-template-rows: 210px minmax(0, 1fr); }
+  .edupi-teacher-body.is-chat.is-reminders { grid-template-rows: minmax(0, 1fr); }
   .edupi-chat-session-sidebar { display: block; border-right: 0; border-bottom: 1px solid var(--ep-border); }
   .edupi-module-workspace,
   .edupi-task-workspace { padding: 24px 18px 40px; }
   .edupi-class-workspace.has-student-drawer { padding-right: 18px; }
   .edupi-student-drawer { position: absolute; z-index: 300; inset: 0; width: 100%; }
+  .edupi-reminder-inbox.is-standalone { padding: 22px 18px 24px; }
+  .edupi-reminder-inbox__workbench { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 42%) minmax(260px, 1fr); }
+  .edupi-reminder-inbox__queue { min-height: 220px; }
+  .edupi-reminder-inbox__detail { padding: 22px 20px; }
   .edupi-student-heading { align-items: flex-start; }
   .edupi-student-heading__actions { max-width: 190px; flex-wrap: wrap; justify-content: flex-end; }
   .edupi-teaching-heading__actions { max-width: 210px; flex-wrap: wrap; justify-content: flex-end; }
@@ -2050,6 +2181,17 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
   .edupi-priority-history__sides { grid-template-columns: minmax(0, 1fr); }
   .edupi-priority-row > summary { grid-template-columns: minmax(0, 1fr) auto; }
   .edupi-priority-row > summary > time { display: none; }
+}
+
+@media (max-width: 480px) {
+  .edupi-reminder-inbox.is-standalone { padding: 18px 12px 18px; }
+  .edupi-reminder-inbox__header h1 { font-size: 21px; }
+  .edupi-reminder-inbox__tabs button { padding-inline: 7px; }
+  .edupi-reminder-inbox__toolbar-count { display: none; }
+  .edupi-reminder-inbox__workbench { grid-template-rows: minmax(190px, 38%) minmax(250px, 1fr); }
+  .edupi-reminder-inbox__detail-header { display: block; }
+  .edupi-reminder-inbox__detail time { display: block; margin-top: 10px; }
+  .edupi-reminder-inbox__detail h2 { font-size: 19px; }
 }
 
 @media (max-width: 560px) {

@@ -48,6 +48,8 @@ Action 必须同时通过 capability 白名单与 runtime token 自身策略。�
 
 未显式启用或缺少必要密钥时，两项能力都不注册、不发网络请求、不改变现有会话工具和执行链。OpenConnector 仅在 EduPi 数据根会话注册。
 
+JEV 设置通过普通设置窗口中的“快速浏览器决策”卡片维护，不进入聊天模型 Provider 或模型选择器。非秘密配置原子写入 `~/.pi/agent/edupi-desktop/jev.json`；API Key 复用 Pi 的 `auth.json` 锁定凭据存储，Provider ID 为 `edupi-jev`。GET、PUT、DELETE 和测试接口只接受受信 Host 与同源请求，公开响应只包含 `keyConfigured`。环境变量优先于文件设置，存在环境覆盖时界面只读。
+
 ## 配置
 
 | 变量 | 用途 |

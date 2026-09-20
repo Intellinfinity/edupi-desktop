@@ -1,5 +1,12 @@
 # 自动下载安装
 
+## 2026-09-20 `v0.3.28` 提醒工作台发布
+
+- Release workflow [`35505373874`](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35505373874) 三平台质量门、固定 Core 配对、桌面壳测试、签名资产上传和 manifest 全部成功；正式 Latest [`v0.3.28`](https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v0.3.28) 固定到 `d3b96f96f9344a98dfba1cc145c84309c9dbf08d`。
+- Release 非草稿、非预发布，共 11 项资产；`latest.json` 版本为 `0.3.28`，包含 `darwin-aarch64`、macOS app、Linux AppImage/deb、Windows NSIS 等 7 个 updater 平台键。组件清单为 Desktop `0.3.28`、Pi `0.84.1`、pi-web `0.8.7`。
+- `v0.3.28` 包含全宽提醒队列/详情、提醒状态切换，以及隐藏对话侧栏后遗留空白列与窄窗裁切修复。开发版 1440×900、800×900、390×844 与亮/暗色均已操作验收。
+- 本机安装副本仍为 `v0.3.25`；`github.com:443` 当前 5 秒连接超时，无法开始 updater 下载，因此尚未验签、替换或重启。macOS Release 仍为 ad-hoc 签名，安装版页面、数据保持和授权状态继续保留未验收。
+
 ## 2026-09-20 `v0.3.27` JEV 设置发布
 
 - Release workflow `35484119032` 三平台构建、签名、上传和 manifest 全部成功；正式 Latest [`v0.3.27`](https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v0.3.27) 固定到 `56d9e94daadb496491912e3d6999fdc2289d71a8`，11 项资产、7 个 updater 平台键完整。

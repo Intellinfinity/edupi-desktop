@@ -2,7 +2,7 @@
 
 ## 范围
 
-- Desktop PR [#196](https://github.com/PIGU-PPPgu/edupi-desktop/pull/196)，实现提交 `40bdd5f`。
+- Desktop PR [#196](https://github.com/PIGU-PPPgu/edupi-desktop/pull/196)，实现提交 `40bdd5f`；发布 PR [#197](https://github.com/PIGU-PPPgu/edupi-desktop/pull/197)，主线发布提交 `d3b96f96f9344a98dfba1cc145c84309c9dbf08d`。
 - 只调整提醒页的信息架构、布局、状态选择和动作呈现；提醒生成、Core 所有权、持久化文件与 API 动作保持原合同。
 - 真实教师数据未写入。浏览器写操作使用 `/tmp/edupi-reminder-ui.qQTXAt` 的隔离副本，Core 固定为 `d05cf89df067a78602883c6bd95a37f8b0c122f7`。
 
@@ -33,6 +33,7 @@
 
 ## 边界
 
-- 未在已安装应用中验收。本机安装版仍是 v0.3.25，v0.3.27 下载受 `github.com:443` 网络阻塞；本次源码尚未进入新 Release。
+- 正式 Latest [`v0.3.28`](https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v0.3.28) 已发布。Workflow [`35505373874`](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/35505373874) 的 macOS、Linux、Windows 和 manifest 全部成功；Release 非草稿、非预发布，含 11 项资产，`latest.json` 为 `0.3.28` 且有 7 个 updater 平台键，组件清单为 Desktop `0.3.28`、Pi `0.84.1`、pi-web `0.8.7`。
+- 未在已安装应用中验收。本机安装版仍是 v0.3.25，`github.com:443` 连接在 5 秒内超时，尚不能下载、验签、替换或重启到 v0.3.28；macOS Release 仍为 ad-hoc 签名。
 - 未重复执行提醒续聊的真实消息发送、会话绑定、离开返回和重启恢复；这些链路由既有提醒验收覆盖，本次没有改动其实现。
 - 系统通知显示、通知点击回到同一事项、真实睡眠唤醒仍归 R21，不能由应用内提醒页面通过代替。

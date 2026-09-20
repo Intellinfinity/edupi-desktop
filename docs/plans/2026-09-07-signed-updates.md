@@ -1,5 +1,11 @@
 # 自动下载安装
 
+## 2026-09-20 `v0.3.27` JEV 设置发布
+
+- Release workflow `35484119032` 三平台构建、签名、上传和 manifest 全部成功；正式 Latest [`v0.3.27`](https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v0.3.27) 固定到 `56d9e94daadb496491912e3d6999fdc2289d71a8`，11 项资产、7 个 updater 平台键完整。
+- `v0.3.27` 包含 JEV 快速浏览器决策设置、服务端密钥存储和 OpenConnector 适配器；JEV 默认关闭且不参与聊天模型。
+- 本机安装副本仍为 `v0.3.25`。从设置页检测到 `v0.3.27` 后，三次应用内下载都在 `github.com:443` 下载阶段中断，尚未验签、替换或重启；待该网络入口恢复后继续同一更新入口验收。
+
 ## 2026-09-20 `v0.3.26` 发布与本机更新阻塞
 
 - Release workflow `35445254882` 的 macOS、Linux、Windows 与 manifest 全部成功；正式 `v0.3.26` 固定到 `4f85114942f4e65f9463ec5d3dd7ccf6e4c35b8b`，非草稿、非预发布，共 11 项资产和 7 个 updater 平台键。

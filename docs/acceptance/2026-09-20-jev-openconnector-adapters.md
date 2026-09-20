@@ -34,7 +34,7 @@ git diff --check
 
 实际结果：JEV、OpenConnector、Agent 工具和真实 AgentSession 注册共 42 项针对性测试通过；TypeScript、定向 ESLint 与 diff check 通过。覆盖默认关闭、安全服务 URL、动态 Action Space、精确下拉选项、完整概率校验、低置信度/超时/连续失败 fallback、高风险确认、runtime `operationType` 覆盖与缺失时 fail-closed、capability 裁剪、挂载前缀、输入深度、幂等键字节限制、成功/失败回执、错误脱敏、审计回读、工作区限制，以及开关启停时的实际工具注册。
 
-仓库级门禁：新增设置入口后，`npm test` 共 1321 tests、1296 passed、25 skipped、0 failed；`npm run lint`、`node_modules/.bin/tsc --noEmit`、`npm audit --audit-level=high` 和 `npm run release:verify` 均通过。release verify 回读 Desktop `0.3.26`、Pi `0.84.1`、pi-web `0.8.7`。
+仓库级门禁：新增设置入口后，`npm test` 共 1321 tests、1296 passed、25 skipped、0 failed；`npm run lint`、`node_modules/.bin/tsc --noEmit`、`npm audit --audit-level=high` 和 `npm run release:verify` 均通过。当前 release verify 回读 Desktop `0.3.27`、Pi `0.84.1`、pi-web `0.8.7`。
 
 ## 设置入口
 

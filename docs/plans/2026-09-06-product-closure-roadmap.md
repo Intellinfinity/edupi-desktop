@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-20 v0.3.27 JEV 设置与连接适配器
+
+- Desktop PR [#192](https://github.com/PIGU-PPPgu/edupi-desktop/pull/192) 已合并，设置页提供独立 JEV URL/API Key/模型/阈值配置；API Key 只存服务端 0600 凭据文件，不进入聊天模型或浏览器 localStorage。PR [#194](https://github.com/PIGU-PPPgu/edupi-desktop/pull/194) 已发布正式 Latest `v0.3.27`，workflow `35484119032` 三平台和 manifest 全绿。
+- 本机 v0.3.25 → v0.3.27 应用内更新仍受 `github.com:443` 外部网络阻塞；三次下载中断均未进入验签/替换，不能标记安装验收通过。JEV 真实付费服务、受管浏览器执行器、Core capability grant/Receipt 落账继续按 R23 保持部分实现。
+
 ## 2026-09-19 Core 执行反馈配对
 
 - Core PR #145 将 G1 执行结果回流 Ambient planning：`draft_ready` 投影为 `already_ready`，失败进入分类等待/升级，恢复结清旧失败，stale 重新打开为 `update`；重复回放不追加事件。Desktop 已把 Core pin 更新到 merge commit `d05cf89df067a78602883c6bd95a37f8b0c122f7` 并同步 Runtime/Desktop manifest 身份。

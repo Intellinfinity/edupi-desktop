@@ -1,8 +1,8 @@
-EduPi Desktop 0.3.26。
+EduPi Desktop 0.3.27。
 
-- 设置页显示系统通知授权、通知中心、横幅和声音状态
-- 测试通知等待系统接受或拒绝后再显示结果
-- 通知发送失败时给出可处理提示，不再显示笼统的已请求发送
+- 新增 JEV 快速浏览器决策配置与连接测试；JEV 不参与对话或模型选择
+- 新增 capability 白名单、教师确认与脱敏回执约束的 OpenConnector Adapter
+- JEV 与 OpenConnector 默认关闭；缺少配置时现有执行链保持不变
 
 - macOS Apple Silicon DMG
 - Windows x64 安装程序

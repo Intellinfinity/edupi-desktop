@@ -8,6 +8,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!isLoopbackRequest(request) || !isApiRequestAllowed(request) || !hasJsonContentType(request)) {
     return NextResponse.json({ error: "桌面授权请求被拒绝" }, { status: 403 });
   }
+  if (Number(request.headers.get("content-length") || 0) > 2_048) return NextResponse.json({ error: "请求过大" }, { status: 413 });
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as { action?: unknown };
   if (body.action === "approve") {

@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!authorizeMobileRequest(request, "mobile:chat")) return NextResponse.json({ error: "手机尚未完成配对" }, { status: 401 });
   const { id } = await params;
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > 16_384) return NextResponse.json({ error: "请求过大" }, { status: 413 });
   const body = await request.json().catch(() => ({})) as { message?: unknown };
   if (typeof body.message !== "string" || !body.message.trim() || body.message.length > 4_000) {
     return NextResponse.json({ error: "消息不能为空且不能超过 4000 字" }, { status: 400 });

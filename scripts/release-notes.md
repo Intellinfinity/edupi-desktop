@@ -1,8 +1,8 @@
-EduPi Desktop 0.3.27。
+EduPi Desktop 0.3.28。
 
-- 新增 JEV 快速浏览器决策配置与连接测试；JEV 不参与对话或模型选择
-- 新增 capability 白名单、教师确认与脱敏回执约束的 OpenConnector Adapter
-- JEV 与 OpenConnector 默认关闭；缺少配置时现有执行链保持不变
+- 提醒页改为全宽队列与详情工作台，长标题不再挤在窄列中
+- 待处理、稍后提醒和已移除状态直接切换，续聊与事项动作集中在详情区
+- 修复隐藏对话侧栏后仍保留空白列，以及窄窗口裁切提醒内容的问题
 
 - macOS Apple Silicon DMG
 - Windows x64 安装程序

@@ -24,6 +24,7 @@ import { runComputerUseFromAgent, setComputerUseEnabledNative } from "@/lib/desk
 import { ChatWindow } from "./ChatWindow";
 import { clearDraft, getDraft, setDraft } from "@/lib/draft-store";
 import { TabBar, type Tab } from "./TabBar";
+import { SafeModeBanner } from "./SafeModeBanner";
 
 // Heavy, rarely-used surfaces are code-split out of the main bundle. The
 // config modals may never be opened at all; FileViewer drags in markdown +
@@ -1444,6 +1445,7 @@ export function AppShell() {
           </button>
         </div>
       )}
+      <SafeModeBanner />
       <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
       {/* Mobile overlay backdrop */}
       <div

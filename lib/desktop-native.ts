@@ -136,6 +136,28 @@ export function getEduPiRootStatusNative(): Promise<EduPiRootStatus> {
   return invokeEduPiRootCommand<EduPiRootStatus>("get_edupi_root_status");
 }
 
+export type DesktopRuntimeStatus = {
+  safeMode: boolean;
+  diagnosticsPath: string;
+  mobileBridgeEnabled: boolean;
+  mobileUrl: string | null;
+  restartRequired: boolean;
+};
+
+export function getDesktopRuntimeStatusNative(): Promise<DesktopRuntimeStatus> {
+  return invokeEduPiRootCommand<DesktopRuntimeStatus>("get_desktop_runtime_status");
+}
+
+export function setMobileBridgeEnabledNative(enabled: boolean): Promise<DesktopRuntimeStatus> {
+  return invokeEduPiRootCommand<DesktopRuntimeStatus>("set_mobile_bridge_enabled", { enabled });
+}
+
+export async function restartNormalModeNative(): Promise<void> {
+  if (!isTauriDesktop()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("restart_normal_mode");
+}
+
 export function setEduPiDataRootNative(path: string): Promise<EduPiRootStatus> {
   return invokeEduPiRootCommand<EduPiRootStatus>("set_edupi_data_root", { path });
 }

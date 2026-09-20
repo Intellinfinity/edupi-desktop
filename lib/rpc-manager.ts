@@ -17,6 +17,8 @@ import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "./pi-ty
 import type { ExtensionUiRequest, ExtensionUiResponse, ExtensionWidgetItem } from "./types";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "./custom-ui-terminal";
 import { EDUPI_CODE_ROOT, EDUPI_ROOT, extensionPaths, prepareEducationResources } from "./edupi-runtime";
+import { isSafeModeEnabled, safeModeResourceOptions } from "./safe-mode";
+import { recordStartupDiagnostic } from "./desktop-diagnostics";
 import { createEduPiAppControlTool } from "./edupi-desktop-tool";
 import { createEduPiTaskTool } from "./edupi-task-tool";
 import { createEduPiUpdateTaskTool } from "./edupi-update-task-tool";
@@ -515,6 +517,33 @@ export class AgentSessionWrapper {
     }
 
     switch (type) {
+      case "mobile_prompt": {
+        if (this.inner.isBashRunning || this.inner.isStreaming || this.promptRunning) {
+          throw new Error("Cannot send a mobile prompt while the session is running");
+        }
+        const message = typeof command.message === "string" ? command.message.trim() : "";
+        if (!message) throw new Error("Mobile prompt cannot be empty");
+        const activeTools = this.inner.getActiveToolNames();
+        const wasForcedEmpty = this.forceEmptySystemPrompt;
+        const previousSystemPrompt = this.inner.agent.state?.systemPrompt;
+        this.inner.setActiveToolsByName([]);
+        this.setForceEmptySystemPrompt(true);
+        this.promptRunning = true;
+        notifyRunningChange();
+        try {
+          await this.inner.prompt(message, { source: "rpc" });
+          await this.artifactWrites;
+          invalidateSessionListCache();
+          return null;
+        } finally {
+          this.inner.setActiveToolsByName(activeTools);
+          this.setForceEmptySystemPrompt(wasForcedEmpty);
+          if (!wasForcedEmpty && this.inner.agent.state) this.inner.agent.state.systemPrompt = previousSystemPrompt;
+          this.promptRunning = false;
+          this.resetIdleTimer();
+          notifyRunningChange();
+        }
+      }
       case "prompt": {
         if (this.inner.isBashRunning) {
           throw new Error("Cannot send a prompt while a shell command is running");
@@ -1424,12 +1453,18 @@ export async function startRpcSession(
     } catch {
       console.warn("EduPi teacher context is unavailable for this session");
     }
+    const educationSkillPath = sessionIsEduPiDataRoot ? prepareEducationResources() : undefined;
     const services = await createAgentSessionServices({
       cwd: sessionCwd,
       agentDir,
       resourceLoaderOptions: {
         additionalExtensionPaths: extensionPaths,
-        additionalSkillPaths: sessionIsEduPiDataRoot ? [prepareEducationResources()] : [],
+        additionalSkillPaths: educationSkillPath ? [educationSkillPath] : [],
+        ...safeModeResourceOptions(isSafeModeEnabled(), {
+          coreExtensionRoot: EDUPI_CODE_ROOT,
+          coreSkillRoot: EDUPI_CODE_ROOT,
+          dataSkillRoot: educationSkillPath,
+        }),
         ...(teacherContextAppendSystemPromptOverride
           ? { appendSystemPromptOverride: teacherContextAppendSystemPromptOverride }
           : {}),
@@ -1537,7 +1572,14 @@ export async function startRpcSession(
     wrapper.beginExtensionBinding({ forceEmptySystemPrompt: toolNames?.length === 0 });
 
     return { session: wrapper, realSessionId };
-  })().finally(() => {
+  })().catch((error) => {
+    recordStartupDiagnostic({
+      stage: "session_start",
+      component: "pi-agent-session",
+      error,
+    });
+    throw error;
+  }).finally(() => {
     locks.delete(sessionId);
     finishStartingSession();
   });

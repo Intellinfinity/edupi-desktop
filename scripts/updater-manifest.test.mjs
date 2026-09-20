@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createUpdaterManifest,
+  releaseAssetUrl,
   requiredReleaseAssetNames,
   validateReleaseAssets,
 } from "./updater-manifest.mjs";
 
 const version = "0.3.16";
-const releaseAssets = requiredReleaseAssetNames(version).map((name) => ({ name, size: 128 }));
+const releaseAssets = requiredReleaseAssetNames(version).map((name, index) => ({ name, id: index + 100, size: 128 }));
 const signatures = Object.fromEntries(
   releaseAssets.filter((asset) => asset.name.endsWith(".sig")).map((asset, index) => [asset.name, String.fromCharCode(65 + index).repeat(404)]),
 );
@@ -37,7 +38,7 @@ test("builds one signed updater manifest from all platform assets", () => {
   assert.deepEqual(manifest.platforms["linux-x86_64"], manifest.platforms["linux-x86_64-appimage"]);
   assert.deepEqual(manifest.platforms["windows-x86_64"], manifest.platforms["windows-x86_64-nsis"]);
   for (const [platform, entry] of Object.entries(manifest.platforms)) {
-    assert.match(entry.url, /^https:\/\/github\.com\/PIGU-PPPgu\/edupi-desktop\/releases\/download\/v0\.3\.16\/EduPi_/);
+    assert.match(entry.url, /^https:\/\/api\.github\.com\/repos\/PIGU-PPPgu\/edupi-desktop\/releases\/assets\/\d+$/);
     assert.ok(entry.signature.length >= 404, `${platform} has a signature`);
   }
 });
@@ -50,6 +51,21 @@ test("refuses to publish when an installer is missing or duplicated", () => {
   assert.throws(
     () => validateReleaseAssets(version, [...releaseAssets, releaseAssets[0]]),
     /Release asset is duplicated/,
+  );
+  assert.throws(
+    () => validateReleaseAssets(version, [...releaseAssets, { name: "other", id: releaseAssets[0].id, size: 128 }]),
+    /Release asset id is duplicated/,
+  );
+  assert.throws(
+    () => validateReleaseAssets(version, releaseAssets.map((asset) => ({ name: asset.name, size: asset.size }))),
+    /Release asset id is invalid/,
+  );
+  assert.throws(
+    () => validateReleaseAssets(version, releaseAssets.map((asset, index) => index === 0 ? {
+      ...asset,
+      url: "https://github.com/PIGU-PPPgu/edupi-desktop/releases/download/v0.3.16/legacy.tar.gz",
+    } : asset)),
+    /Legacy GitHub release download URL/,
   );
 });
 
@@ -67,4 +83,12 @@ test("refuses a missing updater signature", () => {
     }),
     /Updater signature is invalid: EduPi_aarch64\.app\.tar\.gz\.sig/,
   );
+});
+
+test("release asset URLs never fall back to the github.com download path", () => {
+  assert.equal(
+    releaseAssetUrl("PIGU-PPPgu/edupi-desktop", 12345),
+    "https://api.github.com/repos/PIGU-PPPgu/edupi-desktop/releases/assets/12345",
+  );
+  assert.throws(() => releaseAssetUrl("bad repository", 12345), /Release repository is invalid/);
 });

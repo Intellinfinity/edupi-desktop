@@ -271,7 +271,7 @@ test("release destination sentinel rejects updater drift", async () => {
 
   assert.throws(
     () => verifyReleaseDestinations(files),
-    /Tauri updater must use only the EduPi release endpoint/,
+    /Tauri updater must list the raw EduPi feed before the migration fallback endpoint/,
   );
 });
 

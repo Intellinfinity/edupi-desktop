@@ -66,6 +66,7 @@ test("signed releases and updater metadata belong to the EduPi Desktop repositor
   assert.match(release, /repos\/\$RELEASE_REPOSITORY\/releases/);
   assert.doesNotMatch(release, /abcwyc\/pi-agent-desktop/);
   assert.deepEqual(tauriConfig.plugins.updater.endpoints, [
+    "https://raw.githubusercontent.com/PIGU-PPPgu/edupi-desktop/updater-feed/latest.json",
     "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json",
   ]);
   assert.equal(tauriConfig.identifier, "com.abcwyc.pi-agent");
@@ -188,11 +189,17 @@ test("the manifest job only publishes when every platform succeeded", async () =
   assert.match(manifestJob, /needs: \[release, build\]/);
   assert.doesNotMatch(manifestJob, /if: (always|success\(\) \|\|)/);
   assert.match(manifestJob, /scripts\/updater-manifest\.mjs/);
+  assert.match(manifestJob, /Accept: application\/octet-stream/);
+  assert.match(manifestJob, /FEED_BRANCH: updater-feed/);
   assert.doesNotMatch(manifestJob, /npm (?:ci|run release:manifest)/);
   assert.match(manifestJob, /Committed component manifest does not match the release version/);
   assert.match(manifestJob, /-F draft=false/);
   assert.match(manifestJob, /-f make_latest=true/);
   assert.doesNotMatch(manifestJob, /target_commitish="\$GITHUB_SHA"/);
+  assert.match(manifestJob, /FEED_BRANCH: updater-feed/);
+  assert.match(manifestJob, /raw\.githubusercontent\.com\/\$RELEASE_REPOSITORY\/\$FEED_BRANCH\/latest\.json/);
+  assert.match(manifestJob, /cmp --silent latest\.json feed-latest\.json/);
+  assert.ok(manifestJob.indexOf("cmp --silent latest.json feed-latest.json") < manifestJob.indexOf("-F draft=false"));
 });
 
 test("parallel builders share one commit-bound draft release", async () => {

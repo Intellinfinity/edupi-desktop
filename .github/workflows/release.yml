@@ -268,6 +268,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
+          FEED_BRANCH: updater-feed
           RELEASE_ID: ${{ needs.release.outputs.release_id }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.release.outputs.version }}
@@ -335,6 +336,37 @@ jobs:
           const names = assets.map((asset) => asset.name).sort();
           if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`Release assets differ: ${names.join(", ")}`);
           NODE
+
+          # The updater feed is kept on a small public branch so clients can
+          # read it through raw.githubusercontent.com without depending on
+          # github.com's release-download redirect. The Contents API commits
+          # the complete manifest in one operation; a failed write leaves the
+          # release draft untouched.
+          feed_ref_sha="$(gh api "repos/$RELEASE_REPOSITORY/git/ref/heads/$FEED_BRANCH" --jq .object.sha 2>/dev/null || true)"
+          if [ -z "$feed_ref_sha" ]; then
+            gh api --method POST "repos/$RELEASE_REPOSITORY/git/refs" \
+              -f ref="refs/heads/$FEED_BRANCH" -f sha="$GITHUB_SHA" > /dev/null
+          fi
+          feed_file_sha="$(gh api "repos/$RELEASE_REPOSITORY/contents/latest.json?ref=$FEED_BRANCH" --jq .sha 2>/dev/null || true)"
+          feed_content="$(base64 --wrap=0 latest.json)"
+          feed_args=(--method PUT "repos/$RELEASE_REPOSITORY/contents/latest.json" \
+            -f message="Update updater feed for $RELEASE_TAG" \
+            -f branch="$FEED_BRANCH" -f content="$feed_content")
+          if [ -n "$feed_file_sha" ]; then
+            feed_args+=(-f sha="$feed_file_sha")
+          fi
+          gh api "${feed_args[@]}" > feed-update.json
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const result = JSON.parse(fs.readFileSync("feed-update.json", "utf8"));
+          if (result.content?.path !== "latest.json" || result.commit?.sha === undefined) {
+            throw new Error("updater-feed did not return a committed latest.json");
+          }
+          NODE
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/$RELEASE_REPOSITORY/$FEED_BRANCH/latest.json" \
+            -o feed-latest.json
+          cmp --silent latest.json feed-latest.json
 
           # The release job already binds this draft to this commit; do not
           # rewrite target_commitish while publishing the validated assets.

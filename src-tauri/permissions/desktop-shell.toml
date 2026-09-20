@@ -64,6 +64,21 @@ description = "Allows the trusted desktop WebView to authorize native-dialog fil
 commands.allow = ["get_desktop_api_token"]
 
 [[permission]]
+identifier = "allow-get-desktop-runtime-status"
+description = "Allows the trusted EduPi WebView to read Safe Mode and local mobile bridge status."
+commands.allow = ["get_desktop_runtime_status"]
+
+[[permission]]
+identifier = "allow-set-mobile-bridge-enabled"
+description = "Allows the trusted EduPi WebView to opt the local-only mobile bridge in or out for the next restart."
+commands.allow = ["set_mobile_bridge_enabled"]
+
+[[permission]]
+identifier = "allow-restart-normal-mode"
+description = "Allows the trusted EduPi WebView to restart without the Safe Mode flag."
+commands.allow = ["restart_normal_mode"]
+
+[[permission]]
 identifier = "allow-computer-use-status"
 description = "Allows the trusted EduPi WebView to read desktop-control enablement and OS permission status."
 commands.allow = ["computer_use_status"]

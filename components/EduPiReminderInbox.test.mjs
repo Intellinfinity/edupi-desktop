@@ -32,3 +32,19 @@ test("notification dismissal is not presented as completing the Core task", () =
   assert.match(source, /"dismiss"/);
   assert.doesNotMatch(source, />已处理<\/button>/);
 });
+
+test("standalone reminders use a full-width master-detail workbench", () => {
+  const source = fs.readFileSync(new URL("./EduPiReminderInbox.tsx", import.meta.url), "utf8");
+  const panel = fs.readFileSync(new URL("./EduPiEducationPanel.tsx", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../app/edupi-workbench.css", import.meta.url), "utf8");
+
+  assert.match(panel, /showingReminders \? " is-reminders"/);
+  assert.match(css, /\.edupi-teacher-body\.is-chat\.is-reminders\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+  assert.match(source, /className="edupi-reminder-inbox__workbench"/);
+  assert.match(source, /aria-label="提醒状态"/);
+  assert.match(source, /aria-pressed=\{filter === option\.value\}/);
+  assert.match(source, /aria-label="提醒详情"/);
+  assert.match(source, />继续聊<\/button>/);
+  assert.match(css, /\.edupi-reminder-inbox__workbench\s*\{[^}]*grid-template-columns:\s*minmax\(300px, 36%\) minmax\(0, 1fr\)/s);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.edupi-reminder-inbox__workbench\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+});

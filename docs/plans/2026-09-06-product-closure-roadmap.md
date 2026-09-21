@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-21 对话输入、手机入口与 Core Runtime 修复补记
+
+- Desktop 提交 `2e36729` 已完成三条反馈的代码收口：流式三点菜单与方形停止键、加号附件菜单、左下主导航手机图标及手机桥接设置定位。
+- Core Runtime 修复已加入缺库 fail-closed、死 admission lease 恢复和桌面 token 边界；安装版 server/Core/projection/kernel 已回读 ready，隔离 memory-write 通过。安装版视觉点击复核受当前 macOS 锁屏阻塞，保留为未验收，不覆盖 R24–R26 的既有发布记录。公开 `v0.3.29` 尚未包含本提交，后续需以新版本发布。
+
 ## 2026-09-20 更新链路、Safe Mode 与手机桥接（v0.3.29）
 
 - R24 更新链路迁移：验收通过（macOS bootstrap + 三平台发布）。v0.3.29 已发布，Raw `updater-feed` 有 7 个平台键，资产 URL 全部为 GitHub API endpoint；旧 v0.3.28 完成一次手动 bootstrap，版本、教师数据和模型配置保持。下一跳 Tauri 自动验签安装需等 v0.3.30 验收。

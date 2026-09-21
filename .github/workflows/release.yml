@@ -337,34 +337,41 @@ jobs:
           if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`Release assets differ: ${names.join(", ")}`);
           NODE
 
-          # The updater feed is kept on a small public branch so clients can
-          # read it through raw.githubusercontent.com without depending on
-          # github.com's release-download redirect. The Contents API commits
-          # the complete manifest in one operation; a failed write leaves the
-          # release draft untouched.
-          feed_ref_sha="$(gh api "repos/$RELEASE_REPOSITORY/git/ref/heads/$FEED_BRANCH" --jq .object.sha 2>/dev/null || true)"
-          if [ -z "$feed_ref_sha" ]; then
-            gh api --method POST "repos/$RELEASE_REPOSITORY/git/refs" \
-              -f ref="refs/heads/$FEED_BRANCH" -f sha="$GITHUB_SHA" > /dev/null
-          fi
-          feed_file_sha="$(gh api "repos/$RELEASE_REPOSITORY/contents/latest.json?ref=$FEED_BRANCH" --jq .sha 2>/dev/null || true)"
+          # Build a one-file Git tree instead of branching from main. Each
+          # update is a fast-forward commit whose current tree contains only
+          # latest.json; a failed write leaves the release draft untouched.
+          feed_parent="$(gh api "repos/$RELEASE_REPOSITORY/git/ref/heads/$FEED_BRANCH" --jq .object.sha 2>/dev/null || true)"
           feed_content="$(base64 --wrap=0 latest.json)"
-          feed_args=(--method PUT "repos/$RELEASE_REPOSITORY/contents/latest.json" \
-            -f message="Update updater feed for $RELEASE_TAG" \
-            -f branch="$FEED_BRANCH" -f content="$feed_content")
-          if [ -n "$feed_file_sha" ]; then
-            feed_args+=(-f sha="$feed_file_sha")
+          feed_blob="$(jq -n --arg content "$feed_content" \
+            '{ content: $content, encoding: "base64" }' \
+            | gh api --method POST "repos/$RELEASE_REPOSITORY/git/blobs" --input - --jq .sha)"
+          jq -n --arg sha "$feed_blob" \
+            '{ tree: [{ path: "latest.json", mode: "100644", type: "blob", sha: $sha }] }' \
+            > feed-tree-request.json
+          feed_tree="$(gh api --method POST "repos/$RELEASE_REPOSITORY/git/trees" \
+            --input feed-tree-request.json --jq .sha)"
+          if [ -n "$feed_parent" ]; then
+            jq -n --arg message "Update updater feed for $RELEASE_TAG" \
+              --arg tree "$feed_tree" --arg parent "$feed_parent" \
+              '{ message: $message, tree: $tree, parents: [$parent] }' > feed-commit-request.json
+          else
+            jq -n --arg message "Create updater feed for $RELEASE_TAG" \
+              --arg tree "$feed_tree" \
+              '{ message: $message, tree: $tree, parents: [] }' > feed-commit-request.json
           fi
-          gh api "${feed_args[@]}" > feed-update.json
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          const result = JSON.parse(fs.readFileSync("feed-update.json", "utf8"));
-          if (result.content?.path !== "latest.json" || result.commit?.sha === undefined) {
-            throw new Error("updater-feed did not return a committed latest.json");
-          }
-          NODE
+          feed_commit="$(gh api --method POST "repos/$RELEASE_REPOSITORY/git/commits" \
+            --input feed-commit-request.json --jq .sha)"
+          if [ -n "$feed_parent" ]; then
+            gh api --method PATCH "repos/$RELEASE_REPOSITORY/git/refs/heads/$FEED_BRANCH" \
+              -f sha="$feed_commit" -F force=false > /dev/null
+          else
+            gh api --method POST "repos/$RELEASE_REPOSITORY/git/refs" \
+              -f ref="refs/heads/$FEED_BRANCH" -f sha="$feed_commit" > /dev/null
+          fi
+          test "$(gh api "repos/$RELEASE_REPOSITORY/git/trees/$feed_tree?recursive=1" \
+            --jq '[.tree[] | .path] | join("\n")')" = "latest.json"
           curl --fail --silent --show-error --location \
-            "https://raw.githubusercontent.com/$RELEASE_REPOSITORY/$FEED_BRANCH/latest.json" \
+            "https://raw.githubusercontent.com/$RELEASE_REPOSITORY/$FEED_BRANCH/latest.json?commit=$feed_commit" \
             -o feed-latest.json
           cmp --silent latest.json feed-latest.json
 

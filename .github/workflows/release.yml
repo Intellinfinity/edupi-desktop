@@ -234,6 +234,33 @@ jobs:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run desktop:prepare
 
+      - name: Prepare macOS resource signing keychain
+        if: runner.os == 'macOS'
+        env:
+          CODE_SIGN_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          CODE_SIGN_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/edupi-resource-signing.keychain-db"
+          p12="$RUNNER_TEMP/edupi-resource-signing.p12"
+          keychain_password="$(openssl rand -hex 24)"
+          printf 'EDUPI_RESOURCE_KEYCHAIN_PATH=%s\n' "$keychain" >> "$GITHUB_ENV"
+          printf '%s' "$CODE_SIGN_CERTIFICATE" | base64 --decode > "$p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -k "$keychain" -P "$CODE_SIGN_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          security list-keychain -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+
+      - name: Sign bundled macOS native resources
+        if: runner.os == 'macOS'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          EDUPI_RESOURCE_KEYCHAIN_PATH: ${{ env.EDUPI_RESOURCE_KEYCHAIN_PATH }}
+        run: node scripts/sign-macos-resources.mjs
+
       - name: Test desktop shell
         if: runner.os == 'Windows' || runner.os == 'Linux'
         run: cargo test --release --manifest-path src-tauri/Cargo.toml --lib --target ${{ matrix.target }}
@@ -256,6 +283,16 @@ jobs:
           includeUpdaterJson: false
           tauriScript: npx tauri
           args: --verbose --target ${{ matrix.target }} --bundles ${{ runner.os == 'macOS' && 'app,dmg' || runner.os == 'Windows' && 'nsis' || 'deb,appimage' }}
+
+      - name: Clean up macOS resource signing keychain
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          set +e
+          if [ -n "${EDUPI_RESOURCE_KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$EDUPI_RESOURCE_KEYCHAIN_PATH"
+          fi
+          rm -f "$RUNNER_TEMP/edupi-resource-signing.p12"
 
   manifest:
     needs: [release, build]

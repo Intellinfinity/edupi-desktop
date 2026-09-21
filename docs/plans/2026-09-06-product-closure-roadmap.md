@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-22 Developer ID 签名与公证链路
+
+- Apple Developer ID Application 证书已创建、导入本机钥匙串并导出受限 `.p12`；p12 同时携带 Developer ID G2 中间证书，`security find-identity` 回读有效身份。
+- GitHub Actions 六个 Apple Secret 已配置；发布 workflow 的 macOS 资源签名修复已推送到远端 `d9a51dac`，对 packaged server/Core 的 Mach-O、dylib、node addon 和 helper app 加入 timestamped hardened-runtime 签名。
+- `npm test` 针对性签名/发布测试、TypeScript、lint 和 audit 已通过；Linux/Windows 远端构建通过。Apple notarization 提交 `5c9fa88f-91b1-4061-aca3-04efca7eec03` 仍处于外部 `In Progress` 后从查询中消失，run `35632713805` 因 runner 等待失效 submission 已取消；`v0.3.30` 未发布，待 Apple 后端恢复后从同一远端 commit 重试。
+
 ## 2026-09-21 对话输入、手机入口与 Core Runtime 修复补记
 
 - Desktop 提交 `2e36729` 已完成三条反馈的代码收口：流式三点菜单与方形停止键、加号附件菜单、左下主导航手机图标及手机桥接设置定位。

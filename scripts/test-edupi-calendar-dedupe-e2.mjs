@@ -32,12 +32,12 @@ try {
   const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
   const snapshot = await jiti.import("../lib/edupi-core-snapshot.ts");
   const intake = await jiti.import("../lib/edupi-education-intake.ts");
-  const route = await jiti.import("../app/api/edupi/intake/route.ts");
+  const schedule = await jiti.import("../lib/edupi-schedule-upload.ts");
   const events = [
-    { event_id: route.stableCalendarEventId({ date: "2026-10-01", endDate: null, name: " 秋季运动会 ", type: "activity" }), date: "2026-10-01", end_date: null, name: "秋季 运动会", type: "activity", confidence: "teacher_confirmed", notes: null },
-    { event_id: route.stableCalendarEventId({ date: "日期待确认", endDate: null, name: "家长会", type: "meeting" }), date: "日期待确认", end_date: null, name: "家长会", type: "meeting", confidence: "inferred", notes: "原通知日期未确认" },
+    { event_id: schedule.stableCalendarEventId({ date: "2026-10-01", endDate: null, name: " 秋季运动会 ", type: "activity" }), date: "2026-10-01", end_date: null, name: "秋季 运动会", type: "activity", confidence: "teacher_confirmed", notes: null },
+    { event_id: schedule.stableCalendarEventId({ date: "日期待确认", endDate: null, name: "家长会", type: "meeting" }), date: "日期待确认", end_date: null, name: "家长会", type: "meeting", confidence: "inferred", notes: "原通知日期未确认" },
   ];
-  const source = { source_id: "desktop-calendar-upload-dedupe", source_kind: "teacher_file", source_hash: route.stableScheduleSourceHash("calendar", events), evidence_ids: ["calendar-upload-dedupe-evidence"] };
+  const source = { source_id: "desktop-calendar-upload-dedupe", source_kind: "teacher_file", source_hash: schedule.stableScheduleSourceHash(events), evidence_ids: ["calendar-upload-dedupe-evidence"] };
   const first = await snapshot.readEduPiEducationSnapshot({ requestId: "calendar-dedupe-before" });
   const firstResult = await intake.issueEducationIntake({ command_type: "import_calendar", source, events });
   assert.ok(["accepted", "modified", "held"].includes(firstResult.receipt.status));

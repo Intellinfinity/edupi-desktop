@@ -19,6 +19,7 @@
 | Student follow-up | `EDUPI_CORE_ROOT=/tmp/edupi-core-g4-pin-test npm run test:edupi-follow-up-e2` | passed; receipt-bound accept and refreshed revision |
 | Uploaded schedule dedupe | `EDUPI_CORE_ROOT=/tmp/edupi-core-g4-pin-test npm run test:edupi-calendar-dedupe-e2` | passed; reordered upload remains two canonical items and unresolved date stays held |
 | Packaged preparation dependency isolation | `node --test scripts/preparation-runtime.test.mjs` | passed; Office extraction dependencies load outside development `node_modules` |
+| Current G4 desktop staging | `EDUPI_CORE_ROOT=/tmp/edupi-core-g4-pin-test npm run desktop:prepare` + `npm run test:staged-desktop-runtime` | passed; staged server reports Core `368bcd8`, Core/projection ready, `externalSend=false`, proactivity explicitly disabled by default |
 | Remote PR gates | GitHub `audit`, `rust-audit` | both passed; PR merge state `CLEAN` |
 
 ## Safety Boundary
@@ -27,7 +28,7 @@
 
 ## Unverified
 
-- Installed package with this G4 pin has not been cold-started on macOS/Windows from a newly built artifact.
+- A signed/installed package with this G4 pin has not been cold-started on macOS/Windows; the current evidence is the local staged server, not an installer.
 - Real system notification display/click, sleep-wake recovery, upgrade continuity, and tray behavior remain outside this isolated checkout evidence.
 - Real teacher decisions, usefulness, and six-domain value remain `not_run`; no synthetic result is promoted to L4.
 - `npm run drift` was not run to completion because this checkout has neither the upstream remote nor the configured `v0.8.2` tag.

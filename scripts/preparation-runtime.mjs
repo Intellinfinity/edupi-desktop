@@ -18,14 +18,35 @@ async function copyDirectory(source, destination) {
   }
 }
 
-async function copyPackageClosure(root, destination, packageName, seen) {
+export async function copyPackageClosure(root, destination, packageName, seen = new Set()) {
   const require = createRequire(join(root, "package.json"));
   let manifestPath;
   try {
     manifestPath = require.resolve(`${packageName}/package.json`);
   } catch {
-    return;
+    try {
+      const packageManifest = join(root, "node_modules", ...packageName.split("/"), "package.json");
+      try {
+        await stat(packageManifest);
+        manifestPath = packageManifest;
+      } catch {
+        let current = dirname(require.resolve(packageName, { paths: [root] }));
+        while (current !== dirname(current)) {
+          const candidate = join(current, "package.json");
+          try {
+            await stat(candidate);
+            manifestPath = candidate;
+            break;
+          } catch {
+            current = dirname(current);
+          }
+        }
+      }
+    } catch {
+      return;
+    }
   }
+  if (!manifestPath) return;
   const packageRoot = dirname(manifestPath);
   const packageIdentity = await stat(packageRoot).then(() => packageRoot);
   if (seen.has(packageIdentity)) return;

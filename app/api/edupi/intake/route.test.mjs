@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createJiti } from "jiti";
 
-const { POST, stableCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const { stableCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
 
 function request(body, headers = {}) {
   return new Request("http://localhost/api/edupi/intake", {
@@ -42,5 +43,5 @@ test("derives stable semantic IDs for schedule uploads without caller IDs", () =
   assert.notEqual(stableTimetableSlotId(slot), stableTimetableSlotId({ ...slot, period: 3 }));
   const first = { eventId: "a", date: "2026-09-01", name: "开学", type: "teaching" };
   const second = { eventId: "b", date: "2026-09-02", name: "班会", type: "meeting" };
-  assert.equal(stableScheduleSourceHash("calendar", [first, second]), stableScheduleSourceHash("calendar", [second, first]));
+  assert.equal(stableScheduleSourceHash([first, second]), stableScheduleSourceHash([second, first]));
 });

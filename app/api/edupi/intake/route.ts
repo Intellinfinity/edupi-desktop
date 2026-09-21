@@ -1,8 +1,6 @@
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import {
-  contentHash,
   EducationIntakeError,
   issueEducationIntake,
   type CalendarImportEvent,
@@ -14,6 +12,7 @@ import { intakeRecognizedMaterial } from "@/lib/edupi-material-intake-flow";
 import { MaterialRecognitionError } from "@/lib/edupi-material-recognition";
 import { MaterialRecognitionAdmissionError, withMaterialRecognitionLock } from "@/lib/edupi-material-recognition-lock";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
+import { stableCalendarEventId, stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,51 +44,10 @@ function requiredText(value: unknown, max: number): string {
   return value.trim();
 }
 
-function normalizedScheduleText(value: unknown): string {
-  return typeof value === "string" ? value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase() : "";
-}
-
-function stableScheduleToken(value: unknown): string {
-  return crypto.createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex").slice(0, 32);
-}
-
-export function stableCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown }): string {
-  return `calendar-event-${stableScheduleToken({
-    date: normalizedScheduleText(value.date),
-    end_date: normalizedScheduleText(value.endDate),
-    name: normalizedScheduleText(value.name),
-    type: normalizedScheduleText(value.type),
-  })}`;
-}
-
-export function stableTimetableSlotId(value: { dayOfWeek?: unknown; period?: unknown; subject?: unknown; className?: unknown; kind?: unknown }): string {
-  return `timetable-slot-${stableScheduleToken({
-    day_of_week: value.dayOfWeek,
-    period: value.period,
-    subject: normalizedScheduleText(value.subject),
-    class_name: normalizedScheduleText(value.className),
-    kind: normalizedScheduleText(value.kind),
-  })}`;
-}
-
-function canonicalScheduleValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalScheduleValue);
-  if (!value || typeof value !== "object") return typeof value === "string" ? normalizedScheduleText(value) : value;
-  return Object.fromEntries(Object.keys(value as RawRecord).sort().map((key) => [key, canonicalScheduleValue((value as RawRecord)[key])]));
-}
-
-function canonicalScheduleList(values: readonly RawRecord[]): RawRecord[] {
-  return values.map((value) => canonicalScheduleValue(value) as RawRecord).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-}
-
-function sourceFor(kind: "calendar" | "timetable", raw: unknown) {
-  const hash = contentHash(Array.isArray(raw) ? canonicalScheduleList(raw as RawRecord[]) : canonicalScheduleValue(raw));
+function sourceFor(kind: "calendar" | "timetable", raw: readonly RawRecord[]) {
+  const hash = stableScheduleSourceHash(raw);
   const token = hash.slice("sha256:".length, "sha256:".length + 24);
   return { source_id: `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
-}
-
-export function stableScheduleSourceHash(kind: "calendar" | "timetable", values: readonly RawRecord[]): string {
-  return sourceFor(kind, values).source_hash;
 }
 
 function calendarCommand(body: RawRecord): EducationIntakeCommand {

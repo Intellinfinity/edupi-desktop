@@ -2555,6 +2555,165 @@
                 "l4_preparation": {
                   "additionalProperties": false,
                   "properties": {
+                    "attention_deliveries": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "attention_intent_id": {
+                            "maxLength": 160,
+                            "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                            "type": "string"
+                          },
+                          "carrier": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "instance_id": {
+                                "maxLength": 160,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "const": "desktop",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "feishu",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "dingtalk",
+                                    "type": "string"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "instance_id"
+                            ],
+                            "type": "object"
+                          },
+                          "created_at": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "deep_link": {
+                            "maxLength": 500,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "delivery_id": {
+                            "maxLength": 160,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "external_send": {
+                            "const": false,
+                            "type": "boolean"
+                          },
+                          "failure_code": {
+                            "anyOf": [
+                              {
+                                "maxLength": 160,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "intent_current": {
+                            "type": "boolean"
+                          },
+                          "occurred_at": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "opportunity_id": {
+                            "maxLength": 160,
+                            "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                            "type": "string"
+                          },
+                          "receipt_id": {
+                            "maxLength": 160,
+                            "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                            "type": "string"
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "const": "queued",
+                                "type": "string"
+                              },
+                              {
+                                "const": "delivered",
+                                "type": "string"
+                              },
+                              {
+                                "const": "failed",
+                                "type": "string"
+                              },
+                              {
+                                "const": "retry",
+                                "type": "string"
+                              },
+                              {
+                                "const": "opened",
+                                "type": "string"
+                              },
+                              {
+                                "const": "expired",
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "teacher_acceptance": {
+                            "const": "not_recorded",
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "version": {
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "work_case_id": {
+                            "maxLength": 160,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "receipt_id",
+                          "attention_intent_id",
+                          "opportunity_id",
+                          "work_case_id",
+                          "deep_link",
+                          "carrier",
+                          "delivery_id",
+                          "version",
+                          "status",
+                          "failure_code",
+                          "occurred_at",
+                          "created_at",
+                          "updated_at",
+                          "intent_current",
+                          "teacher_acceptance",
+                          "external_send"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 100,
+                      "type": "array"
+                    },
                     "attention_intents": {
                       "items": {
                         "additionalProperties": false,
@@ -3089,6 +3248,7 @@
                     "decisions",
                     "next_wakeup_at",
                     "attention_intents",
+                    "attention_deliveries",
                     "external_send"
                   ],
                   "type": "object"

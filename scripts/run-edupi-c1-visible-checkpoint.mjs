@@ -17,7 +17,7 @@ const DESKTOP_WORKTREE_NAME = "desktop-worktree";
 const NEXT_RELATIVE_PATH = ["node_modules", "next", "dist", "bin", "next"];
 const PRODUCTION_PORT = 30141;
 export const DEFAULT_PORT = 30142;
-export const EXPECTED_C1_COMMANDS = Object.freeze(["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"]);
+export const EXPECTED_C1_COMMANDS = Object.freeze(["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"]);
 export const EXPECTED_C1_REVIEW_COMMANDS = Object.freeze(["review_observation", "review_memory_candidate"]);
 export const EXPECTED_C1_ACTIONS = Object.freeze(["accept", "modify", "reject", "hold"]);
 export const REVIEW_PATH = "/?edupi=1&module=tasks&view=review&inspector=0";

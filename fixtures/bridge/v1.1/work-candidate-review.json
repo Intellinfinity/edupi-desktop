@@ -1,0 +1,1728 @@
+{
+  "fixture_kind": "work_candidate_review",
+  "fixture_version": "1.1",
+  "contract_version": "1.1",
+  "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+  "external_send": false,
+  "work_candidate": {
+    "identity": {
+      "candidate_id": "work-candidate-fixture",
+      "task_id": "work-candidate-fixture",
+      "immutable_fields": [
+        "logical_occurrence_key",
+        "candidate_id",
+        "task_id"
+      ],
+      "mutable_fields": [
+        "title",
+        "summary",
+        "due_at",
+        "snooze_until",
+        "status",
+        "revision",
+        "teacher_review"
+      ],
+      "logical_occurrence_key": "work-candidate-fixture",
+      "id_derivation": "candidate_id=logical_occurrence_key; task_id=candidate_id",
+      "immutable_inputs": [
+        "logical_occurrence_key"
+      ],
+      "mutable_inputs": [
+        "title",
+        "summary",
+        "due_at",
+        "source"
+      ],
+      "source_semantic_inputs": {
+        "title": "准备下周数学复习",
+        "summary": "依据本周课程安排，准备下一节数学复习。",
+        "due_at": "2026-09-03",
+        "source": {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        }
+      },
+      "source_semantic_fingerprint": "sha256:b186fca87491ec5199452023fabba5de5e1eb3a046a564794f9968addeb8ffd3",
+      "correction_proofs": [
+        {
+          "change": "title",
+          "logical_occurrence_key": "work-candidate-fixture",
+          "candidate_id": "work-candidate-fixture",
+          "task_id": "work-candidate-fixture",
+          "inputs_before": {
+            "title": "准备下周数学复习",
+            "summary": "依据本周课程安排，准备下一节数学复习。",
+            "due_at": "2026-09-03",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "evidence_ids": [
+                "evidence-work-candidate-fixture"
+              ]
+            }
+          },
+          "inputs_after": {
+            "title": "准备下周数学复习（更新）",
+            "summary": "依据本周课程安排，准备下一节数学复习。",
+            "due_at": "2026-09-03",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "evidence_ids": [
+                "evidence-work-candidate-fixture"
+              ]
+            }
+          },
+          "source_semantic_fingerprint_before": "sha256:b186fca87491ec5199452023fabba5de5e1eb3a046a564794f9968addeb8ffd3",
+          "source_semantic_fingerprint_after": "sha256:85579436499d6e8fff34cf80bab4ce105b346603e9309392b4be3d67adfd9f84"
+        },
+        {
+          "change": "summary",
+          "logical_occurrence_key": "work-candidate-fixture",
+          "candidate_id": "work-candidate-fixture",
+          "task_id": "work-candidate-fixture",
+          "inputs_before": {
+            "title": "准备下周数学复习",
+            "summary": "依据本周课程安排，准备下一节数学复习。",
+            "due_at": "2026-09-03",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "evidence_ids": [
+                "evidence-work-candidate-fixture"
+              ]
+            }
+          },
+          "inputs_after": {
+            "title": "准备下周数学复习",
+            "summary": "补充先复习移项符号，再安排练习。",
+            "due_at": "2026-09-03",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "evidence_ids": [
+                "evidence-work-candidate-fixture"
+              ]
+            }
+          },
+          "source_semantic_fingerprint_before": "sha256:b186fca87491ec5199452023fabba5de5e1eb3a046a564794f9968addeb8ffd3",
+          "source_semantic_fingerprint_after": "sha256:e42e51d327f973bd4b228212c96c14f6eb6b0cf76b9402cb691b05932210ec16"
+        },
+        {
+          "change": "due_at",
+          "logical_occurrence_key": "work-candidate-fixture",
+          "candidate_id": "work-candidate-fixture",
+          "task_id": "work-candidate-fixture",
+          "inputs_before": {
+            "title": "准备下周数学复习",
+            "summary": "依据本周课程安排，准备下一节数学复习。",
+            "due_at": "2026-09-03",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "evidence_ids": [
+                "evidence-work-candidate-fixture"
+              ]
+            }
+          },
+          "inputs_after": {
+            "title": "准备下周数学复习",
+            "summary": "依据本周课程安排，准备下一节数学复习。",
+            "due_at": "2026-09-04",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "evidence_ids": [
+                "evidence-work-candidate-fixture"
+              ]
+            }
+          },
+          "source_semantic_fingerprint_before": "sha256:b186fca87491ec5199452023fabba5de5e1eb3a046a564794f9968addeb8ffd3",
+          "source_semantic_fingerprint_after": "sha256:8a96a9a255caaad8d75222bcd9428593a64d31e4720b595542d848d6b19aee63"
+        },
+        {
+          "change": "source",
+          "logical_occurrence_key": "work-candidate-fixture",
+          "candidate_id": "work-candidate-fixture",
+          "task_id": "work-candidate-fixture",
+          "inputs_before": {
+            "title": "准备下周数学复习",
+            "summary": "依据本周课程安排，准备下一节数学复习。",
+            "due_at": "2026-09-03",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "evidence_ids": [
+                "evidence-work-candidate-fixture"
+              ]
+            }
+          },
+          "inputs_after": {
+            "title": "准备下周数学复习",
+            "summary": "依据本周课程安排，准备下一节数学复习。",
+            "due_at": "2026-09-03",
+            "source": {
+              "source_kind": "core_task",
+              "source_id": "work-candidate-fixture",
+              "source_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+              "evidence_ids": [
+                "evidence-work-candidate-corrected"
+              ]
+            }
+          },
+          "source_semantic_fingerprint_before": "sha256:b186fca87491ec5199452023fabba5de5e1eb3a046a564794f9968addeb8ffd3",
+          "source_semantic_fingerprint_after": "sha256:7eb776080b9988adcddbf00e2566013124a8c9925d5fb4db1557ceef27d2d2b1"
+        }
+      ]
+    },
+    "source": {
+      "source_kind": "core_task",
+      "source_id": "work-candidate-fixture",
+      "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ]
+    },
+    "task": {
+      "task_id": "work-candidate-fixture",
+      "title": "准备下周数学复习",
+      "due_date": "2026-09-03",
+      "status": "planned",
+      "revision": 0,
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false
+    },
+    "projection": {
+      "projection_kind": "work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "revision": 0,
+      "title": "准备下周数学复习",
+      "summary": "依据本周课程安排，准备下一节数学复习。",
+      "status": "pending_review",
+      "source_ids": [
+        "work-candidate-fixture"
+      ],
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "reason": "下一节课需要教师准备",
+      "snooze_until": null,
+      "suppression_scope": null,
+      "next_cycle_state": "awaiting_teacher"
+    },
+    "decision_outcomes": [
+      {
+        "decision": "accept",
+        "receipt_status": "accepted",
+        "work_status": "accepted",
+        "teacher_review_state": "accepted",
+        "education_workspace_task": {
+          "task_id": "work-candidate-fixture",
+          "due_date": "2026-09-03",
+          "status": "accepted",
+          "revision": 1,
+          "teacher_review": {
+            "state": "accepted",
+            "reviewer_id": "teacher-fixture",
+            "reviewed_at": "2026-08-28T00:00:00.000Z",
+            "note": null,
+            "revision": 1
+          },
+          "external_send": false
+        }
+      },
+      {
+        "decision": "modify",
+        "receipt_status": "modified",
+        "work_status": "modified",
+        "teacher_review_state": "modified",
+        "education_workspace_task": {
+          "task_id": "work-candidate-fixture",
+          "due_date": "2026-09-04",
+          "status": "modified",
+          "revision": 1,
+          "teacher_review": {
+            "state": "modified",
+            "reviewer_id": "teacher-fixture",
+            "reviewed_at": "2026-08-28T00:00:01.000Z",
+            "note": "调整任务标题、说明和日期",
+            "revision": 1
+          },
+          "external_send": false
+        }
+      },
+      {
+        "decision": "reject",
+        "receipt_status": "rejected",
+        "work_status": "rejected",
+        "teacher_review_state": "rejected",
+        "education_workspace_task": {
+          "task_id": "work-candidate-fixture",
+          "due_date": "2026-09-03",
+          "status": "rejected",
+          "revision": 1,
+          "teacher_review": {
+            "state": "rejected",
+            "reviewer_id": "teacher-fixture",
+            "reviewed_at": "2026-08-28T00:00:02.000Z",
+            "note": "暂不处理",
+            "revision": 1
+          },
+          "external_send": false
+        }
+      },
+      {
+        "decision": "hold",
+        "receipt_status": "held",
+        "work_status": "held",
+        "teacher_review_state": "held",
+        "education_workspace_task": {
+          "task_id": "work-candidate-fixture",
+          "due_date": "2026-09-03",
+          "status": "held",
+          "revision": 1,
+          "teacher_review": {
+            "state": "held",
+            "reviewer_id": "teacher-fixture",
+            "reviewed_at": "2026-08-28T00:00:03.000Z",
+            "note": "下个周期再看",
+            "revision": 1
+          },
+          "external_send": false
+        }
+      },
+      {
+        "decision": "snooze",
+        "receipt_status": "held",
+        "work_status": "snoozed",
+        "teacher_review_state": "held",
+        "education_workspace_task": {
+          "task_id": "work-candidate-fixture",
+          "due_date": "2026-09-03",
+          "status": "held",
+          "revision": 1,
+          "teacher_review": {
+            "state": "held",
+            "reviewer_id": "teacher-fixture",
+            "reviewed_at": "2026-08-28T00:00:04.000Z",
+            "note": null,
+            "revision": 1
+          },
+          "external_send": false
+        }
+      },
+      {
+        "decision": "suppress",
+        "receipt_status": "rejected",
+        "work_status": "suppressed",
+        "teacher_review_state": "rejected",
+        "education_workspace_task": {
+          "task_id": "work-candidate-fixture",
+          "due_date": "2026-09-03",
+          "status": "rejected",
+          "revision": 1,
+          "teacher_review": {
+            "state": "rejected",
+            "reviewer_id": "teacher-fixture",
+            "reviewed_at": "2026-08-28T00:00:05.000Z",
+            "note": "本周期任务暂不处理",
+            "revision": 1
+          },
+          "external_send": false
+        }
+      }
+    ],
+    "suppression_scopes": [
+      "this_candidate",
+      "matching_reason",
+      "next_cycle"
+    ],
+    "next_cycle_states": [
+      "awaiting_teacher",
+      "closed_accepted",
+      "closed_modified",
+      "closed_rejected",
+      "held",
+      "snoozed",
+      "suppressed_this_candidate",
+      "suppressed_matching_reason",
+      "suppressed_next_cycle",
+      "reopened_source_changed",
+      "reopened_snooze_expired"
+    ],
+    "date_rules": {
+      "format": "YYYY-MM-DD",
+      "invalid_date_examples": [
+        "2026-9-03",
+        "2026-02-30",
+        "2026-09-03T09:00:00Z",
+        "2026-13-01"
+      ],
+      "invalid_snooze_examples": [
+        {
+          "issued_on": "2026-08-28",
+          "snooze_until": "2026-08-28"
+        },
+        {
+          "issued_on": "2026-08-28",
+          "snooze_until": "2026-08-27"
+        }
+      ],
+      "valid_snooze_examples": [
+        {
+          "issued_on": "2026-08-28",
+          "due_at": "2026-09-10",
+          "snooze_until": "2026-09-09"
+        }
+      ]
+    },
+    "generation_cycle": {
+      "runtime_status": "fixture_only",
+      "token_format": "cycle:YYYY-MM-DD",
+      "initial_token": "cycle:2026-09-01",
+      "replay": {
+        "token": "cycle:2026-09-01",
+        "transition": "none",
+        "write_count": 0,
+        "next_cycle_suppression_delta": 0
+      },
+      "distinct_tokens": [
+        {
+          "token": "cycle:2026-09-08",
+          "transition": "consume_next_cycle_suppression",
+          "suppression_scope": "next_cycle",
+          "write_count": 1,
+          "next_cycle_suppression_delta": 1,
+          "next_cycle_state": "suppressed_next_cycle"
+        },
+        {
+          "token": "cycle:2026-09-15",
+          "transition": "release_next_cycle_suppression",
+          "suppression_scope": "next_cycle",
+          "write_count": 1,
+          "next_cycle_suppression_delta": -1,
+          "next_cycle_state": "awaiting_teacher"
+        }
+      ],
+      "state_sequence": [
+        "awaiting_teacher",
+        "suppressed_next_cycle",
+        "awaiting_teacher"
+      ]
+    }
+  },
+  "education_workspace": {
+    "tasks": [
+      {
+        "task_id": "work-candidate-fixture",
+        "title": "准备下周数学复习",
+        "due_date": "2026-09-03",
+        "status": "planned",
+        "revision": 0,
+        "teacher_review": {
+          "state": "pending_review",
+          "reviewer_id": null,
+          "reviewed_at": null,
+          "note": null,
+          "revision": 0
+        },
+        "external_send": false
+      }
+    ]
+  },
+  "commands": [
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-accept",
+      "request_id": "work-request-accept",
+      "issued_at": "2026-08-28T00:00:00.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-accept",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:00.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "accept",
+        "patch": null,
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": null
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-modify",
+      "request_id": "work-request-modify",
+      "issued_at": "2026-08-28T00:00:01.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-modify",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:01.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "modify",
+        "patch": {
+          "title": "下周数学复习准备",
+          "summary": "先复习移项符号，再安排练习。",
+          "due_at": "2026-09-04"
+        },
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": "调整任务标题、说明和日期"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-reject",
+      "request_id": "work-request-reject",
+      "issued_at": "2026-08-28T00:00:02.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-reject",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:02.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "reject",
+        "patch": null,
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": "暂不处理"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-hold",
+      "request_id": "work-request-hold",
+      "issued_at": "2026-08-28T00:00:03.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-hold",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:03.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "hold",
+        "patch": null,
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": "下个周期再看"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-snooze",
+      "request_id": "work-request-snooze",
+      "issued_at": "2026-08-28T00:00:04.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-snooze",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:04.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "snooze",
+        "patch": {
+          "snooze_until": "2026-09-05"
+        },
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": null
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-suppress-this",
+      "request_id": "work-request-suppress-this",
+      "issued_at": "2026-08-28T00:00:05.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-suppress-this",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:05.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "suppress",
+        "patch": {
+          "suppression_scope": "this_candidate"
+        },
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": "本周期任务暂不处理"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-suppress-reason",
+      "request_id": "work-request-suppress-reason",
+      "issued_at": "2026-08-28T00:00:05.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-suppress-reason",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:05.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "suppress",
+        "patch": {
+          "suppression_scope": "matching_reason"
+        },
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": "本周期任务暂不处理"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-command-suppress-cycle",
+      "request_id": "work-request-suppress-cycle",
+      "issued_at": "2026-08-28T00:00:05.000Z",
+      "producer": "edupi-desktop",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-0",
+      "idempotency_key": "work-idempotency-suppress-cycle",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:05.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "pending_review",
+        "reviewer_id": null,
+        "reviewed_at": null,
+        "note": null,
+        "revision": 0
+      },
+      "external_send": false,
+      "command": {
+        "command_type": "review_work_candidate",
+        "candidate_id": "work-candidate-fixture",
+        "expected_revision": 0,
+        "decision": "suppress",
+        "patch": {
+          "suppression_scope": "next_cycle"
+        },
+        "source": {
+          "source_id": "work-candidate-fixture",
+          "source_kind": "core_task",
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ]
+        },
+        "note": "本周期任务暂不处理"
+      }
+    }
+  ],
+  "receipts": [
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-accept",
+      "request_id": "work-request-accept",
+      "issued_at": "2026-08-28T00:00:00.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-1",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:00.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "accepted",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:00.000Z",
+        "note": null,
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-accept",
+        "command_id": "work-command-accept",
+        "request_id": "work-request-accept",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "accept",
+        "status": "accepted",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-1",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "teacher_review": {
+          "state": "accepted",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:00.000Z",
+          "note": null,
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:00.000Z"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-modify",
+      "request_id": "work-request-modify",
+      "issued_at": "2026-08-28T00:00:01.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-2",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:01.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "modified",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:01.000Z",
+        "note": "调整任务标题、说明和日期",
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-modify",
+        "command_id": "work-command-modify",
+        "request_id": "work-request-modify",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "modify",
+        "status": "modified",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-2",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        "teacher_review": {
+          "state": "modified",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:01.000Z",
+          "note": "调整任务标题、说明和日期",
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:01.000Z"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-reject",
+      "request_id": "work-request-reject",
+      "issued_at": "2026-08-28T00:00:02.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-3",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:02.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:02.000Z",
+        "note": "暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-reject",
+        "command_id": "work-command-reject",
+        "request_id": "work-request-reject",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "reject",
+        "status": "rejected",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-3",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+        "teacher_review": {
+          "state": "rejected",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:02.000Z",
+          "note": "暂不处理",
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:02.000Z"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-hold",
+      "request_id": "work-request-hold",
+      "issued_at": "2026-08-28T00:00:03.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-4",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:03.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "held",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:03.000Z",
+        "note": "下个周期再看",
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-hold",
+        "command_id": "work-command-hold",
+        "request_id": "work-request-hold",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "hold",
+        "status": "held",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-4",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+        "teacher_review": {
+          "state": "held",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:03.000Z",
+          "note": "下个周期再看",
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:03.000Z"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-snooze",
+      "request_id": "work-request-snooze",
+      "issued_at": "2026-08-28T00:00:04.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-5",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:04.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "held",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:04.000Z",
+        "note": null,
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-snooze",
+        "command_id": "work-command-snooze",
+        "request_id": "work-request-snooze",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "snooze",
+        "status": "held",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-5",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "teacher_review": {
+          "state": "held",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:04.000Z",
+          "note": null,
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:04.000Z"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-suppress-this",
+      "request_id": "work-request-suppress-this",
+      "issued_at": "2026-08-28T00:00:05.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-6",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:05.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:05.000Z",
+        "note": "本周期任务暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-suppress-this",
+        "command_id": "work-command-suppress-this",
+        "request_id": "work-request-suppress-this",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "suppress",
+        "status": "rejected",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-6",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+        "teacher_review": {
+          "state": "rejected",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:05.000Z",
+          "note": "本周期任务暂不处理",
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:05.000Z"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-suppress-reason",
+      "request_id": "work-request-suppress-reason",
+      "issued_at": "2026-08-28T00:00:05.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-7",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:05.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:05.000Z",
+        "note": "本周期任务暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-suppress-reason",
+        "command_id": "work-command-suppress-reason",
+        "request_id": "work-request-suppress-reason",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "suppress",
+        "status": "rejected",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-7",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        "teacher_review": {
+          "state": "rejected",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:05.000Z",
+          "note": "本周期任务暂不处理",
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:05.000Z"
+      }
+    },
+    {
+      "contract_version": "1.1",
+      "message_id": "work-receipt-suppress-cycle",
+      "request_id": "work-request-suppress-cycle",
+      "issued_at": "2026-08-28T00:00:05.000Z",
+      "producer": "edupi-core",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "snapshot_id": "snapshot-work-fixture-8",
+      "provenance": [
+        {
+          "source_kind": "core_task",
+          "source_id": "work-candidate-fixture",
+          "source_path": null,
+          "source_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "observed_at": "2026-08-28T00:00:05.000Z",
+          "actor": "core",
+          "evidence_ids": [
+            "evidence-work-candidate-fixture"
+          ],
+          "parent_ids": []
+        }
+      ],
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:05.000Z",
+        "note": "本周期任务暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "payload": {
+        "receipt_id": "work-receipt-suppress-cycle",
+        "command_id": "work-command-suppress-cycle",
+        "request_id": "work-request-suppress-cycle",
+        "command_type": "review_work_candidate",
+        "target": {
+          "target_kind": "work_candidate",
+          "target_id": "work-candidate-fixture",
+          "command_type": "review_work_candidate"
+        },
+        "receipt_phase": "mutation",
+        "decision": "suppress",
+        "status": "rejected",
+        "applied_ids": [
+          "work-candidate-fixture"
+        ],
+        "rejected_ids": [],
+        "reason_code": null,
+        "evidence_ids": [
+          "evidence-work-candidate-fixture"
+        ],
+        "before_snapshot_id": "snapshot-work-fixture-0",
+        "after_snapshot_id": "snapshot-work-fixture-8",
+        "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "after_state_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "teacher_review": {
+          "state": "rejected",
+          "reviewer_id": "teacher-fixture",
+          "reviewed_at": "2026-08-28T00:00:05.000Z",
+          "note": "本周期任务暂不处理",
+          "revision": 1
+        },
+        "external_send": false,
+        "rollback": {
+          "available": false,
+          "rollback_id": null,
+          "expires_at": null
+        },
+        "preview_token": null,
+        "action_authorization": null,
+        "created_at": "2026-08-28T00:00:05.000Z"
+      }
+    }
+  ],
+  "history": [
+    {
+      "review_id": "work-history-accept",
+      "command_id": "work-command-accept",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "accept",
+      "revision": 1,
+      "status": "accepted",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-accept",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-1",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "teacher_review": {
+        "state": "accepted",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:00.000Z",
+        "note": null,
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:00.000Z"
+    },
+    {
+      "review_id": "work-history-modify",
+      "command_id": "work-command-modify",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "modify",
+      "revision": 1,
+      "status": "modified",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-modify",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-2",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "teacher_review": {
+        "state": "modified",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:01.000Z",
+        "note": "调整任务标题、说明和日期",
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:01.000Z"
+    },
+    {
+      "review_id": "work-history-reject",
+      "command_id": "work-command-reject",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "reject",
+      "revision": 1,
+      "status": "rejected",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-reject",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-3",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:02.000Z",
+        "note": "暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:02.000Z"
+    },
+    {
+      "review_id": "work-history-hold",
+      "command_id": "work-command-hold",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "hold",
+      "revision": 1,
+      "status": "held",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-hold",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-4",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "teacher_review": {
+        "state": "held",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:03.000Z",
+        "note": "下个周期再看",
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:03.000Z"
+    },
+    {
+      "review_id": "work-history-snooze",
+      "command_id": "work-command-snooze",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "snooze",
+      "revision": 1,
+      "status": "held",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-snooze",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-5",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "teacher_review": {
+        "state": "held",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:04.000Z",
+        "note": null,
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:04.000Z"
+    },
+    {
+      "review_id": "work-history-suppress-this",
+      "command_id": "work-command-suppress-this",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "suppress",
+      "revision": 1,
+      "status": "rejected",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-suppress-this",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-6",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:05.000Z",
+        "note": "本周期任务暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:05.000Z"
+    },
+    {
+      "review_id": "work-history-suppress-reason",
+      "command_id": "work-command-suppress-reason",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "suppress",
+      "revision": 1,
+      "status": "rejected",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-suppress-reason",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-7",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:05.000Z",
+        "note": "本周期任务暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:05.000Z"
+    },
+    {
+      "review_id": "work-history-suppress-cycle",
+      "command_id": "work-command-suppress-cycle",
+      "command_type": "review_work_candidate",
+      "target": {
+        "target_kind": "work_candidate",
+        "target_id": "work-candidate-fixture",
+        "command_type": "review_work_candidate"
+      },
+      "decision": "suppress",
+      "revision": 1,
+      "status": "rejected",
+      "evidence_ids": [
+        "evidence-work-candidate-fixture"
+      ],
+      "receipt_id": "work-receipt-suppress-cycle",
+      "before_snapshot_id": "snapshot-work-fixture-0",
+      "after_snapshot_id": "snapshot-work-fixture-8",
+      "before_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "after_state_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "teacher_review": {
+        "state": "rejected",
+        "reviewer_id": "teacher-fixture",
+        "reviewed_at": "2026-08-28T00:00:05.000Z",
+        "note": "本周期任务暂不处理",
+        "revision": 1
+      },
+      "external_send": false,
+      "rollback": {
+        "available": false,
+        "rollback_id": null,
+        "expires_at": null
+      },
+      "reviewed_at": "2026-08-28T00:00:05.000Z"
+    }
+  ]
+}

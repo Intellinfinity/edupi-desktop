@@ -5,15 +5,15 @@ import {
   type C1ReviewDecision,
   type C1ReviewTargetKind,
 } from "@/lib/edupi-c1-review";
-import { reviewEducationCandidate } from "@/lib/edupi-education-server";
+import {
+  FollowUpReviewError,
+  FOLLOW_UP_REVIEW_DECISIONS,
+  type FollowUpReviewDecision,
+} from "@/lib/edupi-follow-up-review";
+import { reviewEducationCandidate, reviewFollowUpCandidate } from "@/lib/edupi-education-server";
 import { EduPiSnapshotError } from "@/lib/edupi-core-snapshot";
 
 export const dynamic = "force-dynamic";
-
-const REVIEW_COMMANDS = {
-  observation: "review_observation",
-  memory_candidate: "review_memory_candidate",
-} as const;
 
 type RawRecord = Record<string, unknown>;
 
@@ -27,6 +27,7 @@ function bodyError(reason: string): NextResponse {
 
 function errorCode(error: unknown): string {
   if (error instanceof C1ReviewError) return error.code;
+  if (error instanceof FollowUpReviewError) return error.code;
   if (error instanceof EduPiSnapshotError && error.code === "stale_snapshot") return "stale_snapshot";
   return "unavailable";
 }
@@ -62,15 +63,16 @@ export async function POST(request: Request) {
   if (!body) return bodyError("请求必须是有效的 JSON 对象。");
 
   const targetKind = body.targetKind;
-  if (targetKind !== "observation" && targetKind !== "memory_candidate") {
-    return bodyError("targetKind 仅支持 observation 或 memory_candidate。");
+  if (targetKind !== "observation" && targetKind !== "memory_candidate" && targetKind !== "follow_up") {
+    return bodyError("targetKind 仅支持 observation、memory_candidate 或 follow_up。");
   }
   const targetId = body.targetId;
   if (typeof targetId !== "string" || !targetId.trim() || targetId.length > 160) {
     return bodyError("targetId 无效。");
   }
   const decision = body.decision;
-  if (!C1_REVIEW_DECISIONS.includes(decision as C1ReviewDecision)) {
+  const allowedDecisions = targetKind === "follow_up" ? FOLLOW_UP_REVIEW_DECISIONS : C1_REVIEW_DECISIONS;
+  if (!(allowedDecisions as readonly string[]).includes(typeof decision === "string" ? decision : "")) {
     return bodyError("decision 仅支持 accept、modify、reject、hold。");
   }
   if (body.patch !== undefined && body.patch !== null && !record(body.patch)) return bodyError("patch 无效。");
@@ -80,8 +82,25 @@ export async function POST(request: Request) {
   if (body.issuedAt !== undefined && (typeof body.issuedAt !== "string" || !body.issuedAt.trim() || body.issuedAt.length > 64)) {
     return bodyError("issuedAt 无效。");
   }
+  if (targetKind === "follow_up") {
+    if (typeof body.expectedSnapshotId !== "string" || !body.expectedSnapshotId.trim() || body.expectedSnapshotId.length > 160) return bodyError("expectedSnapshotId 无效。");
+    if (typeof body.expectedRevision !== "number" || !Number.isInteger(body.expectedRevision) || body.expectedRevision < 0) return bodyError("expectedRevision 无效。");
+  }
 
   try {
+    if (targetKind === "follow_up") {
+      const { receipt, data } = await reviewFollowUpCandidate({
+        targetId: targetId.trim(),
+        expectedSnapshotId: (body.expectedSnapshotId as string).trim(),
+        expectedRevision: body.expectedRevision as number,
+        decision: decision as FollowUpReviewDecision,
+        patch: body.patch as Record<string, unknown> | null | undefined,
+        note: body.note as string | null | undefined,
+        reviewerId: reviewer.trim(),
+        issuedAt: body.issuedAt as string | undefined,
+      });
+      return NextResponse.json({ receipt, data }, { status: 200 });
+    }
     // reviewEducationCandidate is the server boundary that delegates to the
     // typed issueC1Review path; no Desktop state is written here.
     const { receipt, data } = await reviewEducationCandidate({
@@ -93,7 +112,6 @@ export async function POST(request: Request) {
       reviewerId: reviewer.trim(),
       issuedAt: body.issuedAt as string | undefined,
     });
-    void REVIEW_COMMANDS;
     return NextResponse.json({ receipt, data }, { status: 200 });
   } catch (error) {
     const code = errorCode(error);

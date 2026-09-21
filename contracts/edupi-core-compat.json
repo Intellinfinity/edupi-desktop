@@ -2,23 +2,24 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "d05cf89df067a78602883c6bd95a37f8b0c122f7",
+    "core_commit": "368bcd8b6fbe04d78860c96c37f27bec312c8e4c",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:f9393d0db6f773feeb0c2ff59ac19078fe8a45e6ae96613d0450407e6f12d133",
-    "runtime_component_manifest_hash": "sha256:409f93e72a10ff7a15c939607e0decf34016e65969e3641c1dac1d2ba8fa5cdc"
+    "component_manifest_hash": "sha256:d5ad788cffb8c4cede90e2e813c31782867c531b411befc885727ba38e66f38f",
+    "runtime_component_manifest_hash": "sha256:fc371b92b346aa99d6f60b7772bbc3b90b3736cd103ab04352396905ba4d8c75"
   },
   "contract_identities": [
     {
       "contract_id": "edupi-bridge-v1.1",
       "contract_version": "1.1",
-      "schema_hash": "sha256:d4702ef3bb303996cea137f9f1337a20a8c6853b0b7d215cca64265bf2cd4daa",
+      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
       "fixture_manifest_path": "fixtures/bridge/v1.1/fixture-manifest.json",
-      "fixture_manifest_hash": "sha256:455ca9489f582b3a41223ce2518436445ec1b25ec4fdd8e5d10e35b3387a253e",
+      "fixture_manifest_hash": "sha256:18bc0a493e0f414c2726965d38fb56be6723b840a1483c1ad55adff114b01555",
       "supported_commands": [
         "review_observation",
         "review_memory_candidate",
         "review_teacher_context",
         "review_work_candidate",
+        "review_follow_up",
         "review_task",
         "import_calendar",
         "import_timetable",
@@ -39,6 +40,7 @@
     "review_memory_candidate",
     "review_teacher_context",
     "review_work_candidate",
+    "review_follow_up",
     "review_task",
     "import_calendar",
     "import_timetable",
@@ -52,7 +54,6 @@
   ],
   "unsupported_command_reasons": {
     "review_teaching_adjustment": "Core v1.1 does not expose this command capability in the pinned paired C1 runtime",
-    "review_follow_up": "Core v1.1 does not expose this command capability in the pinned paired C1 runtime",
     "review_insight": "Core v1.1 does not expose this command capability in the pinned paired C1 runtime",
     "review_growth_candidate": "Core v1.1 does not expose this command capability in the pinned paired C1 runtime",
     "review_learning_candidate": "Core v1.1 does not expose this command capability in the pinned paired C1 runtime",
@@ -120,5 +121,5 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/143",
     "https://github.com/PIGU-PPPgu/edupi/pull/145"
   ],
-  "change_note": "Core PR #141 routes due ambient preparation Goals through the existing G1 durable queue. Core PR #143 adds the optional l4_preparation projection for Today while keeping decisions apply=false and attention delivery desktop-only. Core PR #145 reflects G1 execution outcomes back into ambient planning so completed work projects as already_ready instead of perpetual automatic work. Earlier PR #121 startup recovery and education/fact baselines remain included."
+  "change_note": "Desktop G4 pin to Core 368bcd8: syncs the v1.1 schema and fixture manifest, enables privacy-bounded review_follow_up, and consumes attention_deliveries while keeping teacher review and external_send=false. Core ambient preparation remains opt-in and all higher-risk actions stay fail-closed."
 }

@@ -18,7 +18,7 @@ test("projects only validated Core health and education snapshot", { skip: !core
   assert.equal(typeof body.proactivity.teacherFeedback, "boolean");
   assert.equal(body.core.status, "ready");
   assert.equal(body.core.contractVersion, "1.1");
-  assert.deepEqual(body.core.supportedCommands, ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"]);
+  assert.deepEqual(body.core.supportedCommands, ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"]);
   assert.deepEqual(body.core.supportedProjections, ["education_workspace"]);
   assert.equal(body.compatibility.expected.coreCommit, body.compatibility.actual.coreCommit);
   assert.equal(body.compatibility.expected.componentManifestHash, body.compatibility.actual.componentManifestHash);

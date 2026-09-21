@@ -4,6 +4,7 @@ import { buildEducationContractFromWorkspace, type EducationContract } from "./e
 import { issueC1Review, type C1ReviewDependencies, type C1ReviewDecision, type C1ReviewTargetKind } from "./edupi-c1-review";
 import { issueTeacherContextReview, type TeacherContextReviewDependencies, type TeacherContextReviewInput } from "./edupi-teacher-context-review";
 import { issueWorkCandidateReview, type WorkCandidateReviewDependencies, type WorkCandidateReviewInput } from "./edupi-work-candidate-review";
+import { issueFollowUpReview, type FollowUpReviewDependencies, type FollowUpReviewInput } from "./edupi-follow-up-review";
 import { issueTaskReview, type TaskReviewDependencies, type TaskReviewInput } from "./edupi-task-review";
 import { issueMemoryUpdate, type MemoryUpdateDependencies, type MemoryUpdateInput } from "./edupi-memory-update";
 import { EntityDeleteError, issueEntityDelete, issueEntityRestore, parseEntityDeletionSummary, type EntityDeleteKind } from "./edupi-entity-delete";
@@ -189,6 +190,31 @@ export async function reviewWorkCandidate(
 ): Promise<{ receipt: Record<string, unknown>; data: EducationContract }> {
   const snapshot = await readEduPiEducationSnapshot();
   const result = await issueWorkCandidateReview({ ...input, snapshot: snapshot.envelope }, deps);
+  const refreshedPayloadValue = result.data.payload;
+  if (!refreshedPayloadValue || typeof refreshedPayloadValue !== "object" || Array.isArray(refreshedPayloadValue)) {
+    throw new Error("Core education snapshot refresh is unavailable");
+  }
+  const refreshedPayload = refreshedPayloadValue as Record<string, unknown>;
+  const refreshedWorkspace = refreshedPayload.education_workspace;
+  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) {
+    throw new Error("Core education workspace refresh is unavailable");
+  }
+  const data = await projectEducationContract({
+    ...snapshot,
+    envelope: result.data,
+    payload: refreshedPayload as EducationSnapshot["payload"],
+    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
+  });
+  return { receipt: result.receipt, data };
+}
+
+/** Execute a student follow-up review through Core and project its refreshed snapshot. */
+export async function reviewFollowUpCandidate(
+  input: Omit<FollowUpReviewInput, "snapshot">,
+  deps?: FollowUpReviewDependencies,
+): Promise<{ receipt: Record<string, unknown>; data: EducationContract }> {
+  const snapshot = await readEduPiEducationSnapshot();
+  const result = await issueFollowUpReview({ ...input, snapshot: snapshot.envelope }, deps);
   const refreshedPayloadValue = result.data.payload;
   if (!refreshedPayloadValue || typeof refreshedPayloadValue !== "object" || Array.isArray(refreshedPayloadValue)) {
     throw new Error("Core education snapshot refresh is unavailable");

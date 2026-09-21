@@ -19,7 +19,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const HARD_TIMEOUT_MS = 60_000;
-const EXPECTED_COMMANDS = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"];
+const EXPECTED_COMMANDS = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"];
 const EXPECTED_PROJECTIONS = ["education_workspace"];
 const FIXED_ISSUED_AT = "2026-08-27T09:00:00.000Z";
 

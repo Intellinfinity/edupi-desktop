@@ -16,6 +16,10 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ ok: false, error: message, externalSend: false }, { status });
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
 async function runtimeContext() {
   const roots = resolveEduPiBridgeRoots();
   const host = await ensureEduPiRuntime(roots);
@@ -46,7 +50,8 @@ async function bootstrap() {
   return response;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isApiRequestAllowed(request)) return jsonError("请求无效", 403);
   try {
     const { host } = await runtimeContext();
     const owner = await ownerSnapshot(host);
@@ -61,7 +66,8 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!isApiRequestAllowed(request) || !hasJsonContentType(request)) return jsonError("请求无效", 403);
   try {
-    const body = await parseJsonWithinLimit(request, MAX_BODY_BYTES) as Record<string, unknown>;
+    const body = asRecord(await parseJsonWithinLimit(request, MAX_BODY_BYTES));
+    if (!body) return jsonError("反馈操作无效", 400);
     const action = body.action;
     if (typeof action !== "string" || !ACTIONS.has(action as FeedbackAction) || Object.keys(body).some((key) => !["action", "target", "record", "session_id", "domain"].includes(key))) return jsonError("反馈操作无效", 400);
     if (action === "bootstrap") {

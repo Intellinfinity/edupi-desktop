@@ -3,6 +3,7 @@
 ## 2026-09-20 v0.3.29 执行记录
 
 - 最终发布与安装：PR #200 合并为 `a7b83a9`；workflow `35548760372` attempt 2 成功，v0.3.29 正式发布，11 个资产、7 个 Raw feed 平台键完整。本机从 v0.3.28 手动 bootstrap 到 v0.3.29，唯一安装副本、教师数据、模型/认证哈希和默认模型保持；Safe Mode 与 LAN 手机配对/撤销完成安装版实测。见 [完整验收](../acceptance/2026-09-21-v0.3.29-update-safe-mobile.md)。
+- Feed 专用树：发现首次分支沿用了 main 树后，使用非强制快进 commit `7ae9dd2` 把当前树收敛为唯一 `latest.json`；发布 workflow 已改为直接创建 manifest-only Git tree，不再从 main 复制仓库内容。
 
 - 代码状态：更新 manifest、Tauri endpoint、release workflow、Safe Mode、手机 bridge 和 v0.3.29 版本元数据已落地，未执行 reset/clean 或重建分支。
 - 自动化证据：初始实现回归 `npm test` 1332 项中 1307 passed、25 skipped、0 failed；`tsc --noEmit`、针对性 updater/Safe Mode/mobile 测试和 Cargo library tests 已通过。最终复跑结果见下行。

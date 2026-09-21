@@ -18,6 +18,8 @@ Desktop 只记录交付和交互事实，不把通知送达、点击或打开事
 
 `GET /api/edupi/reminders` 返回有界 `metrics`，包括候选数、待处理/稍后/已处理数、claim/送达/失败/打开数、重复 claim 数、教师操作数、送达延迟和打开延迟。指标用于验收和试用采样，不自称 precision、recall 或价值。
 
+当 pinned Core 暴露 `attention_delivery_record` 时，Desktop 会用同一 `attention_intent_id`、`opportunity_id`、`work_case_id`、`deep_link` 和稳定 carrier identity 写入 Core 的 `queued → delivered/failed → opened` receipt；旧 Core 不支持时只保留本地收件箱和指标，不伪造已交付。
+
 主动性由 Core 教师反馈中的机会分子/分母判断；Desktop 补充回答系统是否及时交付、是否重复打扰、点击是否回到对应对象以及失败后是否仍可在收件箱处理。
 
 ## 无感边界

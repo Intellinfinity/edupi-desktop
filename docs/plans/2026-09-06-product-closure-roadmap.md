@@ -3,7 +3,9 @@
 ## 2026-09-21 对话输入、手机入口与 Core Runtime 修复补记
 
 - Desktop 提交 `2e36729` 已完成三条反馈的代码收口：流式三点菜单与方形停止键、加号附件菜单、左下主导航手机图标及手机桥接设置定位。
-- Core Runtime 修复已加入缺库 fail-closed、死 admission lease 恢复和桌面 token 边界；安装版 server/Core/projection/kernel 已回读 ready，隔离 memory-write 通过。安装版视觉点击复核受当前 macOS 锁屏阻塞，保留为未验收，不覆盖 R24–R26 的既有发布记录。公开 `v0.3.29` 尚未包含本提交，后续需以新版本发布。
+- Core Runtime 修复已加入缺库 fail-closed、死 admission lease 恢复和桌面 token 边界；安装版 server/Core/projection/kernel 已回读 ready，隔离 memory-write 通过。
+- 解锁后补齐安装版视觉与交互：附件菜单、流式三点菜单、方形停止键、主导航/输入区手机入口均真实操作；iPhone Simulator 经 LAN 完成配对、批准、100 会话/20 提醒回读、撤销与 loopback 恢复。测试会话已删除。
+- 公开 `v0.3.29` 尚未包含本提交；`d62f3cf` 已把版本推进到 `0.3.30` 并推送。发布只剩 Apple Developer ID 证书与公证 credentials：当前 GitHub secrets 和本机钥匙串均没有这些身份，不能发布 ad-hoc 包替代公证验收。
 
 ## 2026-09-20 更新链路、Safe Mode 与手机桥接（v0.3.29）
 

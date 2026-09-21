@@ -1,6 +1,0 @@
-[package]
-name = "nomi-protocol"
-description = "Minimal EduPi adapter for NomiFun computer-use categories"
-version = "0.1.0"
-edition = "2021"
-license = "Apache-2.0"

@@ -2,9 +2,9 @@
 
 ## 2026-09-20 更新链路、Safe Mode 与手机桥接（v0.3.29）
 
-- R24 更新链路迁移：源码已切换为 Raw `updater-feed/latest.json` 优先、GitHub API Release Asset 下载并保留旧 GitHub endpoint fallback；清单强制唯一数字 asset ID，生成的资产 URL 不再使用 `github.com/releases/download`。发布 workflow 已加入 feed 分支原子写入和 Raw 回读校验，只有 feed 成功才发布 Release。针对性测试与全量 `npm test` 已通过；三平台发布、旧客户端 bootstrap 和安装版验收待 v0.3.29 workflow/实机证据。
-- R25 DSH 式 Safe Mode：已加入 `--safe-mode`、桌面运行状态桥接、第三方资源过滤、启动失败脱敏诊断和恢复正常启动入口。范围固定为暂停第三方 Plugins/Skills，Core、只读教育工作区、JEV/OpenConnector 保留；Tauri/Cargo 测试通过，安装版冷启动和真实插件故障恢复待验收。
-- R26 手机继续对话：已加入显式局域网开关、loopback 外的 API 隔离、短时配对码、教师批准/撤销、`mobile:read`/`mobile:chat` scope、移动会话投影、只读提醒摘要和无工具继续对话页面。未开放 Core 写入、JEV/OpenConnector、文件操作或公网隧道；真实手机配对、断网/过期/重启验收待执行。
+- R24 更新链路迁移：验收通过（macOS bootstrap + 三平台发布）。v0.3.29 已发布，Raw `updater-feed` 有 7 个平台键，资产 URL 全部为 GitHub API endpoint；旧 v0.3.28 完成一次手动 bootstrap，版本、教师数据和模型配置保持。下一跳 Tauri 自动验签安装需等 v0.3.30 验收。
+- R25 DSH 式 Safe Mode：安装版验收通过。`--safe-mode` 冷启动、横幅、只读工作区与正常模式恢复均已回读；只暂停第三方 Plugins/Skills，Core、JEV/OpenConnector 边界与数据未改。真实损坏插件夹具仍待独立故障注入。
+- R26 手机继续对话：同机 LAN 验收通过。显式开关、LAN 隔离、短时配对码、教师批准/撤销、HttpOnly cookie、会话/提醒回读和关闭后回到 loopback 均有证据；未开放 Core 写入、JEV/OpenConnector、文件操作或公网隧道。真实第二台手机和网络切换仍待外部设备验收。完整证据见 [v0.3.29 验收](../acceptance/2026-09-21-v0.3.29-update-safe-mobile.md)。
 
 ## 2026-09-20 提醒工作台重构
 

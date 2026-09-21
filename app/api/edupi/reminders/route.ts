@@ -3,6 +3,7 @@ import path from "node:path";
 import { readEducationWorkspaceBundle } from "@/lib/edupi-education-server";
 import { reminderEvents } from "@/lib/edupi-reminder-events";
 import { updateReminderStore } from "@/lib/edupi-reminder-store";
+import { syncReminderAttention } from "@/lib/edupi-attention-delivery";
 import { isApiRequestAllowed, hasJsonContentType } from "@/lib/request-security";
 import { parseJsonWithinLimit } from "@/lib/bounded-form-data";
 
@@ -11,7 +12,8 @@ type ReminderAction = { id: string; type: "read" | "dismiss" | "handled" | "snoo
 async function result(action?: ReminderAction) {
   const { data } = await readEducationWorkspaceBundle();
   const state = await updateReminderStore(path.join(data.workspace, ".edupi", "desktop", "reminders.json"), reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents), action);
-  return NextResponse.json({ items: state.items, notifications: state.notifications, metrics: state.metrics, workspace: data.workspace, taskSessions: data.taskSessions });
+  const attention = action ? await syncReminderAttention({ data, items: state.items, action, now: new Date() }) : { status: "synced", recorded: 0 };
+  return NextResponse.json({ items: state.items, notifications: state.notifications, metrics: state.metrics, attention, workspace: data.workspace, taskSessions: data.taskSessions });
 }
 export async function GET() {
   try { return await result(); } catch { return NextResponse.json({ error: "提醒暂不可用" }, { status: 503 }); }

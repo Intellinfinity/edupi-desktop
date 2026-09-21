@@ -70,6 +70,25 @@ export type L4AttentionIntent = {
   externalSend: false;
 };
 
+export type L4AttentionDelivery = {
+  receiptId: string;
+  attentionIntentId: string;
+  opportunityId: string;
+  workCaseId: string;
+  deepLink: string;
+  carrier: { kind: "desktop" | "feishu" | "dingtalk"; instanceId: string };
+  deliveryId: string;
+  version: number;
+  status: "queued" | "delivered" | "failed" | "retry" | "opened" | "expired";
+  failureCode: string | null;
+  occurredAt: string;
+  createdAt: string;
+  updatedAt: string;
+  intentCurrent: boolean;
+  teacherAcceptance: "not_recorded";
+  externalSend: false;
+};
+
 export type L4Preparation = {
   version: 1;
   policyVersion: string;
@@ -79,6 +98,7 @@ export type L4Preparation = {
   decisions: L4PreparationDecision[];
   nextWakeupAt: string | null;
   attentionIntents: L4AttentionIntent[];
+  attentionDeliveries: L4AttentionDelivery[];
   externalSend: false;
 };
 
@@ -286,6 +306,50 @@ function normalizeAttentionIntent(value: unknown): L4AttentionIntent | null {
   return { attentionIntentId, opportunityId, workCaseId, reason, createdAt, deliveryPolicy: "desktop_only", deepLink, externalSend: false };
 }
 
+function normalizeAttentionDelivery(value: unknown): L4AttentionDelivery | null {
+  const delivery = record(value);
+  const carrier = record(delivery?.carrier);
+  if (!delivery || !carrier || delivery.teacher_acceptance !== "not_recorded" || delivery.external_send !== false) return null;
+  const receiptId = identifier(delivery.receipt_id);
+  const attentionIntentId = identifier(delivery.attention_intent_id);
+  const opportunityId = identifier(delivery.opportunity_id);
+  const workCaseId = identifier(delivery.work_case_id);
+  const deepLink = text(delivery.deep_link, 500);
+  const carrierKind = carrier.kind;
+  const instanceId = identifier(carrier.instance_id);
+  const deliveryId = identifier(delivery.delivery_id);
+  const version = finiteNumber(delivery.version);
+  const status = typeof delivery.status === "string" && ["queued", "delivered", "failed", "retry", "opened", "expired"].includes(delivery.status) ? delivery.status as L4AttentionDelivery["status"] : null;
+  const failureCode = delivery.failure_code === null ? null : identifier(delivery.failure_code);
+  const occurredAt = timestamp(delivery.occurred_at);
+  const createdAt = timestamp(delivery.created_at);
+  const updatedAt = timestamp(delivery.updated_at);
+  if (version === null || !Number.isSafeInteger(version) || version < 1) return null;
+  if (!receiptId || !attentionIntentId || !opportunityId || !workCaseId || !deepLink
+    || !instanceId || !deliveryId || !status
+    || (status === "failed" || status === "retry") !== (failureCode !== null)
+    || !occurredAt || !createdAt || !updatedAt || typeof delivery.intent_current !== "boolean"
+    || !["desktop", "feishu", "dingtalk"].includes(String(carrierKind))) return null;
+  return {
+    receiptId,
+    attentionIntentId,
+    opportunityId,
+    workCaseId,
+    deepLink,
+    carrier: { kind: carrierKind as L4AttentionDelivery["carrier"]["kind"], instanceId },
+    deliveryId,
+    version,
+    status,
+    failureCode,
+    occurredAt,
+    createdAt,
+    updatedAt,
+    intentCurrent: delivery.intent_current,
+    teacherAcceptance: "not_recorded",
+    externalSend: false,
+  };
+}
+
 export function normalizeL4Preparation(value: unknown): L4Preparation | null {
   const projection = record(value);
   if (!projection || projection.version !== 1 || projection.external_send !== false) return null;
@@ -293,6 +357,7 @@ export function normalizeL4Preparation(value: unknown): L4Preparation | null {
   const opportunities = Array.isArray(projection.opportunities) ? projection.opportunities.map(normalizeOpportunity) : null;
   const decisions = Array.isArray(projection.decisions) ? projection.decisions.map(normalizeDecision) : null;
   const attentionIntents = Array.isArray(projection.attention_intents) ? projection.attention_intents.map(normalizeAttentionIntent) : null;
+  const attentionDeliveries = Array.isArray(projection.attention_deliveries) ? projection.attention_deliveries.map(normalizeAttentionDelivery) : [];
   const policyVersion = text(projection.policy_version, 100);
   const generatedAt = timestamp(projection.generated_at);
   const nextWakeupAt = projection.next_wakeup_at === null ? null : timestamp(projection.next_wakeup_at);
@@ -300,6 +365,7 @@ export function normalizeL4Preparation(value: unknown): L4Preparation | null {
     || !opportunities || opportunities.some(item => item === null) || opportunities.length > 200
     || !decisions || decisions.some(item => item === null) || decisions.length > 200
     || !attentionIntents || attentionIntents.some(item => item === null) || attentionIntents.length > 100
+    || attentionDeliveries.some(item => item === null) || attentionDeliveries.length > 100
     || !policyVersion || !generatedAt || nextWakeupAt === undefined) return null;
   const normalizedGoals = goals.filter((item): item is L4PreparationGoal => item !== null);
   const normalizedOpportunities = opportunities.filter((item): item is L4PreparationOpportunity => item !== null);
@@ -309,6 +375,8 @@ export function normalizeL4Preparation(value: unknown): L4Preparation | null {
     || normalizedOpportunities.length !== opportunities.length || normalizedOpportunities.length > 200
     || normalizedDecisions.length !== decisions.length || normalizedDecisions.length > 200
     || normalizedAttentionIntents.length !== attentionIntents.length || normalizedAttentionIntents.length > 100) return null;
+  const normalizedAttentionDeliveries = attentionDeliveries.filter((item): item is L4AttentionDelivery => item !== null);
+  if (normalizedAttentionDeliveries.length !== attentionDeliveries.length || normalizedAttentionDeliveries.length > 100) return null;
   return {
     version: 1,
     policyVersion,
@@ -318,6 +386,7 @@ export function normalizeL4Preparation(value: unknown): L4Preparation | null {
     decisions: normalizedDecisions,
     nextWakeupAt,
     attentionIntents: normalizedAttentionIntents,
+    attentionDeliveries: normalizedAttentionDeliveries,
     externalSend: false,
   };
 }

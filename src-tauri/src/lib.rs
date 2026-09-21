@@ -2,7 +2,7 @@ use std::{
     env,
     fs::{self, OpenOptions},
     io::{self, Read, Write},
-    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, UdpSocket},
     path::{Component, Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -11,6 +11,8 @@ use std::{
     },
     thread,
     time::{Duration, Instant, SystemTime},
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
 };
 
 #[cfg(unix)]
@@ -41,6 +43,8 @@ const EDUPI_CORE_ROOT_ENV: &str = "EDUPI_CORE_ROOT";
 const EDUPI_DATA_ALLOWED_ROOT_ENV: &str = "EDUPI_DATA_ALLOWED_ROOT";
 const EDUPI_CORE_ALLOWED_ROOT_ENV: &str = "EDUPI_CORE_ALLOWED_ROOT";
 const EDUPI_DATA_PREF_KEY: &str = "edupiDataRoot";
+const MOBILE_BRIDGE_PREF_KEY: &str = "mobileBridgeEnabled";
+const SAFE_MODE_FLAG: &str = "--safe-mode";
 const MANAGED_DATA_DIRECTORY: &str = "edupi-data";
 const FALLBACK_PERSISTED_MISSING: &str = "persisted_missing";
 const FALLBACK_PERSISTED_NO_KEY: &str = "persisted_no_key";
@@ -126,6 +130,16 @@ struct DesktopApiToken(String);
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DesktopRuntimeStatus {
+    safe_mode: bool,
+    diagnostics_path: String,
+    mobile_bridge_enabled: bool,
+    mobile_url: Option<String>,
+    restart_required: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct EduPiRootStatus {
     data_root: String,
     data_source: String,
@@ -156,6 +170,139 @@ fn load_or_generate_desktop_api_token() -> Result<String, String> {
 #[tauri::command]
 fn get_desktop_api_token(token: tauri::State<'_, DesktopApiToken>) -> String {
     token.0.clone()
+}
+
+fn safe_mode_requested() -> bool {
+    args_request_safe_mode(env::args_os())
+        || matches!(env::var("EDUPI_SAFE_MODE").as_deref(), Ok("1" | "true" | "yes"))
+}
+
+fn args_request_safe_mode<I, S>(args: I) -> bool
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    args.into_iter().any(|argument| argument.as_ref() == std::ffi::OsStr::new(SAFE_MODE_FLAG))
+}
+
+fn mobile_bridge_enabled_from_prefs(app: &AppHandle) -> bool {
+    read_ui_prefs(app)
+        .get(MOBILE_BRIDGE_PREF_KEY)
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn local_lan_ip() -> Option<IpAddr> {
+    // UDP connect only asks the OS which interface it would use; it does not
+    // send a packet to the documentation address.
+    let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
+    socket.connect((Ipv4Addr::new(192, 0, 2, 1), 9)).ok()?;
+    socket.local_addr().ok().map(|address| address.ip())
+}
+
+fn desktop_diagnostics_path(app: &AppHandle) -> String {
+    app.path()
+        .app_config_dir()
+        .map(|path| path.join("startup-diagnostics.jsonl").to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "startup-diagnostics.jsonl".into())
+}
+
+fn record_native_startup_diagnostic(
+    app: &AppHandle,
+    stage: &str,
+    component: &str,
+    error: &str,
+    log_path: Option<&Path>,
+) {
+    let Ok(config_dir) = app.path().app_config_dir() else {
+        return;
+    };
+    let path = config_dir.join("startup-diagnostics.jsonl");
+    let mut hasher = DefaultHasher::new();
+    error.hash(&mut hasher);
+    let record = serde_json::json!({
+        "at": chrono_like_timestamp(),
+        "stage": stage,
+        "component": component,
+        "errorCode": format!("START-RUST-{:016x}", hasher.finish()),
+        "logPath": log_path.map(|value| value.to_string_lossy().into_owned()),
+    });
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{}", record);
+    }
+}
+
+fn chrono_like_timestamp() -> String {
+    // Keep the native shell dependency-free; the server-side reader only
+    // needs an ordered timestamp.
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|duration| duration.as_secs().to_string())
+        .unwrap_or_else(|_| "0".into())
+}
+
+fn mobile_bridge_status(app: &AppHandle, restart_required: bool) -> DesktopRuntimeStatus {
+    let enabled = mobile_bridge_enabled_from_prefs(app);
+    let port = env::var("PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .or_else(|| {
+            #[cfg(feature = "custom-protocol")]
+            {
+                read_last_server_port(app)
+            }
+            #[cfg(not(feature = "custom-protocol"))]
+            {
+                Some(30141)
+            }
+        });
+    let mobile_url = if enabled {
+        local_lan_ip().or(Some(IpAddr::V4(Ipv4Addr::LOCALHOST))).zip(port).map(|(ip, port)| {
+            match ip {
+                IpAddr::V6(value) => format!("http://[{value}]:{port}/mobile"),
+                IpAddr::V4(value) => format!("http://{value}:{port}/mobile"),
+            }
+        })
+    } else {
+        None
+    };
+    DesktopRuntimeStatus {
+        safe_mode: safe_mode_requested(),
+        diagnostics_path: desktop_diagnostics_path(app),
+        mobile_bridge_enabled: enabled,
+        mobile_url,
+        restart_required,
+    }
+}
+
+#[tauri::command]
+fn get_desktop_runtime_status(app: AppHandle) -> DesktopRuntimeStatus {
+    mobile_bridge_status(&app, false)
+}
+
+#[tauri::command]
+fn set_mobile_bridge_enabled(app: AppHandle, enabled: bool) -> Result<DesktopRuntimeStatus, String> {
+    let mut prefs = read_ui_prefs(&app);
+    if !prefs.is_object() {
+        prefs = serde_json::json!({});
+    }
+    prefs[MOBILE_BRIDGE_PREF_KEY] = serde_json::Value::Bool(enabled);
+    write_ui_prefs(&app, &prefs)?;
+    Ok(mobile_bridge_status(&app, true))
+}
+
+#[tauri::command]
+fn restart_normal_mode(app: AppHandle) -> Result<(), String> {
+    let executable = env::current_exe().map_err(|error| error.to_string())?;
+    let arguments: Vec<_> = env::args_os().skip(1).filter(|argument| argument != SAFE_MODE_FLAG).collect();
+    let mut command = Command::new(executable);
+    command.args(arguments).env_remove("EDUPI_SAFE_MODE");
+    command.spawn().map_err(|error| error.to_string())?;
+    app.exit(0);
+    Ok(())
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -1452,13 +1599,15 @@ fn start_packaged_server(
 
     let roots = edupi_launch_roots(app)?;
     let port = choose_port(app)?;
+    let mobile_enabled = mobile_bridge_enabled_from_prefs(app);
+    let bind_host = if mobile_enabled { "0.0.0.0" } else { "127.0.0.1" };
     let desktop_state_dir = app.path().app_config_dir()?;
     fs::create_dir_all(&desktop_state_dir)?;
     let mut command = Command::new(&node_path);
     command
         .arg(&server_script)
         .current_dir(&server_dir)
-        .env("HOSTNAME", "127.0.0.1")
+        .env("HOSTNAME", bind_host)
         .env("PORT", port.to_string())
         .env("NODE_ENV", "production")
         .env("NEXT_TELEMETRY_DISABLED", "1")
@@ -1470,6 +1619,8 @@ fn start_packaged_server(
         .env("EDUPI_DATA_ALLOWED_ROOT", &roots.data_allowed_root)
         .env("PI_DESKTOP_STATE_DIR", &desktop_state_dir)
         .env("PI_WEB_PARENT_PID", std::process::id().to_string())
+        .env("EDUPI_SAFE_MODE", if safe_mode_requested() { "1" } else { "0" })
+        .env("EDUPI_MOBILE_BRIDGE_ENABLED", if mobile_enabled { "1" } else { "0" })
         .env(DESKTOP_API_TOKEN_ENV, desktop_api_token)
         .env(DESKTOP_INSTANCE_ID_ENV, desktop_instance_id)
         .stdin(Stdio::null())
@@ -1503,6 +1654,7 @@ mod tests {
     use super::{
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root,
+        args_request_safe_mode,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
         response_has_instance_id, resume_gap_detected, should_reconcile_webview_cache,
         update_server_port_in_prefs, validate_selected_data_root, write_last_version_to_path,
@@ -1522,6 +1674,13 @@ mod tests {
     fn native_window_allows_the_800px_accessibility_viewport() {
         assert_eq!(super::MIN_WINDOW_WIDTH, 800.0);
         assert_eq!(super::MIN_WINDOW_HEIGHT, 600.0);
+    }
+
+    #[test]
+    fn safe_mode_argument_is_explicit_and_does_not_match_similar_flags() {
+        assert!(args_request_safe_mode(["edupi", "--safe-mode"]));
+        assert!(!args_request_safe_mode(["edupi", "--safe-mode=1"]));
+        assert!(!args_request_safe_mode(["edupi", "--safe"]));
     }
 
     #[test]
@@ -2068,6 +2227,9 @@ fn start_development_server(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if safe_mode_requested() {
+        env::set_var("EDUPI_SAFE_MODE", "1");
+    }
     let desktop_api_token = load_or_generate_desktop_api_token()
         .expect("failed to create desktop API authorization token");
     let desktop_instance_id =
@@ -2097,6 +2259,9 @@ pub fn run() {
             reminder_notification::send_reminder_notification,
             reminder_notification::get_notification_permission_status,
             get_desktop_api_token,
+            get_desktop_runtime_status,
+            set_mobile_bridge_enabled,
+            restart_normal_mode,
             open_external_url,
             open_path,
             reveal_item_in_dir,
@@ -2129,8 +2294,19 @@ pub fn run() {
             }
 
             #[cfg(feature = "custom-protocol")]
-            let (url, server) =
-                start_packaged_server(app.handle(), &server_api_token, &server_instance_id)?;
+            let (url, server) = match start_packaged_server(app.handle(), &server_api_token, &server_instance_id) {
+                Ok(value) => value,
+                Err(error) => {
+                    record_native_startup_diagnostic(
+                        app.handle(),
+                        "server",
+                        "packaged-next-server",
+                        &error.to_string(),
+                        None,
+                    );
+                    return Err(error);
+                }
+            };
             #[cfg(not(feature = "custom-protocol"))]
             let (url, server) = start_development_server(app.handle())?;
 
@@ -2140,7 +2316,16 @@ pub fn run() {
             reminder_notification::install_notification_delegate(app.handle())?;
             // Reconcile stale hashed web assets before the first window load.
             let webview_cache_reconciled = reconcile_webview_cache_for_version(app.handle());
-            build_window(app.handle(), url)?;
+            if let Err(error) = build_window(app.handle(), url) {
+                record_native_startup_diagnostic(
+                    app.handle(),
+                    "window",
+                    "main-webview",
+                    &error.to_string(),
+                    None,
+                );
+                return Err(error.into());
+            }
             // A failed window build must leave the version mismatch in place
             // so the next launch retries cache reconciliation.
             // A failed cache cleanup also stays pending for the next launch.

@@ -10,6 +10,9 @@ test("settings exposes manual update checks and the signed installer action", ()
   assert.match(source, /hasAppUpdateCheckError\(data, "edupi-desktop"\)/);
   assert.match(source, /installLatestDesktopRelease/);
   assert.match(source, /desktopUpgradeErrorKind\(error\)/);
+  assert.match(source, /desktopUpgradeErrorDetails\(error\)/);
+  assert.match(source, /appSettings\.updateDiagnostics/);
+  assert.match(source, /MobileBridgeSettingsCard/);
   assert.match(source, /appSettings\.update/);
 });
 

@@ -1,5 +1,15 @@
 # 自动下载安装
 
+## 2026-09-20 v0.3.29 执行记录
+
+- 代码状态：更新 manifest、Tauri endpoint、release workflow、Safe Mode、手机 bridge 和 v0.3.29 版本元数据已落地，未执行 reset/clean 或重建分支。
+- 自动化证据：初始实现回归 `npm test` 1332 项中 1307 passed、25 skipped、0 failed；`tsc --noEmit`、针对性 updater/Safe Mode/mobile 测试和 Cargo library tests 已通过。最终复跑结果见下行。
+- 最终本地复跑：`npm test` 1334 项中 1309 passed、25 skipped、0 failed；`npm run lint`、`npm audit --audit-level=high`（0 vulnerabilities）、`tsc --noEmit`、`cargo metadata --locked`、默认/无 custom-protocol Cargo tests 和 `actionlint` 均通过。`PI_WEB_DESKTOP_BUILD=1 next build --webpack` 成功，保留既有 export route 的 critical dependency warning。
+- 公开传输实证：以 Latest `v0.3.28` 资产回放新脚本，生成 7 个 updater 平台键、4 个唯一 GitHub API asset URL；API asset endpoint + `Accept: application/octet-stream` 取得 1024 字节 ELF 分片。当前 `updater-feed` Raw URL 仍为 404，因为分支尚未推送。
+- 打包边界：`npm run desktop:prepare` 的 Next standalone build 成功，随后因本机没有计划固定的 Core commit `d05cf89…` 而停止；旁边 `../edupi` 为另一提交且有未提交改动，未使用或修改。
+- 未验收：公开 `updater-feed` 分支首次写入、v0.3.29 三平台 Release、旧客户端手动 bootstrap、安装版 Safe Mode、真实手机配对/续聊/撤销。源码测试或 API 可达性不替代安装版与手机端到端证据。
+- 本地交付提交：`45e1a55`（主实现）、`93fc5e0`（执行记录）、`cff8dd6`（旧客户端 bootstrap 边界）、`4f599a3`（手机窄屏布局）。推送到既有 origin 分支时因本机 GitHub HTTPS 凭据失效而被拒绝，未尝试覆盖远端或重建分支。
+
 ## 2026-09-20 更新中断分层诊断
 
 - 安装版内置 server 的 `GET /api/updates?refresh=1` 返回 `currentVersion=0.3.25`、`latestVersion=0.3.28`、`releaseStatus=available`；该查询走 `api.github.com`，HTTP 200。

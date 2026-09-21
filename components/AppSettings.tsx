@@ -20,10 +20,12 @@ import {
 } from "@/lib/desktop-computer-use";
 import {
   installLatestDesktopRelease,
+  desktopUpgradeErrorDetails,
   desktopUpgradeErrorKind,
   isTauriDesktop,
   type DesktopUpgradeProgress,
 } from "@/lib/desktop-updater";
+import type { DesktopUpgradeErrorStage } from "@/lib/desktop-updater";
 import {
   getEduPiRootStatusNative,
   getNotificationPermissionStatusNative,
@@ -50,6 +52,7 @@ import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { EduPiHelpPanel } from "./EduPiHelpPanel";
 import { JevSettingsCard } from "./JevSettingsCard";
 import { announceComputerUseChanged, COMPUTER_USE_CHANGED_EVENT } from "./EduPiComputerUseStop";
+import { MobileBridgeSettingsCard } from "./MobileBridgeSettingsCard";
 
 const sectionCardStyle: CSSProperties = {
   padding: "13px 14px",
@@ -433,6 +436,7 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [upgradeProgress, setUpgradeProgress] = useState<DesktopUpgradeProgress | null>(null);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
+  const [upgradeErrorDetails, setUpgradeErrorDetails] = useState<ReturnType<typeof desktopUpgradeErrorDetails> | null>(null);
   const [closeQuits, setCloseQuits] = useState(() => getPrefBool(APP_PREF_KEYS.closeQuits, false));
   const [notifyOnComplete, setNotifyOnComplete] = useState(() => getPrefBool(APP_PREF_KEYS.notifyOnComplete, true));
   const [notificationTest, setNotificationTest] = useState("");
@@ -505,6 +509,8 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
       ? (downloadPercent === null
         ? t("appSettings.downloading")
         : t("appSettings.downloadingPercent", { percent: downloadPercent }))
+      : upgradeProgress?.phase === "verifying"
+        ? t("appSettings.verifying")
       : upgradeProgress?.phase === "installing"
         ? t("appSettings.installing")
         : t("appSettings.update");
@@ -540,6 +546,7 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
   const handleUpgrade = async () => {
     if (!canUpgrade) return;
     setUpgradeError(null);
+    setUpgradeErrorDetails(null);
     try {
       const result = await installLatestDesktopRelease(setUpgradeProgress);
       if (!result.installed) {
@@ -548,8 +555,19 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
       }
     } catch (error) {
       setUpgradeProgress(null);
-      const kind = desktopUpgradeErrorKind(error);
-      setUpgradeError(t(kind === "download" ? "appSettings.downloadFailed" : kind === "signature" ? "appSettings.signatureFailed" : "appSettings.updateFailed"));
+      const kind = desktopUpgradeErrorKind(error) as DesktopUpgradeErrorStage;
+      setUpgradeError(t(
+        kind === "manifest"
+          ? "appSettings.manifestFailed"
+          : kind === "download"
+            ? "appSettings.downloadFailed"
+            : kind === "signature"
+              ? "appSettings.signatureFailed"
+              : kind === "install"
+                ? "appSettings.installFailed"
+                : "appSettings.updateFailed",
+      ));
+      setUpgradeErrorDetails(desktopUpgradeErrorDetails(error));
     }
   };
 
@@ -635,7 +653,18 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
             </div>
             {upgradeError && (
               <div className="native-inline-alert is-error" role="alert" style={{ marginTop: 9 }}>
-                {upgradeError}
+                <div>{upgradeError}</div>
+                {upgradeErrorDetails ? (
+                  <details style={{ marginTop: 5, fontSize: 11 }}>
+                    <summary style={{ cursor: "pointer" }}>{t("appSettings.updateDiagnostics")}</summary>
+                    <div style={{ marginTop: 5, display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 8px", color: "var(--text-muted)" }}>
+                      <span>{t("appSettings.updateStage")}</span><span>{t(`appSettings.updateStage.${upgradeErrorDetails.stage}`)}</span>
+                      <span>{t("appSettings.updateHost")}</span><span>{upgradeErrorDetails.host}</span>
+                      <span>{t("appSettings.updateRetries")}</span><span>{upgradeErrorDetails.retryCount}</span>
+                      <span>{t("appSettings.updateErrorCode")}</span><span>{upgradeErrorDetails.errorCode}</span>
+                    </div>
+                  </details>
+                ) : null}
               </div>
             )}
           </div>
@@ -686,6 +715,8 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
           {desktop && (
             <EduPiDataSettingsCard />
           )}
+
+          {desktop && <MobileBridgeSettingsCard />}
 
           <JevSettingsCard />
 

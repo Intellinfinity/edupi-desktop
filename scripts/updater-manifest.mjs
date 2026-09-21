@@ -56,15 +56,38 @@ export function requiredReleaseAssetNames(version) {
 export function validateReleaseAssets(version, assets) {
   if (!Array.isArray(assets)) throw new Error("Release asset index is invalid");
   const byName = new Map();
+  const ids = new Set();
   for (const asset of assets) {
-    if (!asset || typeof asset.name !== "string" || !Number.isFinite(asset.size) || asset.size <= 0) continue;
+    if (!asset || typeof asset.name !== "string" || !Number.isFinite(asset.size) || asset.size <= 0) {
+      throw new Error("Release asset index is invalid");
+    }
+    if (!Number.isInteger(asset.id) || asset.id <= 0) {
+      throw new Error(`Release asset id is invalid: ${asset.name}`);
+    }
+    for (const field of ["url", "downloadUrl", "assetUrl"]) {
+      if (typeof asset[field] === "string" && /github\.com\/[^/]+\/[^/]+\/releases\/download\//i.test(asset[field])) {
+        throw new Error(`Legacy GitHub release download URL is not allowed: ${asset.name}`);
+      }
+    }
     if (byName.has(asset.name)) throw new Error(`Release asset is duplicated: ${asset.name}`);
+    if (ids.has(asset.id)) throw new Error(`Release asset id is duplicated: ${asset.id}`);
+    ids.add(asset.id);
     byName.set(asset.name, asset);
   }
   for (const name of requiredReleaseAssetNames(version)) {
     if (!byName.has(name)) throw new Error(`Release asset is missing: ${name}`);
   }
   return byName;
+}
+
+export function releaseAssetUrl(repository, assetId) {
+  assertRepository(repository);
+  if (!Number.isInteger(assetId) || assetId <= 0) throw new Error("Release asset id is invalid");
+  const url = `https://api.github.com/repos/${repository}/releases/assets/${assetId}`;
+  if (/github\.com\/[^/]+\/[^/]+\/releases\/download\//i.test(url)) {
+    throw new Error("Legacy GitHub release download URLs are not allowed");
+  }
+  return url;
 }
 
 export function createUpdaterManifest({ version, repository, notes, pubDate, signatures, releaseAssets }) {
@@ -76,12 +99,14 @@ export function createUpdaterManifest({ version, repository, notes, pubDate, sig
   if (!signatures || typeof signatures !== "object" || Array.isArray(signatures)) throw new Error("Updater signatures are invalid");
 
   const platforms = {};
+  const assetsByName = validateReleaseAssets(version, releaseAssets);
   for (const bundle of bundles) {
     const asset = bundle.asset(version);
     const signatureFile = bundle.signature(version);
+    const releaseAsset = assetsByName.get(asset);
     const entry = {
       signature: signatureText(signatures[signatureFile], signatureFile),
-      url: `https://github.com/${repository}/releases/download/v${version}/${encodeURIComponent(asset)}`,
+      url: releaseAssetUrl(repository, releaseAsset.id),
     };
     for (const platform of bundle.platforms) platforms[platform] = { ...entry };
   }

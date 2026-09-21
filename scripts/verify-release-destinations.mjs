@@ -3,8 +3,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const EDUPI_RELEASE_REPOSITORY = "PIGU-PPPgu/edupi-desktop";
-export const EDUPI_UPDATER_ENDPOINT =
-  "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json";
+export const EDUPI_UPDATER_ENDPOINTS = [
+  "https://raw.githubusercontent.com/PIGU-PPPgu/edupi-desktop/updater-feed/latest.json",
+  "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json",
+];
+// Kept as a named compatibility export for older sentinel tests and scripts.
+export const EDUPI_UPDATER_ENDPOINT = EDUPI_UPDATER_ENDPOINTS[0];
 
 export const RELEASE_DESTINATION_FILES = [
   ".github/workflows/release.yml",
@@ -98,9 +102,9 @@ export function releaseDestinationErrors(files) {
   if (
     tauriConfig &&
     JSON.stringify(tauriConfig.plugins?.updater?.endpoints) !==
-      JSON.stringify([EDUPI_UPDATER_ENDPOINT])
+      JSON.stringify(EDUPI_UPDATER_ENDPOINTS)
   ) {
-    errors.push("Tauri updater must use only the EduPi release endpoint");
+    errors.push("Tauri updater must list the raw EduPi feed before the migration fallback endpoint");
   }
 
   let componentManifest;
@@ -160,7 +164,7 @@ export function verifyReleaseDestinations(files) {
 export async function main() {
   verifyReleaseDestinations(await readReleaseDestinationFiles());
   console.log(
-    `Release destinations verified: ${EDUPI_RELEASE_REPOSITORY} and ${EDUPI_UPDATER_ENDPOINT}`,
+    `Release destinations verified: ${EDUPI_RELEASE_REPOSITORY} and ${EDUPI_UPDATER_ENDPOINTS.join(", ")}`,
   );
 }
 

@@ -78,6 +78,8 @@ interface Props {
   soundEnabled?: boolean;
   onSoundToggle?: () => void;
   onAudioUnlock?: () => void;
+  /** Import non-image files into the current project and mention them in the draft. */
+  onAttachFiles?: (files: File[]) => void;
   draftKey?: string;
   /** Session working directory — enables the @ file autocomplete menu */
   cwd?: string | null;
@@ -378,7 +380,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
   onBuiltinCommand,
-  soundEnabled, onSoundToggle, onAudioUnlock,
+  soundEnabled, onSoundToggle, onAudioUnlock, onAttachFiles,
   onPromptWithStreamingBehavior,
   draftKey,
   cwd,
@@ -395,6 +397,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [permissionDropdownOpen, setPermissionDropdownOpen] = useState(false);
   const [thinkingDropdownOpen, setThinkingDropdownOpen] = useState(false);
   const [controlsMenuOpen, setControlsMenuOpen] = useState(false);
+  const [queueMenuOpen, setQueueMenuOpen] = useState(false);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>(() => (
     draftKey ? draftImagesToAttachedImages(getDraft(draftKey)?.images) : []
   ));
@@ -427,8 +431,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const permissionDropdownRef = useRef<HTMLDivElement>(null);
   const thinkingDropdownRef = useRef<HTMLDivElement>(null);
   const controlsMenuRef = useRef<HTMLDivElement>(null);
+  const queueMenuRef = useRef<HTMLDivElement>(null);
+  const attachmentMenuRef = useRef<HTMLDivElement>(null);
   const historyMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const projectFileInputRef = useRef<HTMLInputElement>(null);
   const isComposingRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
   const slashCommandsRequestedRef = useRef(false);
@@ -645,6 +652,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       setAttachError(error instanceof Error ? error.message : String(error));
     }
   }, [appendAttachedImages, isStreaming]);
+
+  const pickProjectFiles = useCallback(() => {
+    if (isStreaming || !onAttachFiles) return;
+    projectFileInputRef.current?.click();
+  }, [isStreaming, onAttachFiles]);
 
   const removeImage = useCallback((index: number) => {
     setAttachedImages((prev) => {
@@ -1019,6 +1031,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         nativeEvent.isComposing ||
         nativeEvent.keyCode === 229;
 
+      if (e.key === "Escape" && !isComposing && (queueMenuOpen || attachmentMenuOpen)) {
+        e.preventDefault();
+        setQueueMenuOpen(false);
+        setAttachmentMenuOpen(false);
+        return;
+      }
+
       if (e.key === "Enter" && !e.shiftKey && (isComposing || recentlyComposed)) {
         if (recentlyComposed) e.preventDefault();
         return;
@@ -1132,7 +1151,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         }
       }
     },
-    [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value]
+    [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, queueMenuOpen, attachmentMenuOpen]
   );
 
   const handleInput = useCallback(() => {
@@ -1295,6 +1314,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       if (controlsMenuRef.current && !controlsMenuRef.current.contains(e.target as Node)) {
         setControlsMenuOpen(false);
       }
+      if (queueMenuRef.current && !queueMenuRef.current.contains(e.target as Node)) {
+        setQueueMenuOpen(false);
+      }
+      if (attachmentMenuRef.current && !attachmentMenuRef.current.contains(e.target as Node)) {
+        setAttachmentMenuOpen(false);
+      }
       if (historyMenuRef.current && !historyMenuRef.current.contains(e.target as Node) && !textareaRef.current?.contains(e.target as Node)) {
         setHistoryMenuOpen(false);
       }
@@ -1304,8 +1329,29 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, []);
 
   useEffect(() => {
+    const handler = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (queueMenuOpen) {
+        event.preventDefault();
+        setQueueMenuOpen(false);
+      }
+      if (attachmentMenuOpen) {
+        event.preventDefault();
+        setAttachmentMenuOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [attachmentMenuOpen, queueMenuOpen]);
+
+  useEffect(() => {
     if (!isMobile) setControlsMenuOpen(false);
   }, [isMobile]);
+
+  useEffect(() => {
+    setQueueMenuOpen(false);
+    setAttachmentMenuOpen(false);
+  }, [isStreaming]);
 
 
 
@@ -1332,6 +1378,21 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           e.target.value = "";
         }}
       />
+      {onAttachFiles ? (
+        <input
+          ref={projectFileInputRef}
+          type="file"
+          multiple
+          disabled={isStreaming}
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            if (files.length > 0) onAttachFiles(files);
+            e.target.value = "";
+            setAttachmentMenuOpen(false);
+          }}
+        />
+      ) : null}
       <div className="chat-composer-wrap" style={{ maxWidth: 820, margin: "0 auto" }}>
         <ModelErrorBanner error={modelError} />
         {attachError && <ModelNoticeBanner tone="error" title={t("chat.attachmentError")} body={attachError} />}
@@ -1909,57 +1970,43 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" /></svg>
           </button> : null}
 
-          {isStreaming ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, alignSelf: "flex-end" }}>
-              {onSteer && (
-                <button
-                  onClick={() => sendQueued("steer")}
-                  disabled={!canQueueStreamingMessage}
-                  title={attachedImages.length ? t("chat.imagesCannotQueue") : t("chat.steerTitle")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "7px 12px",
-                    background: canQueueStreamingMessage ? "rgba(234,179,8,0.12)" : "none",
-                    border: "1px solid rgba(234,179,8,0.35)",
-                    borderRadius: 8,
-                    color: canQueueStreamingMessage ? "rgba(180,130,0,1)" : "var(--text-dim)",
-                    cursor: canQueueStreamingMessage ? "pointer" : "not-allowed",
-                    fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-                    transition: "background 0.12s",
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 1 L9 5 L5 9" /><line x1="1" y1="5" x2="9" y2="5" />
-                  </svg>
-                  {t("chat.steer")}
-                </button>
-              )}
-              {onFollowUp && (
-                <button
-                  onClick={() => sendQueued("followup")}
-                  disabled={!canQueueStreamingMessage}
-                  title={attachedImages.length ? t("chat.imagesCannotQueue") : t("chat.followUpTitle")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "7px 12px",
-                    background: canQueueStreamingMessage ? "rgba(129,140,248,0.12)" : "none",
-                    border: "1px solid rgba(129,140,248,0.35)",
-                    borderRadius: 8,
-                    color: canQueueStreamingMessage ? "rgba(99,102,241,1)" : "var(--text-dim)",
-                    cursor: canQueueStreamingMessage ? "pointer" : "not-allowed",
-                    fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-                    transition: "background 0.12s",
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="5" y1="1" x2="5" y2="6" /><polyline points="2.5 3.5 5 1 7.5 3.5" />
-                    <line x1="2" y1="9" x2="8" y2="9" />
-                  </svg>
-                  {t("chat.followUp")}
-                </button>
-              )}
+          {isStreaming ? (onSteer || onFollowUp ? (
+            <div ref={queueMenuRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, alignSelf: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setQueueMenuOpen((open) => !open)}
+                aria-label={t("chat.moreStreamingActions")}
+                aria-expanded={queueMenuOpen}
+                title={t("chat.moreStreamingActions")}
+                style={{
+                  display: "grid", placeItems: "center", width: 34, height: 34, padding: 0,
+                  background: queueMenuOpen ? "var(--bg-hover)" : "transparent",
+                  border: "1px solid color-mix(in srgb, var(--border) 80%, transparent)",
+                  borderRadius: 8, color: "var(--text-muted)", cursor: "pointer",
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
+                </svg>
+              </button>
+              {queueMenuOpen ? (
+                <div role="menu" className="native-popover" style={{ position: "absolute", right: 0, bottom: "calc(100% + 7px)", zIndex: 140, minWidth: 180, padding: 4, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 9, boxShadow: "0 -6px 20px rgba(0,0,0,0.14)" }}>
+                  {onSteer ? (
+                    <button type="button" role="menuitem" onClick={() => { setQueueMenuOpen(false); sendQueued("steer"); }} disabled={!canQueueStreamingMessage} title={attachedImages.length ? t("chat.imagesCannotQueue") : t("chat.steerTitle")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 9px", border: 0, borderRadius: 6, background: "none", color: canQueueStreamingMessage ? "var(--text)" : "var(--text-dim)", cursor: canQueueStreamingMessage ? "pointer" : "not-allowed", textAlign: "left", fontSize: 12 }}>
+                      <svg width="13" height="13" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 1 L9 5 L5 9" /><line x1="1" y1="5" x2="9" y2="5" /></svg>
+                      <span>{t("chat.steer")}</span>
+                    </button>
+                  ) : null}
+                  {onFollowUp ? (
+                    <button type="button" role="menuitem" onClick={() => { setQueueMenuOpen(false); sendQueued("followup"); }} disabled={!canQueueStreamingMessage} title={attachedImages.length ? t("chat.imagesCannotQueue") : t("chat.followUpTitle")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 9px", border: 0, borderRadius: 6, background: "none", color: canQueueStreamingMessage ? "var(--text)" : "var(--text-dim)", cursor: canQueueStreamingMessage ? "pointer" : "not-allowed", textAlign: "left", fontSize: 12 }}>
+                      <svg width="13" height="13" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="5" y1="1" x2="5" y2="6" /><polyline points="2.5 3.5 5 1 7.5 3.5" /><line x1="2" y1="9" x2="8" y2="9" /></svg>
+                      <span>{t("chat.followUp")}</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
-          ) : (
+          ) : null) : (
             <button
               className="native-primary-button composer-send-button"
               onClick={handleSend}
@@ -2008,36 +2055,51 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
           {/* LEFT: attach + model selector (idle) or steer/followup toggle (streaming) */}
           <div style={{ flex: isMobile ? "1 1 auto" : "0 0 auto", minWidth: 0, display: "flex", alignItems: "center", gap: 2 }}>
+            <div ref={attachmentMenuRef} style={{ position: "relative", flexShrink: 0 }}>
+              <button
+                type="button"
+                className="native-toolbar-button"
+                onClick={() => setAttachmentMenuOpen((open) => !open)}
+                disabled={isStreaming}
+                aria-label={t("chat.addAttachment")}
+                aria-expanded={attachmentMenuOpen}
+                title={t("chat.addAttachment")}
+                style={{
+                  display: "grid", placeItems: "center", width: 32, height: 32, padding: 0,
+                  background: attachmentMenuOpen ? "var(--bg-hover)" : "none", border: "none", borderRadius: 9,
+                  color: attachedImages.length ? "var(--accent)" : "var(--text-muted)",
+                  cursor: isStreaming ? "not-allowed" : "pointer", opacity: isStreaming ? 0.5 : 1,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </button>
+              {attachmentMenuOpen ? (
+                <div role="menu" className="native-popover" style={{ position: "absolute", left: 0, bottom: "calc(100% + 7px)", zIndex: 140, minWidth: 170, padding: 4, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 9, boxShadow: "0 -6px 20px rgba(0,0,0,0.14)" }}>
+                  <button type="button" role="menuitem" onClick={() => { setAttachmentMenuOpen(false); void pickAttachedImages(); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 9px", border: 0, borderRadius: 6, background: "none", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 12 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+                    <span>{t("chat.attachImage")}</span>
+                  </button>
+                  {onAttachFiles ? (
+                    <button type="button" role="menuitem" onClick={() => { setAttachmentMenuOpen(false); pickProjectFiles(); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 9px", border: 0, borderRadius: 6, background: "none", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 12 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4h10l6 6v10H4z" /><path d="M14 4v6h6" /></svg>
+                      <span>{t("chat.addFile")}</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
             <button
+              type="button"
               className="native-toolbar-button"
-              onClick={() => { void pickAttachedImages(); }}
-              disabled={isStreaming}
-             title={t("chat.attachImage")}
-              style={{
-                flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                width: 32, height: 32, padding: 0,
-                background: "none", border: "none",
-                borderRadius: 9,
-                color: attachedImages.length ? "var(--accent)" : "var(--text-muted)",
-                cursor: isStreaming ? "not-allowed" : "pointer",
-                opacity: isStreaming ? 0.5 : 1,
-                transition: "background 0.12s, color 0.12s",
+              onClick={() => {
+                if (isTauriDesktop()) window.dispatchEvent(new CustomEvent("edupi-open-settings"));
+                else window.open("/mobile", "_blank", "noopener,noreferrer");
               }}
-              onMouseEnter={(e) => {
-                if (isStreaming) return;
-                e.currentTarget.style.background = "var(--bg-hover)";
-                e.currentTarget.style.color = attachedImages.length ? "var(--accent)" : "var(--text)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "none";
-                e.currentTarget.style.color = attachedImages.length ? "var(--accent)" : "var(--text-muted)";
-              }}
+              aria-label={t("chat.phoneControl")}
+              title={t("chat.phoneControl")}
+              style={{ display: "grid", placeItems: "center", width: 32, height: 32, padding: 0, background: "none", border: "none", borderRadius: 9, color: "var(--text-muted)", cursor: "pointer" }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><line x1="10" y1="18" x2="14" y2="18" /></svg>
             </button>
             {!isStreaming && onPermissionModeChange && (
               <div ref={permissionDropdownRef} style={{ position: "relative" }}>
@@ -2556,17 +2618,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               <button
                 onClick={onAbort}
                  title={t("chat.stopAgent")}
+                aria-label={t("chat.stopAgent")}
                 style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "8px 14px",
-                  height: 32,
+                  display: "grid", placeItems: "center",
+                  width: 34, height: 34, padding: 0,
                   background: "color-mix(in srgb, var(--danger) 8%, transparent)",
                   border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
                   borderRadius: 9,
                   color: "var(--danger)",
                   cursor: "pointer",
-                  fontSize: 12, fontWeight: 600,
-                  whiteSpace: "nowrap", letterSpacing: "-0.01em",
                   transition: "background 0.12s",
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--danger) 16%, transparent)"; }}
@@ -2575,7 +2635,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" fill="currentColor" />
                 </svg>
-                 {t("chat.stop")}
               </button>
             )}
 

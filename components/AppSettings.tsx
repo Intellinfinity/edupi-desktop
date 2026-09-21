@@ -427,7 +427,7 @@ function VersionChip({
   );
 }
 
-export function AppSettings({ onClose }: { onClose: () => void }) {
+export function AppSettings({ onClose, initialSection = null }: { onClose: () => void; initialSection?: "mobile" | null }) {
   const { t, locale, setLocale, supportedLocales } = useI18n();
   const { theme, setTheme } = useTheme();
   const desktop = isTauriDesktop();
@@ -486,6 +486,20 @@ export function AppSettings({ onClose }: { onClose: () => void }) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, upgradeProgress]);
+
+  useEffect(() => {
+    if (initialSection !== "mobile") return;
+    let innerFrame = 0;
+    const outerFrame = requestAnimationFrame(() => {
+      innerFrame = requestAnimationFrame(() => {
+        document.getElementById("mobile-bridge-settings")?.scrollIntoView({ block: "center" });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outerFrame);
+      if (innerFrame) cancelAnimationFrame(innerFrame);
+    };
+  }, [initialSection]);
 
   const appRelease = useMemo(
     () => components.find((component) => component.project === "edupi-desktop"),

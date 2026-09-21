@@ -119,6 +119,7 @@ export function AppShell() {
   const [skillsConfigOpen, setSkillsConfigOpen] = useState(false);
   const [pluginsConfigOpen, setPluginsConfigOpen] = useState(false);
   const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [appSettingsSection, setAppSettingsSection] = useState<"mobile" | null>(null);
   const [firstRunGuideOpen, setFirstRunGuideOpen] = useState(false);
   useEffect(() => {
     setFirstRunGuideOpen(!getPrefBool(APP_PREF_KEYS.edupiFirstRunGuideComplete, false));
@@ -143,6 +144,14 @@ export function AppShell() {
     };
     window.addEventListener("edupi-open-context", handler);
     return () => window.removeEventListener("edupi-open-context", handler);
+  }, []);
+  useEffect(() => {
+    const handler = () => {
+      setAppSettingsSection("mobile");
+      setAppSettingsOpen(true);
+    };
+    window.addEventListener("edupi-open-settings", handler);
+    return () => window.removeEventListener("edupi-open-settings", handler);
   }, []);
 
   const [edupiAdminOpen, setEduPiAdminOpen] = useState(false);
@@ -901,6 +910,14 @@ export function AppShell() {
     params.set("reminders", "1");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
+
+  const openPhoneControl = useCallback(() => {
+    if (desktopMode) {
+      window.dispatchEvent(new CustomEvent("edupi-open-settings"));
+      return;
+    }
+    window.open("/mobile", "_blank", "noopener,noreferrer");
+  }, [desktopMode]);
 
   const handleEduPiComputerAction = useCallback((action: ComputerUseInput, expiresAt?: number): Promise<ComputerUseBridgeResult> => {
     return runComputerUseFromAgent(action, expiresAt);
@@ -2011,6 +2028,7 @@ export function AppShell() {
               onOpenAdmin={() => openEduPiAdmin()}
               onOpenProactive={openEduPiProactive}
               onOpenGuide={() => setFirstRunGuideOpen(true)}
+              onOpenPhoneControl={openPhoneControl}
               onPrepareAgentPrompt={(prompt) => chatInputRef.current?.insertText(`${prompt}\n`)}
               onReplaceAgentPrompt={(prompt) => chatInputRef.current?.replaceText(prompt)}
               quickEntryOpen={quickEntryOpen}
@@ -2208,7 +2226,7 @@ export function AppShell() {
         onReloaded={() => setSessionKey((k) => k + 1)}
       />
     )}
-    {appSettingsOpen && <AppSettings onClose={() => setAppSettingsOpen(false)} />}
+    {appSettingsOpen && <AppSettings initialSection={appSettingsSection} onClose={() => { setAppSettingsOpen(false); setAppSettingsSection(null); }} />}
     {edupiAdminOpen && <EduPiAdminPanel
       refreshToken={modelsRefreshKey}
       initialSection={edupiAdminSection}

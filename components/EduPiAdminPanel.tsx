@@ -13,7 +13,7 @@ import { startWindowDragging } from "@/lib/desktop-window";
 import { formatCoreSchedulerStatus } from "@/lib/edupi-schedule-display";
 import type { CoreRuntimeScheduler } from "@/lib/edupi-runtime-health";
 import { EduPiCoreCompatibility, type CoreCompatibilitySnapshot } from "./EduPiCoreCompatibility";
-import { reconnectEduPiCore } from "@/lib/edupi-runtime-client";
+import { reconnectEduPiCore, repairEduPiCore } from "@/lib/edupi-runtime-client";
 import { kernelRunAction, kernelRunDetail, kernelRunTitle, type KernelRunDisplayInput } from "@/lib/edupi-kernel-display";
 import { EduPiDeletedEntities } from "./EduPiDeletedEntities";
 import { readEducationEntityDeletions, restoreEducationEntity } from "@/lib/edupi-entity-delete-client";
@@ -126,6 +126,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
   const [refreshKey, setRefreshKey] = useState(0);
   const [coreReconnecting, setCoreReconnecting] = useState(false);
   const [coreReconnectMessage, setCoreReconnectMessage] = useState<string | null>(null);
+  const [coreRepairing, setCoreRepairing] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
   const firstNavRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -207,6 +208,20 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
       setCoreReconnectMessage(error instanceof Error ? error.message : "Core 重新连接失败");
     } finally {
       setCoreReconnecting(false);
+    }
+  };
+  const repairCore = async () => {
+    if (coreRepairing || !window.confirm("只修复 Core Runtime 状态库，教师记忆、校历和课表不会改动。继续？")) return;
+    setCoreRepairing(true);
+    setCoreReconnectMessage(null);
+    try {
+      await repairEduPiCore();
+      setCoreReconnectMessage("Core Runtime 已修复并重新连接");
+      refresh();
+    } catch (error) {
+      setCoreReconnectMessage(error instanceof Error ? error.message : "Core Runtime 修复失败");
+    } finally {
+      setCoreRepairing(false);
     }
   };
   const leaveAdmin = (action: () => void) => {
@@ -325,7 +340,8 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <AdminSectionHeader title="系统" meta={education?.workspace || "数据目录待连接"} onRefresh={refresh} />
         <div className="edupi-admin-list">
           <div><span><strong>EduPi Desktop</strong><small>当前安装版本</small></span><em>v{APP_VERSION_DISPLAY}</em></div>
-          <button type="button" disabled={coreReconnecting} onClick={coreConnected ? refresh : () => void reconnectCore()} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small aria-live="polite">{coreReconnectMessage || snapshot.status?.core?.reason || systemStatusLabel(snapshot.status?.core?.lifecycle || snapshot.status?.core?.status)}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreReconnecting ? "连接中" : loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
+          <button type="button" disabled={coreReconnecting || coreRepairing} onClick={coreConnected ? refresh : () => void reconnectCore()} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small aria-live="polite">{coreReconnectMessage || snapshot.status?.core?.reason || systemStatusLabel(snapshot.status?.core?.lifecycle || snapshot.status?.core?.status)}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreReconnecting ? "连接中" : coreRepairing ? "修复中" : loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
+          {desktopChrome.isDesktop && ["runtime_root_invalid", "runtime_state_invalid", "runtime_writer_unavailable"].some((code) => snapshot.status?.core?.reason?.includes(code)) ? <button type="button" disabled={coreRepairing || coreReconnecting} onClick={() => void repairCore()}><span><strong>修复 Core Runtime</strong><small>只清理运行状态绑定，保留教师数据</small></span><em>{coreRepairing ? "处理中" : "修复"}</em></button> : null}
           <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.reason || systemStatusLabel(snapshot.status?.projection?.status)}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
           <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.reason || systemStatusLabel(kernel?.status)}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
           <button type="button" onClick={onOpenSettings}><span><strong>应用更新</strong><small>检查、下载并安装新版本</small></span><em>检查更新</em></button>

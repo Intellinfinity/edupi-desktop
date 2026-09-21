@@ -79,16 +79,15 @@ export function MobileBridgeSettingsCard() {
     } catch { setError("手机撤销失败"); }
   };
 
-  if (!status) return null;
   return (
-    <div className="native-settings-card" style={{ padding: "13px 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)" }}>
+    <div id="mobile-bridge-settings" className="native-settings-card" style={{ padding: "13px 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)" }}>
       <div style={{ fontSize: 12, fontWeight: 700 }}>手机继续对话</div>
       <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: 11, lineHeight: 1.5 }}>局域网配对后，只能查看 EduPi 对话并继续发送文字。</div>
       <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ color: status.mobileBridgeEnabled ? "var(--accent)" : "var(--text-muted)", fontSize: 12 }}>{status.mobileBridgeEnabled ? "已启用 · 局域网配对" : "未启用"}</span>
-        <button type="button" className="native-button" disabled={busy} onClick={() => void toggle()}>{status.mobileBridgeEnabled ? "关闭手机入口" : "启用手机入口"}</button>
+        <span style={{ color: status?.mobileBridgeEnabled ? "var(--accent)" : "var(--text-muted)", fontSize: 12 }}>{status ? status.mobileBridgeEnabled ? "已启用 · 局域网配对" : "未启用" : "读取中"}</span>
+        <button type="button" className="native-button" disabled={busy || !status} onClick={() => void toggle()}>{status?.mobileBridgeEnabled ? "关闭手机入口" : "启用手机入口"}</button>
       </div>
-      {status.mobileBridgeEnabled ? (
+      {status?.mobileBridgeEnabled ? (
         <>
           {status.mobileUrl ? <div style={{ marginTop: 9, fontSize: 12, wordBreak: "break-all" }}><span style={{ color: "var(--text-muted)" }}>手机打开：</span>{status.mobileUrl}</div> : null}
           <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>

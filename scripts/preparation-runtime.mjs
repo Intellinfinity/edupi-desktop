@@ -5,7 +5,12 @@ import { dirname, join } from "node:path";
 export async function copyPreparationDependencies(root, destination) {
   const require = createRequire(join(root,"package.json"));
   const { nodeFileTrace } = require("next/dist/compiled/@vercel/nft");
-  const trace = await nodeFileTrace([join(root,"desktop/preparation-materials.mjs")],{base:root});
+  const trace = await nodeFileTrace([
+    join(root,"desktop/preparation-materials.mjs"),
+    join(root,"desktop/preparation-source-text.mjs"),
+    join(root,"desktop/office-archive.mjs"),
+    join(root,"desktop/preparation-skills.mjs"),
+  ],{base:root});
   if (trace.warnings.size) throw new Error("Preparation dependency tracing failed");
   for (const file of trace.fileList) {
     if (!/^node_modules[\\/]/.test(file)) continue;

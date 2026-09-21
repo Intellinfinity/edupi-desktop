@@ -49,6 +49,7 @@
     "test:edupi-c2-e2": "node scripts/test-edupi-c2-e2.mjs",
     "test:edupi-c3-e2": "node scripts/test-edupi-c3-e2.mjs",
     "test:edupi-follow-up-e2": "node scripts/test-edupi-follow-up-e2.mjs",
+    "test:edupi-calendar-dedupe-e2": "node scripts/test-edupi-calendar-dedupe-e2.mjs",
     "test:edupi-c6-e2": "node scripts/test-edupi-c6-e2.mjs",
     "test:edupi-c6-recognition-e2": "node scripts/test-edupi-c6-recognition-e2.mjs",
     "test:edupi-task-board-write-e2": "node scripts/test-edupi-task-board-write-e2.mjs",

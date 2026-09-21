@@ -45,17 +45,57 @@ function requiredText(value: unknown, max: number): string {
   return value.trim();
 }
 
+function normalizedScheduleText(value: unknown): string {
+  return typeof value === "string" ? value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase() : "";
+}
+
+function stableScheduleToken(value: unknown): string {
+  return crypto.createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex").slice(0, 32);
+}
+
+export function stableCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown }): string {
+  return `calendar-event-${stableScheduleToken({
+    date: normalizedScheduleText(value.date),
+    end_date: normalizedScheduleText(value.endDate),
+    name: normalizedScheduleText(value.name),
+    type: normalizedScheduleText(value.type),
+  })}`;
+}
+
+export function stableTimetableSlotId(value: { dayOfWeek?: unknown; period?: unknown; subject?: unknown; className?: unknown; kind?: unknown }): string {
+  return `timetable-slot-${stableScheduleToken({
+    day_of_week: value.dayOfWeek,
+    period: value.period,
+    subject: normalizedScheduleText(value.subject),
+    class_name: normalizedScheduleText(value.className),
+    kind: normalizedScheduleText(value.kind),
+  })}`;
+}
+
+function canonicalScheduleValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalScheduleValue);
+  if (!value || typeof value !== "object") return typeof value === "string" ? normalizedScheduleText(value) : value;
+  return Object.fromEntries(Object.keys(value as RawRecord).sort().map((key) => [key, canonicalScheduleValue((value as RawRecord)[key])]));
+}
+
+function canonicalScheduleList(values: readonly RawRecord[]): RawRecord[] {
+  return values.map((value) => canonicalScheduleValue(value) as RawRecord).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+}
+
 function sourceFor(kind: "calendar" | "timetable", raw: unknown) {
-  const hash = contentHash(raw);
+  const hash = contentHash(Array.isArray(raw) ? canonicalScheduleList(raw as RawRecord[]) : canonicalScheduleValue(raw));
   const token = hash.slice("sha256:".length, "sha256:".length + 24);
   return { source_id: `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
+}
+
+export function stableScheduleSourceHash(kind: "calendar" | "timetable", values: readonly RawRecord[]): string {
+  return sourceFor(kind, values).source_hash;
 }
 
 function calendarCommand(body: RawRecord): EducationIntakeCommand {
   if (!exactKeys(body, ["kind", "events"]) || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > 200) {
     throw new EducationIntakeError("invalid_envelope", "校历导入必须包含 1—200 个事件。");
   }
-  const source = sourceFor("calendar", body.events);
   const events: CalendarImportEvent[] = body.events.map((value) => {
     const item = record(value);
     if (!item || !exactKeys(item, ["eventId", "date", "endDate", "name", "type", "confidence", "notes"])) throw new EducationIntakeError("invalid_envelope", "校历事件字段无效。");
@@ -63,7 +103,7 @@ function calendarCommand(body: RawRecord): EducationIntakeCommand {
     const confidence = item.confidence === undefined ? "teacher_confirmed" : requiredText(item.confidence, 40);
     if (!CALENDAR_TYPES.has(type) || !CALENDAR_CONFIDENCE.has(confidence)) throw new EducationIntakeError("invalid_envelope", "校历事件类型无效。");
     return {
-      event_id: typeof item.eventId === "string" && item.eventId.trim() ? requiredText(item.eventId, 160) : `event-${crypto.randomUUID()}`,
+      event_id: typeof item.eventId === "string" && item.eventId.trim() ? requiredText(item.eventId, 160) : stableCalendarEventId(item),
       date: typeof item.date === "string" ? item.date.trim().slice(0, 32) : "",
       end_date: optionalText(item.endDate, 32) ?? null,
       name: requiredText(item.name, 240),
@@ -72,14 +112,13 @@ function calendarCommand(body: RawRecord): EducationIntakeCommand {
       notes: optionalText(item.notes, 1000) ?? null,
     };
   });
-  return { command_type: "import_calendar", source, events };
+  return { command_type: "import_calendar", source: sourceFor("calendar", events as unknown as RawRecord[]), events };
 }
 
 function timetableCommand(body: RawRecord): EducationIntakeCommand {
   if (!exactKeys(body, ["kind", "slots"]) || !Array.isArray(body.slots) || body.slots.length === 0 || body.slots.length > 200) {
     throw new EducationIntakeError("invalid_envelope", "课表导入必须包含 1—200 个时段。");
   }
-  const source = sourceFor("timetable", body.slots);
   const slots: TimetableImportSlot[] = body.slots.map((value) => {
     const item = record(value);
     if (!item || !exactKeys(item, ["slotId", "dayOfWeek", "period", "subject", "className", "kind", "notes"])
@@ -90,7 +129,7 @@ function timetableCommand(body: RawRecord): EducationIntakeCommand {
     const kind = item.kind === undefined ? "class" : requiredText(item.kind, 20);
     if (kind !== "class" && kind !== "routine") throw new EducationIntakeError("invalid_envelope", "课表类型无效。");
     return {
-      slot_id: typeof item.slotId === "string" && item.slotId.trim() ? requiredText(item.slotId, 160) : `slot-${crypto.randomUUID()}`,
+      slot_id: typeof item.slotId === "string" && item.slotId.trim() ? requiredText(item.slotId, 160) : stableTimetableSlotId(item),
       day_of_week: Number(item.dayOfWeek),
       period: Number(item.period),
       subject: requiredText(item.subject, 120),
@@ -99,7 +138,7 @@ function timetableCommand(body: RawRecord): EducationIntakeCommand {
       notes: optionalText(item.notes, 1000) ?? null,
     };
   });
-  return { command_type: "import_timetable", source, slots };
+  return { command_type: "import_timetable", source: sourceFor("timetable", slots as unknown as RawRecord[]), slots };
 }
 
 function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean } {

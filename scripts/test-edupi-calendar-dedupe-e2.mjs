@@ -40,6 +40,7 @@ try {
   const source = { source_id: "desktop-calendar-upload-dedupe", source_kind: "teacher_file", source_hash: route.stableScheduleSourceHash("calendar", events), evidence_ids: ["calendar-upload-dedupe-evidence"] };
   const first = await snapshot.readEduPiEducationSnapshot({ requestId: "calendar-dedupe-before" });
   const firstResult = await intake.issueEducationIntake({ command_type: "import_calendar", source, events });
+  assert.ok(["accepted", "modified", "held"].includes(firstResult.receipt.status));
   const afterFirst = await snapshot.readEduPiEducationSnapshot({ requestId: "calendar-dedupe-after-first" });
   const secondSource = { ...source, source_id: "desktop-calendar-upload-dedupe-retry" };
   const secondResult = await intake.issueEducationIntake({ command_type: "import_calendar", source: secondSource, events: [...events].reverse() });

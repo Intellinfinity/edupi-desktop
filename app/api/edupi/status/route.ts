@@ -47,14 +47,20 @@ export async function GET(request: Request) {
       compatibility: { expected: expectedCompatibility, actual: null, reason },
       projection: { status: "unavailable", reason: `${reason}；未使用本地 JSON 回退` },
       kernel: { status: "unavailable", summary: { total: 0, running: 0, failed: 0, needs_review: 0, succeeded: 0, skipped: 0 }, runs: [] },
+      proactivity: { status: "unavailable", ambientPlanning: process.env.EDUPI_AMBIENT_PLANNING === "1", attentionDelivery: false, teacherFeedback: false, attentionIntents: 0, attentionDeliveries: 0, currentAttentionDeliveries: 0, externalSend: false },
     });
   }
 
   let runtime: ProjectedCoreRuntimeHealth | null = null;
   let runtimeReason = "Core Runtime 不可用";
+  let runtimeCapabilities: Record<string, unknown> | null = null;
+  const ambientPlanning = process.env.EDUPI_AMBIENT_PLANNING === "1";
   try {
     const host = await ensureEduPiRuntime(roots);
-    runtime = projectCoreRuntimeHealth(await host.call("health", null), roots.runtime.coreCommit, identity.runtime.runtime_component_manifest_hash);
+    const runtimeHealth = await host.call("health", null);
+    const runtimeResult = runtimeHealth && typeof runtimeHealth.result === "object" && runtimeHealth.result && !Array.isArray(runtimeHealth.result) ? runtimeHealth.result as Record<string, unknown> : null;
+    runtimeCapabilities = runtimeResult?.capabilities && typeof runtimeResult.capabilities === "object" && !Array.isArray(runtimeResult.capabilities) ? runtimeResult.capabilities as Record<string, unknown> : null;
+    runtime = projectCoreRuntimeHealth(runtimeHealth, roots.runtime.coreCommit, identity.runtime.runtime_component_manifest_hash);
     runtimeReason = runtime.reason || "Core Runtime 已连接";
   } catch (error) {
     runtimeReason = failureReason(error, "Core Runtime 不可用");
@@ -90,6 +96,10 @@ export async function GET(request: Request) {
   } : null;
   const projectionReason = snapshot ? null : failureReason(snapshotResult.status === "rejected" ? snapshotResult.reason : null, "Core 教育投影不可用");
   const kernelReason = kernel ? null : failureReason(kernelResult.status === "rejected" ? kernelResult.reason : null, "自动运行内核不可用");
+  const preparation = workspace && typeof workspace.l4_preparation === "object" && workspace.l4_preparation && !Array.isArray(workspace.l4_preparation)
+    ? workspace.l4_preparation as Record<string, unknown> : null;
+  const attentionIntents = Array.isArray(preparation?.attention_intents) ? preparation.attention_intents : [];
+  const attentionDeliveries = Array.isArray(preparation?.attention_deliveries) ? preparation.attention_deliveries : [];
   const kernelBody = kernel
     ? summaryOnly
       ? { status: "ready", projection_kind: kernel.projection.projection_kind, state_version: kernel.projection.state_version, updated_at: kernel.projection.updated_at, summary: kernel.projection.summary, runs: [] }
@@ -128,5 +138,15 @@ export async function GET(request: Request) {
     },
     projection: snapshot ? { status: "ready", reason: null, projection: "education_workspace", counts } : { status: "unavailable", reason: `${projectionReason}；未使用本地 JSON 回退` },
     kernel: kernelBody,
+    proactivity: {
+      status: !runtime ? "unavailable" : ambientPlanning ? "active" : "disabled",
+      ambientPlanning,
+      attentionDelivery: runtimeCapabilities?.attention_delivery === "active",
+      teacherFeedback: runtimeCapabilities?.teacher_feedback === "active",
+      attentionIntents: attentionIntents.length,
+      attentionDeliveries: attentionDeliveries.length,
+      currentAttentionDeliveries: attentionDeliveries.filter((item) => (item as Record<string, unknown>)?.intent_current === true).length,
+      externalSend: false,
+    },
   });
 }

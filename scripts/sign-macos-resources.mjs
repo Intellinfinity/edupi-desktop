@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 const identity = process.env.APPLE_SIGNING_IDENTITY?.trim();

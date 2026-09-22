@@ -84,6 +84,7 @@ child.stdout.on("data", (chunk) => { logs += chunk.toString("utf8"); });
 child.stderr.on("data", (chunk) => { logs += chunk.toString("utf8"); });
 const exited = new Promise((resolve) => child.once("exit", (code, signal) => resolve({ code, signal })));
 const baseUrl = `http://127.0.0.1:${port}`;
+const desktopToken = "staged-feedback-token-012345678901234567890123456789";
 
 async function stop() {
   if (child.exitCode !== null || child.signalCode !== null) return;
@@ -92,7 +93,7 @@ async function stop() {
 }
 
 async function jsonFetch(url, init) {
-  const response = await fetch(`${baseUrl}${url}`, { ...init, signal: AbortSignal.timeout(15_000) });
+  const response = await fetch(`${baseUrl}${url}`, { ...init, headers: { ...init?.headers, "x-pi-desktop-token": desktopToken }, signal: AbortSignal.timeout(15_000) });
   return { response, body: await response.json() };
 }
 
@@ -106,6 +107,8 @@ try {
     } catch { /* cold start */ }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
+  assert.equal((await fetch(`${baseUrl}/api/edupi/teacher-feedback`)).status, 403);
+  assert.equal((await fetch(`${baseUrl}/api/edupi/teacher-feedback`, { method: "POST", headers: { "content-type": "application/json" }, body: "null" })).status, 403);
   const bootstrap = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "bootstrap" }) });
   assert.equal(bootstrap.response.status, 200, JSON.stringify(bootstrap.body));
   const targetRead = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "target_read", target: { kind: "goal", target_id: "goal-staged-feedback" } }) });
@@ -117,19 +120,19 @@ try {
     body: JSON.stringify({ action: "record", record: {
       command_id: "staged-feedback-record-1",
       session_id: "staged-teacher-trial",
-      evidence_level: "real_teacher",
+      evidence_level: "synthetic",
       domain: "teaching_preparation",
       scope: { class_id: "class-7b", subject: "math" },
       signal: "surfaced",
       target: { kind: "goal", target_id: "goal-staged-feedback" },
       decision: "accept",
       usefulness: "useful",
-      used: true,
-      would_use_again: true,
-      baseline_minutes: 25,
-      review_minutes: 5,
+      used: false,
+      would_use_again: null,
+      baseline_minutes: null,
+      review_minutes: null,
       issue_codes: [],
-      note: "教师实际采用",
+      note: "隔离运行时反馈回执测试",
       occurred_at: new Date().toISOString(),
       supersedes_feedback_id: null,
     } }),
@@ -140,8 +143,10 @@ try {
   const read = await jsonFetch("/api/edupi/teacher-feedback", { method: "GET" });
   assert.equal(read.response.status, 200, JSON.stringify(read.body));
   assert.equal(read.body.result.feedback.length, 1);
-  assert.equal(read.body.result.summary.time_saved_minutes, 20);
-  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, feedback_recorded: true, feedback_readback: true, time_saved_minutes: 20, external_send: false }, null, 2));
+  assert.equal(read.body.result.summary.real_teacher_current, 0);
+  assert.equal(read.body.result.summary.synthetic_excluded, 1);
+  assert.equal(read.body.result.summary.time_saved_minutes, 0);
+  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, feedback_recorded: true, feedback_readback: true, synthetic_excluded: 1, external_send: false }, null, 2));
 } finally {
   await stop();
   fs.rmSync(dataRoot, { recursive: true, force: true });

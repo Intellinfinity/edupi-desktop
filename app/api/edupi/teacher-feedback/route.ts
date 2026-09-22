@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
-import { isApiRequestAllowed, hasJsonContentType } from "@/lib/request-security";
+import { hasJsonContentType } from "@/lib/request-security";
+import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
 import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 
 export const runtime = "nodejs";
@@ -96,7 +97,7 @@ async function bindFeedbackRecord(host: Awaited<ReturnType<typeof runtimeContext
 }
 
 export async function GET(request: Request) {
-  if (!isApiRequestAllowed(request)) return jsonError("请求无效", 403);
+  if (!isDesktopApiRequestAllowed(request)) return jsonError("请求无效", 403);
   try {
     const { host } = await runtimeContext();
     const owner = await ownerSnapshot(host);
@@ -109,7 +110,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!isApiRequestAllowed(request) || !hasJsonContentType(request)) return jsonError("请求无效", 403);
+  if (!isDesktopApiRequestAllowed(request) || !hasJsonContentType(request)) return jsonError("请求无效", 403);
   try {
     const body = asRecord(await parseJsonWithinLimit(request, MAX_BODY_BYTES));
     if (!body) return jsonError("反馈操作无效", 400);

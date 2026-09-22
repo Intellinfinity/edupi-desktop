@@ -21,6 +21,7 @@ import { summarizeL4Preparation, type L4PreparationSummaryItem } from "@/lib/edu
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
 import { todayActiveTasks } from "@/lib/edupi-work-case";
 import { recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackDomain, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
+import { isTauriDesktop } from "@/lib/desktop-updater";
 
 type Props = {
   data: EducationContract;
@@ -51,14 +52,28 @@ type ReviewRetry = {
   note?: string;
 };
 type Submission = { candidateId: string; decision: EducationWorkCandidateDecision } | null;
+type RatedUsefulness = Exclude<TeacherFeedbackUsefulness, "not_observed">;
+type PendingFeedback = { candidate: EducationWorkCandidate; task: TeacherTask; decision: EducationWorkCandidateDecision; note?: string };
 
-function feedbackDomain(candidate: EducationWorkCandidate, task: TeacherTask | null): TeacherFeedbackDomain {
-  const text = `${task?.trigger || ""} ${candidate.reason}`.toLocaleLowerCase();
-  if (/student|follow/.test(text)) return "student_followup";
-  if (/calendar|meeting|admin/.test(text)) return "calendar_administration";
-  if (/reflection|lesson/.test(text)) return "lesson_reflection";
-  return "teaching_preparation";
-}
+const FEEDBACK_DOMAINS: Record<string, TeacherFeedbackDomain> = {
+  teaching_before_class: "teaching_preparation",
+  teaching_node_preparation: "teaching_preparation",
+  exam_preparation: "teaching_preparation",
+  calendar_event_preparation: "calendar_administration",
+  activity_preparation: "calendar_administration",
+  meeting_preparation: "calendar_administration",
+  holiday_preparation: "calendar_administration",
+  monthly_class_activity: "calendar_administration",
+};
+
+const USEFULNESS_OPTIONS: Array<{ value: RatedUsefulness; label: string }> = [
+  { value: "very_useful", label: "非常有帮助" },
+  { value: "useful", label: "有帮助" },
+  { value: "partial", label: "部分有帮助" },
+  { value: "not_useful", label: "无帮助" },
+  { value: "incorrect", label: "内容有误" },
+  { value: "unsafe", label: "不安全" },
+];
 
 function feedbackDecision(decision: EducationWorkCandidateDecision): TeacherFeedbackDecision {
   if (decision === "suppress") return "withdraw";
@@ -66,32 +81,30 @@ function feedbackDecision(decision: EducationWorkCandidateDecision): TeacherFeed
   return decision;
 }
 
-function feedbackUsefulness(decision: EducationWorkCandidateDecision): TeacherFeedbackUsefulness {
-  if (decision === "accept") return "useful";
-  if (decision === "modify") return "partial";
-  if (decision === "reject" || decision === "suppress") return "not_useful";
-  return "not_observed";
-}
-
-function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, note?: string): TeacherFeedbackCapture {
-  const evidence = task?.evidence && typeof task.evidence === "object" ? task.evidence as Record<string, unknown> : {};
-  const classId = typeof evidence.class_id === "string" && evidence.class_id.trim() ? evidence.class_id : "teacher-internal";
-  const subject = typeof evidence.subject === "string" && evidence.subject.trim() ? evidence.subject : task?.topic || feedbackDomain(candidate, task);
+export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, usefulness: RatedUsefulness, note?: string, occurredAt = new Date().toISOString()): TeacherFeedbackCapture | null {
+  const domain = task?.trigger ? FEEDBACK_DOMAINS[task.trigger] : null;
+  const evidence = task?.evidence;
+  const classId = evidence?.class_id;
+  const subject = evidence?.subject;
+  if (!domain || typeof classId !== "string" || classId.length > 160 || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/.test(classId)
+    || typeof subject !== "string" || !subject.trim() || subject.trim().length > 128
+    || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
   return {
-    commandId: `today-${candidate.candidateId}-${candidate.revision}-${decision}`,
+    commandId: `desktop-feedback-${globalThis.crypto.randomUUID()}`,
     sessionId: "desktop-today",
-    domain: feedbackDomain(candidate, task),
-    scope: { classId, subject: subject.slice(0, 128) },
+    domain,
+    scope: { classId, subject: subject.trim() },
     target: { kind: "work_candidate", targetId: candidate.candidateId },
     decision: feedbackDecision(decision),
-    usefulness: feedbackUsefulness(decision),
-    used: decision === "accept" || decision === "modify",
-    wouldUseAgain: decision === "accept" || decision === "modify" ? true : decision === "reject" || decision === "suppress" ? false : null,
+    usefulness,
+    used: false,
+    wouldUseAgain: null,
     baselineMinutes: null,
     reviewMinutes: null,
-    issueCodes: [],
+    issueCodes: usefulness === "unsafe" ? ["safety"] : usefulness === "incorrect" ? ["incorrect_content"] : [],
     note: note || null,
     evidenceIds: candidate.evidenceIds.length > 0 ? candidate.evidenceIds : candidate.sourceIds,
+    occurredAt,
   };
 }
 
@@ -238,6 +251,9 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const [changingDecisionId, setChangingDecisionId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [feedbackReady, setFeedbackReady] = useState(false);
+  const [pendingFeedback, setPendingFeedback] = useState<PendingFeedback | null>(null);
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [selectedRating, setSelectedRating] = useState<RatedUsefulness | "">("");
   const [feedbackRetry, setFeedbackRetry] = useState<TeacherFeedbackCapture | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [retryReview, setRetryReview] = useState<ReviewRetry | null>(null);
@@ -249,7 +265,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     const controller = new AbortController();
     fetch("/api/edupi/status?summary=1", { cache: "no-store", signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as { proactivity?: { teacherFeedback?: boolean } } : null)
-      .then((value) => { if (!controller.signal.aborted) setFeedbackReady(value?.proactivity?.teacherFeedback === true); })
+      .then((value) => { if (!controller.signal.aborted) setFeedbackReady(isTauriDesktop() && value?.proactivity?.teacherFeedback === true); })
       .catch(() => { if (!controller.signal.aborted) setFeedbackReady(false); });
     return () => controller.abort();
   }, []);
@@ -276,19 +292,13 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       onEducation(result.data);
       setEditor(null);
       setChangingDecisionId(null);
-      if (feedbackReady) {
-        try {
-          await recordTeacherFeedback(feedbackCaptureFor(candidate, taskById.get(candidate.taskId) || null, decision, note));
-          setFeedbackRetry(null);
-          setFeedback({ kind: "success", text: actionSuccess(decision) });
-        } catch {
-          const capture = feedbackCaptureFor(candidate, taskById.get(candidate.taskId) || null, decision, note);
-          setFeedbackRetry(capture);
-          setFeedback({ kind: "error", text: `${actionSuccess(decision)}；反馈记录失败，请重试。` });
-        }
-      } else {
-        setFeedback({ kind: "success", text: actionSuccess(decision) });
-      }
+      const task = taskById.get(candidate.taskId);
+      setPendingFeedback(feedbackReady && task && feedbackCaptureFor(candidate, task, decision, "useful")
+        ? { candidate, task, decision, note } : null);
+      setRatingOpen(false);
+      setSelectedRating("");
+      setFeedbackRetry(null);
+      setFeedback({ kind: "success", text: actionSuccess(decision) });
     } catch (error) {
       if (error instanceof TodayWorkReviewError) {
         if (error.data) onEducation(error.data);
@@ -299,6 +309,25 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       } else setFeedback({ kind: "error", text: todayWorkErrorMessage("malformed") });
     } finally {
       setSubmission(null);
+    }
+  };
+
+  const submitTeacherRating = async () => {
+    if (!pendingFeedback || !selectedRating || feedbackBusy) return;
+    const capture = feedbackCaptureFor(pendingFeedback.candidate, pendingFeedback.task, pendingFeedback.decision, selectedRating, pendingFeedback.note);
+    if (!capture) return;
+    setPendingFeedback(null);
+    setRatingOpen(false);
+    setFeedbackRetry(capture);
+    setFeedbackBusy(true);
+    try {
+      await recordTeacherFeedback(capture);
+      setFeedbackRetry(null);
+      setFeedback({ kind: "success", text: "评价已记录。" });
+    } catch {
+      setFeedback({ kind: "error", text: "决定已记录；评价未能记录，请重试。" });
+    } finally {
+      setFeedbackBusy(false);
     }
   };
 
@@ -318,6 +347,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
 
   const refreshEducation = () => {
     setFeedback(null);
+    setPendingFeedback(null);
     setRetryReview(null);
     window.dispatchEvent(new Event("edupi-education-refresh"));
   };
@@ -463,7 +493,21 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
         </div>
       </section>
     ) : null}
-    {feedback ? <div className={`edupi-today-work__feedback is-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite"><span>{feedback.text}</span>{feedbackRetry ? <button type="button" disabled={feedbackBusy} onClick={() => void retryTeacherFeedback()}>{feedbackBusy ? "记录中…" : "重试记录"}</button> : feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button> : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button> : null}</div> : null}
+    {feedback ? <div className={`edupi-today-work__feedback is-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite">
+      <span>{feedback.text}</span>
+      {feedbackRetry ? <button type="button" disabled={feedbackBusy} onClick={() => void retryTeacherFeedback()}>{feedbackBusy ? "记录中…" : "重试记录"}</button>
+        : feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button>
+          : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button>
+            : pendingFeedback && !ratingOpen ? <button type="button" onClick={() => setRatingOpen(true)}>评价</button> : null}
+      {pendingFeedback && ratingOpen ? <div className="edupi-today-work__rating">
+        <select aria-label="有用性" value={selectedRating} onChange={(event) => setSelectedRating(event.target.value as RatedUsefulness | "")}>
+          <option value="">选择评价</option>
+          {USEFULNESS_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <button type="button" disabled={!selectedRating || feedbackBusy} onClick={() => void submitTeacherRating()}>记录评价</button>
+        <button type="button" onClick={() => setRatingOpen(false)}>取消</button>
+      </div> : null}
+    </div> : null}
     <div className="edupi-today-work__groups">{(["now", "later", "done"] as const).map(renderGroup)}</div>
   </section>;
 }

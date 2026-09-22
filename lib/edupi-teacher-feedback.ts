@@ -1,3 +1,5 @@
+import { desktopApiHeaders } from "@/lib/desktop-native";
+
 export type TeacherFeedbackDomain = "teaching_preparation" | "student_followup" | "lesson_reflection" | "calendar_administration" | "parent_communication" | "safety_privacy";
 export type TeacherFeedbackDecision = "accept" | "modify" | "reject" | "hold" | "withdraw";
 export type TeacherFeedbackUsefulness = "very_useful" | "useful" | "partial" | "not_useful" | "incorrect" | "unsafe" | "not_observed";
@@ -20,7 +22,7 @@ export type TeacherFeedbackCapture = {
   issueCodes?: TeacherFeedbackIssueCode[];
   note?: string | null;
   evidenceIds: string[];
-  occurredAt?: string;
+  occurredAt: string;
   supersedesFeedbackId?: string | null;
 };
 
@@ -34,28 +36,30 @@ export class TeacherFeedbackError extends Error {
   }
 }
 
-function id(value: string, field: string, maxLength = 160): string {
+function id(value: unknown, field: string, maxLength = 160): string {
+  if (typeof value !== "string") throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
   const normalized = value.trim();
   if (!normalized || normalized.length > maxLength || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/u.test(normalized)) throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
   return normalized;
 }
 
-function text(value: string, field: string, maxLength: number): string {
+function text(value: unknown, field: string, maxLength: number): string {
+  if (typeof value !== "string") throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
   const normalized = value.trim();
   if (!normalized || normalized.length > maxLength) throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
   return normalized;
 }
 
-function commandId(): string {
-  const random = globalThis.crypto?.randomUUID?.();
-  return `desktop-feedback-${random || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
-}
-
 export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Record<string, unknown> {
+  const occurredAt = text(input.occurredAt, "occurredAt", 24);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(occurredAt)
+    || Number.isNaN(Date.parse(occurredAt)) || new Date(occurredAt).toISOString() !== occurredAt) {
+    throw new TeacherFeedbackError("invalid_feedback", "occurredAt is invalid");
+  }
   const evidenceIds = [...new Set(input.evidenceIds.map((value) => id(value, "evidenceId", 240)))].slice(0, 50);
   if (evidenceIds.length === 0) throw new TeacherFeedbackError("invalid_feedback", "evidenceIds is required");
   const record: Record<string, unknown> = {
-    command_id: id(input.commandId || commandId(), "commandId"),
+    command_id: id(input.commandId, "commandId"),
     session_id: id(input.sessionId, "sessionId"),
     evidence_level: input.evidenceLevel || "real_teacher",
     domain: input.domain,
@@ -71,7 +75,7 @@ export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Recor
     issue_codes: [...new Set(input.issueCodes || [])],
     note: input.note?.trim() || null,
     evidence_ids: evidenceIds,
-    occurred_at: input.occurredAt || new Date().toISOString(),
+    occurred_at: occurredAt,
     supersedes_feedback_id: input.supersedesFeedbackId ?? null,
   };
   return record;
@@ -86,9 +90,9 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
   }
 }
 
-export async function recordTeacherFeedback(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch): Promise<TeacherFeedbackRecordResult> {
+export async function recordTeacherFeedback(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders): Promise<TeacherFeedbackRecordResult> {
   const record = buildTeacherFeedbackRecord(input);
-  const post = async (body: Record<string, unknown>) => fetcher("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const post = async (body: Record<string, unknown>) => fetcher("/api/edupi/teacher-feedback", { method: "POST", headers: await headersProvider({ "content-type": "application/json" }), body: JSON.stringify(body) });
   let response = await post({ action: "record", record });
   let value = await readResponse(response);
   if (response.status === 409 && value.errorCode === "owner_uninitialized") {

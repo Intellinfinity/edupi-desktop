@@ -306,6 +306,32 @@
   padding-top: 24px;
 }
 
+.edupi-schedule-review { margin: 8px 0 18px; border-block: 1px solid var(--ep-border); color: var(--ep-text); font-size: 12px; }
+.edupi-schedule-review > header { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 12px; }
+.edupi-schedule-review > header strong { font-size: 13px; }
+.edupi-schedule-review button, .edupi-schedule-review select { min-height: 30px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); font: inherit; cursor: pointer; }
+.edupi-schedule-review button { padding: 4px 10px; }
+.edupi-schedule-review button:disabled { opacity: .5; cursor: not-allowed; }
+.edupi-schedule-review > p { margin: 0 0 12px; color: var(--ep-muted); }
+.edupi-schedule-review > p[role="alert"] { color: var(--ep-red); }
+.edupi-schedule-review > p button { margin-left: 8px; }
+.edupi-schedule-review__list { display: grid; border-top: 1px solid var(--ep-border); }
+.edupi-schedule-review__list > button { display: grid; min-width: 0; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 6px; border: 0; border-bottom: 1px solid var(--ep-border); border-radius: 0; background: transparent; text-align: left; }
+.edupi-schedule-review__list > button.is-selected { background: var(--ep-surface-soft); }
+.edupi-schedule-review__list > button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-schedule-review__list > button span, .edupi-schedule-review__list > button small { color: var(--ep-muted); }
+.edupi-schedule-review__detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 14px 6px; }
+.edupi-schedule-review__detail > div { min-width: 0; }
+.edupi-schedule-review__detail strong { font-size: 11px; }
+.edupi-schedule-review__source dl { display: grid; gap: 5px; margin: 8px 0; }
+.edupi-schedule-review__source dl > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; }
+.edupi-schedule-review__source dt { color: var(--ep-muted); }
+.edupi-schedule-review__source dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.edupi-schedule-review__detail small { color: var(--ep-muted); overflow-wrap: anywhere; }
+.edupi-schedule-review__actions { display: flex; grid-column: 1 / -1; align-items: center; flex-wrap: wrap; gap: 8px; }
+.edupi-schedule-review__actions select { max-width: 100%; padding: 4px 8px; }
+.edupi-schedule-review__actions button.is-primary { border-color: var(--ep-blue); background: var(--ep-blue); color: white; }
+
 .edupi-calendar-heading {
   display: flex;
   min-height: 76px;
@@ -682,6 +708,9 @@
 }
 
 @media (max-width: 560px) {
+  .edupi-schedule-review__detail { grid-template-columns: minmax(0, 1fr); }
+  .edupi-schedule-review__list > button { grid-template-columns: 42px minmax(0, 1fr); }
+  .edupi-schedule-review__list > button small { grid-column: 2; }
   .edupi-calendar-workspace { padding-top: 18px; }
   .edupi-calendar-heading { min-height: 66px; }
   .edupi-calendar-heading h1 { font-size: 24px; }

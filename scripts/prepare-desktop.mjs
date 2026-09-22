@@ -1,15 +1,15 @@
-import { access, chmod, copyFile, cp, mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { access, chmod, copyFile, cp, lstat, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { constants } from "node:fs";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { desktopTargetTriple } from "./desktop-platform.mjs";
 import { buildPackagedCoreBundle } from "./packaged-core-bundle.mjs";
 import { isDesktopServerInput } from "./desktop-package-inputs.mjs";
 import { piPackageDirNames } from "./pi-packages.mjs";
 import { removeUnusedMuslSharp } from "./packaged-sharp.mjs";
-import { copyPreparationDependencies } from "./preparation-runtime.mjs";
+import { copyPackageClosure, copyPreparationDependencies } from "./preparation-runtime.mjs";
 import { copyRuntimeModelHostFiles } from "./runtime-model-host-files.mjs";
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -18,6 +18,66 @@ const standaloneDir = join(desktopBuildDir, "standalone");
 const serverResourcesDir = join(rootDir, "src-tauri", "resources", "server");
 const serverHelperDir = join(rootDir, "src-tauri", "resources", "Pi Agent Server.app");
 const nodeResourcesDir = join(rootDir, "src-tauri", "resources", "node");
+
+async function copySymlinkedStandaloneDependencies(standaloneRoot, destinationRoot) {
+  const standaloneNodeModules = join(standaloneRoot, "node_modules");
+  let nodeModulesStat;
+  try { nodeModulesStat = await lstat(standaloneNodeModules); } catch { return 0; }
+  if (!nodeModulesStat.isSymbolicLink()) return 0;
+
+  // Next keeps the NFT manifests beside `standalone`, not inside the copied
+  // server tree. This matters when a worktree exposes node_modules via a
+  // symlink and standalone cannot materialize the traced packages itself.
+  const traceRoot = dirname(standaloneRoot);
+  const traceFiles = [];
+  async function collect(current) {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const file = join(current, entry.name);
+      if (entry.isDirectory()) await collect(file);
+      else if (entry.isFile() && entry.name.endsWith(".nft.json")) traceFiles.push(file);
+    }
+  }
+  await collect(traceRoot);
+
+  const destinationRootReal = resolve(destinationRoot);
+  const copied = new Set();
+  for (const traceFile of traceFiles) {
+    let trace;
+    try { trace = JSON.parse(await readFile(traceFile, "utf8")); } catch { continue; }
+    if (!Array.isArray(trace?.files)) continue;
+    const traceDirectory = dirname(traceFile);
+    for (const listed of trace.files) {
+      if (typeof listed !== "string") continue;
+      const normalized = listed.replaceAll("\\", "/");
+      const parts = normalized.split("/");
+      const nodeModulesIndex = parts.indexOf("node_modules");
+      if (nodeModulesIndex < 0 || nodeModulesIndex === parts.length - 1) continue;
+      const source = resolve(traceDirectory, ...parts);
+      let sourceStat;
+      try { sourceStat = await lstat(source); } catch { continue; }
+      if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) continue;
+      const packageRelative = parts.slice(nodeModulesIndex).join("/");
+      const destination = resolve(destinationRootReal, ...packageRelative.split("/"));
+      const destinationRelative = relative(destinationRootReal, destination);
+      if (destinationRelative.startsWith("..") || destinationRelative.includes(`${process.platform === "win32" ? "\\" : "/"}..`)) continue;
+      if (copied.has(destination)) continue;
+      copied.add(destination);
+      await mkdir(dirname(destination), { recursive: true });
+      await copyFile(source, destination);
+    }
+  }
+  const packageFilesBefore = copied.size;
+  const packageSeen = new Set();
+  for (const packageName of ["next", "react", "react-dom"]) {
+    await copyPackageClosure(rootDir, destinationRoot, packageName, packageSeen);
+  }
+  for (const packageName of await piPackageDirNames()) {
+    await copyPackageClosure(rootDir, destinationRoot, `@earendil-works/${packageName}`, packageSeen);
+  }
+  const packageFiles = packageFilesBefore + packageSeen.size;
+  if (copied.size === 0 && packageSeen.size === 0) throw new Error("Next standalone node_modules is a symlink but no traced dependency files were found");
+  return packageFiles;
+}
 
 async function runNextBuild() {
   const require = createRequire(import.meta.url);
@@ -48,7 +108,13 @@ async function assembleServer() {
   await access(join(standaloneDir, "server.js"), constants.R_OK);
   await rm(serverResourcesDir, { recursive: true, force: true });
   await mkdir(dirname(serverResourcesDir), { recursive: true });
-  await cp(standaloneDir, serverResourcesDir, { recursive: true, filter: source => isDesktopServerInput(standaloneDir, source) });
+  const standaloneNodeModules = join(standaloneDir, "node_modules");
+  await cp(standaloneDir, serverResourcesDir, {
+    recursive: true,
+    filter: source => source !== standaloneNodeModules && isDesktopServerInput(standaloneDir, source),
+  });
+  const tracedDependencies = await copySymlinkedStandaloneDependencies(standaloneDir, serverResourcesDir);
+  if (tracedDependencies > 0) console.log(`Expanded ${tracedDependencies} traced dependency files from a standalone node_modules symlink`);
 
   // Next's file tracer follows normal imports but intentionally omits files
   // reached through dynamic provider/export/plugin paths. These packages are

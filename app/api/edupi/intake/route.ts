@@ -1,8 +1,6 @@
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import {
-  contentHash,
   EducationIntakeError,
   issueEducationIntake,
   type CalendarImportEvent,
@@ -14,6 +12,7 @@ import { intakeRecognizedMaterial } from "@/lib/edupi-material-intake-flow";
 import { MaterialRecognitionError } from "@/lib/edupi-material-recognition";
 import { MaterialRecognitionAdmissionError, withMaterialRecognitionLock } from "@/lib/edupi-material-recognition-lock";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
+import { stableCalendarEventId, stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,8 +44,8 @@ function requiredText(value: unknown, max: number): string {
   return value.trim();
 }
 
-function sourceFor(kind: "calendar" | "timetable", raw: unknown) {
-  const hash = contentHash(raw);
+function sourceFor(kind: "calendar" | "timetable", raw: readonly RawRecord[]) {
+  const hash = stableScheduleSourceHash(raw);
   const token = hash.slice("sha256:".length, "sha256:".length + 24);
   return { source_id: `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
 }
@@ -55,7 +54,6 @@ function calendarCommand(body: RawRecord): EducationIntakeCommand {
   if (!exactKeys(body, ["kind", "events"]) || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > 200) {
     throw new EducationIntakeError("invalid_envelope", "校历导入必须包含 1—200 个事件。");
   }
-  const source = sourceFor("calendar", body.events);
   const events: CalendarImportEvent[] = body.events.map((value) => {
     const item = record(value);
     if (!item || !exactKeys(item, ["eventId", "date", "endDate", "name", "type", "confidence", "notes"])) throw new EducationIntakeError("invalid_envelope", "校历事件字段无效。");
@@ -63,7 +61,7 @@ function calendarCommand(body: RawRecord): EducationIntakeCommand {
     const confidence = item.confidence === undefined ? "teacher_confirmed" : requiredText(item.confidence, 40);
     if (!CALENDAR_TYPES.has(type) || !CALENDAR_CONFIDENCE.has(confidence)) throw new EducationIntakeError("invalid_envelope", "校历事件类型无效。");
     return {
-      event_id: typeof item.eventId === "string" && item.eventId.trim() ? requiredText(item.eventId, 160) : `event-${crypto.randomUUID()}`,
+      event_id: typeof item.eventId === "string" && item.eventId.trim() ? requiredText(item.eventId, 160) : stableCalendarEventId(item),
       date: typeof item.date === "string" ? item.date.trim().slice(0, 32) : "",
       end_date: optionalText(item.endDate, 32) ?? null,
       name: requiredText(item.name, 240),
@@ -72,14 +70,13 @@ function calendarCommand(body: RawRecord): EducationIntakeCommand {
       notes: optionalText(item.notes, 1000) ?? null,
     };
   });
-  return { command_type: "import_calendar", source, events };
+  return { command_type: "import_calendar", source: sourceFor("calendar", events as unknown as RawRecord[]), events };
 }
 
 function timetableCommand(body: RawRecord): EducationIntakeCommand {
   if (!exactKeys(body, ["kind", "slots"]) || !Array.isArray(body.slots) || body.slots.length === 0 || body.slots.length > 200) {
     throw new EducationIntakeError("invalid_envelope", "课表导入必须包含 1—200 个时段。");
   }
-  const source = sourceFor("timetable", body.slots);
   const slots: TimetableImportSlot[] = body.slots.map((value) => {
     const item = record(value);
     if (!item || !exactKeys(item, ["slotId", "dayOfWeek", "period", "subject", "className", "kind", "notes"])
@@ -90,7 +87,7 @@ function timetableCommand(body: RawRecord): EducationIntakeCommand {
     const kind = item.kind === undefined ? "class" : requiredText(item.kind, 20);
     if (kind !== "class" && kind !== "routine") throw new EducationIntakeError("invalid_envelope", "课表类型无效。");
     return {
-      slot_id: typeof item.slotId === "string" && item.slotId.trim() ? requiredText(item.slotId, 160) : `slot-${crypto.randomUUID()}`,
+      slot_id: typeof item.slotId === "string" && item.slotId.trim() ? requiredText(item.slotId, 160) : stableTimetableSlotId(item),
       day_of_week: Number(item.dayOfWeek),
       period: Number(item.period),
       subject: requiredText(item.subject, 120),
@@ -99,7 +96,7 @@ function timetableCommand(body: RawRecord): EducationIntakeCommand {
       notes: optionalText(item.notes, 1000) ?? null,
     };
   });
-  return { command_type: "import_timetable", source, slots };
+  return { command_type: "import_timetable", source: sourceFor("timetable", slots as unknown as RawRecord[]), slots };
 }
 
 function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean } {

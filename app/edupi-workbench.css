@@ -1367,7 +1367,9 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-today-work__notice,
 .edupi-today-work__feedback { margin: 10px 12px 0; padding: 8px 10px; border-radius: 6px; font-size: 11px; line-height: 1.5; }
 .edupi-today-work__notice { background: var(--ep-surface-soft); color: var(--ep-muted); }
-.edupi-today-work__feedback { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.edupi-today-work__feedback { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.edupi-today-work__rating { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.edupi-today-work__rating select { max-width: 100%; min-height: 30px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); font: inherit; }
 .edupi-today-work__feedback.is-success { background: var(--ep-green-soft); color: var(--ep-green); }
 .edupi-today-work__feedback.is-error { background: var(--ep-red-soft); color: var(--ep-red); }
 .edupi-today-work__feedback button { flex: 0 0 auto; min-height: 24px; padding: 0 8px; border: 1px solid currentColor; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; font-size: 10px; }

@@ -1,0 +1,191 @@
+{
+  "contract_version": "1.1",
+  "message_id": "v11-snapshot-message",
+  "request_id": "v11-snapshot-request",
+  "issued_at": "1970-01-01T00:00:00.000Z",
+  "producer": "edupi-core",
+  "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+  "snapshot_id": "snapshot_d81f3d3a57cefab5b618662f689e252e",
+  "provenance": [
+    {
+      "source_kind": "fixture",
+      "source_id": "education_workspace",
+      "source_path": null,
+      "source_hash": "sha256:a98cc43e65d5d4c8424766c38c410bc764fec395a45b30f147f683d6d3203f81",
+      "observed_at": "1970-01-01T00:00:00.000Z",
+      "actor": "core",
+      "evidence_ids": [
+        "sha256:827c84d68df8fde58b5b7765e15523404a909b78c370178b48c806129406ec41"
+      ],
+      "parent_ids": []
+    }
+  ],
+  "teacher_review": {
+    "state": "not_required",
+    "reviewer_id": null,
+    "reviewed_at": null,
+    "note": null,
+    "revision": 0
+  },
+  "external_send": false,
+  "payload": {
+    "snapshot_id": "snapshot_d81f3d3a57cefab5b618662f689e252e",
+    "state_hash": "sha256:4f51f22b5b307200b4ca6c70226dd2ce8eeb07d221c8405470a05a3326a60026",
+    "generated_at": "1970-01-01T00:00:00.000Z",
+    "core_commit": "fixture-core",
+    "observations": [],
+    "memory_candidates": [],
+    "memories": [],
+    "receipts": [],
+    "review_history": [],
+    "review_targets": [],
+    "action_states": [],
+    "tasks": [],
+    "work_cases": [],
+    "capabilities": {
+      "can_review_memory": false,
+      "can_execute_actions": false,
+      "external_send_enabled": false,
+      "supported_commands": [],
+      "supported_projections": [
+        "education_workspace"
+      ]
+    },
+    "education_workspace": {
+      "projection_kind": "education_workspace",
+      "projection_version": "1.1",
+      "state_hash": "sha256:827c84d68df8fde58b5b7765e15523404a909b78c370178b48c806129406ec41",
+      "generated_at": "1970-01-01T00:00:00.000Z",
+      "scope": "teacher_internal",
+      "external_send": false,
+      "requires_teacher_review": true,
+      "freshness": {
+        "state": "unknown",
+        "observed_at": "1970-01-01T00:00:00.000Z",
+        "source_hash": "sha256:a98cc43e65d5d4c8424766c38c410bc764fec395a45b30f147f683d6d3203f81"
+      },
+      "source_summaries": [
+        {
+          "source_id": "student_profiles",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "timetable",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "calendar",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "rhythm_plan",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "class_memory",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "teaching_memory",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "semester_memory",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "preferences_memory",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "school_memory",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "subconscious",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "subject_knowledge",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "teaching_priorities",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "parent_profiles",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "material_candidates",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        },
+        {
+          "source_id": "documents",
+          "present": false,
+          "content_hash": null,
+          "observed_at": null,
+          "item_count": 0
+        }
+      ],
+      "students": [],
+      "timetable": [],
+      "calendar": [],
+      "tasks": [],
+      "continuity": {
+        "memories": [],
+        "signals": [],
+        "insights": [],
+        "themes": [],
+        "subject_knowledge": [],
+        "teaching_priorities": [],
+        "family_contacts": [],
+        "documents": [],
+        "last_dream": null
+      }
+    }
+  }
+}

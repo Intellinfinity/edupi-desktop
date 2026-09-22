@@ -57,7 +57,7 @@ async function getDesktopApiToken(): Promise<string> {
   return desktopApiTokenPromise;
 }
 
-async function desktopApiHeaders(initial?: HeadersInit): Promise<Headers> {
+export async function desktopApiHeaders(initial?: HeadersInit): Promise<Headers> {
   const headers = new Headers(initial);
   headers.set(DESKTOP_API_TOKEN_HEADER, await getDesktopApiToken());
   return headers;

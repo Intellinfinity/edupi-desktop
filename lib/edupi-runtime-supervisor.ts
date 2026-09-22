@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from "node:util";
 import { validateContainedRegularFile, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
 import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-model-host";
 
-export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
+export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callOwnerControl(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
 const shared = globalThis as typeof globalThis & {
   __edupiRuntimeSupervisors?: Map<string, Entry>;
@@ -101,6 +101,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   const bootstrap = fs.existsSync(packaged) ? packaged : path.join(process.cwd(), "desktop/core-runtime-host.mjs");
   const configuredStateDir = process.env.PI_DESKTOP_STATE_DIR?.trim();
   const ambientPlanning = process.env.EDUPI_AMBIENT_PLANNING === "1";
+  const ownerControlToken = ambientPlanning ? randomBytes(32).toString("base64url") : null;
   const child = fork(bootstrap, [], {
     cwd: runtime.root, execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"],
     env: { PATH: process.env.PATH, LANG: process.env.LANG || "en_US.UTF-8", TZ: process.env.TZ || "Asia/Shanghai", NODE_ENV: process.env.NODE_ENV || "production", EDUPI_PROJECT_ROOT: dataRoot.root, EDUPI_HOME: path.join(dataRoot.root, ".edupi"), EDUPI_MEMORY_DIR: dataRoot.memoryDir, EDUPI_OUTPUT_DIR: dataRoot.outputDir, EDUPI_LOCK_DIR: dataRoot.lockDir, EDUPI_CORE_COMMIT: runtime.coreCommit, EDUPI_CORE_PARENT_PID: String(process.pid), ...(configuredStateDir && path.isAbsolute(configuredStateDir) ? { PI_DESKTOP_STATE_DIR: path.resolve(configuredStateDir) } : {}) },
@@ -151,36 +152,42 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
         dataRoot: dataRoot.root, token, supervisorSessionId, coreCommit: runtime.coreCommit,
         componentManifestHash: manifest.component_manifest_hash, port: 0,
         ...(ambientPlanning ? { ambientPlanning: true } : {}),
+        ...(ownerControlToken ? { ownerControlToken } : {}),
       } }, error => { if (error) failed(); });
     });
   } catch (error) { await close(); throw unavailable(startupFailureCode(error)); }
+  const callRuntime = async (operation: string, payload: unknown, signal?: AbortSignal, ownerControl = false) => {
+    if (ownerControl && !ownerControlToken) throw unavailable();
+    if (exited || stopping) throw unavailable();
+    const request = { protocol: protocol.CORE_RUNTIME_PROTOCOL, protocol_version: protocol.CORE_RUNTIME_PROTOCOL_VERSION, schema_hash: protocol.CORE_RUNTIME_SCHEMA_HASH, request_id: randomUUID(), operation, payload };
+    if (!protocol.validateRuntimeRequest(request).ok) throw Object.assign(new Error("Invalid runtime request."), { code: "invalid_request" });
+    const bytes = JSON.stringify(request);
+    if (Buffer.byteLength(bytes) > protocol.CORE_RUNTIME_OUTER_REQUEST_MAX_BYTES) throw Object.assign(new Error("Runtime request too large."), { code: "invalid_request" });
+    const controller = new AbortController(); requests.add(controller);
+    const cancel = () => controller.abort(); signal?.addEventListener("abort", cancel, { once: true });
+    if (signal?.aborted) controller.abort();
+    const timer = setTimeout(cancel, 30000);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+      if (ownerControlToken && ownerControl) headers["x-edupi-owner-control"] = ownerControlToken;
+      const response = await fetch(endpoint, { method: "POST", redirect: "error", headers, body: bytes, signal: controller.signal });
+      if (!response.body) throw unavailable();
+      const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
+      while (true) { const next = await reader.read(); if (next.done) break; size += next.value.length; if (size > protocol.CORE_RUNTIME_OUTER_RESPONSE_MAX_BYTES) { await reader.cancel(); throw unavailable(); } chunks.push(next.value); }
+      const result = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      if (!protocol.validateRuntimeResponse(result).ok || result.request_id !== request.request_id || result.operation !== operation) throw unavailable();
+      return result;
+    } catch { throw unavailable(); }
+    finally { clearTimeout(timer); signal?.removeEventListener("abort", cancel); requests.delete(controller); }
+  };
   return {
     close,
     async callBridge(this: EduPiRuntimeHandle, request: unknown, signal?: AbortSignal) {
       const kind = protocol.classifyCoreRuntimeBridgeRequest(request);
       if (kind !== "read" && kind !== "call") throw Object.assign(new Error("Invalid runtime bridge request."), { code: "invalid_request" });
-      return this.call(kind === "read" ? "bridge_read" : "bridge_call", { bridge_frame: JSON.stringify(request) }, signal);
+      return callRuntime(kind === "read" ? "bridge_read" : "bridge_call", { bridge_frame: JSON.stringify(request) }, signal, false);
     },
-    async call(operation, payload, signal) {
-      if (exited || stopping) throw unavailable();
-      const request = { protocol: protocol.CORE_RUNTIME_PROTOCOL, protocol_version: protocol.CORE_RUNTIME_PROTOCOL_VERSION, schema_hash: protocol.CORE_RUNTIME_SCHEMA_HASH, request_id: randomUUID(), operation, payload };
-      if (!protocol.validateRuntimeRequest(request).ok) throw Object.assign(new Error("Invalid runtime request."), { code: "invalid_request" });
-      const bytes = JSON.stringify(request);
-      if (Buffer.byteLength(bytes) > protocol.CORE_RUNTIME_OUTER_REQUEST_MAX_BYTES) throw Object.assign(new Error("Runtime request too large."), { code: "invalid_request" });
-      const controller = new AbortController(); requests.add(controller);
-      const cancel = () => controller.abort(); signal?.addEventListener("abort", cancel, { once: true });
-      if (signal?.aborted) controller.abort();
-      const timer = setTimeout(cancel, 30000);
-      try {
-        const response = await fetch(endpoint, { method: "POST", redirect: "error", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: bytes, signal: controller.signal });
-        if (!response.body) throw unavailable();
-        const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
-        while (true) { const next = await reader.read(); if (next.done) break; size += next.value.length; if (size > protocol.CORE_RUNTIME_OUTER_RESPONSE_MAX_BYTES) { await reader.cancel(); throw unavailable(); } chunks.push(next.value); }
-        const result = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        if (!protocol.validateRuntimeResponse(result).ok || result.request_id !== request.request_id || result.operation !== operation) throw unavailable();
-        return result;
-      } catch { throw unavailable(); }
-      finally { clearTimeout(timer); signal?.removeEventListener("abort", cancel); requests.delete(controller); }
-    },
+    call: (operation, payload, signal) => callRuntime(operation, payload, signal, false),
+    callOwnerControl: (operation, payload, signal) => callRuntime(operation, payload, signal, true),
   };
 }

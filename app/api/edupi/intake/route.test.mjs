@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createJiti } from "jiti";
 
-const { POST, calendarCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const { parseCalendarIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-calendar-intake-request.ts");
 const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
 
 function request(body, headers = {}) {
@@ -45,8 +46,8 @@ test("keeps a manual occurrence issuer and event identity stable across a move",
   const moved = structuredClone(base);
   moved.events[0].date = "2026-10-02";
   moved.events[0].timeInterval = { start: "2026-10-02T11:00+08:00", end: "2026-10-02T12:00+08:00", timeZone: "Asia/Shanghai" };
-  const first = calendarCommand(base);
-  const second = calendarCommand(moved);
+  const first = parseCalendarIntakeCommand(base);
+  const second = parseCalendarIntakeCommand(moved);
   assert.equal(first.source.source_id, MANUAL_CALENDAR_ISSUER);
   assert.equal(second.source.source_id, MANUAL_CALENDAR_ISSUER);
   assert.equal(first.events[0].event_id, stableOccurrenceCalendarEventId(MANUAL_CALENDAR_ISSUER, "manual-ref-42"));

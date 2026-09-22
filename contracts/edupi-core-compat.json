@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "d1478ce6d917bbea03db7df5c01854d3500a9ef5",
+    "core_commit": "172f75531f84b0bb0fca422598bd895eb2920cb8",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:454c14a528c8a01308e10f4265dc272e4b5f0db884969c51c47f4f55327fab9b",
-    "runtime_component_manifest_hash": "sha256:983dd7c3838f335e1842be0dd4ebcb690895d7e3230ed2e0292332de874201b5",
+    "component_manifest_hash": "sha256:5a767d1c720b87e3b7e6681fdf16c2c2967606231199f82da94c62d3c0d49430",
+    "runtime_component_manifest_hash": "sha256:83659e05e331cbf5fa6975e3dd4c816ce2bc62d2c44d175c9cc97047b951e642",
     "runtime_schema_hash": "sha256:5ec30b6043bcb89e170d2cb7a4c2b8fe3be2660d546c13df9b0b3996a3dc3c1e"
   },
   "contract_identities": [
@@ -141,7 +141,8 @@
     "https://github.com/Intellinfinity/edupi/pull/168",
     "https://github.com/Intellinfinity/edupi/pull/169",
     "https://github.com/Intellinfinity/edupi/pull/170",
-    "https://github.com/Intellinfinity/edupi/pull/171"
+    "https://github.com/Intellinfinity/edupi/pull/171",
+    "https://github.com/Intellinfinity/edupi/pull/172"
   ],
-  "change_note": "Desktop pin to merged Core d1478ce: preserves the frozen v1.1 bridge and adds an opt-in v1.2 calendar occurrence contract with issuer-scoped identity, explicit intervals and locations. Default snapshots and external_send=false are unchanged; ambient preparation remains opt-in."
+  "change_note": "Desktop pin to merged Core 172f755: preserves the frozen v1.1 bridge and opt-in v1.2 calendar occurrence contract, and binds ambient-aware command receipts to the same stable snapshot returned after persistence. external_send=false is unchanged; ambient preparation remains opt-in."
 }

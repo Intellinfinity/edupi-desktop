@@ -11,7 +11,7 @@
 | 验收项 | 操作 | 实际结果 |
 | --- | --- | --- |
 | Core 质量 | `npm test`、`npm run typecheck`、定向 ambient/schedule/bridge 测试、远端 `core-quality` | #172/#173 均通过；runs `35782721446`、`35788428478` |
-| Desktop 静态与单元回归 | `npm test`、`node_modules/.bin/tsc --noEmit`、`npm run lint` | 1440 tests，1414 passed / 26 skipped / 0 failed；类型和 lint 通过 |
+| Desktop 静态与单元回归 | `npm test`、`node_modules/.bin/tsc --noEmit`、`npm run lint` | 1447 tests，1421 passed / 26 skipped / 0 failed；类型和 lint 通过 |
 | source occurrence | `EDUPI_CORE_ROOT=<Core 860594a> npm run test:edupi-schedule-occurrence-e2` | 首次启动即启用 ambient；导入、精确重放、typed projection、改期 hold、same-ref keep-both 拒绝、replace、重启回读通过 |
 | source 默认审核 | `EDUPI_CORE_ROOT=<Core 860594a> npm run test:edupi-schedule-conflicts-e2` | ambient 未设置；owner bootstrap、冲突读取、决定、重放、过期拒绝、重启回读与丢失凭据 fail closed 通过 |
 | packaged resources | `EDUPI_CORE_ROOT=<Core 860594a> npm run desktop:prepare` | Next standalone、Node runtime 与 2165 个 Core 文件生成成功，Core commit 精确为 `860594a…` |

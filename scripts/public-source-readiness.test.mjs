@@ -59,10 +59,10 @@ test("public security reporting and canonical source links are present", async (
   const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 
   assert.match(security, /security\/advisories\/new/);
-  assert.match(readme, /github\.com\/PIGU-PPPgu\/edupi-desktop/);
+  assert.match(readme, /github\.com\/Intellinfinity\/edupi-desktop/);
   assert.doesNotMatch(readme, /Private EduPi source/);
   assert.equal(packageJson.private, true, "the desktop fork must not publish the upstream npm name");
-  assert.equal(packageJson.repository.url, "git+https://github.com/PIGU-PPPgu/edupi-desktop.git");
+  assert.equal(packageJson.repository.url, "git+https://github.com/Intellinfinity/edupi-desktop.git");
   assert.equal(packageJson.scripts.release, undefined);
   assert.match(gitignore, /^\/\.pi\/$/m);
   assert.match(gitignore, /^\/src-tauri\/resources\/node\/$/m);

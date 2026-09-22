@@ -65,8 +65,17 @@ test("official releases require Developer ID and notarization before publishing"
   }
   assert.doesNotMatch(buildJob, /APPLE_SIGNING_IDENTITY=-|ad-hoc signed/);
   assert.match(buildJob, /xcrun stapler validate "\$app_path"/);
+  assert.match(buildJob, /xcrun notarytool submit "\$\{dmgs\[0\]\}"/);
+  assert.match(buildJob, /xcrun stapler staple "\$\{dmgs\[0\]\}"/);
+  assert.match(buildJob, /xcrun stapler validate "\$\{dmgs\[0\]\}"/);
+  assert.match(buildJob, /spctl --assess --type open --context context:primary-signature/);
+  assert.match(buildJob, /RELEASE_ID: \$\{\{ needs\.release\.outputs\.release_id \}\}/);
+  assert.match(buildJob, /node scripts\/replace-release-asset\.mjs/);
+  assert.match(buildJob, /--release-id "\$RELEASE_ID"/);
+  assert.match(buildJob, /--tag "\$RELEASE_TAG"/);
+  assert.match(buildJob, /--target "\$GITHUB_SHA"/);
+  assert.doesNotMatch(buildJob, /gh release upload|--clobber/);
   assert.match(buildJob, /codesign --verify --verbose=2 "\$\{dmgs\[0\]\}"/);
-  assert.doesNotMatch(buildJob, /xcrun stapler validate "\$\{dmgs\[0\]\}"/);
   assert.match(buildJob, /spctl --assess/);
   assert.ok(buildJob.indexOf("xcrun stapler validate") > buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
 });
@@ -102,6 +111,7 @@ test("signed releases and updater metadata belong to the EduPi Desktop repositor
   assert.match(release, /repos\/\$RELEASE_REPOSITORY\/releases/);
   assert.doesNotMatch(release, /abcwyc\/pi-agent-desktop/);
   assert.deepEqual(tauriConfig.plugins.updater.endpoints, [
+    "https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json",
     "https://raw.githubusercontent.com/PIGU-PPPgu/edupi-desktop/updater-feed/latest.json",
     "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json",
   ]);

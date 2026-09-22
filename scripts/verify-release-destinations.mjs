@@ -2,9 +2,10 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const EDUPI_RELEASE_REPOSITORY = "PIGU-PPPgu/edupi-desktop";
+export const EDUPI_RELEASE_REPOSITORY = "Intellinfinity/edupi-desktop";
 export const EDUPI_RELEASE_WRITE_REPOSITORY = "Intellinfinity/edupi-desktop";
 export const EDUPI_UPDATER_ENDPOINTS = [
+  "https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json",
   "https://raw.githubusercontent.com/PIGU-PPPgu/edupi-desktop/updater-feed/latest.json",
   "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json",
 ];

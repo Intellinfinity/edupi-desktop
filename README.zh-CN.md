@@ -4,7 +4,7 @@
 
 EduPi 是面向教师的本地 AI 工作台，把教学任务、学生档案、课程日历、材料和 AI 对话放在同一个桌面应用中。教师可以从当天的工作进入任务，查看生成的产物和证据，再作出审核决定。
 
-[下载桌面应用](https://github.com/PIGU-PPPgu/edupi-desktop/releases) · [源码](https://github.com/PIGU-PPPgu/edupi-desktop) · [架构说明](./docs/architecture/edupi-desktop.md)
+[下载桌面应用](https://github.com/Intellinfinity/edupi-desktop/releases) · [源码](https://github.com/Intellinfinity/edupi-desktop) · [架构说明](./docs/architecture/edupi-desktop.md)
 
 ## 工作台
 
@@ -17,7 +17,7 @@ EduPi 是面向教师的本地 AI 工作台，把教学任务、学生档案、�
 
 ## 安装与开始使用
 
-在 [Releases](https://github.com/PIGU-PPPgu/edupi-desktop/releases) 中选择对应平台的附件。发布工作流的目标是 Apple Silicon macOS、Windows x64 和 Linux x64，具体可下载文件以该次发布为准。
+在 [Releases](https://github.com/Intellinfinity/edupi-desktop/releases) 中选择对应平台的附件。发布工作流的目标是 Apple Silicon macOS、Windows x64 和 Linux x64，具体可下载文件以该次发布为准。
 
 | 平台 | 安装文件 |
 | --- | --- |

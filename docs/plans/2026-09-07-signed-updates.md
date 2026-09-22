@@ -1,6 +1,14 @@
 # 自动下载安装
 
-## 2026-09-22 v0.3.31 发布阻塞
+## 2026-09-23 v0.3.31 发布完成与 v0.3.32 DMG 收口
+
+- 受限 Core 只读凭据恢复后，正式 run `35757858707` 在 merge `bef61195` 上完成 macOS、Linux、Windows 和 manifest；v0.3.31 已公开为非草稿 Release，11 项资产、7 个签名 updater 平台键与 canonical Raw feed 完整。DMG、macOS updater 和 `latest.json` 的 Release digest 分别为 `fa4ccd48…`、`da2f3e79…`、`6e32a370…`。
+- 独立复核发现 v0.3.31 只对 `.app` 完成 Apple 公证：解包应用为 `accepted / Notarized Developer ID`，公开 DMG 没有 stapled ticket，`spctl --type open` 为 `Unnotarized Developer ID`。应用内 updater tar 可继续由 Tauri 验签升级，但 v0.3.31 DMG 不满足离线 ticket 验收。
+- v0.3.32 将 canonical 仓库和首选 feed 固定为 `Intellinfinity/edupi-desktop`，保留两个旧 endpoint 作迁移 fallback；macOS workflow 新增 DMG `notarytool submit --wait`、staple 和 Gatekeeper 验证。公证后的 DMG 不再用 tag `--clobber`：脚本绑定 release ID、唯一 tag、draft、目标 SHA，先改名保留旧资产，再通过 `uploads.github.com/.../releases/{release_id}/assets` 上传并重新下载核对 size/SHA-256，最后删除备份。
+- 发布事务在首次删除备份时进入提交状态；之后只幂等重试同一 backup asset ID，404 视为已删除。其他 cleanup 不确定性会同时保留已验真的正式 DMG 与备份，使精确资产集合门禁失败并保持 draft，不会再回滚删除已验真 DMG。上传、验真或提交前错误恢复旧资产。
+- 本地最终门禁：`npm test` 1373 passed / 25 skipped / 0 failed，TypeScript、ESLint、npm audit（0 vulnerabilities）、release verify、目标仓库校验、actionlint、Cargo metadata 和 28 项 Rust library tests 通过；发布事务 41 项定向测试及独立复审无 P1/P2。真实 v0.3.32 三平台 Release、DMG ticket、公开下载摘要和安装升级仍待远端运行，不在此处提前勾选。
+
+## 2026-09-22 v0.3.31 发布阻塞（历史，已解除）
 
 - Desktop #207 合并为 `0d36b5f`，Release run `35714740346` 创建 `v0.3.31` 草稿；三平台 npm/type/lint/audit 及 Apple 六项 Secret 门禁通过，但私有 Core checkout 都在 `git@github.com:Intellinfinity/edupi.git` 返回 `Repository not found`。manifest job 未运行，Release 未公开，旧版更新不可见。
 - Core 仓库仍列有旧只读 Deploy Key；组织策略禁用 Deploy Key 后它不能读取，创建新 Key 返回 HTTP 422。未注册的临时私钥已删除。不得把当前广权限个人 `gh` OAuth token 写入 Actions Secret。

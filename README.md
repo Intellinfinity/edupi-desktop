@@ -4,7 +4,7 @@
 
 EduPi is a local AI workspace for teachers. It brings teaching tasks, student records, schedules, materials, and AI conversations into one desktop app. Start from today's work, open a task, inspect its artifacts and evidence, and review the result.
 
-[Download](https://github.com/PIGU-PPPgu/edupi-desktop/releases) · [Source](https://github.com/PIGU-PPPgu/edupi-desktop) · [Architecture](./docs/architecture/edupi-desktop.md)
+[Download](https://github.com/Intellinfinity/edupi-desktop/releases) · [Source](https://github.com/Intellinfinity/edupi-desktop) · [Architecture](./docs/architecture/edupi-desktop.md)
 
 ## The workspace
 
@@ -17,7 +17,7 @@ Availability depends on the pinned EduPi Core contract, configured models, and l
 
 ## Install and get started
 
-Choose an asset from [Releases](https://github.com/PIGU-PPPgu/edupi-desktop/releases). The release workflow targets Apple Silicon macOS, Windows x64, and Linux x64; consult each release for the assets actually available.
+Choose an asset from [Releases](https://github.com/Intellinfinity/edupi-desktop/releases). The release workflow targets Apple Silicon macOS, Windows x64, and Linux x64; consult each release for the assets actually available.
 
 | Platform | Installer |
 | --- | --- |

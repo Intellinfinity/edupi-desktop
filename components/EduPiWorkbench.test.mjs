@@ -338,8 +338,12 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   assert.match(calendarWorkspace, /calendarEvent\?\.notes \|\| ""/);
   assert.match(calendarWorkspace, /editingCalendarId/);
   assert.match(calendarWorkspace, /保存更改/);
-  assert.match(panel, /eventId: string \| null/);
-  assert.match(panel, /events: \[\{ \.\.\.event, confidence: "teacher_confirmed" \}\]/);
+  assert.match(panel, /CalendarIntakeInput/);
+  assert.match(panel, /sourceOccurrenceRef: event\.sourceOccurrenceRef/);
+  assert.match(panel, /timeInterval/);
+  assert.match(calendarWorkspace, /sourceOccurrenceRef/);
+  assert.match(calendarWorkspace, /startAt/);
+  assert.match(calendarWorkspace, /location/);
   assert.doesNotMatch(panel, /preservedEvents/);
   assert.match(intakeRoute, /eventId/);
   assert.match(calendarWorkspace, /onSelect\(\{ kind: entry\.kind, sourceId:/);

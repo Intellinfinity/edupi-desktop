@@ -29,6 +29,10 @@ export function stableCalendarEventId(value: { date?: unknown; endDate?: unknown
   })}`;
 }
 
+export function stableRecognizedCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown; notes?: unknown }): string {
+  return `${stableCalendarEventId(value)}-${stableScheduleToken({ notes: normalizedScheduleText(value.notes) }).slice(0, 16)}`;
+}
+
 export function stableTimetableSlotId(value: { dayOfWeek?: unknown; period?: unknown; subject?: unknown; className?: unknown; kind?: unknown }): string {
   return `timetable-slot-${stableScheduleToken({
     day_of_week: value.dayOfWeek,
@@ -37,6 +41,10 @@ export function stableTimetableSlotId(value: { dayOfWeek?: unknown; period?: unk
     class_name: normalizedScheduleText(value.className),
     kind: normalizedScheduleText(value.kind),
   })}`;
+}
+
+export function stableRecognizedTimetableSlotId(value: { dayOfWeek?: unknown; period?: unknown; subject?: unknown; className?: unknown; kind?: unknown; notes?: unknown }): string {
+  return `${stableTimetableSlotId(value)}-${stableScheduleToken({ notes: normalizedScheduleText(value.notes) }).slice(0, 16)}`;
 }
 
 export function stableScheduleSourceHash(values: readonly RawRecord[]): string {

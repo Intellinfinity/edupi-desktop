@@ -135,7 +135,7 @@ export async function POST(request: Request) {
       const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => intakeRecognizedMaterial(material));
       const receipt = result.receipts[0];
       if (receipt?.status === "accepted") settleStagedMaterial(material.descriptor.staging_id, "accepted_receipt");
-      return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition, staged: listStagedMaterials() });
+      return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition, scheduleNeedsReview: result.scheduleNeedsReview, staged: listStagedMaterials() });
     }
     const command = body.kind === "calendar"
       ? calendarCommand(body)

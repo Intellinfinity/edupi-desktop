@@ -105,6 +105,7 @@ type EducationIntakeApiResult = {
   error?: string;
   staged?: MaterialStagingDescriptor[];
   recognition?: { eventCount?: number; slotCount?: number };
+  scheduleNeedsReview?: boolean;
 };
 
 type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null; retryable?: boolean };
@@ -169,7 +170,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const [stagedMaterials, setStagedMaterials] = useState<MaterialStagingDescriptor[]>([]);
   const [materialStagingBusy, setMaterialStagingBusy] = useState(false);
   const [educationIntakeBusy, setEducationIntakeBusy] = useState(false);
-  const [materialStagingMessage, setMaterialStagingMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [materialStagingMessage, setMaterialStagingMessage] = useState<{ tone: "success" | "error"; text: string; sticky?: boolean } | null>(null);
   const [calendarSelection, setCalendarSelection] = useState<CalendarItemSelection | null>(null);
   const appliedCalendarLink = useRef<{ key: string; education: EducationContract } | null>(null);
   const [taskDetailTask, setTaskDetailTask] = useState<TeacherTask | null>(null);
@@ -320,7 +321,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [loadWorkspace]);
 
   useEffect(() => {
-    if (!materialStagingMessage || materialStagingMessage.text.endsWith("…")) return;
+    if (!materialStagingMessage || materialStagingMessage.sticky || materialStagingMessage.text.endsWith("…")) return;
     const timer = window.setTimeout(() => setMaterialStagingMessage(null), materialStagingMessage.tone === "error" ? ERROR_MESSAGE_MS : STATUS_MESSAGE_MS);
     return () => window.clearTimeout(timer);
   }, [materialStagingMessage]);
@@ -361,6 +362,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     });
     const eventCount = result.recognition?.eventCount || 0;
     const slotCount = result.recognition?.slotCount || 0;
+    if (result.scheduleNeedsReview) {
+      setMaterialStagingMessage({ tone: "error", sticky: true, text: `${item.original_name} 的材料已接入，识别出的时间安排尚未全部生效；请核对文件或在日程手动更正。` });
+      return result;
+    }
     const recognized = eventCount + slotCount > 0 ? `，识别到 ${eventCount} 条日程、${slotCount} 条课表` : "，未发现日程或课表";
     setMaterialStagingMessage({ tone: "success", text: `${item.original_name} 已接入 EduPi${recognized}。` });
     return result;
@@ -1181,7 +1186,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       {deleteLabel ? <EduPiDeleteConfirmation label={deleteLabel} onResolve={resolveDeleteConfirmation} /> : null}
       {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? (() => { const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation" && file.available !== false && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === previewPath.replaceAll("\\", "/")); const preview = renderFilePreview(previewPath); return artifact ? <EduPiPreparationArtifactEditor key={artifact.artifact_id} artifactId={artifact.artifact_id} preview={preview} onSaved={value => { setPreviewPath(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }} onAgent={prompt => { closeDrawer(false); startAgent(prompt, "replace"); }} /> : preview; })() : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}
       <input ref={materialUploadInputRef} type="file" multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void stageBrowserFiles(files); }} />
-      {materialStagingMessage && activeView !== "materials" ? <div className={`edupi-material-staging-toast is-${materialStagingMessage.tone}`} role={materialStagingMessage.tone === "error" ? "alert" : "status"} aria-live="polite">{materialStagingMessage.text}</div> : null}
+      {materialStagingMessage && activeView !== "materials" ? <div className={`edupi-material-staging-toast is-${materialStagingMessage.tone}`} role={materialStagingMessage.tone === "error" ? "alert" : "status"} aria-live="polite"><span>{materialStagingMessage.text}</span>{materialStagingMessage.sticky ? <button type="button" onClick={() => setMaterialStagingMessage(null)} aria-label="关闭提示" title="关闭提示">×</button> : null}</div> : null}
       {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button data-autofocus type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} history={education?.teacherContextReviewHistory ?? []} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => await loadWorkspace() ?? education} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}
     </section>
   );

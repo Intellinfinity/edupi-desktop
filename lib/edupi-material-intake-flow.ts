@@ -2,7 +2,7 @@ import { issueEducationIntake, type EducationIntakeCommand, type MaterialIntake 
 import { MaterialRecognitionError, recognizeStagedMaterial, type MaterialRecognitionResult } from "./edupi-material-recognition";
 import type { MaterialStagingDescriptor } from "./edupi-material-staging";
 import { markRecognizedTimetableNote } from "./edupi-recognition-markers";
-import { stableCalendarEventId, stableTimetableSlotId } from "./edupi-schedule-upload";
+import { stableCalendarEventId, stableRecognizedCalendarEventId, stableRecognizedTimetableSlotId, stableTimetableSlotId } from "./edupi-schedule-upload";
 
 type RawRecord = Record<string, unknown>;
 
@@ -40,6 +40,7 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   receipts: RawRecord[];
   data: unknown;
   recognition: { eventCount: number; slotCount: number };
+  scheduleNeedsReview: boolean;
 }> {
   const recognize = dependencies.recognize || ((descriptor: MaterialStagingDescriptor) => {
     let index = 0;
@@ -47,12 +48,18 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   });
   const issue = dependencies.issue || issueEducationIntake;
   const recognized = input.recognize === false ? { events: [], slots: [] } : await recognize(input.descriptor);
-  const events = distinctRecognized(recognized.events.map((event) => ({ ...event,
+  const baseEvents = distinctRecognized(recognized.events.map((event) => ({ ...event,
     event_id: stableCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type }),
   })), (event) => event.event_id);
-  const slots = distinctRecognized(recognized.slots.map((slot) => ({ ...slot,
+  const events = baseEvents.map((event) => ({ ...event,
+    event_id: stableRecognizedCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type, notes: event.notes }),
+  }));
+  const baseSlots = distinctRecognized(recognized.slots.map((slot) => ({ ...slot,
     slot_id: stableTimetableSlotId({ dayOfWeek: slot.day_of_week, period: slot.period, subject: slot.subject, className: slot.class_name, kind: slot.kind }),
   })), (slot) => slot.slot_id);
+  const slots = baseSlots.map((slot) => ({ ...slot,
+    slot_id: stableRecognizedTimetableSlotId({ dayOfWeek: slot.day_of_week, period: slot.period, subject: slot.subject, className: slot.class_name, kind: slot.kind, notes: slot.notes }),
+  }));
   const source = {
     source_id: input.descriptor.staging_id,
     source_kind: "teacher_file" as const,
@@ -94,5 +101,7 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
     receipts,
     data,
     recognition: { eventCount: events.length, slotCount: slots.length },
+    scheduleNeedsReview: receipts.slice(1).some((receipt) => !["accepted", "modified"].includes(String(receipt.status))
+      || Array.isArray(receipt.rejected_ids) && receipt.rejected_ids.length > 0),
   };
 }

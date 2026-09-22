@@ -16,7 +16,7 @@ const signatures = Object.fromEntries(
 test("builds one signed updater manifest from all platform assets", () => {
   const manifest = createUpdaterManifest({
     version,
-    repository: "PIGU-PPPgu/edupi-desktop",
+    repository: "Intellinfinity/edupi-desktop",
     notes: "Signed release",
     pubDate: "2026-09-15T20:16:50.063Z",
     signatures,
@@ -38,7 +38,7 @@ test("builds one signed updater manifest from all platform assets", () => {
   assert.deepEqual(manifest.platforms["linux-x86_64"], manifest.platforms["linux-x86_64-appimage"]);
   assert.deepEqual(manifest.platforms["windows-x86_64"], manifest.platforms["windows-x86_64-nsis"]);
   for (const [platform, entry] of Object.entries(manifest.platforms)) {
-    assert.match(entry.url, /^https:\/\/api\.github\.com\/repos\/PIGU-PPPgu\/edupi-desktop\/releases\/assets\/\d+$/);
+    assert.match(entry.url, /^https:\/\/api\.github\.com\/repos\/Intellinfinity\/edupi-desktop\/releases\/assets\/\d+$/);
     assert.ok(entry.signature.length >= 404, `${platform} has a signature`);
   }
 });
@@ -75,7 +75,7 @@ test("refuses a missing updater signature", () => {
   assert.throws(
     () => createUpdaterManifest({
       version,
-      repository: "PIGU-PPPgu/edupi-desktop",
+      repository: "Intellinfinity/edupi-desktop",
       notes: "Signed release",
       pubDate: "2026-09-15T20:16:50.063Z",
       signatures: missing,
@@ -87,8 +87,8 @@ test("refuses a missing updater signature", () => {
 
 test("release asset URLs never fall back to the github.com download path", () => {
   assert.equal(
-    releaseAssetUrl("PIGU-PPPgu/edupi-desktop", 12345),
-    "https://api.github.com/repos/PIGU-PPPgu/edupi-desktop/releases/assets/12345",
+    releaseAssetUrl("Intellinfinity/edupi-desktop", 12345),
+    "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/12345",
   );
   assert.throws(() => releaseAssetUrl("bad repository", 12345), /Release repository is invalid/);
 });

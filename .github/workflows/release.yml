@@ -304,6 +304,37 @@ jobs:
           tauriScript: npx tauri
           args: --verbose --target ${{ matrix.target }} --bundles ${{ runner.os == 'macOS' && 'app,dmg' || runner.os == 'Windows' && 'nsis' || 'deb,appimage' }}
 
+      - name: Notarize, staple, and replace macOS disk image
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTARY_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_ID: ${{ needs.release.outputs.release_id }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(src-tauri/target/${{ matrix.target }}/release/bundle/dmg/EduPi_*.dmg)
+          test "${#dmgs[@]}" -eq 1
+          xcrun notarytool submit "${dmgs[0]}" \
+            --apple-id "$NOTARY_APPLE_ID" \
+            --password "$NOTARY_PASSWORD" \
+            --team-id "$NOTARY_TEAM_ID" \
+            --wait
+          xcrun stapler staple "${dmgs[0]}"
+          xcrun stapler validate "${dmgs[0]}"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "${dmgs[0]}"
+          node scripts/replace-release-asset.mjs \
+            --repository "$RELEASE_REPOSITORY" \
+            --release-id "$RELEASE_ID" \
+            --tag "$RELEASE_TAG" \
+            --target "$GITHUB_SHA" \
+            --asset "${dmgs[0]}"
+
       - name: Verify notarized macOS application and disk image
         if: runner.os == 'macOS'
         shell: bash
@@ -317,6 +348,8 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app_path"
           xcrun stapler validate "$app_path"
           codesign --verify --verbose=2 "${dmgs[0]}"
+          xcrun stapler validate "${dmgs[0]}"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "${dmgs[0]}"
           spctl --assess --type execute --verbose=2 "$app_path"
 
       - name: Clean up macOS resource signing keychain

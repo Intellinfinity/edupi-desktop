@@ -1,6 +1,15 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-22 v0.3.31 手机中断恢复与 Core G6 配对（待发布）
+## 2026-09-23 v0.3.32 公证 DMG 与 canonical 更新源（已实现待远端验收）
+
+- v0.3.31 已由正式 run `35757858707` 从 merge `bef61195` 完成三平台构建、签名和 manifest，公开 Release 含 11 项资产；canonical `updater-feed` 为 0.3.31、7 个平台键，更新资产均走 GitHub API。macOS updater tar 内 `.app` 的 Developer ID、公证和 Gatekeeper 验收通过。
+- R22 公证缺口已定位：v0.3.31 workflow 在 Tauri 公证 `.app` 后才生成并签名 DMG，没有把 DMG 再提交 Apple 公证。公开 DMG 的 `codesign` 通过，但 `stapler validate` 无 ticket，`spctl --type open` 为 `Unnotarized Developer ID`；因此不能把 v0.3.31 DMG 记为已装订公证。
+- v0.3.32 已实现、待 Release 实跑：正式仓库和首选 Raw feed 统一为 `Intellinfinity/edupi-desktop`，旧 PIGU Raw 与 Release URL 仅作迁移 fallback；macOS 在上传后单独提交 DMG 公证、staple、Gatekeeper 验证，再按精确 Release ID 事务替换。替换前核对唯一 tag、draft 和目标 SHA，先保留旧资产，上传后重新下载核对 size/SHA-256，成功才删除备份；上传或验真失败恢复旧资产，备份清理不确定则保留已验真资产与备份并让 manifest 阻止发布。
+- 本地门禁通过：`npm test` 1398 项中 1373 passed、25 skipped、0 failed；TypeScript、lint、npm audit、release verify、目标仓库校验、actionlint、`cargo metadata --locked` 与 28 项 Tauri/Cargo 测试通过。41 项发布事务定向测试覆盖发布/改 target/重复 tag 拒绝、上传失败、哈希不符、进程中断恢复、DELETE 响应丢失和 cleanup 持续失败；独立复审无 P1/P2。真实 GitHub 资产事务和 Apple DMG 公证仍未运行，不能提前标记验收通过。
+- 本机唯一安装副本仍为 v0.3.29；v0.3.29 检测 v0.3.31 时 manifest 阶段在 `raw.githubusercontent.com` 返回 `UPD-227408f2`，系统代理 `127.0.0.1:7897` 与显式 Raw 请求均可达。临时代理环境启动后的原生重试、版本/51 学生/240 任务/43 校历/9 课表/模型配置保持，以及 v0.3.32 DMG 独立 Gatekeeper 验收仍待桌面解锁和正式发布后执行。
+- Core 继续固定已完整验证的 G6 `acce81e3b59ae93a998e7c1e9d1f008059ec3e85`。后续 Core schema、投影和命令扩展须在 v0.3.32 安全发布后独立配对；本次不把 Core 主线更新或本地脏工作树带入安装包。R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成。
+
+## 2026-09-22 v0.3.31 手机中断恢复与 Core G6 配对（历史，已由上节取代）
 
 - 当前分支 `feat/jev-openconnector-integration`、PR #207；源码版本 `0.3.31` 精确 pin Core G6 `acce81e3b59ae93a998e7c1e9d1f008059ec3e85`。只使用独立干净 checkout 打包，Core 主工作树的未提交改动未触碰；下方 G5 条目是这一版本较早的历史快照，现由本节取代。打包后远端 `main` 又合并 #169 为 `156ee8e`，新增 owner 审核日程冲突；该合同不在本次签名包，下一轮配对时单独验收，不能宣称 Desktop 已消费。
 - R26 手机中断恢复已实现、待安装验收：响应头和 JSON 正文都受截止时间约束；配对响应丢失后只允许同一随机请求键重放，缺失或错误键不得取回激活令牌；退出手机撤销服务端授权。发送 POST 中断不自动重发、恢复可误发草稿或凭同文本消息自动确认；后台继续回读会话，须教师查看并明确核对。浏览器延迟 POST 为模拟响应，不冒充真实模型完成；真实第二台手机、网络切换和安装版重启仍未验收。默认关闭、可信局域网 HTTP 边界不变。

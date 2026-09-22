@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 export const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
 export const componentRepositories = {
-  "pi-agent-desktop": "PIGU-PPPgu/edupi-desktop",
+  "pi-agent-desktop": "Intellinfinity/edupi-desktop",
   pi: "earendil-works/pi",
   "pi-web": "agegr/pi-web",
 };

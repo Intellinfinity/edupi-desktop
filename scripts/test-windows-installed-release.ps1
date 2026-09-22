@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 $tag = $env:EDUPI_TEST_RELEASE
 if ($tag -notmatch '^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$') { throw "Invalid release tag" }
-$release = Invoke-RestMethod "https://api.github.com/repos/PIGU-PPPgu/edupi-desktop/releases/tags/$tag"
+$release = Invoke-RestMethod "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/tags/$tag"
 $assets = @($release.assets | Where-Object { $_.name -match '_x64-setup\.exe$' })
 if ($assets.Count -ne 1) { throw "Expected one x64 NSIS installer" }
 $testDir = Join-Path $env:RUNNER_TEMP "edupi-install-check"

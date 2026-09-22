@@ -187,8 +187,8 @@ test("desktop upstream automation cannot push main, sign, or release", () => {
 
 test("readmes use EduPi source and downloads while retaining upstream attribution", () => {
   for (const [path, source] of Object.entries(readmes)) {
-    assert.match(source, /https:\/\/github\.com\/PIGU-PPPgu\/edupi-desktop/);
-    assert.match(source, /https:\/\/github\.com\/PIGU-PPPgu\/edupi-desktop\/releases/);
+    assert.match(source, /https:\/\/github\.com\/Intellinfinity\/edupi-desktop/);
+    assert.match(source, /https:\/\/github\.com\/Intellinfinity\/edupi-desktop\/releases/);
     assert.match(source, /https:\/\/github\.com\/abcwyc\/pi-agent-desktop/);
     assert.doesNotMatch(
       source,

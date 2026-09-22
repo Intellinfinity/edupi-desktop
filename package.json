@@ -3,13 +3,13 @@
   "version": "0.8.7",
   "private": true,
   "description": "Web UI for the pi coding agent",
-  "homepage": "https://github.com/PIGU-PPPgu/edupi-desktop#readme",
+  "homepage": "https://github.com/Intellinfinity/edupi-desktop#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PIGU-PPPgu/edupi-desktop.git"
+    "url": "git+https://github.com/Intellinfinity/edupi-desktop.git"
   },
   "bugs": {
-    "url": "https://github.com/PIGU-PPPgu/edupi-desktop/issues"
+    "url": "https://github.com/Intellinfinity/edupi-desktop/issues"
   },
   "license": "MIT",
   "engines": {

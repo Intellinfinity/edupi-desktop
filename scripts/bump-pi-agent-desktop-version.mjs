@@ -13,7 +13,7 @@ const cargoPath = join(rootDir, "src-tauri", "Cargo.toml");
 const lockPath = join(rootDir, "src-tauri", "Cargo.lock");
 const desktopPackage = JSON.parse(await readFile(packagePath, "utf8"));
 const current = normalizeVersion(desktopPackage.version);
-const latest = await fetchLatestRelease("PIGU-PPPgu/edupi-desktop", { allowMissing: true });
+const latest = await fetchLatestRelease("Intellinfinity/edupi-desktop", { allowMissing: true });
 const next = latest && compareVersions(latest.version, current) >= 0
   ? nextPatchVersion(latest.version)
   : current;

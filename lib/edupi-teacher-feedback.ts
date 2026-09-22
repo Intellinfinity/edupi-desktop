@@ -34,9 +34,15 @@ export class TeacherFeedbackError extends Error {
   }
 }
 
-function id(value: string, field: string): string {
+function id(value: string, field: string, maxLength = 160): string {
   const normalized = value.trim();
-  if (!normalized || normalized.length > 300 || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/u.test(normalized)) throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
+  if (!normalized || normalized.length > maxLength || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/u.test(normalized)) throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
+  return normalized;
+}
+
+function text(value: string, field: string, maxLength: number): string {
+  const normalized = value.trim();
+  if (!normalized || normalized.length > maxLength) throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
   return normalized;
 }
 
@@ -46,16 +52,16 @@ function commandId(): string {
 }
 
 export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Record<string, unknown> {
-  const evidenceIds = [...new Set(input.evidenceIds.map((value) => id(value, "evidenceId")))].slice(0, 50);
+  const evidenceIds = [...new Set(input.evidenceIds.map((value) => id(value, "evidenceId", 240)))].slice(0, 50);
   if (evidenceIds.length === 0) throw new TeacherFeedbackError("invalid_feedback", "evidenceIds is required");
   const record: Record<string, unknown> = {
     command_id: id(input.commandId || commandId(), "commandId"),
     session_id: id(input.sessionId, "sessionId"),
     evidence_level: input.evidenceLevel || "real_teacher",
     domain: input.domain,
-    scope: { class_id: id(input.scope.classId, "scope.classId"), subject: input.scope.subject.trim() },
+    scope: { class_id: id(input.scope.classId, "scope.classId"), subject: text(input.scope.subject, "scope.subject", 128) },
     signal: "surfaced",
-    target: { kind: input.target.kind, target_id: id(input.target.targetId, "target.targetId") },
+    target: { kind: input.target.kind, target_id: id(input.target.targetId, "target.targetId", 300) },
     decision: input.decision,
     usefulness: input.usefulness,
     used: input.used,
@@ -68,7 +74,6 @@ export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Recor
     occurred_at: input.occurredAt || new Date().toISOString(),
     supersedes_feedback_id: input.supersedesFeedbackId ?? null,
   };
-  if (!record.scope || typeof (record.scope as Record<string, unknown>).subject !== "string" || !(record.scope as Record<string, unknown>).subject) throw new TeacherFeedbackError("invalid_feedback", "scope.subject is required");
   return record;
 }
 

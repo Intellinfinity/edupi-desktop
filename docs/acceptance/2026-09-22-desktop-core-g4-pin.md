@@ -31,6 +31,7 @@
 ## Unverified
 
 - The local macOS `.app`/DMG build is unsigned for release because `TAURI_SIGNING_PRIVATE_KEY` was not provided; a signed release and clean-user installation have not been verified.
+- A direct native cold-start attempt was handed to the already-running `/Applications/EduPi.app` single-instance process; the running user instance was not terminated, so an isolated native window/notification observation still needs a clean app session.
 - Real system notification display/click, sleep-wake recovery, upgrade continuity, and tray behavior remain outside this isolated checkout evidence.
 - Real teacher decisions, usefulness, and six-domain value remain `not_run`; no synthetic result is promoted to L4.
 - `npm run drift` was not run to completion because this checkout has neither the upstream remote nor the configured `v0.8.2` tag.

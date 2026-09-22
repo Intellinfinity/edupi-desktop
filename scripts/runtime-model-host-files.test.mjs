@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import http from "node:http";
 import crypto from "node:crypto";
+import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { createJiti } from "jiti";
@@ -30,11 +31,31 @@ test("copied host SDK runs a real isolated localhost model without Core node_mod
   for (const name of await piPackageDirNames()) {
     assert.equal(fs.statSync(path.join(stagedServer, "node_modules/@earendil-works", name, "package.json")).isFile(), true, `${name} package metadata missing`);
   }
-  for (const name of ["@earendil-works/pi-coding-agent/node_modules/proper-lockfile/node_modules/retry", "retry"]) {
-    const source = JSON.parse(fs.readFileSync(path.join(desktopRoot, "node_modules", name, "package.json"), "utf8"));
-    const bundled = JSON.parse(fs.readFileSync(path.join(stagedServer, "node_modules", name, "package.json"), "utf8"));
-    assert.equal(bundled.version, source.version, `${name} resolved to the wrong version`);
+  const resolveProperLockfileRetry = (packageRoot) => {
+    const packageRequire = createRequire(path.join(packageRoot, "package.json"));
+    const properLockfileManifest = packageRequire.resolve("proper-lockfile/package.json");
+    const retryManifest = createRequire(properLockfileManifest).resolve("retry/package.json");
+    return {
+      properLockfileManifest,
+      retryManifest,
+      retryVersion: JSON.parse(fs.readFileSync(retryManifest, "utf8")).version,
+    };
+  };
+  const sourcePiRoot = path.join(desktopRoot, "node_modules/@earendil-works/pi-coding-agent");
+  const bundledPiRoot = path.join(stagedServer, "node_modules/@earendil-works/pi-coding-agent");
+  const sourcePiResolution = resolveProperLockfileRetry(sourcePiRoot);
+  const bundledPiResolution = resolveProperLockfileRetry(bundledPiRoot);
+  assert.equal(bundledPiResolution.retryVersion, sourcePiResolution.retryVersion, "Pi SDK retry dependency resolved to the wrong version");
+  for (const resolved of [bundledPiResolution.properLockfileManifest, bundledPiResolution.retryManifest]) {
+    const fromBundle = path.relative(stagedServer, resolved);
+    assert.equal(fromBundle !== "" && fromBundle !== ".." && !fromBundle.startsWith(`..${path.sep}`) && !path.isAbsolute(fromBundle), true, `Pi SDK dependency escaped the staged server: ${resolved}`);
   }
+  const sourceRootRetry = createRequire(path.join(desktopRoot, "package.json")).resolve("retry/package.json");
+  const bundledRootRetry = createRequire(path.join(stagedServer, "package.json")).resolve("retry/package.json");
+  const sourceRootRetryVersion = JSON.parse(fs.readFileSync(sourceRootRetry, "utf8")).version;
+  const bundledRootRetryVersion = JSON.parse(fs.readFileSync(bundledRootRetry, "utf8")).version;
+  assert.equal(bundledRootRetryVersion, sourceRootRetryVersion, "root retry dependency resolved to the wrong version");
+  assert.notEqual(bundledPiResolution.retryVersion, bundledRootRetryVersion, "Pi SDK and root retry versions collapsed");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-host-copy-live-"));
   const priorCwd = process.cwd();
   let calls = 0;

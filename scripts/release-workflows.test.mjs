@@ -71,6 +71,20 @@ test("official releases require Developer ID and notarization before publishing"
   assert.ok(buildJob.indexOf("xcrun stapler validate") > buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
 });
 
+test("macOS release verifies the staged Core, feedback, and model host before uploading", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  const buildJob = workflow.slice(workflow.indexOf("\n  build:"), workflow.indexOf("\n  manifest:"));
+  const verifyAt = buildJob.indexOf("name: Verify staged desktop runtime");
+  assert.ok(verifyAt > buildJob.indexOf("name: Prepare packaged Next.js server"));
+  assert.ok(verifyAt < buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
+  const step = buildJob.slice(verifyAt, buildJob.indexOf("\n      - name:", verifyAt + 1));
+  assert.match(step, /if: runner\.os == 'macOS'/);
+  assert.match(step, /EDUPI_CORE_ROOT: \$\{\{ github\.workspace \}\}\/\.edupi-core-runtime/);
+  assert.match(step, /npm run test:staged-desktop-runtime/);
+  assert.match(step, /npm run test:staged-feedback-runtime/);
+  assert.match(step, /node --test scripts\/runtime-model-host-files\.test\.mjs/);
+});
+
 test("signed releases and updater metadata belong to the EduPi Desktop repository", async () => {
   const release = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
   const tauriConfig = JSON.parse(await readFile(join(root, "src-tauri", "tauri.conf.json"), "utf8"));

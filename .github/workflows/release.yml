@@ -241,6 +241,15 @@ jobs:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run desktop:prepare
 
+      - name: Verify staged desktop runtime
+        if: runner.os == 'macOS'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: |
+          npm run test:staged-desktop-runtime
+          npm run test:staged-feedback-runtime
+          node --test scripts/runtime-model-host-files.test.mjs
+
       - name: Prepare macOS resource signing keychain
         if: runner.os == 'macOS'
         env:

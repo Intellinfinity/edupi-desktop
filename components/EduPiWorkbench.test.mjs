@@ -328,6 +328,7 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   const panel = await read("./EduPiEducationPanel.tsx");
   const calendarWorkspace = await read("./EduPiCalendarWorkspace.tsx");
   const intakeRoute = await read("../app/api/edupi/intake/route.ts");
+  const calendarIntake = await read("../lib/edupi-calendar-intake-request.ts");
   const objectSider = await read("./EduPiObjectSider.tsx");
   const workspaceViews = await read("./EduPiWorkspaceViews.tsx");
   const css = `${await read("../app/edupi-workspace.css")}\n${await read("../app/edupi-workbench.css")}`;
@@ -345,7 +346,8 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   assert.match(calendarWorkspace, /startAt/);
   assert.match(calendarWorkspace, /location/);
   assert.doesNotMatch(panel, /preservedEvents/);
-  assert.match(intakeRoute, /eventId/);
+  assert.match(intakeRoute, /parseCalendarIntakeCommand/);
+  assert.match(calendarIntake, /eventId/);
   assert.match(calendarWorkspace, /onSelect\(\{ kind: entry\.kind, sourceId:/);
   assert.match(calendarWorkspace, /className=\{`\$\{entryClass\(entry\)\}/);
   assert.match(objectSider, /onCalendarItem/);

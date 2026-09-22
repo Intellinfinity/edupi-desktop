@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-22 时间安排风险收敛（接续）
+
+- Risk：Core [#167](https://github.com/Intellinfinity/edupi/pull/167) 已合并为 `4edfa04`，反馈写入必须与当前权威领域、班级和学科相符；无范围或失效来源弃权。Core [#168](https://github.com/Intellinfinity/edupi/pull/168) 正在验证校历/课表歧义 hold、旧 ready 草稿失效和旧 Pi 工具写入隔离；不能把 hold 算作教师已完成更新。
+- Desktop `codex/l4-risk-source-20260922` 已实现材料识别跨上传稳定 ID、同日不同说明分离、单文件歧义写前拦截和 held 回执显式提示；G4 隔离导入重读、源码回归及合成回执页面操作见 [时间安排风险验收](../acceptance/2026-09-22-l4-schedule-risk.md)。分支尚未与 Core #168 打包配对，也未发布或由教师验收，状态为部分实现。
+- 下一风险门：给 Core held 冲突提供独立 owner 鉴权的读取、教师裁决、CAS、重放和重启恢复；保留原项、采用修订、确认两个独立场次均不得让旧产物复活。任意行程仍需来源场次 ID、时区/时刻/地点的正式合同与审核，不能靠同日名称猜测。随后才更新 Desktop 精确 Core pin、六领域消费和安装版主动性证据。
+
 ## 2026-09-22 L4 风险、未验证项与下一步
 
 - 合并：Core [#166](https://github.com/Intellinfinity/edupi/pull/166) 最终 head `bd39463` 的 `core-quality` 成功，合并为 `7cbb280`；Desktop [#206](https://github.com/Intellinfinity/edupi-desktop/pull/206) 最终 head `35ceb67` 的 `audit`/`rust-audit` 成功，合并为 `4d55f88`。Desktop 仍精确固定已合并的 Core G4 `368bcd8`，不把 G5 主线合并冒充已打包。该批未发布安装包，合并、发布和用户验收是不同状态。

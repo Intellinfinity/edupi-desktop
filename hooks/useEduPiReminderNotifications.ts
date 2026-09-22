@@ -12,6 +12,11 @@ export function reminderNotificationAction(target: ReminderNotificationTarget | 
   return { action: "open_task", taskId: target.taskId, stage: target.kind === "failed" ? "run" : target.kind === "due" ? "brief" : "artifact" };
 }
 
+export function authorizedReminderNotifications(result: { notifications?: Reminder[]; nativeNotificationIds?: string[] }): Reminder[] {
+  const ids = new Set(result.nativeNotificationIds);
+  return (result.notifications || []).filter((item) => ids.has(item.id));
+}
+
 export function useEduPiReminderNotifications(onOpen: (target: ReminderNotificationTarget | null) => void) {
   useEffect(() => {
     const controller = new AbortController();
@@ -34,7 +39,7 @@ export function useEduPiReminderNotifications(onOpen: (target: ReminderNotificat
         if (!response.ok) return;
         const result = await response.json();
         if (controller.signal.aborted) return;
-        const items: Reminder[] = result.notifications || [];
+        const items = authorizedReminderNotifications(result);
         if (items.length) {
           const claims = items.map(item => ({ id: item.id, attemptedAt: item.notificationAttemptedAt! }));
           const target = items.length === 1 ? { taskId: items[0].taskId, kind: items[0].kind } : null;

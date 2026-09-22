@@ -18,10 +18,15 @@ const DECISIONS: Array<{ value: ScheduleConflictDecision; label: string }> = [
   { value: "replace_with_candidate", label: "采用新安排" },
   { value: "keep_both_distinct", label: "两项分别保留" },
 ];
+const CALENDAR_TYPES: Record<string, string> = { exam: "考试", activity: "活动", meeting: "会议", holiday: "假期", festival: "节日", teaching: "教学节点", custom: "日程" };
+const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
 function value(item: Record<string, unknown>, key: string): string {
   const raw = item[key];
   if (key === "confidence") return ({ confirmed: "已确认", teacher_confirmed: "教师确认", inferred: "识别待确认" } as Record<string, string>)[String(raw)] || "未设置";
+  if (key === "type") return CALENDAR_TYPES[String(raw)] || (typeof raw === "string" && raw.trim() ? raw : "未设置");
+  if (key === "kind") return ({ class: "课程", routine: "固定事务" } as Record<string, string>)[String(raw)] || "未设置";
+  if (key === "day_of_week" && typeof raw === "number") return WEEKDAYS[raw - 1] ? `周${WEEKDAYS[raw - 1]}` : "未设置";
   return typeof raw === "string" && raw.trim() ? raw : typeof raw === "number" ? String(raw) : "未设置";
 }
 
@@ -29,7 +34,7 @@ function scheduleLabel(conflict: ScheduleConflict, item: Record<string, unknown>
   if (conflict.kind === "calendar") {
     return [value(item, "date"), value(item, "name")].filter((part) => part !== "未设置").join(" · ");
   }
-  return [`周${value(item, "day_of_week")}`, `第${value(item, "period")}节`, value(item, "subject"), value(item, "class_name")]
+  return [value(item, "day_of_week"), `第${value(item, "period")}节`, value(item, "subject"), value(item, "class_name")]
     .filter((part) => part !== "未设置").join(" · ");
 }
 

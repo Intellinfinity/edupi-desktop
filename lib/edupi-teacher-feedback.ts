@@ -1,4 +1,5 @@
 import { desktopApiHeaders } from "@/lib/desktop-native";
+import { DEFAULT_FETCH_RETRY_TIMEOUT_MS } from "@/lib/fetch-timeout";
 
 export type TeacherFeedbackDomain = "teaching_preparation" | "student_followup" | "lesson_reflection" | "calendar_administration" | "parent_communication" | "safety_privacy";
 export type TeacherFeedbackDecision = "accept" | "modify" | "reject" | "hold" | "withdraw";
@@ -35,6 +36,10 @@ export class TeacherFeedbackError extends Error {
     super(message);
     this.name = "TeacherFeedbackError";
   }
+}
+
+export function canRetryFeedbackEligibility(error: unknown): boolean {
+  return !(error instanceof TeacherFeedbackError) || error.code === "feedback_runtime_unavailable";
 }
 
 function id(value: unknown, field: string, maxLength = 160): string {
@@ -96,19 +101,38 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
   }
 }
 
-export async function prepareTeacherFeedbackCapture(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders): Promise<TeacherFeedbackCapture> {
-  const post = async (body: Record<string, unknown>) => fetcher("/api/edupi/teacher-feedback", { method: "POST", headers: await headersProvider({ "content-type": "application/json" }), body: JSON.stringify(body) });
-  const readTarget = () => post({ action: "target_read", target: { kind: input.target.kind, target_id: input.target.targetId } });
-  let response = await readTarget();
-  let value = await readResponse(response);
-  if (response.status === 409 && value.errorCode === "owner_uninitialized") {
-    const bootstrap = await post({ action: "bootstrap" });
-    const bootstrapValue = await readResponse(bootstrap);
-    if (!bootstrap.ok || bootstrapValue.ok === false) throw new TeacherFeedbackError(String(bootstrapValue.errorCode || "feedback_runtime_unavailable"), "教师反馈 Runtime 尚未就绪");
-    response = await readTarget();
-    value = await readResponse(response);
+async function postFeedback(fetcher: TeacherFeedbackFetcher, headersProvider: typeof desktopApiHeaders, body: Record<string, unknown>, timeoutMs: number) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new DOMException("Teacher feedback request timed out", "AbortError"));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([(async () => {
+      const response = await fetcher("/api/edupi/teacher-feedback", {
+        method: "POST", headers: await headersProvider({ "content-type": "application/json" }),
+        body: JSON.stringify(body), signal: controller.signal,
+      });
+      return { response, value: await readResponse(response) };
+    })(), deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-  if (!response.ok || value.ok !== true) throw new TeacherFeedbackError(String(value.errorCode || "teacher_feedback_target_stale"), "反馈目标已失效");
+}
+
+export async function prepareTeacherFeedbackCapture(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders, timeoutMs = DEFAULT_FETCH_RETRY_TIMEOUT_MS): Promise<TeacherFeedbackCapture> {
+  const post = (body: Record<string, unknown>) => postFeedback(fetcher, headersProvider, body, timeoutMs);
+  const readTarget = () => post({ action: "target_read", target: { kind: input.target.kind, target_id: input.target.targetId } });
+  let { response, value } = await readTarget();
+  if (response.status === 409 && value.errorCode === "owner_uninitialized") {
+    const { response: bootstrap, value: bootstrapValue } = await post({ action: "bootstrap" });
+    if (!bootstrap.ok || bootstrapValue.ok === false) throw new TeacherFeedbackError(String(bootstrapValue.errorCode || "feedback_runtime_unavailable"), "教师反馈 Runtime 尚未就绪");
+    ({ response, value } = await readTarget());
+  }
+  if (!response.ok || value.ok !== true) throw new TeacherFeedbackError(String(response.status >= 500 ? "feedback_runtime_unavailable" : value.errorCode || "teacher_feedback_target_stale"), "反馈目标已失效");
   const target = value.result && typeof value.result === "object" && !Array.isArray(value.result) ? value.result as Record<string, unknown> : null;
   const targetEvidence = Array.isArray(target?.evidence_ids) ? target.evidence_ids : [];
   const scope = target?.scope && typeof target.scope === "object" && !Array.isArray(target.scope) ? target.scope as Record<string, unknown> : null;
@@ -127,17 +151,14 @@ export async function prepareTeacherFeedbackCapture(input: TeacherFeedbackCaptur
     target: { ...input.target, expectedRevision: target.revision as number, expectedFingerprint: target.fingerprint } };
 }
 
-export async function recordTeacherFeedback(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders): Promise<TeacherFeedbackRecordResult> {
+export async function recordTeacherFeedback(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders, timeoutMs = DEFAULT_FETCH_RETRY_TIMEOUT_MS): Promise<TeacherFeedbackRecordResult> {
   const record = buildTeacherFeedbackRecord(input);
-  const post = async (body: Record<string, unknown>) => fetcher("/api/edupi/teacher-feedback", { method: "POST", headers: await headersProvider({ "content-type": "application/json" }), body: JSON.stringify(body) });
-  let response = await post({ action: "record", record });
-  let value = await readResponse(response);
+  const post = (body: Record<string, unknown>) => postFeedback(fetcher, headersProvider, body, timeoutMs);
+  let { response, value } = await post({ action: "record", record });
   if (response.status === 409 && value.errorCode === "owner_uninitialized") {
-    const bootstrap = await post({ action: "bootstrap" });
-    const bootstrapValue = await readResponse(bootstrap);
+    const { response: bootstrap, value: bootstrapValue } = await post({ action: "bootstrap" });
     if (!bootstrap.ok || bootstrapValue.ok === false) throw new TeacherFeedbackError(String(bootstrapValue.errorCode || "feedback_runtime_unavailable"), "教师反馈 Runtime 尚未就绪");
-    response = await post({ action: "record", record });
-    value = await readResponse(response);
+    ({ response, value } = await post({ action: "record", record }));
   }
   if (!response.ok || value.ok !== true) throw new TeacherFeedbackError(String(value.errorCode || value.error || "feedback_runtime_unavailable"), "教师反馈未能记录");
   const result = value.result && typeof value.result === "object" && !Array.isArray(value.result) ? value.result as Record<string, unknown> : null;

@@ -6,6 +6,7 @@
 - R26 手机中断恢复已实现、待安装验收：响应头和 JSON 正文都受截止时间约束；配对响应丢失后只允许同一随机请求键重放，缺失或错误键不得取回激活令牌；退出手机撤销服务端授权。发送 POST 中断不自动重发、恢复可误发草稿或凭同文本消息自动确认；后台继续回读会话，须教师查看并明确核对。浏览器延迟 POST 为模拟响应，不冒充真实模型完成；真实第二台手机、网络切换和安装版重启仍未验收。默认关闭、可信局域网 HTTP 边界不变。
 - R21/R22 与 Core G6 配对已实现待远端/安装验收：可信反馈目标新增领域与班级/学科校验，未知范围不产生正向评价；日程歧义写入和旧进程写入受到 Core 围栏。Bridge v1.1、12 命令、`education_workspace` 和 `external_send=false` 不变。隔离 G6 全量 1377 通过/9 跳过、TypeScript、lint、Core 反馈和日程测试、生产资源 Core/投影 ready、反馈错班拒绝与回读及独立模型 host 通过；证据见 [G6 配对验收](../acceptance/2026-09-22-desktop-core-g6-pin.md)。公共 Release、应用内验签升级、原生通知/睡眠和真实价值仍分别待验收。
 - R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成；Windows/Linux 旧版升级和学校设备继续外部待验收。不能用 G6 pin 或这轮测试总数替代这些流程。
+- R22 正式发布现为外部阻塞：Desktop #207 合并为 `0d36b5f`，run `35714740346` 已通过三平台源码质量门和 Apple 六项凭据门，但三平台在私有 Core checkout 统一收到 SSH `Repository not found`；组织禁用 Deploy Key，注册新只读 Key 返回 HTTP 422。`v0.3.31` 仅为绑定该 merge SHA 的草稿，manifest/feed 未发布，本机安装版仍是 0.3.29。禁止用广权限个人 OAuth token 替代；等待仅限 Core 的短期 Contents 只读凭据或组织批准的等价方案，仍需重跑同一草稿、三平台、公证、更新与安装验收。
 
 ## 2026-09-22 v0.3.31 手机安全修复与 Core G5 配对（历史阶段）
 

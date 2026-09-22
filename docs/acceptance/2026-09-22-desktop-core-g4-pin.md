@@ -20,11 +20,12 @@
 | Uploaded schedule dedupe | `EDUPI_CORE_ROOT=/tmp/edupi-core-g4-pin-test npm run test:edupi-calendar-dedupe-e2` | passed; reordered upload remains two canonical items and unresolved date stays held |
 | Packaged preparation dependency isolation | `node --test scripts/preparation-runtime.test.mjs` | passed; Office extraction dependencies load outside development `node_modules` |
 | Current G4 desktop staging | `EDUPI_CORE_ROOT=/tmp/edupi-core-g4-pin-test npm run desktop:prepare` + `npm run test:staged-desktop-runtime` | passed; staged server reports Core `368bcd8`, Core/projection ready, `externalSend=false`, proactivity explicitly disabled by default |
+| Staged teacher feedback | `npm run test:staged-feedback-runtime` | passed; owner bootstrap, target recheck, real-teacher record/readback, 20-minute saved metric, `external_send=false` |
 | Remote PR gates | GitHub `audit`, `rust-audit` | both passed; PR merge state `CLEAN` |
 
 ## Safety Boundary
 
-`review_follow_up` remains source/evidence/CAS/receipt validated and teacher-internal. Feedback reads now enforce host/origin checks. Schedule IDs are deterministic for missing caller IDs and upload source hashes are order-independent. Ambient planning remains opt-in; UI reports `主动`/`按需`/`不可用`, attention delivery count, and feedback readiness from the Core status projection.
+`review_follow_up` remains source/evidence/CAS/receipt validated and teacher-internal. Feedback records are target-rebound server-side against the current revision/fingerprint/evidence before Core writes; Today decisions capture real-teacher feedback only when the ambient feedback capability is active. Feedback reads enforce host/origin checks. Schedule IDs are deterministic for missing caller IDs and upload source hashes are order-independent. Ambient planning remains opt-in; UI reports `主动`/`按需`/`不可用`, attention delivery count, and feedback readiness from the Core status projection.
 
 ## Unverified
 

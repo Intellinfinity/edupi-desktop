@@ -11,6 +11,10 @@ test("teacher feedback route keeps owner-control credentials server-side", () =>
   assert.match(source, /owner_control/);
   assert.match(source, /teacher_feedback_target_read/);
   assert.match(source, /teacher_feedback_record/);
+  assert.match(source, /bindFeedbackRecord/);
+  assert.match(source, /expected_revision: resolved\.revision/);
+  assert.match(source, /expected_fingerprint: resolved\.fingerprint/);
+  assert.match(source, /FEEDBACK_RECORD_KEYS/);
   assert.doesNotMatch(source, /ownerControlToken/);
   assert.match(source, /externalSend: false/);
 });

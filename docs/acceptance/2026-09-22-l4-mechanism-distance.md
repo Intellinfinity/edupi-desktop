@@ -7,7 +7,7 @@
 | 规范事件、稳定身份、上传去重 | 通过 | Core C4 schedule dedupe + Desktop stable schedule IDs；重排上传保持 canonical count |
 | Goal/Opportunity、CAS、幂等、lease、重启恢复 | 通过/部分 | C2/C3、Ambient Today、staged bundle recovery 通过；真实睡眠唤醒仍未实测 |
 | 安全、权限、来源、删除、`external_send=false` | 通过/部分 | Core six-domain policy 与 Desktop boundary 通过；G5 尚未合并，安装版授权收窄传播仍需实机 |
-| 教师审核与反馈闭环 | 部分接近通过 | staged feedback 已完成 owner bootstrap、target recheck、record/readback；真实教师连续反馈尚未发生 |
+| 教师审核与反馈闭环 | 部分 | staged feedback 以合成标签完成令牌、target recheck 和回读；G4 Desktop 只在教师主动评价且证据含明确班级/学科时记录价值，真实教师连续反馈尚未发生 |
 | 注意力交付与无感行为 | 部分 | delivery receipt、重试、去重、当前状态已可见；系统通知实际显示/点击、睡眠后补跑未验证 |
 | 六领域完整消费 | 部分 | G1–G4 已配对；Core G5 PR #166 未合并且 CI billing 阻塞，G6 Desktop 消费仍待做 |
 | 安装版连续性 | 部分 | 当前 G4 `.app` bundle 的后台恢复通过；签名、干净安装、升级、Windows/macOS 原生窗口仍未全部通过 |
@@ -19,9 +19,8 @@
 
 ## 下一顺序
 
-1. 保持 Core G5 在 CI billing 解锁前不伪合并；Desktop 继续用 G4 做机制和安装证据。
-2. 用当前 `.app` 完成通知显示/点击、关闭进托盘、睡眠唤醒和升级回读；记录系统权限失败路径。
-3. 让真实教师通过已接通的 feedback Runtime 记录至少一个完整六领域试用周期，再决定是否进入盲测和 canary。
-4. G5 合并后重新 pin，随后补六领域统一 safety/privacy veto 的 Desktop 消费和正式 L4 指标冻结。
+1. Risk：完成 Desktop 反馈令牌和真实评价边界；Core G5 的未评价决策从价值分母排除，CI billing 恢复前不绕过失败门。
+2. Unverified：为 Core 任务投影补权威班级/学科范围，验证 Today 原生评价、失败重试和跨重启回读；再用安装版完成通知显示/点击、托盘、睡眠唤醒、升级与权限收窄后的撤回。
+3. L4：Core G5 真实 CI 通过并合并后重新 pin，补 G6 跨领域安全 veto 和六领域 Desktop 消费；冻结正式盲测，再由真实教师完成基线、连续试用和价值核对。
 
 当前结论仍是：`L4 功能收敛中`，不是 `L4 established`。

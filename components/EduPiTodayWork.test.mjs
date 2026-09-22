@@ -59,11 +59,12 @@ test("renders Core ambient preparation without exposing decision authority contr
   assert.doesNotMatch(html, /sha256:ready/);
 });
 
-test("Today records only explicitly rated usefulness in a verified class scope", () => {
+test("Today does not invent scope or value from a work candidate", () => {
   const candidate = { candidateId: "candidate-1", taskId: "task-1", revision: 0, evidenceIds: ["evidence-1"], sourceIds: ["source-1"], reason: "calendar_review" };
-  const task = { id: "task-1", trigger: "teaching_before_class", topic: null, evidence: { class_id: "class-7b", subject: "math" } };
+  const task = { id: "task-1", trigger: "teaching_before_class", topic: null, evidence: { class_id: "class-wrong", subject: "math" } };
   const capture = feedbackCaptureFor(candidate, task, "accept", "useful", undefined, "2026-09-22T01:02:03.000Z");
   assert.equal(capture.domain, "teaching_preparation");
+  assert.equal(capture.scope, null);
   assert.equal(capture.usefulness, "useful");
   assert.equal(capture.used, false);
   assert.equal(capture.wouldUseAgain, null);
@@ -72,10 +73,8 @@ test("Today records only explicitly rated usefulness in a verified class scope",
   for (const trigger of ["teaching_node_preparation", "exam_preparation", "calendar_event_preparation", "activity_preparation", "meeting_preparation", "holiday_preparation", "monthly_class_activity"]) {
     assert.equal(feedbackCaptureFor(candidate, { ...task, trigger }, "accept", "useful"), null, trigger);
   }
-  assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: {} }, "accept", "useful"), null);
-  assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: { class_id: "class-7b" } }, "accept", "useful"), null);
+  assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: {} }, "accept", "useful")?.scope, null);
   assert.equal(feedbackCaptureFor({ ...candidate, evidenceIds: [], sourceIds: [] }, task, "accept", "useful"), null);
-  assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: { class_id: "wrong class", subject: "math" } }, "accept", "useful"), null);
   assert.match(capture.commandId, /^desktop-feedback-[a-f0-9-]{36}$/);
   assert.equal(feedbackCaptureFor(candidate, task, "accept", "unsafe")?.issueCodes?.[0], "safety");
 });

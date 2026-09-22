@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import type {
   EducationContract,
   EducationWorkCandidate,
@@ -71,18 +71,12 @@ function feedbackDecision(decision: EducationWorkCandidateDecision): TeacherFeed
 }
 
 export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, usefulness: RatedUsefulness, note?: string, occurredAt = new Date().toISOString()): TeacherFeedbackCapture | null {
-  const domain = task?.trigger === "teaching_before_class" ? "teaching_preparation" : null;
-  const evidence = task?.evidence;
-  const classId = evidence?.class_id;
-  const subject = evidence?.subject;
-  if (!domain || typeof classId !== "string" || classId.length > 160 || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/.test(classId)
-    || typeof subject !== "string" || !subject.trim() || subject.trim().length > 128
-    || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
+  if (task?.trigger !== "teaching_before_class" || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
   return {
     commandId: `desktop-feedback-${globalThis.crypto.randomUUID()}`,
     sessionId: "desktop-today",
-    domain,
-    scope: { classId, subject: subject.trim() },
+    domain: "teaching_preparation",
+    scope: null,
     target: { kind: "work_candidate", targetId: candidate.candidateId },
     reviewedRevision: candidate.revision,
     decision: feedbackDecision(decision),
@@ -246,6 +240,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const [selectedRating, setSelectedRating] = useState<RatedUsefulness | "">("");
   const [feedbackRetry, setFeedbackRetry] = useState<TeacherFeedbackCapture | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const feedbackReviewSequence = useRef(0);
   const [retryReview, setRetryReview] = useState<ReviewRetry | null>(null);
   const [submission, setSubmission] = useState<Submission>(null);
   const editorCurrent = isTodayWorkEditorCurrent(editor, data.workCandidates, capability.enabled);
@@ -274,7 +269,9 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     note?: string,
   ) => {
     if (busy || !capability.enabled) return;
+    const reviewSequence = ++feedbackReviewSequence.current;
     setFeedback(null);
+    setPendingFeedback(null);
     setRetryReview(null);
     setSubmission({ candidateId: candidate.candidateId, decision });
     try {
@@ -284,12 +281,18 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       setChangingDecisionId(null);
       const task = taskById.get(candidate.taskId);
       const reviewed = result.data.workCandidates.find((item) => item.candidateId === candidate.candidateId);
-      setPendingFeedback(feedbackReady && task && reviewed && feedbackCaptureFor(reviewed, task, decision, "useful")
-        ? { candidate: reviewed, task, decision, note } : null);
+      setPendingFeedback(null);
       setRatingOpen(false);
       setSelectedRating("");
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: actionSuccess(decision) });
+      const eligibility = feedbackReady && task && reviewed ? feedbackCaptureFor(reviewed, task, decision, "useful") : null;
+      if (eligibility && task && reviewed) {
+        try {
+          await prepareTeacherFeedbackCapture(eligibility);
+          if (feedbackReviewSequence.current === reviewSequence) setPendingFeedback({ candidate: reviewed, task, decision, note });
+        } catch { /* Review succeeded, but unverified feedback scope must remain hidden. */ }
+      }
     } catch (error) {
       if (error instanceof TodayWorkReviewError) {
         if (error.data) onEducation(error.data);
@@ -347,6 +350,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   };
 
   const refreshEducation = () => {
+    feedbackReviewSequence.current += 1;
     setFeedback(null);
     setPendingFeedback(null);
     setRetryReview(null);

@@ -11,7 +11,7 @@ export type TeacherFeedbackCapture = {
   sessionId: string;
   evidenceLevel?: "real_teacher" | "synthetic";
   domain: TeacherFeedbackDomain;
-  scope: { classId: string; subject: string };
+  scope: { classId: string; subject: string } | null;
   target: { kind: TeacherFeedbackTargetKind; targetId: string; expectedRevision?: number; expectedFingerprint?: string };
   reviewedRevision?: number;
   decision: TeacherFeedbackDecision;
@@ -63,6 +63,7 @@ export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Recor
     || typeof input.target.expectedFingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/.test(input.target.expectedFingerprint)) {
     throw new TeacherFeedbackError("invalid_feedback", "target binding is required");
   }
+  if (!input.scope) throw new TeacherFeedbackError("invalid_feedback", "verified scope is required");
   const record: Record<string, unknown> = {
     command_id: id(input.commandId, "commandId"),
     session_id: id(input.sessionId, "sessionId"),
@@ -110,18 +111,20 @@ export async function prepareTeacherFeedbackCapture(input: TeacherFeedbackCaptur
   if (!response.ok || value.ok !== true) throw new TeacherFeedbackError(String(value.errorCode || "teacher_feedback_target_stale"), "反馈目标已失效");
   const target = value.result && typeof value.result === "object" && !Array.isArray(value.result) ? value.result as Record<string, unknown> : null;
   const targetEvidence = Array.isArray(target?.evidence_ids) ? target.evidence_ids : [];
+  const scope = target?.scope && typeof target.scope === "object" && !Array.isArray(target.scope) ? target.scope as Record<string, unknown> : null;
   if (!target || target.kind !== input.target.kind || target.target_id !== input.target.targetId
     || !Number.isSafeInteger(target.revision) || Number(target.revision) < 0
     || input.reviewedRevision !== undefined && target.revision !== input.reviewedRevision
     || typeof target.fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/.test(target.fingerprint)
-    || target.domain !== input.domain
-    || !target.scope || typeof target.scope !== "object" || Array.isArray(target.scope)
-    || (target.scope as Record<string, unknown>).class_id !== input.scope.classId
-    || (target.scope as Record<string, unknown>).subject !== input.scope.subject
+    || target.domain !== input.domain || !scope || typeof scope.class_id !== "string"
+    || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/.test(scope.class_id)
+    || typeof scope.subject !== "string" || !scope.subject || scope.subject.length > 128
+    || input.scope && (input.scope.classId !== scope.class_id || input.scope.subject !== scope.subject)
     || !input.evidenceIds.some((item) => targetEvidence.includes(item))) {
     throw new TeacherFeedbackError("teacher_feedback_target_stale", "反馈依据与当前目标不一致");
   }
-  return { ...input, target: { ...input.target, expectedRevision: target.revision as number, expectedFingerprint: target.fingerprint } };
+  return { ...input, scope: { classId: scope.class_id as string, subject: scope.subject as string },
+    target: { ...input.target, expectedRevision: target.revision as number, expectedFingerprint: target.fingerprint } };
 }
 
 export async function recordTeacherFeedback(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders): Promise<TeacherFeedbackRecordResult> {

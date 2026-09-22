@@ -21,6 +21,7 @@
 | Packaged preparation dependency isolation | `node --test scripts/preparation-runtime.test.mjs` | passed; Office extraction dependencies load outside development `node_modules` |
 | Current G4 desktop staging | `EDUPI_CORE_ROOT=/tmp/edupi-core-g4-pin-test npm run desktop:prepare` + `npm run test:staged-desktop-runtime` | passed; staged server reports Core `368bcd8`, Core/projection ready, `externalSend=false`, proactivity explicitly disabled by default |
 | Staged teacher feedback | `npm run test:staged-feedback-runtime` | passed; owner bootstrap, target recheck, real-teacher record/readback, 20-minute saved metric, `external_send=false` |
+| Built macOS bundle recovery | `EDUPI_INSTALLED_APP=.../target/release/bundle/macos/EduPi.app EDUPI_EXPECTED_VERSION=0.3.29 npm run test:packaged-background-recovery` | passed; bundle Core `368bcd8`, interrupted job reclaimed on attempt 2, artifact registered |
 | Remote PR gates | GitHub `audit`, `rust-audit` | both passed; PR merge state `CLEAN` |
 
 ## Safety Boundary
@@ -29,7 +30,7 @@
 
 ## Unverified
 
-- A signed/installed package with this G4 pin has not been cold-started on macOS/Windows; the current evidence is the local staged server, not an installer.
+- The local macOS `.app`/DMG build is unsigned for release because `TAURI_SIGNING_PRIVATE_KEY` was not provided; a signed release and clean-user installation have not been verified.
 - Real system notification display/click, sleep-wake recovery, upgrade continuity, and tray behavior remain outside this isolated checkout evidence.
 - Real teacher decisions, usefulness, and six-domain value remain `not_run`; no synthetic result is promoted to L4.
 - `npm run drift` was not run to completion because this checkout has neither the upstream remote nor the configured `v0.8.2` tag.

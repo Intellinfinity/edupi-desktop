@@ -61,12 +61,11 @@ jobs:
       - name: Check out the pinned EduPi Core runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: PIGU-PPPgu/edupi
+          repository: Intellinfinity/edupi
           ref: ${{ steps.core.outputs.commit }}
           path: .edupi-core-runtime
-          # Use the repository-scoped read-only deploy key for the private Core
-          # checkout. The token fallback keeps public mirrors usable.
-          ssh-key: ${{ secrets.EDUPI_CORE_DEPLOY_KEY }}
+          # Prefer a repository-scoped read token when organization policy disables deploy keys.
+          ssh-key: ${{ secrets.EDUPI_CORE_READ_TOKEN == '' && secrets.EDUPI_CORE_DEPLOY_KEY || '' }}
           token: ${{ secrets.EDUPI_CORE_READ_TOKEN || github.token }}
           persist-credentials: false
       - name: Preserve Core manifest bytes

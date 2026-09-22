@@ -411,9 +411,9 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
   ]);
   for (const workflow of workflows) {
     assert.match(workflow, /contracts\/edupi-core-compat\.json/);
-    assert.match(workflow, /repository: (?:PIGU-PPPgu|Intellinfinity)\/edupi/);
+    assert.match(workflow, /repository: Intellinfinity\/edupi/);
     assert.match(workflow, /ref: \$\{\{ steps\.core\.outputs\.commit \}\}/);
-    assert.match(workflow, /ssh-key: \$\{\{ secrets\.EDUPI_CORE_DEPLOY_KEY \}\}/);
+    assert.match(workflow, /ssh-key: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN == '' && secrets\.EDUPI_CORE_DEPLOY_KEY \|\| '' \}\}/);
     assert.match(
       workflow,
       /token: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \|\| github\.token \}\}/,

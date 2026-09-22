@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "配对请求无效" }, { status: 400 });
   }
   if (typeof body.requestId === "string") {
-    const result = completeMobilePairing(body.requestId, body.code);
+    const result = completeMobilePairing(body.requestId, body.code, body.requestKey as string | undefined);
     if (!result) return NextResponse.json({ error: "配对请求不存在或已过期" }, { status: 404 });
     if (!result.token) return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
     const response = NextResponse.json({ status: result.status, scopes: result.scopes }, { headers: { "Cache-Control": "no-store" } });

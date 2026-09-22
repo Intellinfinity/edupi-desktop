@@ -61,14 +61,17 @@ test("renders Core ambient preparation without exposing decision authority contr
 
 test("Today records only explicitly rated usefulness in a verified class scope", () => {
   const candidate = { candidateId: "candidate-1", taskId: "task-1", revision: 0, evidenceIds: ["evidence-1"], sourceIds: ["source-1"], reason: "calendar_review" };
-  const task = { id: "task-1", trigger: "calendar_event_preparation", topic: null, evidence: { class_id: "class-7b", subject: "math" } };
+  const task = { id: "task-1", trigger: "teaching_before_class", topic: null, evidence: { class_id: "class-7b", subject: "math" } };
   const capture = feedbackCaptureFor(candidate, task, "accept", "useful", undefined, "2026-09-22T01:02:03.000Z");
-  assert.equal(capture.domain, "calendar_administration");
+  assert.equal(capture.domain, "teaching_preparation");
   assert.equal(capture.usefulness, "useful");
   assert.equal(capture.used, false);
   assert.equal(capture.wouldUseAgain, null);
   assert.equal(capture.occurredAt, "2026-09-22T01:02:03.000Z");
   assert.equal(feedbackCaptureFor(candidate, { ...task, trigger: "unknown" }, "accept", "useful"), null);
+  for (const trigger of ["teaching_node_preparation", "exam_preparation", "calendar_event_preparation", "activity_preparation", "meeting_preparation", "holiday_preparation", "monthly_class_activity"]) {
+    assert.equal(feedbackCaptureFor(candidate, { ...task, trigger }, "accept", "useful"), null, trigger);
+  }
   assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: {} }, "accept", "useful"), null);
   assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: { class_id: "class-7b" } }, "accept", "useful"), null);
   assert.equal(feedbackCaptureFor({ ...candidate, evidenceIds: [], sourceIds: [] }, task, "accept", "useful"), null);

@@ -20,7 +20,7 @@ import {
 import { summarizeL4Preparation, type L4PreparationSummaryItem } from "@/lib/edupi-l4-preparation";
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
 import { todayActiveTasks } from "@/lib/edupi-work-case";
-import { prepareTeacherFeedbackCapture, recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackDomain, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
+import { prepareTeacherFeedbackCapture, recordTeacherFeedback, TeacherFeedbackError, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 
 type Props = {
@@ -55,17 +55,6 @@ type Submission = { candidateId: string; decision: EducationWorkCandidateDecisio
 type RatedUsefulness = Exclude<TeacherFeedbackUsefulness, "not_observed">;
 type PendingFeedback = { candidate: EducationWorkCandidate; task: TeacherTask; decision: EducationWorkCandidateDecision; note?: string };
 
-const FEEDBACK_DOMAINS: Record<string, TeacherFeedbackDomain> = {
-  teaching_before_class: "teaching_preparation",
-  teaching_node_preparation: "teaching_preparation",
-  exam_preparation: "teaching_preparation",
-  calendar_event_preparation: "calendar_administration",
-  activity_preparation: "calendar_administration",
-  meeting_preparation: "calendar_administration",
-  holiday_preparation: "calendar_administration",
-  monthly_class_activity: "calendar_administration",
-};
-
 const USEFULNESS_OPTIONS: Array<{ value: RatedUsefulness; label: string }> = [
   { value: "very_useful", label: "非常有帮助" },
   { value: "useful", label: "有帮助" },
@@ -82,7 +71,7 @@ function feedbackDecision(decision: EducationWorkCandidateDecision): TeacherFeed
 }
 
 export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, usefulness: RatedUsefulness, note?: string, occurredAt = new Date().toISOString()): TeacherFeedbackCapture | null {
-  const domain = task?.trigger ? FEEDBACK_DOMAINS[task.trigger] : null;
+  const domain = task?.trigger === "teaching_before_class" ? "teaching_preparation" : null;
   const evidence = task?.evidence;
   const classId = evidence?.class_id;
   const subject = evidence?.subject;
@@ -328,8 +317,11 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       await recordTeacherFeedback(bound);
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: "评价已记录。" });
-    } catch {
-      setFeedback({ kind: "error", text: "决定已记录；评价未能记录，请重试。" });
+    } catch (error) {
+      if (error instanceof TeacherFeedbackError && ["teacher_feedback_target_stale", "teacher_feedback_target_missing"].includes(error.code)) {
+        setFeedbackRetry(null);
+        setFeedback({ kind: "error", text: "评价目标已变化，请刷新待办。", action: "refresh" });
+      } else setFeedback({ kind: "error", text: "决定已记录；评价未能记录，请重试。" });
     } finally {
       setFeedbackBusy(false);
     }
@@ -344,8 +336,11 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       await recordTeacherFeedback(bound);
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: "反馈已记录。" });
-    } catch {
-      setFeedback({ kind: "error", text: "反馈记录仍未成功，请稍后重试。" });
+    } catch (error) {
+      if (error instanceof TeacherFeedbackError && ["teacher_feedback_target_stale", "teacher_feedback_target_missing"].includes(error.code)) {
+        setFeedbackRetry(null);
+        setFeedback({ kind: "error", text: "评价目标已变化，请刷新待办。", action: "refresh" });
+      } else setFeedback({ kind: "error", text: "反馈记录仍未成功，请稍后重试。" });
     } finally {
       setFeedbackBusy(false);
     }

@@ -164,11 +164,13 @@ export function approveMobilePairing(id: string): PublicPairing | null {
   return publicPairing(record);
 }
 
-export function completeMobilePairing(id: string, codeInput: string): { status: PairingStatus; token?: string; scopes?: readonly MobileScope[] } | null {
+export function completeMobilePairing(id: string, codeInput: string, requestKey?: string): { status: PairingStatus; token?: string; scopes?: readonly MobileScope[] } | null {
   cleanup();
   const record = state().pairings.get(id);
   if (!record || !equalDigest(record.codeDigest, digest(normalizeCode(codeInput)))) return null;
+  if (record.requestKeyDigest && (!requestKey || !equalDigest(record.requestKeyDigest, digest(requestKey)))) return null;
   if (record.status === "approved" || record.status === "active") {
+    if (record.status === "active" && !record.requestKeyDigest) return { status: "active" };
     if (record.status === "approved") {
       record.status = "active";
       record.expiresAt = Date.now() + MOBILE_TOKEN_TTL_MS;

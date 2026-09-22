@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchJsonWithDeadline, fetchWithDeadline } from "@/lib/fetch-timeout";
 
 type Session = { id: string; name?: string; modified: string; firstMessage: string; messageCount: number };
-type Message = { id?: string; role: "user" | "assistant"; text: string; timestamp?: string };
-type PendingSend = { sessionId: string; message: string; afterId?: string };
+type Message = { role: "user" | "assistant"; text: string; timestamp?: string };
+type PendingSend = { sessionId: string; message: string };
 
 export default function MobilePage() {
   const [paired, setPaired] = useState(false);
@@ -73,17 +73,7 @@ export default function MobilePage() {
     if (response.status === 401) { disconnect(); return; }
     if (!response.ok) throw new Error("对话暂不可用");
     if (generation !== connectionGeneration.current || sequence !== sessionRequestSequence.current || desiredSessionId.current !== id) return;
-    const nextMessages = Array.isArray(result.messages) ? result.messages : [];
-    setMessages(nextMessages);
-    const pending = pendingSendRef.current;
-    if (pending?.sessionId === id && pending.afterId) {
-      const previousIndex = nextMessages.findIndex((item) => item.id === pending.afterId);
-      if (previousIndex >= 0 && nextMessages.slice(previousIndex + 1).some((item) => item.id && item.role === "user" && item.text === pending.message)) {
-        pendingSendRef.current = null;
-        setPendingSend(null);
-        setError("");
-      }
-    }
+    setMessages(Array.isArray(result.messages) ? result.messages : []);
   }, [paired, disconnect]);
 
   useEffect(() => {
@@ -112,7 +102,7 @@ export default function MobilePage() {
       inFlight = true;
       const generation = connectionGeneration.current;
       try {
-        const { response, body: result } = await fetchJsonWithDeadline<{ status?: string; scopes?: string[]; error?: string }>("/api/mobile/pair", 15_000, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId, code }), cache: "no-store" });
+        const { response, body: result } = await fetchJsonWithDeadline<{ status?: string; scopes?: string[]; error?: string }>("/api/mobile/pair", 15_000, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId, code, requestKey: pairingAttempt.current?.key }), cache: "no-store" });
         if (disposed || generation !== connectionGeneration.current) return;
         if (!response.ok) { setError(result.error || "配对失败"); setRequestId(null); return; }
         if (result.status === "active") {
@@ -172,7 +162,7 @@ export default function MobilePage() {
     const generation = connectionGeneration.current;
     const sessionId = selectedId;
     const message = draft.trim();
-    const pending: PendingSend = { sessionId, message, afterId: messages.at(-1)?.id };
+    const pending: PendingSend = { sessionId, message };
     pendingSendRef.current = pending;
     setDraft(""); setBusy(true); setError("");
     try {

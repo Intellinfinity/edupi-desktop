@@ -22,7 +22,7 @@ function textContent(content: unknown): string {
     .join("\n");
 }
 
-export type MobileMessage = { id: string; role: "user" | "assistant"; text: string; timestamp?: string };
+export type MobileMessage = { role: "user" | "assistant"; text: string; timestamp?: string };
 
 export type MobileSession = {
   id: string;
@@ -55,12 +55,12 @@ export async function readMobileSession(sessionId: string): Promise<{ info: Mobi
   if (!manager || !isEduPiCwd(manager.getCwd())) return null;
   const entries = manager.getEntries() as never;
   const context = buildSessionContext(entries, manager.getLeafId(), { deferThinking: true, deferToolResultImages: true });
-  const messages = context.messages.flatMap((message, index) => {
+  const messages = context.messages.flatMap((message) => {
     if (message.role !== "user" && message.role !== "assistant") return [];
     const text = textContent((message as { content?: unknown }).content).trim();
     if (!text) return [];
     const timestamp = (message as { timestamp?: number }).timestamp;
-    return [{ id: context.entryIds[index], role: message.role, text: text.slice(0, 8_000), ...(typeof timestamp === "number" ? { timestamp: new Date(timestamp).toISOString() } : {}) }];
+    return [{ role: message.role, text: text.slice(0, 8_000), ...(typeof timestamp === "number" ? { timestamp: new Date(timestamp).toISOString() } : {}) }];
   }).slice(-100);
   const header = manager.getHeader();
   const info: MobileSession = {

@@ -15,6 +15,7 @@ const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
 const route = await jiti.import("./route.ts");
 const itemRoute = await jiti.import("./[id]/route.ts");
 const phoneRoute = await jiti.import("../pair/route.ts");
+const logoutRoute = await jiti.import("../logout/route.ts");
 
 after(() => {
   if (previousStateDir === undefined) delete process.env.PI_DESKTOP_STATE_DIR;
@@ -63,9 +64,18 @@ test("a lost phone pairing response can be replayed only with its original reque
 
   const params = { params: Promise.resolve({ id: created.id }) };
   assert.equal((await itemRoute.POST(request(`/api/mobile/pairing/${created.id}`, "POST", token, { action: "approve" }), params)).status, 200);
-  const completed = () => phoneRoute.POST(request("/api/mobile/pair", "POST", null, { code: created.code, requestId: created.id }));
-  assert.match((await completed()).headers.get("set-cookie"), /HttpOnly/);
-  assert.match((await completed()).headers.get("set-cookie"), /HttpOnly/);
-  assert.equal((await itemRoute.POST(request(`/api/mobile/pairing/${created.id}`, "POST", token, { action: "revoke" }), params)).status, 200);
+  const completed = (requestKey) => phoneRoute.POST(request("/api/mobile/pair", "POST", null, { code: created.code, requestId: created.id, requestKey }));
   assert.equal((await completed()).status, 404);
+  assert.equal((await completed("99a69a567c4f42e584d554381198d30d")).status, 404);
+  const active = await completed(key);
+  assert.match(active.headers.get("set-cookie"), /HttpOnly/);
+  assert.equal((await completed()).status, 404);
+  assert.match((await completed(key)).headers.get("set-cookie"), /HttpOnly/);
+  assert.equal((await logoutRoute.POST(new Request("http://127.0.0.1:38471/api/mobile/logout", { method: "POST", headers: { host: "127.0.0.1:38471", cookie: "edupi_mobile_token=invalid" } }))).status, 200);
+  assert.match((await completed(key)).headers.get("set-cookie"), /HttpOnly/);
+  const cookie = active.headers.get("set-cookie").split(";")[0];
+  assert.equal((await logoutRoute.POST(new Request("http://127.0.0.1:38471/api/mobile/logout", { method: "POST", headers: { host: "127.0.0.1:38471", cookie } }))).status, 200);
+  assert.equal((await completed(key)).status, 404);
+  assert.equal((await (await itemRoute.POST(request(`/api/mobile/pairing/${created.id}`, "POST", token, { action: "revoke" }), params)).json()).ok, false);
+  assert.equal((await completed(key)).status, 404);
 });

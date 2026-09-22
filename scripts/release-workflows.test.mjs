@@ -398,7 +398,7 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("scripts/test-edupi-c2-e2.mjs"));
   assert.ok(buildJob.includes("scripts/test-edupi-c3-e2.mjs"));
   assert.ok(buildJob.includes("scripts/packaged-core-bundle.test.mjs"));
-  assert.match(buildJob, /name: Verify packaged Core review and feedback\s+if: runner\.os == 'macOS'/);
+  assert.match(buildJob, /name: Verify staged desktop runtime\s+if: runner\.os == 'macOS'/);
   assert.ok(buildJob.includes("test:staged-desktop-runtime"));
   assert.ok(buildJob.includes("test:staged-schedule-conflicts-runtime"));
   assert.ok(buildJob.includes("test:staged-feedback-runtime"));

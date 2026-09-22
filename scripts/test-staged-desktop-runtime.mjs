@@ -8,11 +8,12 @@ import net from "node:net";
 import { spawn } from "node:child_process";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
+const compat = JSON.parse(fs.readFileSync(path.join(root, "contracts/edupi-core-compat.json"), "utf8"));
 const resources = path.resolve(process.env.EDUPI_STAGED_RESOURCES || path.join(root, "src-tauri/resources"));
 const serverDir = path.join(resources, "server");
 const nodeBinary = path.join(resources, "Pi Agent Server.app/Contents/MacOS/node");
 const coreRoot = path.join(resources, "edupi-core");
-for (const required of [serverDir, nodeBinary, coreRoot]) assert.equal(fs.existsSync(required), true, `missing staged resource: ${required}`);
+for (const required of [serverDir, nodeBinary, coreRoot, path.join(serverDir, "mobile-gateway.cjs")]) assert.equal(fs.existsSync(required), true, `missing staged resource: ${required}`);
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-staged-runtime-"));
 const dataRoot = path.join(temporaryRoot, "data");
@@ -48,7 +49,7 @@ const child = spawn(nodeBinary, [path.join(serverDir, "desktop-server.cjs")], {
     EDUPI_CORE_VALIDATION_MODE: "bundled",
     PI_DESKTOP_STATE_DIR: stateRoot,
     PI_DESKTOP_API_TOKEN: "staged-runtime-token-012345678901234567890123456789",
-    PI_DESKTOP_INSTANCE_ID: "staged-g4-instance",
+    PI_DESKTOP_INSTANCE_ID: "staged-core-instance",
     PI_WEB_PARENT_PID: String(process.pid),
     PI_OFFLINE: "1",
   },
@@ -84,8 +85,12 @@ try {
     if (!status) await new Promise((resolve) => setTimeout(resolve, 200));
   }
   assert.ok(status, `staged server did not become ready: ${logs.slice(-4000)}`);
-  assert.equal(status.compatibility.actual.coreCommit, "368bcd8b6fbe04d78860c96c37f27bec312c8e4c");
+  assert.equal(status.compatibility.actual.coreCommit, compat.core_runtime.core_commit);
+  assert.equal(status.compatibility.actual.componentManifestHash, compat.core_runtime.component_manifest_hash);
+  assert.equal(status.core.runtimeComponentManifestHash, compat.core_runtime.runtime_component_manifest_hash);
   assert.equal(status.compatibility.actual.supportedCommands.includes("review_follow_up"), true);
+  assert.equal(status.core.status, "ready");
+  assert.equal(status.projection.status, "ready");
   assert.equal(status.externalSend, false);
   console.log(JSON.stringify({ status: "passed", coreCommit: status.compatibility.actual.coreCommit, coreStatus: status.core.status, projectionStatus: status.projection.status, proactivity: status.proactivity.status, externalSend: status.externalSend }, null, 2));
 } finally {

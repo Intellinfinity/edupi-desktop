@@ -120,15 +120,15 @@ async function assembleServer() {
   // reached through dynamic provider/export/plugin paths. These packages are
   // serverExternalPackages, so preserve their complete runtime `dist/` trees.
   for (const packageName of await piPackageDirNames()) {
-    const source = join(rootDir, "node_modules", "@earendil-works", packageName, "dist");
-    const destination = join(
+    const sourcePackage = join(rootDir, "node_modules", "@earendil-works", packageName);
+    const destinationPackage = join(
       serverResourcesDir,
       "node_modules",
       "@earendil-works",
       packageName,
-      "dist",
     );
-    await cp(source, destination, { recursive: true, force: true });
+    await cp(join(sourcePackage, "dist"), join(destinationPackage, "dist"), { recursive: true, force: true });
+    await copyFile(join(sourcePackage, "package.json"), join(destinationPackage, "package.json"));
   }
 
   await copyFile(

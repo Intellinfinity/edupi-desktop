@@ -8,9 +8,10 @@ import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { createJiti } from "jiti";
 import { copyRuntimeModelHostFiles, RUNTIME_MODEL_HOST_FILES } from "./runtime-model-host-files.mjs";
+import { piPackageDirNames } from "./pi-packages.mjs";
 
 const desktopRoot = path.resolve(import.meta.dirname, "..");
-const stagedServer = path.join(desktopRoot, "src-tauri/resources/server");
+const stagedServer = path.join(process.env.EDUPI_STAGED_RESOURCES || path.join(desktopRoot, "src-tauri/resources"), "server");
 test("model host files copy as regular files and reject symlinked sources", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-host-files-"));
   try {
@@ -26,6 +27,9 @@ test("model host files copy as regular files and reject symlinked sources", asyn
 });
 
 test("copied host SDK runs a real isolated localhost model without Core node_modules or symlinks", { skip: !process.env.EDUPI_CORE_ROOT || !fs.existsSync(path.join(stagedServer, "node_modules")) }, async () => {
+  for (const name of await piPackageDirNames()) {
+    assert.equal(fs.statSync(path.join(stagedServer, "node_modules/@earendil-works", name, "package.json")).isFile(), true, `${name} package metadata missing`);
+  }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-host-copy-live-"));
   const priorCwd = process.cwd();
   let calls = 0;

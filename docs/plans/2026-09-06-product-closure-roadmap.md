@@ -1,12 +1,15 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-23 v0.3.32 公证 DMG 与 canonical 更新源（已实现待远端验收）
+## 2026-09-23 v0.3.32 DMG 公证、启动回滚与 v0.3.33 修复（待发布）
 
 - v0.3.31 已由正式 run `35757858707` 从 merge `bef61195` 完成三平台构建、签名和 manifest，公开 Release 含 11 项资产；canonical `updater-feed` 为 0.3.31、7 个平台键，更新资产均走 GitHub API。macOS updater tar 内 `.app` 的 Developer ID、公证和 Gatekeeper 验收通过。
 - R22 公证缺口已定位：v0.3.31 workflow 在 Tauri 公证 `.app` 后才生成并签名 DMG，没有把 DMG 再提交 Apple 公证。公开 DMG 的 `codesign` 通过，但 `stapler validate` 无 ticket，`spctl --type open` 为 `Unnotarized Developer ID`；因此不能把 v0.3.31 DMG 记为已装订公证。
-- v0.3.32 已实现、待 Release 实跑：正式仓库和首选 Raw feed 统一为 `Intellinfinity/edupi-desktop`，旧 PIGU Raw 与 Release URL 仅作迁移 fallback；macOS 在上传后单独提交 DMG 公证、staple、Gatekeeper 验证，再按精确 Release ID 事务替换。替换前核对唯一 tag、draft 和目标 SHA，先保留旧资产，上传后重新下载核对 size/SHA-256，成功才删除备份；上传或验真失败恢复旧资产，备份清理不确定则保留已验真资产与备份并让 manifest 阻止发布。
-- 本地门禁通过：`npm test` 1398 项中 1373 passed、25 skipped、0 failed；TypeScript、lint、npm audit、release verify、目标仓库校验、actionlint、`cargo metadata --locked` 与 28 项 Tauri/Cargo 测试通过。41 项发布事务定向测试覆盖发布/改 target/重复 tag 拒绝、上传失败、哈希不符、进程中断恢复、DELETE 响应丢失和 cleanup 持续失败；独立复审无 P1/P2。真实 GitHub 资产事务和 Apple DMG 公证仍未运行，不能提前标记验收通过。
-- 本机唯一安装副本仍为 v0.3.29；v0.3.29 检测 v0.3.31 时 manifest 阶段在 `raw.githubusercontent.com` 返回 `UPD-227408f2`，系统代理 `127.0.0.1:7897` 与显式 Raw 请求均可达。临时代理环境启动后的原生重试、版本/51 学生/240 任务/43 校历/9 课表/模型配置保持，以及 v0.3.32 DMG 独立 Gatekeeper 验收仍待桌面解锁和正式发布后执行。
+- v0.3.32 正式仓库和首选 Raw feed 已统一为 `Intellinfinity/edupi-desktop`，旧 PIGU Raw 与 Release URL 仅作迁移 fallback；macOS 在上传后单独提交 DMG 公证、staple、Gatekeeper 验证，再按精确 Release ID 事务替换。替换前核对唯一 tag、draft 和目标 SHA，先保留旧资产，上传后重新下载核对 size/SHA-256，成功才删除备份；上传或验真失败恢复旧资产，备份清理不确定则保留已验真资产与备份并让 manifest 阻止发布。
+- R22 的 DMG 链路验收通过、安装启动未通过：首轮 `35771039553` 的 Linux/Windows 构建成功，macOS 因 G6 临时根 attestation 单点失败并保持 draft；同提交单平台 run `35772209888` 完成 DMG 公证与 manifest。Release ID `394034871` 固定 merge `9f33463`，submission `500735b4-4a03-4b0b-8376-c6cf3270c48c` Accepted，runner staple/validate 与 Gatekeeper 通过，事务重传 SHA `3ee2667b…`；公开包本机 codesign 与 Gatekeeper 复核通过。
+- 随后的 Linux/Windows 公共安装验收均失败；诊断 run `35783207989` / `35783220232` 证明 packaged server 缺 `next`。v0.3.31/v0.3.32 已退回 draft，v0.3.30 恢复为 Latest，feed 由非强制快进 commit `446a73a` 恢复 v0.3.30/7 键；本机更新接口也已回读 0.3.30。完整证据见 [v0.3.32 公证与回滚记录](../acceptance/2026-09-23-v0.3.32-notarized-dmg.md)。
+- v0.3.33 修复普通 standalone `node_modules` 被排除的问题，保留 symlink/NFT 路径，并增加 staged Next/React 依赖硬门禁。行为测试先复现缺失后通过；正式三平台打包、Linux/Windows 公共安装和 macOS 应用内升级尚待新发布，R22 整体仍不能勾选。
+- 本地门禁通过：`npm test` 1398 项中 1373 passed、25 skipped、0 failed；TypeScript、lint、npm audit、release verify、目标仓库校验、actionlint、`cargo metadata --locked` 与 28 项 Tauri/Cargo 测试通过。41 项发布事务定向测试覆盖发布/改 target/重复 tag 拒绝、上传失败、哈希不符、进程中断恢复、DELETE 响应丢失和 cleanup 持续失败；独立复审无 P1/P2。
+- 本机唯一安装副本仍为 v0.3.29；回滚后更新接口只检测已知可启动的 v0.3.30。Core/投影/Kernel ready，51 学生/240 任务/43 校历/9 课表、模型/认证/设置摘要和手机默认关闭均已记录。当前 Mac 锁屏；须等 v0.3.33 通过公共安装后再做原生更新、重启、Core G6/数据与唯一副本核对。
 - Core 继续固定已完整验证的 G6 `acce81e3b59ae93a998e7c1e9d1f008059ec3e85`。后续 Core schema、投影和命令扩展须在 v0.3.32 安全发布后独立配对；本次不把 Core 主线更新或本地脏工作树带入安装包。R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成。
 
 ## 2026-09-22 v0.3.31 手机中断恢复与 Core G6 配对（历史，已由上节取代）

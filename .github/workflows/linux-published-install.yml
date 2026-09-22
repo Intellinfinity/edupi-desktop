@@ -78,10 +78,29 @@ jobs:
           cleanup() { kill "$app_pid" 2>/dev/null || true; }
           trap cleanup EXIT
 
+          dump_diagnostics() {
+            echo '--- process state ---'
+            pgrep -af 'pi-agent-desktop|msedge|WebKit' || true
+            echo '--- bounded application logs ---'
+            while IFS= read -r log; do
+              echo "--- $(basename "$log") ($(wc -c < "$log") bytes) ---"
+              tail -n 160 "$log" \
+                | sed -E 's/([Bb]earer)[[:space:]]+[^[:space:]]+/\1 [redacted]/g; s/((authorization|token|secret|password|api[-_ ]?key)[[:space:]]*[:=][[:space:]]*)[^[:space:]]+/\1[redacted]/Ig'
+            done < <(find "$smoke_root" "$smoke_root/home" -type f \
+              \( -name 'app.log' -o -name 'server.log' -o -name 'startup-diagnostics.jsonl' \) \
+              -print 2>/dev/null | sort -u)
+          }
+
           ready_port=""
           for _ in $(seq 1 120); do
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              if wait "$app_pid"; then app_status=0; else app_status=$?; fi
+              dump_diagnostics
+              echo "::error::Installed application exited before readiness with status $app_status."
+              exit 1
+            fi
             for port in $(seq 38471 38480); do
-              payload="$(curl --silent --show-error --max-time 2 "http://127.0.0.1:$port/api/edupi/status?summary=1" || true)"
+              payload="$(curl --silent --max-time 2 "http://127.0.0.1:$port/api/edupi/status?summary=1" 2>/dev/null || true)"
               if printf '%s' "$payload" | python3 -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if d.get("core",{}).get("status")=="ready" and d.get("projection",{}).get("status")=="ready" else 1)' 2>/dev/null; then
                 ready_port="$port"
                 break 2
@@ -89,6 +108,10 @@ jobs:
             done
             sleep 2
           done
-          test -n "$ready_port"
+          if [ -z "$ready_port" ]; then
+            dump_diagnostics
+            echo '::error::Installed application did not expose a ready Core before the deadline.'
+            exit 1
+          fi
           curl --fail --silent --show-error "http://127.0.0.1:$ready_port/api/edupi/status?summary=1" | tee "$smoke_root/status.json"
           grep -q '"status":"ready"' "$smoke_root/status.json"

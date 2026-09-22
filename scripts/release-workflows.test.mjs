@@ -80,19 +80,26 @@ test("official releases require Developer ID and notarization before publishing"
   assert.ok(buildJob.indexOf("xcrun stapler validate") > buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
 });
 
-test("macOS release verifies the staged Core, feedback, and model host before uploading", async () => {
+test("every release platform starts the staged server before uploading", async () => {
   const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
   const buildJob = workflow.slice(workflow.indexOf("\n  build:"), workflow.indexOf("\n  manifest:"));
-  const verifyAt = buildJob.indexOf("name: Verify staged desktop runtime");
+  const verifyAt = buildJob.indexOf("name: Verify staged packaged server");
   assert.ok(verifyAt > buildJob.indexOf("name: Prepare packaged Next.js server"));
   assert.ok(verifyAt < buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
   const step = buildJob.slice(verifyAt, buildJob.indexOf("\n      - name:", verifyAt + 1));
-  assert.match(step, /if: runner\.os == 'macOS'/);
+  assert.doesNotMatch(step, /if: runner\.os/);
   assert.match(step, /EDUPI_CORE_ROOT: \$\{\{ github\.workspace \}\}\/\.edupi-core-runtime/);
   assert.match(step, /EDUPI_STAGED_RESOURCES: \$\{\{ github\.workspace \}\}\/src-tauri\/resources/);
+  assert.match(step, /EDUPI_STAGED_IDENTITY_ONLY: \$\{\{ runner\.os == 'Windows' && '1' \|\| '0' \}\}/);
   assert.match(step, /npm run test:staged-desktop-runtime/);
-  assert.match(step, /npm run test:staged-feedback-runtime/);
-  assert.match(step, /node --test scripts\/runtime-model-host-files\.test\.mjs/);
+
+  const macVerifyAt = buildJob.indexOf("name: Verify staged macOS integrations");
+  assert.ok(macVerifyAt > verifyAt);
+  assert.ok(macVerifyAt < buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
+  const macStep = buildJob.slice(macVerifyAt, buildJob.indexOf("\n      - name:", macVerifyAt + 1));
+  assert.match(macStep, /if: runner\.os == 'macOS'/);
+  assert.match(macStep, /npm run test:staged-feedback-runtime/);
+  assert.match(macStep, /node --test scripts\/runtime-model-host-files\.test\.mjs/);
 });
 
 test("signed releases and updater metadata belong to the EduPi Desktop repository", async () => {
@@ -341,6 +348,11 @@ test("the published Linux installer workflow verifies a real packaged Core start
   assert.match(workflow, /EDUPI_DATA_ROOT/);
   assert.match(workflow, /api\/edupi\/status\?summary=1/);
   assert.match(workflow, /core.*status.*ready/);
+  assert.match(workflow, /kill -0 "\$app_pid"/);
+  assert.match(workflow, /dump_diagnostics/);
+  assert.match(workflow, /tail -n 160/);
+  assert.match(workflow, /startup-diagnostics\.jsonl/);
+  assert.match(workflow, /\[redacted\]/);
 });
 
 test("nothing reintroduces a literal homedir() into an fs call", async () => {

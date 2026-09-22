@@ -12,14 +12,14 @@ type ReminderAction = { id: string; type: "read" | "dismiss" | "handled" | "snoo
 async function result(action?: ReminderAction) {
   const { data } = await readEducationWorkspaceBundle();
   const file = path.join(data.workspace, ".edupi", "desktop", "reminders.json");
-  const events = reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents);
+  const events = reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents, data.workCases);
   let state = await updateReminderStore(file, events, action);
   const claimed = action?.type === "claim_notifications" ? state.notifications || [] : [];
   const attention = action ? await syncReminderAttention({ data, items: action.type === "claim_notifications" ? claimed : state.items, action, now: new Date() }) : { status: "synced" as const, recorded: 0 };
   const notifications = selectNativeReminderNotifications(claimed, attention);
   const allowed = new Set(notifications.map((item) => item.id));
   for (const item of claimed) {
-    if (!allowed.has(item.id)) state = await updateReminderStore(file, events, { id: item.id, type: "notification_failed" });
+    if (!allowed.has(item.id)) state = await updateReminderStore(file, events, { id: item.id, type: "notification_deferred", attemptedAt: item.notificationAttemptedAt });
   }
   return NextResponse.json({ items: state.items, notifications, nativeNotificationIds: notifications.map((item) => item.id), metrics: state.metrics, attention, workspace: data.workspace, taskSessions: data.taskSessions });
 }

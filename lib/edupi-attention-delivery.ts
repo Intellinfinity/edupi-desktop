@@ -55,7 +55,12 @@ function commandId(deliveryId: string, status: AttentionTransition, version: num
 export function selectNativeReminderNotifications(claimed: readonly Reminder[], attention: SyncResult): Reminder[] {
   const linked = new Set(attention.linkedNotificationIds);
   const current = new Set(attention.currentNotificationIds);
-  return claimed.filter((item) => !linked.has(item.id) || current.has(item.id));
+  // An empty Core read does not prove that an old unmarked task never had a withdrawn intent.
+  return claimed.filter((item) => {
+    if (attention.status === "synced" && current.has(item.id)) return true;
+    return !linked.has(item.id) && (item.nativeSource === "teacher_created"
+      || item.kind === "brief" && item.taskId.startsWith("document:"));
+  });
 }
 
 export async function syncReminderAttention({ data, items, action, now = new Date(), runtime }: {

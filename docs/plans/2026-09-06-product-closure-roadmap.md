@@ -2,10 +2,11 @@
 
 ## 2026-09-22 L4 风险、未验证项与下一步
 
-- R21/R22：Desktop #206 固定已合并的 Core G4 `368bcd8`，补上传时间安排的稳定去重、反馈访问令牌、教师显式评价和隔离 packaged runtime 回读。源码与隔离打包证据见 [G4 验收](../acceptance/2026-09-22-desktop-core-g4-pin.md)；合并/发布、原生安装通知点击与睡眠补跑分别记录，不能由 staged server 代替。
-- Core G5 #166 的教师反馈、家长沟通和六领域矩阵在本地继续核验。`core-quality` 因 GitHub 账户账单/额度未启动而失败，不绕过该门禁、不把本地通过记作 CI 通过。
-- 下一步按顺序执行：先收紧跨领域反馈的权威 class/subject 来源、修订与删除后的撤回，补安全风险回归；再在隔离原生安装版验证 Today 评价与重试、通知点击、托盘、真实睡眠唤醒、升级和数据保留（R21/R22）；然后等待 G5 真实 CI 通过合并并更新 pin，补 G6 Desktop 安全策略消费。六领域非盲流程和安装版闭环后才冻结/运行正式盲测，真实教师基线与 10 日以上试用由用户组织，合成结果不得替代。
-- 状态：反馈传输与风险门为部分实现，安装连续性为已实现待验收，真实教师价值和正式盲测为未验证；整体仍是“L4 功能收敛中”。
+- 合并：Core [#166](https://github.com/Intellinfinity/edupi/pull/166) 最终 head `bd39463` 的 `core-quality` 成功，合并为 `7cbb280`；Desktop [#206](https://github.com/Intellinfinity/edupi-desktop/pull/206) 最终 head `35ceb67` 的 `audit`/`rust-audit` 成功，合并为 `4d55f88`。Desktop 仍精确固定已合并的 Core G4 `368bcd8`，不把 G5 主线合并冒充已打包。该批未发布安装包，合并、发布和用户验收是不同状态。
+- R21/R22 实现与隔离验收：Desktop #206 补日历/课表上传的稳定语义 ID、顺序无关来源哈希、反馈令牌、教师显式评价与精确重试。`npm test` 1326 passed / 25 skipped / 0 failed，TypeScript、ESLint、安全审计和 G4 staged server 的无令牌拒绝、绑定回放、重读通过；完整边界见 [G4 验收](../acceptance/2026-09-22-desktop-core-g4-pin.md)。原生通知点击、真实睡眠、干净安装仍未验收。`release:verify` 因公开 `v0.3.30` 高于主线/该 PR 的 `0.3.29` 而失败，本批不冒充发布。
+- Risk（部分实现）：先将反馈和时间安排的权威班级/学科/身份、来源修订与删除传播接入 Core 投影；覆盖同日不同事项、用户任意上传行程的去重和冲突，不将日历/课表导入等同于所有行程。保留决策、显式评价、纠正与撤回的可追溯关系；当前只在已有可信 class/subject 时开放 Today 评价，不伪造范围或使用价值。
+- Unverified（已实现待验收/部分实现）：从 Core G5 merge commit 开新 Desktop pin PR，同步 schema/fixtures/manifest 并验证 staged server；在隔离原生安装版完成 Today 审核→评价→失败重试→重启回读、后台通知显示/点击、托盘、真实睡眠唤醒、升级与权限收窄撤回，macOS 和 Windows 分别留证据（R21/R22）。现有源码通过不替代这些流程。
+- L4（未验证）：完成 G6 安全 veto 和六领域 Desktop 消费，逐域非盲核对实际产物、拒绝/取消/修订/重启；六领域及安装版闭环之后冻结 60 故事/360 时间点与预算，再做正式盲测。真实教师的 5 日基线、至少 10 日试用与不少于 20 个机会由用户组织，合成反馈不计入价值门。整体状态仍是“L4 功能收敛中”，不是 `L4 established`。
 
 ## 2026-09-20 更新链路、Safe Mode 与手机桥接（v0.3.29）
 

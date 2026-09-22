@@ -1,5 +1,13 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-23 L4 风险收敛与行程 occurrence 配对（已实现待远端/安装验收）
+
+- Core 风险批已按顺序合并：[Core #170](https://github.com/Intellinfinity/edupi/pull/170) 为 `03a25b0e3a2d40ceb60040d00685f3841ac57b7e`，[Core #171](https://github.com/Intellinfinity/edupi/pull/171) 为 `d1478ce6d917bbea03db7df5c01854d3500a9ef5`，[Core #172](https://github.com/Intellinfinity/edupi/pull/172) 为 `172f75531f84b0bb0fca422598bd895eb2920cb8`。#172 的 `core-quality` run `35782721446` 通过。Desktop 现在精确 pin 最后一个 merge commit，Desktop/Runtime component hash 分别为 `sha256:5a767d1c…` 与 `sha256:83659e05…`。
+- Risk 已完成源码与 packaged staged 收敛：反馈只接受当前 Core 目标的真实领域、班级和学科；日程按 issuer + occurrence ref 稳定标识，精确重复合并，同一 occurrence 改期进入 hold 和 owner 审核，“保留两项”对 same-ref 冲突被拒绝；来源删除、旧提醒、旧进程写入和 snapshot CAS 均 fail closed。ambient planning 从首次 intake 起保持开启，command receipt 的 after snapshot 与紧接读取完全一致，不再依赖关闭 ambient 后导入再重启的绕路。
+- Desktop 已合并最新 `main` `9f33463` 的 v0.3.32 公证修复，并完成源码与 staged 证据：`npm test` 1439 tests，1413 passed / 26 skipped / 0 failed；TypeScript、lint、`desktop:prepare`、packaged Core closure 3/3、隔离 model host 2/2 通过。source 与 staged occurrence E2 均完成 intake、精确重放、v1.2 投影、改期 hold、same-ref keep-both 拒绝、replace 和重启回读；staged schedule conflict、feedback 与 desktop runtime 同时通过。完整记录见 [Core 172f755 与 Desktop occurrence 配对验收](../acceptance/2026-09-23-desktop-core-occurrence-pin.md)。
+- Unverified：PDF、图片和 ICS 尚未形成可信 occurrence ref、时区和地点提取闭环；macOS/Windows 安装版的后台通知显示与点击、真实睡眠补跑、应用内升级和数据保持尚未在本批执行；旧随机 owner key 没有自动迁移，已有 owner 状态缺凭据时继续保留数据并 fail closed。以上不能由 staged server 代替。
+- L4 仍为“L4 功能收敛中”：六领域机制和统一反馈通道已有工程闭环，但实际教学内容仍需逐域人工核对；正式盲测、真实教师 5 日基线、至少 10 日试用和不少于 20 个机会仍未开始。真实教师价值由用户组织，本地合成反馈不计入价值门。
+
 ## 2026-09-23 v0.3.32 公证 DMG 与 canonical 更新源（已实现待远端验收）
 
 - v0.3.31 已由正式 run `35757858707` 从 merge `bef61195` 完成三平台构建、签名和 manifest，公开 Release 含 11 项资产；canonical `updater-feed` 为 0.3.31、7 个平台键，更新资产均走 GitHub API。macOS updater tar 内 `.app` 的 Developer ID、公证和 Gatekeeper 验收通过。
@@ -7,7 +15,7 @@
 - v0.3.32 已实现、待 Release 实跑：正式仓库和首选 Raw feed 统一为 `Intellinfinity/edupi-desktop`，旧 PIGU Raw 与 Release URL 仅作迁移 fallback；macOS 在上传后单独提交 DMG 公证、staple、Gatekeeper 验证，再按精确 Release ID 事务替换。替换前核对唯一 tag、draft 和目标 SHA，先保留旧资产，上传后重新下载核对 size/SHA-256，成功才删除备份；上传或验真失败恢复旧资产，备份清理不确定则保留已验真资产与备份并让 manifest 阻止发布。
 - 本地门禁通过：`npm test` 1398 项中 1373 passed、25 skipped、0 failed；TypeScript、lint、npm audit、release verify、目标仓库校验、actionlint、`cargo metadata --locked` 与 28 项 Tauri/Cargo 测试通过。41 项发布事务定向测试覆盖发布/改 target/重复 tag 拒绝、上传失败、哈希不符、进程中断恢复、DELETE 响应丢失和 cleanup 持续失败；独立复审无 P1/P2。真实 GitHub 资产事务和 Apple DMG 公证仍未运行，不能提前标记验收通过。
 - 本机唯一安装副本仍为 v0.3.29；v0.3.29 检测 v0.3.31 时 manifest 阶段在 `raw.githubusercontent.com` 返回 `UPD-227408f2`，系统代理 `127.0.0.1:7897` 与显式 Raw 请求均可达。临时代理环境启动后的原生重试、版本/51 学生/240 任务/43 校历/9 课表/模型配置保持，以及 v0.3.32 DMG 独立 Gatekeeper 验收仍待桌面解锁和正式发布后执行。
-- Core 继续固定已完整验证的 G6 `acce81e3b59ae93a998e7c1e9d1f008059ec3e85`。后续 Core schema、投影和命令扩展须在 v0.3.32 安全发布后独立配对；本次不把 Core 主线更新或本地脏工作树带入安装包。R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成。
+- 本节原定 v0.3.32 继续固定 G6 `acce81e3…`；现已由上方独立 L4 配对更新为已合并 Core `172f755…`。新 pin 只来自干净 merge checkout，并已通过 packaged staged 验证；正式 v0.3.32 仍须在 Desktop PR 合并和远端质量门后重新构建，不能复用旧 G6 资产。R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成。
 
 ## 2026-09-22 v0.3.31 手机中断恢复与 Core G6 配对（历史，已由上节取代）
 

@@ -29,6 +29,35 @@ test("package closure includes import-only scoped dependencies", async () => {
   }
 });
 
+test("package closure preserves nested dependency versions", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "edupi-nested-closure-"));
+  const destination = await mkdtemp(path.join(os.tmpdir(), "edupi-nested-output-"));
+  try {
+    await writeFile(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
+    const packages = [
+      ["@example/parent", "1.0.0", { retry: "^0.12" }],
+      ["@example/other", "1.0.0", { retry: "^0.13" }],
+      ["@example/parent/node_modules/retry", "0.12.0", {}],
+      ["retry", "0.13.1", {}],
+    ];
+    for (const [name, version, dependencies] of packages) {
+      const packageDir = path.join(root, "node_modules", name);
+      await mkdir(packageDir, { recursive: true });
+      await writeFile(path.join(packageDir, "package.json"), JSON.stringify({ name: name.split("/").at(-1), version, dependencies }));
+    }
+    const seen = new Set();
+    await copyPackageClosure(root, destination, "@example/parent", seen);
+    await copyPackageClosure(root, destination, "@example/other", seen);
+    const nested = JSON.parse(await readFile(path.join(destination, "node_modules/@example/parent/node_modules/retry/package.json"), "utf8"));
+    const topLevel = JSON.parse(await readFile(path.join(destination, "node_modules/retry/package.json"), "utf8"));
+    assert.equal(nested.version, "0.12.0");
+    assert.equal(topLevel.version, "0.13.1");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(destination, { recursive: true, force: true });
+  }
+});
+
 test("preparation dependencies load outside the development node_modules", async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
   const destination = await mkdtemp(path.join(os.tmpdir(),"edupi-preparation-runtime-"));

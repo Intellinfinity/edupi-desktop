@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { copyFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const PREPARATION_PACKAGES = ["jszip", "@xmldom/xmldom", "mammoth"];
 
@@ -19,28 +19,33 @@ async function copyDirectory(source, destination) {
 }
 
 export async function copyPackageClosure(root, destination, packageName, seen = new Set()) {
-  let current = resolve(root);
-  let manifestPath = null;
-  while (true) {
-    const candidate = join(current, "node_modules", ...packageName.split("/"), "package.json");
-    try {
-      if ((await stat(candidate)).isFile()) { manifestPath = candidate; break; }
-    } catch { /* Search the parent node_modules directory. */ }
-    const parent = dirname(current);
-    if (parent === current) break;
-    current = parent;
+  const sourceRoot = resolve(root);
+  async function visit(searchRoot, name) {
+    let current = resolve(searchRoot);
+    let manifestPath = null;
+    while (true) {
+      const candidate = join(current, "node_modules", ...name.split("/"), "package.json");
+      try {
+        if ((await stat(candidate)).isFile()) { manifestPath = candidate; break; }
+      } catch { /* Search the parent node_modules directory. */ }
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    if (!manifestPath) return;
+    const packageRoot = dirname(manifestPath);
+    const location = relative(sourceRoot, packageRoot);
+    if (!location.startsWith(`node_modules${sep}`) || isAbsolute(location)) {
+      throw new Error("Package closure dependency is outside project node_modules");
+    }
+    if (seen.has(packageRoot)) return;
+    seen.add(packageRoot);
+    await copyDirectory(packageRoot, join(destination, location));
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    const dependencies = { ...(manifest.dependencies || {}), ...(manifest.optionalDependencies || {}) };
+    for (const dependency of Object.keys(dependencies)) await visit(packageRoot, dependency);
   }
-  if (!manifestPath) return;
-  const packageRoot = dirname(manifestPath);
-  const packageIdentity = await stat(packageRoot).then(() => packageRoot);
-  if (seen.has(packageIdentity)) return;
-  seen.add(packageIdentity);
-  await copyDirectory(packageRoot, join(destination, "node_modules", packageName));
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  const dependencies = { ...(manifest.dependencies || {}), ...(manifest.optionalDependencies || {}) };
-  for (const dependency of Object.keys(dependencies)) {
-    await copyPackageClosure(packageRoot, destination, dependency, seen);
-  }
+  await visit(sourceRoot, packageName);
 }
 
 export async function copyPreparationDependencies(root, destination) {

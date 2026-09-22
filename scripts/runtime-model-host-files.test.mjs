@@ -30,6 +30,11 @@ test("copied host SDK runs a real isolated localhost model without Core node_mod
   for (const name of await piPackageDirNames()) {
     assert.equal(fs.statSync(path.join(stagedServer, "node_modules/@earendil-works", name, "package.json")).isFile(), true, `${name} package metadata missing`);
   }
+  for (const name of ["proper-lockfile/node_modules/retry", "retry"]) {
+    const source = JSON.parse(fs.readFileSync(path.join(desktopRoot, "node_modules", name, "package.json"), "utf8"));
+    const bundled = JSON.parse(fs.readFileSync(path.join(stagedServer, "node_modules", name, "package.json"), "utf8"));
+    assert.equal(bundled.version, source.version, `${name} resolved to the wrong version`);
+  }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-host-copy-live-"));
   const priorCwd = process.cwd();
   let calls = 0;

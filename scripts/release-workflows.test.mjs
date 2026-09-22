@@ -52,6 +52,25 @@ test("the signed release workflow is manual-only", async () => {
   assert.match(release, /tauriScript: npx tauri/);
 });
 
+test("official releases require Developer ID and notarization before publishing", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  const releaseJob = workflow.slice(workflow.indexOf("\n  release:"), workflow.indexOf("\n  build:"));
+  const buildJob = workflow.slice(workflow.indexOf("\n  build:"), workflow.indexOf("\n  manifest:"));
+  const credentials = ["APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD", "APPLE_SIGNING_IDENTITY", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
+  const requirement = releaseJob.slice(releaseJob.indexOf("name: Require Apple signing and notarization credentials"));
+  assert.ok(requirement.length > 0);
+  assert.ok(releaseJob.indexOf("name: Require Apple signing and notarization credentials") < releaseJob.indexOf("name: Create one draft release"));
+  for (const credential of credentials) {
+    assert.match(requirement, new RegExp(`test -n "\\$${credential}"`));
+  }
+  assert.doesNotMatch(buildJob, /APPLE_SIGNING_IDENTITY=-|ad-hoc signed/);
+  assert.match(buildJob, /xcrun stapler validate "\$app_path"/);
+  assert.match(buildJob, /codesign --verify --verbose=2 "\$\{dmgs\[0\]\}"/);
+  assert.doesNotMatch(buildJob, /xcrun stapler validate "\$\{dmgs\[0\]\}"/);
+  assert.match(buildJob, /spctl --assess/);
+  assert.ok(buildJob.indexOf("xcrun stapler validate") > buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
+});
+
 test("signed releases and updater metadata belong to the EduPi Desktop repository", async () => {
   const release = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
   const tauriConfig = JSON.parse(await readFile(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
@@ -260,7 +279,7 @@ test("release validates the Cargo lock before packaging any platform", async () 
   assert.match(workflow, /cargo metadata --locked --no-deps --manifest-path src-tauri\/Cargo\.toml --format-version 1/);
 });
 
-test("macOS releases accept stable Developer ID signing without hiding the ad-hoc fallback", async () => {
+test("macOS releases require a stable Developer ID identity", async () => {
   const workflow = await readFile(
     join(root, ".github", "workflows", "release.yml"),
     "utf8",
@@ -274,10 +293,11 @@ test("macOS releases accept stable Developer ID signing without hiding the ad-ho
   assert.match(workflow, /append_env "APPLE_ID=\$NOTARY_APPLE_ID"/);
   assert.match(workflow, /append_env "APPLE_PASSWORD=\$NOTARY_PASSWORD"/);
   assert.match(workflow, /append_env "APPLE_TEAM_ID=\$NOTARY_TEAM_ID"/);
-  assert.match(workflow, /append_env "APPLE_SIGNING_IDENTITY=-"/);
-  assert.match(workflow, /macOS is ad-hoc signed; Accessibility and Screen Recording grants may need to be renewed after an update/);
+  assert.match(workflow, /append_env "APPLE_SIGNING_IDENTITY=\$CODE_SIGN_IDENTITY"/);
+  assert.doesNotMatch(workflow, /append_env "APPLE_SIGNING_IDENTITY=-"/);
   assert.doesNotMatch(workflow, /APPLE_SIGNING_IDENTITY: \$\{\{ runner\.os == 'macOS'/);
-  assert.doesNotMatch(workflow, /\n\s{10}APPLE_(?:CERTIFICATE|ID|PASSWORD|TEAM_ID): \$\{\{ secrets\./);
+  const tauriStep = workflow.slice(workflow.indexOf("name: Build, sign, and upload updater artifacts"), workflow.indexOf("name: Verify notarized macOS application"));
+  assert.doesNotMatch(tauriStep, /\n\s{10}APPLE_(?:CERTIFICATE|ID|PASSWORD|TEAM_ID): \$\{\{ secrets\./);
 });
 
 test("the published Linux installer workflow verifies a real packaged Core startup", async () => {

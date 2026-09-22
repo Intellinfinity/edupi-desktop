@@ -27,6 +27,22 @@ jobs:
       - name: Check out EduPi Desktop
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Require Apple signing and notarization credentials
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$APPLE_CERTIFICATE"
+          test -n "$APPLE_CERTIFICATE_PASSWORD"
+          test -n "$APPLE_SIGNING_IDENTITY"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+
       - name: Create one draft release
         id: release
         env:
@@ -109,27 +125,18 @@ jobs:
           append_env() {
             printf '%s\n' "$1" >> "$GITHUB_ENV"
           }
-          if [ -n "$CODE_SIGN_CERTIFICATE" ] || [ -n "$CODE_SIGN_CERTIFICATE_PASSWORD" ]; then
-            test -n "$CODE_SIGN_CERTIFICATE"
-            test -n "$CODE_SIGN_CERTIFICATE_PASSWORD"
-            append_env "APPLE_CERTIFICATE=$CODE_SIGN_CERTIFICATE"
-            append_env "APPLE_CERTIFICATE_PASSWORD=$CODE_SIGN_CERTIFICATE_PASSWORD"
-            if [ -n "$CODE_SIGN_IDENTITY" ]; then
-              append_env "APPLE_SIGNING_IDENTITY=$CODE_SIGN_IDENTITY"
-            fi
-          else
-            append_env "APPLE_SIGNING_IDENTITY=-"
-            echo "::warning::macOS is ad-hoc signed; Accessibility and Screen Recording grants may need to be renewed after an update."
-          fi
-          if [ -n "$NOTARY_APPLE_ID" ] || [ -n "$NOTARY_PASSWORD" ] || [ -n "$NOTARY_TEAM_ID" ]; then
-            test -n "$CODE_SIGN_CERTIFICATE"
-            test -n "$NOTARY_APPLE_ID"
-            test -n "$NOTARY_PASSWORD"
-            test -n "$NOTARY_TEAM_ID"
-            append_env "APPLE_ID=$NOTARY_APPLE_ID"
-            append_env "APPLE_PASSWORD=$NOTARY_PASSWORD"
-            append_env "APPLE_TEAM_ID=$NOTARY_TEAM_ID"
-          fi
+          test -n "$CODE_SIGN_CERTIFICATE"
+          test -n "$CODE_SIGN_CERTIFICATE_PASSWORD"
+          test -n "$CODE_SIGN_IDENTITY"
+          test -n "$NOTARY_APPLE_ID"
+          test -n "$NOTARY_PASSWORD"
+          test -n "$NOTARY_TEAM_ID"
+          append_env "APPLE_CERTIFICATE=$CODE_SIGN_CERTIFICATE"
+          append_env "APPLE_CERTIFICATE_PASSWORD=$CODE_SIGN_CERTIFICATE_PASSWORD"
+          append_env "APPLE_SIGNING_IDENTITY=$CODE_SIGN_IDENTITY"
+          append_env "APPLE_ID=$NOTARY_APPLE_ID"
+          append_env "APPLE_PASSWORD=$NOTARY_PASSWORD"
+          append_env "APPLE_TEAM_ID=$NOTARY_TEAM_ID"
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -283,6 +290,21 @@ jobs:
           includeUpdaterJson: false
           tauriScript: npx tauri
           args: --verbose --target ${{ matrix.target }} --bundles ${{ runner.os == 'macOS' && 'app,dmg' || runner.os == 'Windows' && 'nsis' || 'deb,appimage' }}
+
+      - name: Verify notarized macOS application and disk image
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app"
+          shopt -s nullglob
+          dmgs=(src-tauri/target/${{ matrix.target }}/release/bundle/dmg/EduPi_*.dmg)
+          test -d "$app_path"
+          test "${#dmgs[@]}" -eq 1
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          xcrun stapler validate "$app_path"
+          codesign --verify --verbose=2 "${dmgs[0]}"
+          spctl --assess --type execute --verbose=2 "$app_path"
 
       - name: Clean up macOS resource signing keychain
         if: always() && runner.os == 'macOS'

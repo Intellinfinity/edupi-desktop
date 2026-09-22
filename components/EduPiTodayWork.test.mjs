@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } });
 const React = await jiti.import("react");
-const { EduPiTodayWork } = await jiti.import("./EduPiTodayWork.tsx");
+const { EduPiTodayWork, feedbackCaptureFor } = await jiti.import("./EduPiTodayWork.tsx");
 const { buildEducationContract } = await jiti.import("../lib/edupi-education-contract.ts");
 
 test("renders Core ambient preparation without exposing decision authority controls", () => {
@@ -57,4 +57,22 @@ test("renders Core ambient preparation without exposing decision authority contr
   assert.doesNotMatch(html, /priority-v1/);
   assert.doesNotMatch(html, /work_case_ready/);
   assert.doesNotMatch(html, /sha256:ready/);
+});
+
+test("Today records only explicitly rated usefulness in a verified class scope", () => {
+  const candidate = { candidateId: "candidate-1", taskId: "task-1", revision: 0, evidenceIds: ["evidence-1"], sourceIds: ["source-1"], reason: "calendar_review" };
+  const task = { id: "task-1", trigger: "calendar_event_preparation", topic: null, evidence: { class_id: "class-7b", subject: "math" } };
+  const capture = feedbackCaptureFor(candidate, task, "accept", "useful", undefined, "2026-09-22T01:02:03.000Z");
+  assert.equal(capture.domain, "calendar_administration");
+  assert.equal(capture.usefulness, "useful");
+  assert.equal(capture.used, false);
+  assert.equal(capture.wouldUseAgain, null);
+  assert.equal(capture.occurredAt, "2026-09-22T01:02:03.000Z");
+  assert.equal(feedbackCaptureFor(candidate, { ...task, trigger: "unknown" }, "accept", "useful"), null);
+  assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: {} }, "accept", "useful"), null);
+  assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: { class_id: "class-7b" } }, "accept", "useful"), null);
+  assert.equal(feedbackCaptureFor({ ...candidate, evidenceIds: [], sourceIds: [] }, task, "accept", "useful"), null);
+  assert.equal(feedbackCaptureFor(candidate, { ...task, evidence: { class_id: "wrong class", subject: "math" } }, "accept", "useful"), null);
+  assert.match(capture.commandId, /^desktop-feedback-[a-f0-9-]{36}$/);
+  assert.equal(feedbackCaptureFor(candidate, task, "accept", "unsafe")?.issueCodes?.[0], "safety");
 });

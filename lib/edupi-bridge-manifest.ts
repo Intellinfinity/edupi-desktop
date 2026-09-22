@@ -4,12 +4,12 @@ import { BRIDGE_COMMAND_TYPES, type CoreCommandType } from "./edupi-bridge-contr
 export type EduPiCompatManifest = {
   compat_manifest_version: "1.0";
   core_repository: "edupi";
-  core_runtime: { core_commit: "d05cf89df067a78602883c6bd95a37f8b0c122f7"; component_manifest_path: "contracts/edupi-desktop-component-manifest.json"; component_manifest_hash: "sha256:f9393d0db6f773feeb0c2ff59ac19078fe8a45e6ae96613d0450407e6f12d133"; runtime_component_manifest_hash: "sha256:409f93e72a10ff7a15c939607e0decf34016e65969e3641c1dac1d2ba8fa5cdc" };
-  contract_identities: Array<{ contract_id: "edupi-bridge-v1.1"; contract_version: "1.1"; schema_hash: "sha256:d4702ef3bb303996cea137f9f1337a20a8c6853b0b7d215cca64265bf2cd4daa"; fixture_manifest_path: "fixtures/bridge/v1.1/fixture-manifest.json"; fixture_manifest_hash: "sha256:455ca9489f582b3a41223ce2518436445ec1b25ec4fdd8e5d10e35b3387a253e"; supported_commands: CoreCommandType[]; supported_projections: ["education_workspace"]; depends_on: string[] }>;
+  core_runtime: { core_commit: "368bcd8b6fbe04d78860c96c37f27bec312c8e4c"; component_manifest_path: "contracts/edupi-desktop-component-manifest.json"; component_manifest_hash: "sha256:d5ad788cffb8c4cede90e2e813c31782867c531b411befc885727ba38e66f38f"; runtime_component_manifest_hash: "sha256:fc371b92b346aa99d6f60b7772bbc3b90b3736cd103ab04352396905ba4d8c75" };
+  contract_identities: Array<{ contract_id: "edupi-bridge-v1.1"; contract_version: "1.1"; schema_hash: "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6"; fixture_manifest_path: "fixtures/bridge/v1.1/fixture-manifest.json"; fixture_manifest_hash: "sha256:18bc0a493e0f414c2726965d38fb56be6723b840a1483c1ad55adff114b01555"; supported_commands: CoreCommandType[]; supported_projections: ["education_workspace"]; depends_on: string[] }>;
   cumulative_projection_manifest: null | Record<string, unknown>;
   supported_commands: CoreCommandType[];
   supported_projections: string[];
-  unsupported_command_reasons: Record<Exclude<CoreCommandType, "review_observation" | "review_memory_candidate" | "review_teacher_context" | "review_work_candidate" | "review_task" | "import_calendar" | "import_timetable" | "intake_material" | "create_task" | "move_task_stage" | "update_memory">, string>;
+  unsupported_command_reasons: Record<Exclude<CoreCommandType, "review_observation" | "review_memory_candidate" | "review_teacher_context" | "review_work_candidate" | "review_follow_up" | "review_task" | "import_calendar" | "import_timetable" | "intake_material" | "create_task" | "move_task_stage" | "update_memory">, string>;
   unsupported_projection_reasons: Record<string, string>;
   paired_prs: string[];
   change_note: string;
@@ -18,10 +18,10 @@ export type EduPiCompatManifest = {
 export function loadEduPiCompatManifest(): EduPiCompatManifest {
   const manifest = manifestJson as unknown as EduPiCompatManifest;
   if (manifest.compat_manifest_version !== "1.0" || manifest.core_repository !== "edupi") throw new Error("Invalid EduPi compatibility manifest");
-  if (!manifest.core_runtime || manifest.core_runtime.core_commit !== "d05cf89df067a78602883c6bd95a37f8b0c122f7" || manifest.core_runtime.component_manifest_path !== "contracts/edupi-desktop-component-manifest.json" || manifest.core_runtime.component_manifest_hash !== "sha256:f9393d0db6f773feeb0c2ff59ac19078fe8a45e6ae96613d0450407e6f12d133" || manifest.core_runtime.runtime_component_manifest_hash !== "sha256:409f93e72a10ff7a15c939607e0decf34016e65969e3641c1dac1d2ba8fa5cdc") throw new Error("Invalid EduPi core_runtime identity");
+  if (!manifest.core_runtime || manifest.core_runtime.core_commit !== "368bcd8b6fbe04d78860c96c37f27bec312c8e4c" || manifest.core_runtime.component_manifest_path !== "contracts/edupi-desktop-component-manifest.json" || manifest.core_runtime.component_manifest_hash !== "sha256:d5ad788cffb8c4cede90e2e813c31782867c531b411befc885727ba38e66f38f" || manifest.core_runtime.runtime_component_manifest_hash !== "sha256:fc371b92b346aa99d6f60b7772bbc3b90b3736cd103ab04352396905ba4d8c75") throw new Error("Invalid EduPi core_runtime identity");
   const identity = manifest.contract_identities[0];
-  if (manifest.contract_identities.length !== 1 || identity.contract_id !== "edupi-bridge-v1.1" || identity.contract_version !== "1.1" || identity.schema_hash !== "sha256:d4702ef3bb303996cea137f9f1337a20a8c6853b0b7d215cca64265bf2cd4daa" || identity.fixture_manifest_path !== "fixtures/bridge/v1.1/fixture-manifest.json" || identity.fixture_manifest_hash !== "sha256:455ca9489f582b3a41223ce2518436445ec1b25ec4fdd8e5d10e35b3387a253e") throw new Error("Invalid EduPi contract identities");
-  const supportedCommands = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"] as const;
+  if (manifest.contract_identities.length !== 1 || identity.contract_id !== "edupi-bridge-v1.1" || identity.contract_version !== "1.1" || identity.schema_hash !== "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6" || identity.fixture_manifest_path !== "fixtures/bridge/v1.1/fixture-manifest.json" || identity.fixture_manifest_hash !== "sha256:18bc0a493e0f414c2726965d38fb56be6723b840a1483c1ad55adff114b01555") throw new Error("Invalid EduPi contract identities");
+  const supportedCommands = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"] as const;
   const hasExactCommands = (value: unknown): boolean => Array.isArray(value)
     && value.length === supportedCommands.length
     && value.every((command, index) => command === supportedCommands[index]);

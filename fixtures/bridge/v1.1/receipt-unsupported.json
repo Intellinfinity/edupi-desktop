@@ -1,0 +1,65 @@
+{
+  "contract_version": "1.1",
+  "message_id": "v11-receipt-unsupported",
+  "request_id": "v11-command-request",
+  "issued_at": "1970-01-01T00:00:00.000Z",
+  "producer": "edupi-core",
+  "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+  "snapshot_id": "snapshot_fixture",
+  "provenance": [
+    {
+      "source_kind": "fixture",
+      "source_id": "education_workspace",
+      "source_path": null,
+      "source_hash": "sha256:fixture-source",
+      "observed_at": "1970-01-01T00:00:00.000Z",
+      "actor": "core",
+      "evidence_ids": [
+        "fixture-evidence"
+      ],
+      "parent_ids": []
+    }
+  ],
+  "teacher_review": {
+    "state": "pending_review",
+    "reviewer_id": null,
+    "reviewed_at": null,
+    "note": null,
+    "revision": 0
+  },
+  "external_send": false,
+  "payload": {
+    "receipt_id": "v11-receipt-unsupported",
+    "command_id": "v11-command-message",
+    "request_id": "v11-command-request",
+    "command_type": "review_memory_candidate",
+    "target": null,
+    "receipt_phase": "review",
+    "decision": null,
+    "status": "failed",
+    "applied_ids": [],
+    "rejected_ids": [],
+    "reason_code": "unsupported_command",
+    "evidence_ids": [],
+    "before_snapshot_id": "snapshot_fixture",
+    "after_snapshot_id": null,
+    "before_state_hash": "sha256:unsupported",
+    "after_state_hash": null,
+    "teacher_review": {
+      "state": "pending_review",
+      "reviewer_id": null,
+      "reviewed_at": null,
+      "note": null,
+      "revision": 0
+    },
+    "external_send": false,
+    "rollback": {
+      "available": false,
+      "rollback_id": null,
+      "expires_at": null
+    },
+    "preview_token": null,
+    "action_authorization": null,
+    "created_at": "1970-01-01T00:00:00.000Z"
+  }
+}

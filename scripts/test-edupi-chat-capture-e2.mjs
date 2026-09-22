@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 
 const HARD_TIMEOUT_MS = 30_000;
-const EXPECTED_COMMANDS = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"];
+const EXPECTED_COMMANDS = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"];
 const SOURCE_MESSAGE_ID = "chat-entry-c1-e2";
 const OBSERVED_AT = "2026-08-28T09:00:00.000Z";
 const ENV_KEYS = [

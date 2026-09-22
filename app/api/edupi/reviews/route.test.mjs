@@ -21,15 +21,18 @@ test("POST /api/edupi/reviews rejects an invalid review payload with HTTP 400", 
   assert.equal(response.status, 400);
 });
 
-test("the review route accepts only the two C1 target kinds and forwards typed review commands", () => {
+test("the review route accepts C1 targets and the pinned student follow-up target", () => {
   assert.match(routeSource, /issueC1Review/);
   assert.match(routeSource, /targetKind/);
   assert.match(routeSource, /targetId/);
   assert.match(routeSource, /decision/);
   assert.match(routeSource, /patch/);
   assert.match(routeSource, /note/);
-  assert.match(routeSource, /review_observation/);
-  assert.match(routeSource, /review_memory_candidate/);
+  assert.match(routeSource, /C1_REVIEW_DECISIONS/);
+  assert.match(routeSource, /reviewEducationCandidate/);
+  assert.match(routeSource, /FOLLOW_UP_REVIEW_DECISIONS/);
+  assert.match(routeSource, /expectedSnapshotId/);
+  assert.match(routeSource, /expectedRevision/);
   assert.doesNotMatch(routeSource, /review_task|review_teacher_context|import_calendar|import_timetable|intake_material/);
 });
 

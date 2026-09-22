@@ -20,6 +20,8 @@ import {
 import { summarizeL4Preparation, type L4PreparationSummaryItem } from "@/lib/edupi-l4-preparation";
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
 import { todayActiveTasks } from "@/lib/edupi-work-case";
+import { prepareTeacherFeedbackCapture, recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackDomain, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
+import { isTauriDesktop } from "@/lib/desktop-updater";
 
 type Props = {
   data: EducationContract;
@@ -50,6 +52,62 @@ type ReviewRetry = {
   note?: string;
 };
 type Submission = { candidateId: string; decision: EducationWorkCandidateDecision } | null;
+type RatedUsefulness = Exclude<TeacherFeedbackUsefulness, "not_observed">;
+type PendingFeedback = { candidate: EducationWorkCandidate; task: TeacherTask; decision: EducationWorkCandidateDecision; note?: string };
+
+const FEEDBACK_DOMAINS: Record<string, TeacherFeedbackDomain> = {
+  teaching_before_class: "teaching_preparation",
+  teaching_node_preparation: "teaching_preparation",
+  exam_preparation: "teaching_preparation",
+  calendar_event_preparation: "calendar_administration",
+  activity_preparation: "calendar_administration",
+  meeting_preparation: "calendar_administration",
+  holiday_preparation: "calendar_administration",
+  monthly_class_activity: "calendar_administration",
+};
+
+const USEFULNESS_OPTIONS: Array<{ value: RatedUsefulness; label: string }> = [
+  { value: "very_useful", label: "非常有帮助" },
+  { value: "useful", label: "有帮助" },
+  { value: "partial", label: "部分有帮助" },
+  { value: "not_useful", label: "无帮助" },
+  { value: "incorrect", label: "内容有误" },
+  { value: "unsafe", label: "不安全" },
+];
+
+function feedbackDecision(decision: EducationWorkCandidateDecision): TeacherFeedbackDecision {
+  if (decision === "suppress") return "withdraw";
+  if (decision === "snooze") return "hold";
+  return decision;
+}
+
+export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, usefulness: RatedUsefulness, note?: string, occurredAt = new Date().toISOString()): TeacherFeedbackCapture | null {
+  const domain = task?.trigger ? FEEDBACK_DOMAINS[task.trigger] : null;
+  const evidence = task?.evidence;
+  const classId = evidence?.class_id;
+  const subject = evidence?.subject;
+  if (!domain || typeof classId !== "string" || classId.length > 160 || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/.test(classId)
+    || typeof subject !== "string" || !subject.trim() || subject.trim().length > 128
+    || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
+  return {
+    commandId: `desktop-feedback-${globalThis.crypto.randomUUID()}`,
+    sessionId: "desktop-today",
+    domain,
+    scope: { classId, subject: subject.trim() },
+    target: { kind: "work_candidate", targetId: candidate.candidateId },
+    reviewedRevision: candidate.revision,
+    decision: feedbackDecision(decision),
+    usefulness,
+    used: false,
+    wouldUseAgain: null,
+    baselineMinutes: null,
+    reviewMinutes: null,
+    issueCodes: usefulness === "unsafe" ? ["safety"] : usefulness === "incorrect" ? ["incorrect_content"] : [],
+    note: note || null,
+    evidenceIds: candidate.evidenceIds.length > 0 ? candidate.evidenceIds : candidate.sourceIds,
+    occurredAt,
+  };
+}
 
 const STATUS_LABELS: Record<EducationWorkCandidate["status"], string> = {
   pending_review: "待判断",
@@ -193,10 +251,25 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [changingDecisionId, setChangingDecisionId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [feedbackReady, setFeedbackReady] = useState(false);
+  const [pendingFeedback, setPendingFeedback] = useState<PendingFeedback | null>(null);
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [selectedRating, setSelectedRating] = useState<RatedUsefulness | "">("");
+  const [feedbackRetry, setFeedbackRetry] = useState<TeacherFeedbackCapture | null>(null);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [retryReview, setRetryReview] = useState<ReviewRetry | null>(null);
   const [submission, setSubmission] = useState<Submission>(null);
   const editorCurrent = isTodayWorkEditorCurrent(editor, data.workCandidates, capability.enabled);
   const l4Summary = useMemo(() => summarizeL4Preparation(data.l4Preparation ?? null), [data.l4Preparation]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/edupi/status?summary=1", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => response.ok ? await response.json() as { proactivity?: { teacherFeedback?: boolean } } : null)
+      .then((value) => { if (!controller.signal.aborted) setFeedbackReady(isTauriDesktop() && value?.proactivity?.teacherFeedback === true); })
+      .catch(() => { if (!controller.signal.aborted) setFeedbackReady(false); });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (editor && !editorCurrent) {
@@ -220,6 +293,13 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       onEducation(result.data);
       setEditor(null);
       setChangingDecisionId(null);
+      const task = taskById.get(candidate.taskId);
+      const reviewed = result.data.workCandidates.find((item) => item.candidateId === candidate.candidateId);
+      setPendingFeedback(feedbackReady && task && reviewed && feedbackCaptureFor(reviewed, task, decision, "useful")
+        ? { candidate: reviewed, task, decision, note } : null);
+      setRatingOpen(false);
+      setSelectedRating("");
+      setFeedbackRetry(null);
       setFeedback({ kind: "success", text: actionSuccess(decision) });
     } catch (error) {
       if (error instanceof TodayWorkReviewError) {
@@ -234,8 +314,46 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     }
   };
 
+  const submitTeacherRating = async () => {
+    if (!pendingFeedback || !selectedRating || feedbackBusy) return;
+    const capture = feedbackCaptureFor(pendingFeedback.candidate, pendingFeedback.task, pendingFeedback.decision, selectedRating, pendingFeedback.note);
+    if (!capture) return;
+    setPendingFeedback(null);
+    setRatingOpen(false);
+    setFeedbackRetry(capture);
+    setFeedbackBusy(true);
+    try {
+      const bound = await prepareTeacherFeedbackCapture(capture);
+      setFeedbackRetry(bound);
+      await recordTeacherFeedback(bound);
+      setFeedbackRetry(null);
+      setFeedback({ kind: "success", text: "评价已记录。" });
+    } catch {
+      setFeedback({ kind: "error", text: "决定已记录；评价未能记录，请重试。" });
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+
+  const retryTeacherFeedback = async () => {
+    if (!feedbackRetry || feedbackBusy) return;
+    setFeedbackBusy(true);
+    try {
+      const bound = feedbackRetry.target.expectedRevision === undefined ? await prepareTeacherFeedbackCapture(feedbackRetry) : feedbackRetry;
+      setFeedbackRetry(bound);
+      await recordTeacherFeedback(bound);
+      setFeedbackRetry(null);
+      setFeedback({ kind: "success", text: "反馈已记录。" });
+    } catch {
+      setFeedback({ kind: "error", text: "反馈记录仍未成功，请稍后重试。" });
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+
   const refreshEducation = () => {
     setFeedback(null);
+    setPendingFeedback(null);
     setRetryReview(null);
     window.dispatchEvent(new Event("edupi-education-refresh"));
   };
@@ -381,7 +499,21 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
         </div>
       </section>
     ) : null}
-    {feedback ? <div className={`edupi-today-work__feedback is-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite"><span>{feedback.text}</span>{feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button> : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button> : null}</div> : null}
+    {feedback ? <div className={`edupi-today-work__feedback is-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite">
+      <span>{feedback.text}</span>
+      {feedbackRetry ? <button type="button" disabled={feedbackBusy} onClick={() => void retryTeacherFeedback()}>{feedbackBusy ? "记录中…" : "重试记录"}</button>
+        : feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button>
+          : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button>
+            : pendingFeedback && !ratingOpen ? <button type="button" onClick={() => setRatingOpen(true)}>评价</button> : null}
+      {pendingFeedback && ratingOpen ? <div className="edupi-today-work__rating">
+        <select aria-label="有用性" value={selectedRating} onChange={(event) => setSelectedRating(event.target.value as RatedUsefulness | "")}>
+          <option value="">选择评价</option>
+          {USEFULNESS_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <button type="button" disabled={!selectedRating || feedbackBusy} onClick={() => void submitTeacherRating()}>记录评价</button>
+        <button type="button" onClick={() => setRatingOpen(false)}>取消</button>
+      </div> : null}
+    </div> : null}
     <div className="edupi-today-work__groups">{(["now", "later", "done"] as const).map(renderGroup)}</div>
   </section>;
 }

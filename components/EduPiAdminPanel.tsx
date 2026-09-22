@@ -30,6 +30,13 @@ type AdminSnapshot = {
       summary?: { total?: number; running?: number; failed?: number; needs_review?: number; succeeded?: number; skipped?: number };
       runs?: Array<KernelRunDisplayInput & { run_id?: string; updated_at?: string }>;
     };
+    proactivity?: {
+      status?: "active" | "disabled" | "unavailable";
+      attentionDelivery?: boolean;
+      teacherFeedback?: boolean;
+      currentAttentionDeliveries?: number;
+      externalSend?: boolean;
+    };
   } | null;
   compatibility?: CoreCompatibilitySnapshot | null;
   models: { modelList?: Array<{ id: string; provider: string }>; defaultModel?: { provider: string; modelId: string } | null } | null;
@@ -243,6 +250,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
       {activeSection === "automation" ? <section className="edupi-admin-section">
         <AdminSectionHeader title="自动运行" meta={snapshot.status?.core?.status === "ready" ? formatCoreSchedulerStatus(snapshot.status.core.scheduler, kernelRuns.length) : snapshot.status?.core?.reason || "运行状态不可用"} onRefresh={refresh} />
         <div className="edupi-admin-metrics"><AdminMetric value={kernelSummary?.running ?? "—"} label="运行中" /><AdminMetric value={kernelSummary?.needs_review ?? "—"} label="待确认" /><AdminMetric value={kernelSummary?.succeeded ?? "—"} label="已完成" /></div>
+        <div className="edupi-admin-metrics"><AdminMetric value={snapshot.status?.proactivity?.status === "active" ? "主动" : snapshot.status?.proactivity?.status === "disabled" ? "按需" : "不可用"} label="主动运行" /><AdminMetric value={snapshot.status?.proactivity?.currentAttentionDeliveries ?? "—"} label="待交付" /><AdminMetric value={snapshot.status?.proactivity?.teacherFeedback ? "可记录" : "未启用"} label="教师反馈" /></div>
         <div className="edupi-admin-runtime" role="list" aria-label="最近自动运行">
           {kernelRuns.length > 0 ? kernelRuns.slice(0, 12).map((run) => {
             const action = kernelRunAction(run);

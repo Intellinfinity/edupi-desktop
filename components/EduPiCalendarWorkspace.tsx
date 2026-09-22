@@ -22,6 +22,8 @@ import { useModalDismiss } from "@/hooks/useModalDismiss";
 import { intakeOperationHistory } from "@/lib/edupi-operation-history";
 import { EduPiOperationHistory } from "./EduPiOperationHistory";
 import { EduPiIconButton } from "./EduPiActionIcon";
+import { EduPiScheduleConflictReview } from "./EduPiScheduleConflictReview";
+import type { CalendarIntakeInput } from "@/lib/edupi-education-intake";
 
 type Props = {
   data: EducationContract;
@@ -31,7 +33,7 @@ type Props = {
   selection: CalendarItemSelection | null;
   onSelect: (selection: CalendarItemSelection | null) => void;
   onTaskDetail: (task: TeacherTask) => void;
-  onImportCalendar: (event: { eventId: string | null; date: string; endDate: string | null; name: string; type: string; notes: string | null }) => Promise<void>;
+  onImportCalendar: (event: CalendarIntakeInput) => Promise<void>;
   onImportTimetable: (slot: { slotId: string | null; dayOfWeek: number; period: number; subject: string; className: string | null; kind: "class" | "routine"; notes: string | null }) => Promise<void>;
   onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean>;
 };
@@ -260,6 +262,10 @@ function CalendarDetailDrawer({ data, selection, onClose, onEdit, onDelete, dele
     for (const [label, value] of [
       ["日期", item?.date || selection.date],
       ["结束", item?.endDate],
+      ["开始时间", item?.startsAt],
+      ["结束时间", item?.endsAt],
+      ["时区", item?.timeZone],
+      ["地点", item?.location],
       ["类型", item?.type ? calendarTypeLabels[item.type] || item.type : null],
       ["来源", selection.sourceLabel],
       ["状态", selection.statusLabel],
@@ -293,6 +299,7 @@ function IntakeComposer({ mode, anchorDate, calendarEvent, timetableSlot, busy, 
   onImportTimetable: Props["onImportTimetable"];
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [newOccurrenceRef] = useState(() => `manual-${globalThis.crypto.randomUUID()}`);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
@@ -300,6 +307,15 @@ function IntakeComposer({ mode, anchorDate, calendarEvent, timetableSlot, busy, 
     const form = new FormData(event.currentTarget);
     try {
       if (mode === "calendar") {
+        const sourceOccurrenceRef = calendarEvent ? calendarEvent.occurrenceRef : newOccurrenceRef;
+        const startAt = String(form.get("startAt") || "") || null;
+        const endAt = String(form.get("endAt") || "") || null;
+        const hasClock = Boolean(startAt || endAt);
+        const timeZone = hasClock ? String(form.get("timeZone") || "") || null : null;
+        if (sourceOccurrenceRef && hasClock && ![startAt, endAt, timeZone].every(Boolean)) {
+          setError("请补全开始、结束和时区");
+          return;
+        }
         await onImportCalendar({
           eventId: calendarEvent?.id || null,
           date: String(form.get("date") || ""),
@@ -307,6 +323,11 @@ function IntakeComposer({ mode, anchorDate, calendarEvent, timetableSlot, busy, 
           name: String(form.get("name") || ""),
           type: String(form.get("type") || "custom"),
           notes: String(form.get("notes") || "") || null,
+          sourceOccurrenceRef,
+          startAt,
+          endAt,
+          timeZone,
+          location: String(form.get("location") || "") || null,
         });
       } else {
         await onImportTimetable({
@@ -327,10 +348,12 @@ function IntakeComposer({ mode, anchorDate, calendarEvent, timetableSlot, busy, 
   const editingCalendar = mode === "calendar" && Boolean(calendarEvent?.id);
   const editingTimetable = mode === "timetable" && Boolean(rawText(timetableSlot?.slot_id ?? timetableSlot?.id));
   const title = mode === "calendar" ? editingCalendar ? "编辑日程" : "新建日程" : editingTimetable ? "编辑课表" : "添加课表";
+  const occurrenceFields = mode === "calendar" && Boolean(!calendarEvent || calendarEvent.occurrenceRef);
   return <section className={`edupi-calendar-intake${embedded ? " is-embedded" : ""}`} aria-label={title}>{!embedded ? <header><strong>{title}</strong><button type="button" onClick={onClose} aria-label="关闭">×</button></header> : null}<form onSubmit={(event) => void submit(event)}>{mode === "calendar" ? <>
     <label><span>名称</span><input name="name" required maxLength={240} autoFocus placeholder="如：期中考试" defaultValue={calendarEvent?.name || ""} /></label>
     <label><span>开始</span><input name="date" type="date" required defaultValue={calendarEvent?.date || anchorDate} /></label>
     <label><span>结束</span><input name="endDate" type="date" defaultValue={calendarEvent?.endDate || ""} /></label>
+    {occurrenceFields ? <><label><span>开始时间</span><input name="startAt" maxLength={22} placeholder="2026-10-01T09:00+08:00" defaultValue={calendarEvent?.startsAt || ""} /></label><label><span>结束时间</span><input name="endAt" maxLength={22} placeholder="2026-10-01T10:00+08:00" defaultValue={calendarEvent?.endsAt || ""} /></label><label><span>时区</span><input name="timeZone" maxLength={100} placeholder="Asia/Shanghai" defaultValue={calendarEvent?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone} /></label><label><span>地点</span><input name="location" maxLength={240} placeholder="可不填" defaultValue={calendarEvent?.location || ""} /></label></> : null}
     <label><span>类型</span><select name="type" defaultValue={calendarEvent?.type || "custom"}><option value="custom">日程</option><option value="teaching">教学节点</option><option value="exam">考试</option><option value="meeting">会议</option><option value="activity">活动</option><option value="holiday">假期</option><option value="festival">节日</option></select></label>
   </> : <>
     <label><span>星期</span><select name="dayOfWeek" defaultValue={rawText(timetableSlot?.day_of_week ?? timetableSlot?.dayOfWeek) || weekdayIndex(anchorDate) + 1}>{WEEKDAY_LABELS.map((label, index) => <option key={label} value={index + 1}>周{label}</option>)}</select></label>
@@ -451,6 +474,7 @@ export function EduPiCalendarWorkspace({ data, query, onUpload, intakeBusy, sele
         <div className="edupi-calendar-heading__actions"><button type="button" disabled={!calendarWriteReady} title={!calendarWriteReady ? data.capabilities.calendar.reason : undefined} onClick={() => { if (composer === "calendar" && !editingCalendarId) closeComposer(); else { setEditingCalendarId(null); setEditingTimetableId(null); setComposer("calendar"); } }}>新建日程</button><button type="button" disabled={!timetableWriteReady} title={!timetableWriteReady ? data.capabilities.timetable.reason : undefined} onClick={() => { if (composer === "timetable" && !editingTimetableId) closeComposer(); else { setEditingCalendarId(null); setEditingTimetableId(null); setComposer("timetable"); } }}>添加课表</button><button type="button" className="is-primary" onClick={onUpload}>上传文件</button></div>
       </header>
       {writeReason ? <p className="edupi-calendar-capability-note" role="status">{writeReason}</p> : null}
+      <EduPiScheduleConflictReview enabled={data.capabilities.calendar.enabled || data.capabilities.timetable.enabled} />
       {composer ? <IntakeComposer key={`${composer}:${editingCalendarId || editingTimetableId || "new"}`} mode={composer} anchorDate={anchorDate} calendarEvent={composer === "calendar" ? editingCalendarEvent : null} timetableSlot={composer === "timetable" ? editingTimetableSlot : null} busy={intakeBusy} onClose={closeComposer} onImportCalendar={onImportCalendar} onImportTimetable={onImportTimetable} /> : null}
       <div className="edupi-calendar-content-segment" role="group" aria-label="切换日程内容">{CONTENT_LABELS.map((item) => <button type="button" key={item.mode} className={contentMode === item.mode ? "is-active" : ""} onClick={() => { setContentMode(item.mode); setEditingCalendarId(null); setEditingTimetableId(null); onSelect(null); }} aria-pressed={contentMode === item.mode}>{item.label}</button>)}</div>
       {contentMode === "timetable" ? <EduPiTimetableGrid slots={filteredTimetable} onSelect={onSelect} /> : <>

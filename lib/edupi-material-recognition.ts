@@ -147,7 +147,7 @@ export type ResolvedRecognitionRuntime = {
 
 export class MaterialRecognitionError extends Error {
   constructor(
-    public readonly code: "extract_unavailable" | "invalid_output" | "model_unavailable" | "too_large",
+    public readonly code: "extract_unavailable" | "invalid_output" | "model_unavailable" | "ambiguous_schedule" | "too_large",
     message: string,
     public readonly diagnosticCategory?: RecognitionModelDiagnosticCategory,
   ) {

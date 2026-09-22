@@ -48,6 +48,7 @@ test("manual save refuses a real newer capture before it can accept the other va
       "@/lib/request-security": { isApiRequestAllowed: () => true, hasJsonContentType: () => true },
       "@/lib/bounded-form-data": { parseJsonWithinLimit: request => request.json() },
       "@/lib/edupi-context-editor-model": { normalizeTeacherContextValues: values => values },
+      "@/lib/edupi-teacher-context-review": { TeacherContextReviewError: class TeacherContextReviewError extends Error {}, TEACHER_CONTEXT_REVIEW_DECISIONS: ["accept", "modify", "reject", "hold"] },
       "@/lib/edupi-core-process-client": { runCoreProcess: async ({ request }) => {
         const lease = await admission.acquireCoreRuntimeWriterAdmission({ root: prepared, kind: "legacy_onboarding_test", busyTimeoutMs: 250 });
         try {

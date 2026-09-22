@@ -19,6 +19,7 @@ process.env.EDUPI_DATA_ROOT = dataRoot;
 process.env.EDUPI_DATA_ALLOWED_ROOT = temp;
 
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
+const { closeAllEduPiRuntimes } = await jiti.import("../lib/edupi-runtime-supervisor.ts");
 const { POST } = await jiti.import("../app/api/edupi/tasks/route.ts");
 const { PATCH } = await jiti.import("../app/api/edupi/tasks/[taskId]/route.ts");
 const { GET } = await jiti.import("../app/api/edupi/education/route.ts");
@@ -85,12 +86,40 @@ try {
   const reminder = inbox.items.find(item => item.title === "提醒接口验收");
   assert.ok(reminder);
   assert.equal(reminder.kind, "due");
+  assert.equal(reminder.nativeSource, "teacher_created");
+  const freshResponse = await POST(request("http://localhost/api/edupi/tasks", "POST", { clientRequestId: "10000000-0000-4000-8000-000000000004", title: "新建手动提醒", dueDate: today, note: "隔离测试" }));
+  assert.equal(freshResponse.status, 200);
+  const freshInbox = await (await reminders.GET()).json();
+  const fresh = freshInbox.items.find(item => item.title === "新建手动提醒");
+  assert.ok(fresh);
+  assert.equal(fresh.nativeSource, "teacher_created");
+  const reminderFile = path.join(dataRoot, ".edupi", "desktop", "reminders.json");
+  const oldStore = JSON.parse(fs.readFileSync(reminderFile, "utf8"));
+  delete oldStore.items.find(item => item.id === reminder.id).nativeSource;
+  fs.writeFileSync(reminderFile, JSON.stringify(oldStore), { mode: 0o600 });
   const again = await (await reminders.GET()).json();
   assert.equal(again.items.filter(item => item.taskId === reminder.taskId).length, 1);
+  assert.equal(again.items.find(item => item.id === reminder.id).nativeSource, undefined);
+  const claimResponse = await reminders.POST(request("http://localhost/api/edupi/reminders", "POST", { id: "*", type: "claim_notifications" }));
+  assert.equal(claimResponse.status, 200);
+  const claim = await claimResponse.json();
+  assert.equal(claim.attention.status, "unavailable");
+  assert.equal(claim.nativeNotificationIds.includes(reminder.id), false);
+  assert.equal(claim.notifications.some(item => item.id === reminder.id), false);
+  assert.equal(claim.nativeNotificationIds.includes(fresh.id), true);
+  assert.equal(claim.notifications.some(item => item.id === fresh.id), true);
+  const afterClaim = await (await reminders.GET()).json();
+  const deferred = afterClaim.items.find(item => item.id === reminder.id);
+  assert.ok(deferred);
+  assert.equal(deferred.notificationAttemptedAt, undefined);
+  assert.ok(deferred.notificationRetryAt);
+  assert.equal(deferred.notificationFailureCount ?? 0, 0);
   assert.equal((await reminders.POST(request("http://localhost/api/edupi/reminders", "POST", { id: reminder.id, type: "handled" }))).status, 200);
   const persisted = await (await reminders.GET()).json();
   assert.equal(persisted.items.find(item => item.id === reminder.id).handled, true);
-  console.log(JSON.stringify({ status: "passed", created: 2, moved: ["progress", "review", "done"], direct_completion: true, restart_reload: true }, null, 2));
+  console.log(JSON.stringify({ status: "passed", created: 2, moved: ["progress", "review", "done"], direct_completion: true,
+    restart_reload: true, attention_fence: { core_status: claim.attention.status, old_deferred: true, new_manual_allowed: true } }, null, 2));
 } finally {
+  await closeAllEduPiRuntimes();
   fs.rmSync(temp, { recursive: true, force: true });
 }

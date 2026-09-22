@@ -1,5 +1,11 @@
 # 自动下载安装
 
+## 2026-09-23 L4 Core 配对开发状态（未发布）
+
+- 当前开发分支已合并 Desktop `main` `384e952` 的 v0.3.33 standalone 依赖与跨平台启动修复，并固定 Core merge `860594a05c5d32617fffdbdf03d56e6ade6dc211`。occurrence E2 已加入 macOS release 的源码与 staged server 门禁；`desktop:prepare` 实际写入 2165 个 Core 文件，staged status 回读 Core/projection ready、occurrence contract 1.2、proactivity disabled、`externalSend=false`。
+- staged desktop、ambient 默认关闭的 schedule conflict、teacher feedback 和 ambient occurrence 全部通过；packaged Core closure 3/3、隔离 model host 2/2 通过。该证据证明待发布资源可以启动并完成隔离工作流，不代表 v0.3.33 已构建、签名、公证、公开或安装。
+- v0.3.32 的实际公证、公开安装失败和回滚见下节；v0.3.33 三平台 Release、旧客户端应用内升级、macOS/Windows 通知点击和睡眠恢复仍未验收。本节不改变公开 Latest 或本机已安装版本。
+
 ## 2026-09-23 v0.3.31-v0.3.32 启动回滚与 v0.3.33 修复
 
 - 受限 Core 只读凭据恢复后，正式 run `35757858707` 在 merge `bef61195` 上完成 macOS、Linux、Windows 和 manifest；v0.3.31 已公开为非草稿 Release，11 项资产、7 个签名 updater 平台键与 canonical Raw feed 完整。DMG、macOS updater 和 `latest.json` 的 Release digest 分别为 `fa4ccd48…`、`da2f3e79…`、`6e32a370…`。

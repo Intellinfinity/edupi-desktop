@@ -56,8 +56,11 @@ export async function GET(request: Request) {
     if (!owner.ownerId || !owner.rootRef) return NextResponse.json({ ok: true, ready: false, reason: "owner_uninitialized", externalSend: false }, { status: 409 });
     const response = await host.callOwnerControl("teacher_feedback_read", { root_ref: owner.rootRef, expected_owner_id: owner.ownerId });
     return NextResponse.json({ ok: response.ok === true, ready: true, result: response.result ?? null, errorCode: response.error_code ?? null, externalSend: false });
-  } catch {
-    return jsonError("反馈 Runtime 暂不可用，请先开启主动运行", 503);
+  } catch (error) {
+    const credentialUnavailable = error && typeof error === "object" && "code" in error && error.code === "owner_control_credential_unavailable";
+    return credentialUnavailable
+      ? NextResponse.json({ ok: false, error: "授权状态需要恢复，原数据未更改", errorCode: "owner_control_credential_unavailable", externalSend: false }, { status: 503 })
+      : jsonError("反馈 Runtime 暂不可用，请先开启主动运行", 503);
   }
 }
 
@@ -96,6 +99,6 @@ export async function POST(request: Request) {
     if (error instanceof RequestBodyTooLargeError) return jsonError("反馈内容过大", 413);
     const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "feedback_runtime_unavailable";
     const status = code === "invalid_feedback" ? 400 : code.includes("stale") || code.includes("missing") ? 409 : 503;
-    return NextResponse.json({ ok: false, error: code === "invalid_feedback" ? "反馈记录无效" : "反馈 Runtime 暂不可用", errorCode: code, externalSend: false }, { status });
+    return NextResponse.json({ ok: false, error: code === "invalid_feedback" ? "反馈记录无效" : code === "owner_control_credential_unavailable" ? "授权状态需要恢复，原数据未更改" : "反馈 Runtime 暂不可用", errorCode: code, externalSend: false }, { status });
   }
 }

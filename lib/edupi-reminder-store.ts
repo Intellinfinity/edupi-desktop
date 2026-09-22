@@ -4,8 +4,8 @@ import { dirname } from "node:path";
 import lockfile from "proper-lockfile";
 import type { ReminderEvent } from "./edupi-reminder-events";
 
-export type Reminder = { id: string; taskId: string; title: string; kind: "ready" | "failed" | "due" | "brief"; identity: string; createdAt: string; read: boolean; handled: boolean; snoozedUntil: string | null; notificationAttemptedAt?: string; notificationDeliveredAt?: string; notificationOpenedAt?: string; notificationFailureAt?: string; notificationFailureCount?: number; notificationRetryAt?: string; withdrawn?: boolean };
-export type ReminderActivityType = "candidate_created" | "candidate_withdrawn" | "notification_claimed" | "notification_delivered" | "notification_released" | "notification_failed" | "notification_opened" | "read" | "handled" | "snoozed";
+export type Reminder = { id: string; taskId: string; title: string; kind: "ready" | "failed" | "due" | "brief"; identity: string; createdAt: string; read: boolean; handled: boolean; snoozedUntil: string | null; nativeSource?: "teacher_created"; notificationAttemptedAt?: string; notificationDeliveredAt?: string; notificationOpenedAt?: string; notificationFailureAt?: string; notificationFailureCount?: number; notificationRetryAt?: string; withdrawn?: boolean };
+export type ReminderActivityType = "candidate_created" | "candidate_withdrawn" | "notification_claimed" | "notification_delivered" | "notification_released" | "notification_deferred" | "notification_failed" | "notification_opened" | "read" | "handled" | "snoozed";
 export type ReminderActivity = { type: ReminderActivityType; reminderId: string; taskId: string; at: string; latencyMs?: number };
 export type ReminderMetrics = {
   candidateCount: number;
@@ -15,6 +15,7 @@ export type ReminderMetrics = {
   withdrawnCount: number;
   notificationClaimCount: number;
   notificationDeliveredCount: number;
+  notificationDeferredCount: number;
   notificationFailedCount: number;
   notificationOpenedCount: number;
   notificationSuppressedCount: number;
@@ -24,7 +25,7 @@ export type ReminderMetrics = {
   averageOpenLatencyMs: number | null;
 };
 type Store = { version: 1; items: Reminder[]; notifications?: Reminder[]; activity?: ReminderActivity[] };
-type ReminderAction = { id: string; type: "read" | "dismiss" | "handled" | "snooze" | "claim_notifications" | "release_notification" | "notification_delivered" | "notification_failed" | "notification_opened"; attemptedAt?: string; taskId?: string };
+type ReminderAction = { id: string; type: "read" | "dismiss" | "handled" | "snooze" | "claim_notifications" | "release_notification" | "notification_deferred" | "notification_delivered" | "notification_failed" | "notification_opened"; attemptedAt?: string; taskId?: string };
 type ReminderStoreResult = Store & { metrics: ReminderMetrics };
 const MAX_ACTIVITY = 2000;
 const MAX_NOTIFICATION_FAILURES = 3;
@@ -60,6 +61,7 @@ function metrics(state: Store): ReminderMetrics {
     withdrawnCount: state.items.filter((item) => item.withdrawn).length,
     notificationClaimCount: claims.length,
     notificationDeliveredCount: deliveries.length,
+    notificationDeferredCount: activity.filter((item) => item.type === "notification_deferred").length,
     notificationFailedCount: activity.filter((item) => item.type === "notification_failed").length,
     notificationOpenedCount: opens.length,
     notificationSuppressedCount: state.items.filter((item) => (item.notificationFailureCount ?? 0) >= MAX_NOTIFICATION_FAILURES).length,
@@ -85,10 +87,12 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
       if (!current && !item.withdrawn) addActivity(state, { type: "candidate_withdrawn", reminderId: item.id, taskId: item.taskId, at: new Date(now).toISOString() });
       item.withdrawn = !current;
       if (current) item.title = current.title;
+      if (item.nativeSource === "teacher_created" && current?.nativeSource !== "teacher_created") delete item.nativeSource;
     }
     for (const item of Object.values(snapshot)) {
       if (!item.completion || state.items.some(record => record.taskId === item.taskId && record.identity === item.identity)) continue;
-      const reminder = { id: randomUUID(), taskId: item.taskId, title: item.title, kind: item.completion, identity: item.identity, createdAt: new Date(now).toISOString(), read: false, handled: false, snoozedUntil: null } satisfies Reminder;
+      const reminder = { id: randomUUID(), taskId: item.taskId, title: item.title, kind: item.completion, identity: item.identity, createdAt: new Date(now).toISOString(), read: false, handled: false, snoozedUntil: null,
+        ...(item.nativeSource ? { nativeSource: item.nativeSource } : {}) } satisfies Reminder;
       state.items.push(reminder);
       addActivity(state, { type: "candidate_created", reminderId: reminder.id, taskId: reminder.taskId, at: reminder.createdAt });
     }
@@ -100,6 +104,11 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
         if (action.type === "release_notification" && action.attemptedAt === item.notificationAttemptedAt) {
           delete item.notificationAttemptedAt;
           addActivity(state, { type: "notification_released", reminderId: item.id, taskId: item.taskId, at });
+        }
+        if (action.type === "notification_deferred" && action.attemptedAt === item.notificationAttemptedAt && item.notificationAttemptedAt) {
+          delete item.notificationAttemptedAt;
+          item.notificationRetryAt = new Date(now + NOTIFICATION_RETRY_BASE_MS).toISOString();
+          addActivity(state, { type: "notification_deferred", reminderId: item.id, taskId: item.taskId, at });
         }
         if (action.type === "notification_failed") {
           delete item.notificationAttemptedAt;

@@ -89,6 +89,29 @@ function stateHash(value: Record<string, unknown>): string {
   return `sha256:${crypto.createHash("sha256").update(JSON.stringify(canonicalize(state))).digest("hex")}`;
 }
 
+function ambientPreparationIdentity(value: unknown): unknown {
+  const preparation = record(value);
+  if (!preparation) return value;
+  const identity = structuredClone(preparation);
+  delete identity.generated_at;
+  if (Array.isArray(identity.decisions)) identity.decisions = identity.decisions.map((value) => {
+    const decision = record(value);
+    if (!decision) return value;
+    const next = { ...decision };
+    delete next.decision_id;
+    delete next.decided_at;
+    return next;
+  });
+  if (Array.isArray(identity.attention_intents)) identity.attention_intents = identity.attention_intents.map((value) => {
+    const intent = record(value);
+    if (!intent) return value;
+    const next = { ...intent };
+    delete next.created_at;
+    return next;
+  });
+  return identity;
+}
+
 /**
  * The first C1 snapshot implementation used the payload's own snapshot_id as
  * part of its state hash.  Keep that verifier for the pre-C1 empty review
@@ -127,6 +150,12 @@ export function canonicalSnapshotIdentityState(value: Record<string, unknown>): 
   const state = { ...value };
   delete state.snapshot_id;
   delete state.state_hash;
+  const workspace = record(state.education_workspace);
+  if (workspace?.l4_preparation) {
+    const nextWorkspace: Record<string, unknown> = { ...workspace, l4_preparation: ambientPreparationIdentity(workspace.l4_preparation) };
+    delete nextWorkspace.state_hash;
+    state.education_workspace = nextWorkspace;
+  }
   for (const key of ["receipts", "review_history"]) {
     if (Array.isArray(state[key])) state[key] = state[key].map(identityRecordWithoutCircularBindings);
   }

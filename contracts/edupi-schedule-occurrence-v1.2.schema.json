@@ -1,0 +1,1972 @@
+{
+  "$id": "https://edupi.local/contracts/edupi-schedule-occurrence-v1.2.schema.json",
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "additionalProperties": false,
+          "properties": {
+            "command_type": {
+              "const": "import_calendar",
+              "type": "string"
+            },
+            "events": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "confidence": {
+                    "anyOf": [
+                      {
+                        "const": "confirmed",
+                        "type": "string"
+                      },
+                      {
+                        "const": "teacher_confirmed",
+                        "type": "string"
+                      },
+                      {
+                        "const": "inferred",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "date": {
+                    "maxLength": 32,
+                    "type": "string"
+                  },
+                  "end_date": {
+                    "anyOf": [
+                      {
+                        "maxLength": 32,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "event_id": {
+                    "maxLength": 160,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "maxLength": 240,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "maxLength": 240,
+                    "type": "string"
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "source_occurrence_ref": {
+                    "maxLength": 160,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "time_interval": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "end": {
+                        "maxLength": 22,
+                        "minLength": 22,
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d[+-](?:(?:0\\d|1[0-4]):[0-5]\\d)$",
+                        "type": "string"
+                      },
+                      "start": {
+                        "maxLength": 22,
+                        "minLength": 22,
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d[+-](?:(?:0\\d|1[0-4]):[0-5]\\d)$",
+                        "type": "string"
+                      },
+                      "time_zone": {
+                        "maxLength": 100,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z][A-Za-z0-9_+/-]*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "start",
+                      "end",
+                      "time_zone"
+                    ],
+                    "type": "object"
+                  },
+                  "type": {
+                    "anyOf": [
+                      {
+                        "const": "exam",
+                        "type": "string"
+                      },
+                      {
+                        "const": "activity",
+                        "type": "string"
+                      },
+                      {
+                        "const": "meeting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "holiday",
+                        "type": "string"
+                      },
+                      {
+                        "const": "festival",
+                        "type": "string"
+                      },
+                      {
+                        "const": "teaching",
+                        "type": "string"
+                      },
+                      {
+                        "const": "custom",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "event_id",
+                  "date",
+                  "end_date",
+                  "name",
+                  "type",
+                  "confidence",
+                  "notes"
+                ],
+                "type": "object"
+              },
+              "maxItems": 200,
+              "type": "array"
+            },
+            "source": {
+              "additionalProperties": false,
+              "properties": {
+                "evidence_ids": {
+                  "items": {
+                    "maxLength": 160,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 50,
+                  "type": "array"
+                },
+                "source_hash": {
+                  "anyOf": [
+                    {
+                      "maxLength": 160,
+                      "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source_id": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source_kind": {
+                  "anyOf": [
+                    {
+                      "const": "teacher_message",
+                      "type": "string"
+                    },
+                    {
+                      "const": "teacher_file",
+                      "type": "string"
+                    },
+                    {
+                      "const": "core_event",
+                      "type": "string"
+                    },
+                    {
+                      "const": "memory_candidate",
+                      "type": "string"
+                    },
+                    {
+                      "const": "core_task",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "source_id",
+                "source_kind",
+                "source_hash",
+                "evidence_ids"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "command_type",
+            "source",
+            "events"
+          ],
+          "type": "object"
+        },
+        "contract_version": {
+          "const": "1.2",
+          "type": "string"
+        },
+        "external_send": {
+          "const": false,
+          "type": "boolean"
+        },
+        "idempotency_key": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "issued_at": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "message_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "producer": {
+          "const": "edupi-desktop",
+          "type": "string"
+        },
+        "provenance": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "anyOf": [
+                  {
+                    "const": "teacher",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core",
+                    "type": "string"
+                  },
+                  {
+                    "const": "channel",
+                    "type": "string"
+                  },
+                  {
+                    "const": "fixture",
+                    "type": "string"
+                  }
+                ]
+              },
+              "evidence_ids": {
+                "items": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              "observed_at": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "parent_ids": {
+                "items": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              "source_hash": {
+                "anyOf": [
+                  {
+                    "maxLength": 160,
+                    "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_id": {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              "source_kind": {
+                "anyOf": [
+                  {
+                    "const": "teacher_message",
+                    "type": "string"
+                  },
+                  {
+                    "const": "teacher_file",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core_event",
+                    "type": "string"
+                  },
+                  {
+                    "const": "memory_candidate",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core_memory",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core_task",
+                    "type": "string"
+                  },
+                  {
+                    "const": "channel_receipt",
+                    "type": "string"
+                  },
+                  {
+                    "const": "desktop_native_attested",
+                    "type": "string"
+                  },
+                  {
+                    "const": "fixture",
+                    "type": "string"
+                  }
+                ]
+              },
+              "source_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 1024,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "source_kind",
+              "source_id",
+              "source_path",
+              "source_hash",
+              "observed_at",
+              "actor",
+              "evidence_ids",
+              "parent_ids"
+            ],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        "request_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "schema_hash": {
+          "maxLength": 160,
+          "pattern": "^sha256:[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "teacher_review": {
+          "additionalProperties": false,
+          "properties": {
+            "note": {
+              "anyOf": [
+                {
+                  "maxLength": 1000,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_at": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewer_id": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revision": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "state": {
+              "anyOf": [
+                {
+                  "const": "not_required",
+                  "type": "string"
+                },
+                {
+                  "const": "pending_review",
+                  "type": "string"
+                },
+                {
+                  "const": "accepted",
+                  "type": "string"
+                },
+                {
+                  "const": "modified",
+                  "type": "string"
+                },
+                {
+                  "const": "rejected",
+                  "type": "string"
+                },
+                {
+                  "const": "held",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "reviewer_id",
+            "reviewed_at",
+            "note",
+            "revision"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "contract_version",
+        "message_id",
+        "request_id",
+        "issued_at",
+        "schema_hash",
+        "snapshot_id",
+        "provenance",
+        "teacher_review",
+        "external_send",
+        "producer",
+        "idempotency_key",
+        "command"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "1.2",
+          "type": "string"
+        },
+        "external_send": {
+          "const": false,
+          "type": "boolean"
+        },
+        "issued_at": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "message_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "action_authorization": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action_spec_hash": {
+                      "maxLength": 160,
+                      "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    "authorization_revision": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "authorization_snapshot_id": {
+                      "maxLength": 160,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "authorization_state_hash": {
+                      "maxLength": 160,
+                      "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                      "type": "string"
+                    },
+                    "execution_owner": {
+                      "const": "desktop_native",
+                      "type": "string"
+                    },
+                    "execution_token": {
+                      "maxLength": 160,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "execution_owner",
+                    "execution_token",
+                    "action_spec_hash",
+                    "expires_at",
+                    "authorization_revision",
+                    "authorization_snapshot_id",
+                    "authorization_state_hash"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "after_snapshot_id": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "after_state_hash": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "applied_ids": {
+              "items": {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            "before_snapshot_id": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            "before_state_hash": {
+              "maxLength": 160,
+              "pattern": "^sha256:[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            "command_id": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            "command_type": {
+              "anyOf": [
+                {
+                  "const": "review_observation",
+                  "type": "string"
+                },
+                {
+                  "const": "review_memory_candidate",
+                  "type": "string"
+                },
+                {
+                  "const": "review_task",
+                  "type": "string"
+                },
+                {
+                  "const": "review_teacher_context",
+                  "type": "string"
+                },
+                {
+                  "const": "review_work_candidate",
+                  "type": "string"
+                },
+                {
+                  "const": "review_teaching_adjustment",
+                  "type": "string"
+                },
+                {
+                  "const": "review_follow_up",
+                  "type": "string"
+                },
+                {
+                  "const": "import_calendar",
+                  "type": "string"
+                },
+                {
+                  "const": "import_timetable",
+                  "type": "string"
+                },
+                {
+                  "const": "intake_material",
+                  "type": "string"
+                },
+                {
+                  "const": "review_insight",
+                  "type": "string"
+                },
+                {
+                  "const": "review_growth_candidate",
+                  "type": "string"
+                },
+                {
+                  "const": "review_learning_candidate",
+                  "type": "string"
+                },
+                {
+                  "const": "request_action_preview",
+                  "type": "string"
+                },
+                {
+                  "const": "approve_action",
+                  "type": "string"
+                },
+                {
+                  "const": "stop_action",
+                  "type": "string"
+                },
+                {
+                  "const": "report_action_result",
+                  "type": "string"
+                }
+              ]
+            },
+            "created_at": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "decision": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "const": "accept",
+                      "type": "string"
+                    },
+                    {
+                      "const": "modify",
+                      "type": "string"
+                    },
+                    {
+                      "const": "reject",
+                      "type": "string"
+                    },
+                    {
+                      "const": "hold",
+                      "type": "string"
+                    },
+                    {
+                      "const": "rollback",
+                      "type": "string"
+                    },
+                    {
+                      "const": "snooze",
+                      "type": "string"
+                    },
+                    {
+                      "const": "suppress",
+                      "type": "string"
+                    },
+                    {
+                      "const": "not_useful",
+                      "type": "string"
+                    },
+                    {
+                      "const": "approve",
+                      "type": "string"
+                    },
+                    {
+                      "const": "stop",
+                      "type": "string"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidence_ids": {
+              "items": {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            "external_send": {
+              "const": false,
+              "type": "boolean"
+            },
+            "preview_token": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason_code": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_id": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            "receipt_phase": {
+              "anyOf": [
+                {
+                  "const": "review",
+                  "type": "string"
+                },
+                {
+                  "const": "preview",
+                  "type": "string"
+                },
+                {
+                  "const": "authorization",
+                  "type": "string"
+                },
+                {
+                  "const": "claim",
+                  "type": "string"
+                },
+                {
+                  "const": "result",
+                  "type": "string"
+                },
+                {
+                  "const": "mutation",
+                  "type": "string"
+                },
+                {
+                  "const": "stop",
+                  "type": "string"
+                }
+              ]
+            },
+            "rejected_ids": {
+              "items": {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            "request_id": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            "rollback": {
+              "additionalProperties": false,
+              "properties": {
+                "available": {
+                  "type": "boolean"
+                },
+                "expires_at": {
+                  "anyOf": [
+                    {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rollback_id": {
+                  "anyOf": [
+                    {
+                      "maxLength": 160,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "available",
+                "rollback_id",
+                "expires_at"
+              ],
+              "type": "object"
+            },
+            "status": {
+              "anyOf": [
+                {
+                  "const": "accepted",
+                  "type": "string"
+                },
+                {
+                  "const": "modified",
+                  "type": "string"
+                },
+                {
+                  "const": "rejected",
+                  "type": "string"
+                },
+                {
+                  "const": "held",
+                  "type": "string"
+                },
+                {
+                  "const": "failed",
+                  "type": "string"
+                },
+                {
+                  "const": "stale_snapshot",
+                  "type": "string"
+                },
+                {
+                  "const": "unknown_version",
+                  "type": "string"
+                },
+                {
+                  "const": "authorized",
+                  "type": "string"
+                },
+                {
+                  "const": "executing",
+                  "type": "string"
+                },
+                {
+                  "const": "stop_requested",
+                  "type": "string"
+                },
+                {
+                  "const": "completed",
+                  "type": "string"
+                },
+                {
+                  "const": "stopped",
+                  "type": "string"
+                },
+                {
+                  "const": "authorization_expired",
+                  "type": "string"
+                },
+                {
+                  "const": "outcome_unknown",
+                  "type": "string"
+                }
+              ]
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_observation",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "observation",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_memory_candidate",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "memory_candidate",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_task",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "task",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_teacher_context",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "teacher_context",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_work_candidate",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "work_candidate",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_teaching_adjustment",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "teaching_adjustment",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_follow_up",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "follow_up",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "import_calendar",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "calendar_import",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "import_timetable",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "timetable_import",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "intake_material",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "material_intake",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_insight",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "insight",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_growth_candidate",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "growth_candidate",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "review_learning_candidate",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "learning_candidate",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "command_type": {
+                          "anyOf": [
+                            {
+                              "const": "request_action_preview",
+                              "type": "string"
+                            },
+                            {
+                              "const": "approve_action",
+                              "type": "string"
+                            },
+                            {
+                              "const": "stop_action",
+                              "type": "string"
+                            },
+                            {
+                              "const": "report_action_result",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "target_id": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "target_kind": {
+                          "const": "action",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target_kind",
+                        "target_id",
+                        "command_type"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "teacher_review": {
+              "additionalProperties": false,
+              "properties": {
+                "note": {
+                  "anyOf": [
+                    {
+                      "maxLength": 1000,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "reviewed_at": {
+                  "anyOf": [
+                    {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "reviewer_id": {
+                  "anyOf": [
+                    {
+                      "maxLength": 160,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "revision": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "state": {
+                  "anyOf": [
+                    {
+                      "const": "not_required",
+                      "type": "string"
+                    },
+                    {
+                      "const": "pending_review",
+                      "type": "string"
+                    },
+                    {
+                      "const": "accepted",
+                      "type": "string"
+                    },
+                    {
+                      "const": "modified",
+                      "type": "string"
+                    },
+                    {
+                      "const": "rejected",
+                      "type": "string"
+                    },
+                    {
+                      "const": "held",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "state",
+                "reviewer_id",
+                "reviewed_at",
+                "note",
+                "revision"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "receipt_id",
+            "command_id",
+            "request_id",
+            "command_type",
+            "target",
+            "receipt_phase",
+            "decision",
+            "status",
+            "applied_ids",
+            "rejected_ids",
+            "reason_code",
+            "evidence_ids",
+            "before_snapshot_id",
+            "after_snapshot_id",
+            "before_state_hash",
+            "after_state_hash",
+            "teacher_review",
+            "external_send",
+            "rollback",
+            "preview_token",
+            "action_authorization",
+            "created_at"
+          ],
+          "type": "object"
+        },
+        "producer": {
+          "const": "edupi-core",
+          "type": "string"
+        },
+        "provenance": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "actor": {
+                "anyOf": [
+                  {
+                    "const": "teacher",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core",
+                    "type": "string"
+                  },
+                  {
+                    "const": "channel",
+                    "type": "string"
+                  },
+                  {
+                    "const": "fixture",
+                    "type": "string"
+                  }
+                ]
+              },
+              "evidence_ids": {
+                "items": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              "observed_at": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "parent_ids": {
+                "items": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              "source_hash": {
+                "anyOf": [
+                  {
+                    "maxLength": 160,
+                    "pattern": "^sha256:[A-Za-z0-9_-]+$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_id": {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              "source_kind": {
+                "anyOf": [
+                  {
+                    "const": "teacher_message",
+                    "type": "string"
+                  },
+                  {
+                    "const": "teacher_file",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core_event",
+                    "type": "string"
+                  },
+                  {
+                    "const": "memory_candidate",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core_memory",
+                    "type": "string"
+                  },
+                  {
+                    "const": "core_task",
+                    "type": "string"
+                  },
+                  {
+                    "const": "channel_receipt",
+                    "type": "string"
+                  },
+                  {
+                    "const": "desktop_native_attested",
+                    "type": "string"
+                  },
+                  {
+                    "const": "fixture",
+                    "type": "string"
+                  }
+                ]
+              },
+              "source_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 1024,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "source_kind",
+              "source_id",
+              "source_path",
+              "source_hash",
+              "observed_at",
+              "actor",
+              "evidence_ids",
+              "parent_ids"
+            ],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        "request_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "schema_hash": {
+          "maxLength": 160,
+          "pattern": "^sha256:[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "teacher_review": {
+          "additionalProperties": false,
+          "properties": {
+            "note": {
+              "anyOf": [
+                {
+                  "maxLength": 1000,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_at": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewer_id": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revision": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "state": {
+              "anyOf": [
+                {
+                  "const": "not_required",
+                  "type": "string"
+                },
+                {
+                  "const": "pending_review",
+                  "type": "string"
+                },
+                {
+                  "const": "accepted",
+                  "type": "string"
+                },
+                {
+                  "const": "modified",
+                  "type": "string"
+                },
+                {
+                  "const": "rejected",
+                  "type": "string"
+                },
+                {
+                  "const": "held",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "reviewer_id",
+            "reviewed_at",
+            "note",
+            "revision"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "contract_version",
+        "message_id",
+        "request_id",
+        "issued_at",
+        "schema_hash",
+        "snapshot_id",
+        "provenance",
+        "teacher_review",
+        "external_send",
+        "producer",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "1.2",
+          "type": "string"
+        },
+        "events": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "confidence": {
+                "anyOf": [
+                  {
+                    "const": "confirmed",
+                    "type": "string"
+                  },
+                  {
+                    "const": "teacher_confirmed",
+                    "type": "string"
+                  },
+                  {
+                    "const": "inferred",
+                    "type": "string"
+                  },
+                  {
+                    "const": "unknown",
+                    "type": "string"
+                  }
+                ]
+              },
+              "date": {
+                "anyOf": [
+                  {
+                    "maxLength": 10,
+                    "minLength": 10,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "date_status": {
+                "anyOf": [
+                  {
+                    "const": "explicit",
+                    "type": "string"
+                  },
+                  {
+                    "const": "missing",
+                    "type": "string"
+                  },
+                  {
+                    "const": "invalid",
+                    "type": "string"
+                  }
+                ]
+              },
+              "end_date": {
+                "anyOf": [
+                  {
+                    "maxLength": 10,
+                    "minLength": 10,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "event_id": {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              "evidence_ids": {
+                "items": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              "external_send": {
+                "const": false,
+                "type": "boolean"
+              },
+              "location": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "maxLength": 240,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                ]
+              },
+              "name": {
+                "maxLength": 240,
+                "type": "string"
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "maxLength": 1000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "preparation_status": {
+                "anyOf": [
+                  {
+                    "const": "read_only",
+                    "type": "string"
+                  },
+                  {
+                    "const": "hold",
+                    "type": "string"
+                  }
+                ]
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_ids": {
+                "items": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              "source_occurrence_ref": {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              "state": {
+                "anyOf": [
+                  {
+                    "const": "confirmed",
+                    "type": "string"
+                  },
+                  {
+                    "const": "pending_review",
+                    "type": "string"
+                  },
+                  {
+                    "const": "held",
+                    "type": "string"
+                  }
+                ]
+              },
+              "time_interval": {
+                "additionalProperties": false,
+                "properties": {
+                  "end": {
+                    "maxLength": 22,
+                    "minLength": 22,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d[+-](?:(?:0\\d|1[0-4]):[0-5]\\d)$",
+                    "type": "string"
+                  },
+                  "start": {
+                    "maxLength": 22,
+                    "minLength": 22,
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d[+-](?:(?:0\\d|1[0-4]):[0-5]\\d)$",
+                    "type": "string"
+                  },
+                  "time_zone": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z][A-Za-z0-9_+/-]*$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "start",
+                  "end",
+                  "time_zone"
+                ],
+                "type": "object"
+              },
+              "type": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "event_id",
+              "date",
+              "end_date",
+              "date_status",
+              "name",
+              "type",
+              "source",
+              "confidence",
+              "notes",
+              "preparation_status",
+              "state",
+              "source_ids",
+              "evidence_ids",
+              "external_send"
+            ],
+            "type": "object"
+          },
+          "maxItems": 500,
+          "type": "array"
+        },
+        "external_send": {
+          "const": false,
+          "type": "boolean"
+        },
+        "schema_hash": {
+          "maxLength": 71,
+          "minLength": 71,
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_version",
+        "schema_hash",
+        "snapshot_id",
+        "events",
+        "external_send"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "EduPi schedule occurrence v1.2"
+}

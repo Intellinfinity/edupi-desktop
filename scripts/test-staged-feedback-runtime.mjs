@@ -12,10 +12,15 @@ const resources = path.resolve(process.env.EDUPI_STAGED_RESOURCES || path.join(r
 const coreRoot = path.join(resources, "edupi-core");
 const serverDir = path.join(resources, "server");
 const nodeBinary = path.join(resources, "Pi Agent Server.app/Contents/MacOS/node");
-const dataRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "edupi-staged-feedback-")));
+const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "edupi-staged-feedback-")));
+const dataRoot = path.join(temporaryRoot, "data");
+const desktopStateDir = path.join(temporaryRoot, "desktop-state");
+fs.mkdirSync(dataRoot, { mode: 0o700 });
+fs.mkdirSync(desktopStateDir, { mode: 0o700 });
 const home = path.join(dataRoot, ".edupi");
 for (const directory of [path.join(home, "memory"), path.join(home, "output"), path.join(home, "locks")]) fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-Object.assign(process.env, { EDUPI_PROJECT_ROOT: dataRoot, EDUPI_HOME: home, EDUPI_MEMORY_DIR: path.join(home, "memory"), EDUPI_OUTPUT_DIR: path.join(home, "output"), EDUPI_LOCK_DIR: path.join(home, "locks") });
+Object.assign(process.env, { EDUPI_PROJECT_ROOT: dataRoot, EDUPI_HOME: home, EDUPI_MEMORY_DIR: path.join(home, "memory"),
+  EDUPI_OUTPUT_DIR: path.join(home, "output"), EDUPI_LOCK_DIR: path.join(home, "locks") });
 
 const admissionModule = await import(path.join(coreRoot, "scripts/core_runtime_writer_admission.mjs"));
 const rootModule = await import(path.join(coreRoot, "scripts/core_runtime_root.mjs"));
@@ -40,7 +45,7 @@ try {
       text: "验证教师反馈通道",
       scope: { class_id: "class-7b", subject: "math" },
       starts_at: now,
-      ends_at: new Date(Date.parse(now) + 7 * 86_400_000).toISOString(),
+      ends_at: new Date(Date.parse(now) + 14 * 86400000).toISOString(),
       success_condition: "反馈可回读",
       allowed_actions: ["update"],
       budget: { max_calls: 4 },
@@ -82,12 +87,12 @@ const child = spawn(nodeBinary, [path.join(serverDir, "desktop-server.cjs")], {
     NEXT_TELEMETRY_DISABLED: "1",
     EDUPI_PROJECT_ROOT: dataRoot,
     EDUPI_DATA_ROOT: dataRoot,
-    EDUPI_DATA_ALLOWED_ROOT: path.dirname(dataRoot),
+    EDUPI_DATA_ALLOWED_ROOT: temporaryRoot,
     EDUPI_CORE_ROOT: coreRoot,
     EDUPI_CORE_ALLOWED_ROOT: resources,
     EDUPI_CORE_VALIDATION_MODE: "bundled",
     EDUPI_AMBIENT_PLANNING: "1",
-    PI_DESKTOP_STATE_DIR: path.join(dataRoot, "desktop-state"),
+    PI_DESKTOP_STATE_DIR: desktopStateDir,
     PI_DESKTOP_API_TOKEN: "staged-feedback-token-012345678901234567890123456789",
     PI_DESKTOP_INSTANCE_ID: "staged-feedback-instance",
     PI_WEB_PARENT_PID: String(process.pid),
@@ -134,7 +139,7 @@ try {
   assert.ok(Array.isArray(target.evidence_ids) && target.evidence_ids.length > 0);
   assert.equal(target.domain, "teaching_preparation");
   assert.deepEqual(target.scope, { class_id: "class-7b", subject: "math" });
-  const recordBody = JSON.stringify({ action: "record", record: {
+  const surfacedRecord = {
       command_id: "staged-feedback-record-1",
       session_id: "staged-teacher-trial",
       evidence_level: "synthetic",
@@ -153,28 +158,39 @@ try {
       evidence_ids: target.evidence_ids,
       occurred_at: new Date().toISOString(),
       supersedes_feedback_id: null,
-    } });
+    };
+  const recordBody = JSON.stringify({ action: "record", record: surfacedRecord });
   const record = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: recordBody });
   if (!record.response.ok) console.error(logs.slice(-6000));
   assert.equal(record.response.status, 200, JSON.stringify(record.body));
-  assert.equal(record.body.ok, true);
-  const wrongScope = JSON.parse(recordBody);
-  wrongScope.record.command_id = "staged-feedback-wrong-class";
-  wrongScope.record.scope.class_id = "class-8a";
-  const denied = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(wrongScope) });
+  assert.equal(record.body.ok, true, JSON.stringify(record.body));
+  const wrongScope = structuredClone(surfacedRecord);
+  wrongScope.command_id = "staged-feedback-wrong-class";
+  wrongScope.scope.class_id = "class-8a";
+  const denied = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "record", record: wrongScope }) });
   assert.equal(denied.body.ok, false);
   assert.equal(denied.body.errorCode, "teacher_feedback_target_stale");
+  const missedBody = JSON.stringify({ action: "record", record: { ...surfacedRecord,
+    command_id: "staged-feedback-missed-1", signal: "missed", domain: "calendar_administration",
+    scope: { class_id: "class-7b", subject: "administration" },
+    target: { kind: "missed_opportunity", target_id: "missed-admin-notice", expected_revision: 0, expected_fingerprint: null },
+    decision: "missed", usefulness: "not_observed", evidence_ids: ["staged-admin-notice"] } });
+  const missed = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: missedBody });
+  assert.equal(missed.response.status, 200, JSON.stringify(missed.body));
+  assert.equal(missed.body.ok, true, JSON.stringify(missed.body));
   const replay = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: recordBody });
   assert.equal(replay.response.status, 200, JSON.stringify(replay.body));
   assert.equal(replay.body.result.replayed, true);
   const read = await jsonFetch("/api/edupi/teacher-feedback", { method: "GET" });
   assert.equal(read.response.status, 200, JSON.stringify(read.body));
-  assert.equal(read.body.result.feedback.length, 1);
+  assert.equal(read.body.result.feedback.length, 2);
   assert.equal(read.body.result.summary.real_teacher_current, 0);
   assert.equal(read.body.result.summary.synthetic_excluded, 1);
   assert.equal(read.body.result.summary.time_saved_minutes, 0);
-  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, verified_scope: true, wrong_scope_rejected: true, bound_replay: true, feedback_recorded: true, feedback_readback: true, synthetic_excluded: 1, external_send: false }, null, 2));
+  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, verified_scope: true,
+    wrong_scope_rejected: true, bound_replay: true, surfaced_feedback_recorded: true, missed_feedback_recorded: true,
+    feedback_readback: true, synthetic_excluded: 1, external_send: false }, null, 2));
 } finally {
   await stop();
-  fs.rmSync(dataRoot, { recursive: true, force: true });
+  fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }

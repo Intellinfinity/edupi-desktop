@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import type {
   EducationContract,
   EducationWorkCandidate,
@@ -20,7 +20,7 @@ import {
 import { summarizeL4Preparation, type L4PreparationSummaryItem } from "@/lib/edupi-l4-preparation";
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
 import { todayActiveTasks } from "@/lib/edupi-work-case";
-import { prepareTeacherFeedbackCapture, recordTeacherFeedback, TeacherFeedbackError, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
+import { canRetryFeedbackEligibility, prepareTeacherFeedbackCapture, recordTeacherFeedback, TeacherFeedbackError, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 
 type Props = {
@@ -71,18 +71,12 @@ function feedbackDecision(decision: EducationWorkCandidateDecision): TeacherFeed
 }
 
 export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, usefulness: RatedUsefulness, note?: string, occurredAt = new Date().toISOString()): TeacherFeedbackCapture | null {
-  const domain = task?.trigger === "teaching_before_class" ? "teaching_preparation" : null;
-  const evidence = task?.evidence;
-  const classId = evidence?.class_id;
-  const subject = evidence?.subject;
-  if (!domain || typeof classId !== "string" || classId.length > 160 || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/.test(classId)
-    || typeof subject !== "string" || !subject.trim() || subject.trim().length > 128
-    || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
+  if (task?.trigger !== "teaching_before_class" || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
   return {
     commandId: `desktop-feedback-${globalThis.crypto.randomUUID()}`,
     sessionId: "desktop-today",
-    domain,
-    scope: { classId, subject: subject.trim() },
+    domain: "teaching_preparation",
+    scope: null,
     target: { kind: "work_candidate", targetId: candidate.candidateId },
     reviewedRevision: candidate.revision,
     decision: feedbackDecision(decision),
@@ -96,6 +90,13 @@ export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: Teac
     evidenceIds: candidate.evidenceIds.length > 0 ? candidate.evidenceIds : candidate.sourceIds,
     occurredAt,
   };
+}
+
+export function teacherFeedbackRetryMessage(error: unknown, retrying = false): string {
+  if (error instanceof TeacherFeedbackError && error.code === "owner_control_credential_unavailable") {
+    return "授权状态需要恢复；本次评价尚未写入，可在恢复后重试。";
+  }
+  return retrying ? "反馈记录仍未成功，请稍后重试。" : "决定已记录；评价未能记录，请重试。";
 }
 
 const STATUS_LABELS: Record<EducationWorkCandidate["status"], string> = {
@@ -242,10 +243,13 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [feedbackReady, setFeedbackReady] = useState(false);
   const [pendingFeedback, setPendingFeedback] = useState<PendingFeedback | null>(null);
+  const [eligibilityRetry, setEligibilityRetry] = useState<PendingFeedback | null>(null);
+  const [eligibilityBusy, setEligibilityBusy] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [selectedRating, setSelectedRating] = useState<RatedUsefulness | "">("");
   const [feedbackRetry, setFeedbackRetry] = useState<TeacherFeedbackCapture | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const feedbackReviewSequence = useRef(0);
   const [retryReview, setRetryReview] = useState<ReviewRetry | null>(null);
   const [submission, setSubmission] = useState<Submission>(null);
   const editorCurrent = isTodayWorkEditorCurrent(editor, data.workCandidates, capability.enabled);
@@ -267,6 +271,27 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     }
   }, [editor, editorCurrent]);
 
+  const checkFeedbackEligibility = async (pending: PendingFeedback, sequence: number, retry = false) => {
+    const capture = feedbackCaptureFor(pending.candidate, pending.task, pending.decision, "useful");
+    if (!capture) return;
+    try {
+      await prepareTeacherFeedbackCapture(capture);
+      if (feedbackReviewSequence.current !== sequence) return;
+      setPendingFeedback(pending);
+      setEligibilityRetry(null);
+      setFeedback({ kind: "success", text: actionSuccess(pending.decision) });
+    } catch (error) {
+      if (feedbackReviewSequence.current !== sequence) return;
+      if (canRetryFeedbackEligibility(error)) {
+        setEligibilityRetry(pending);
+        setFeedback({ kind: "error", text: "决定已记录；评价暂不可用，请重试。" });
+      } else if (retry) {
+        setEligibilityRetry(null);
+        setFeedback({ kind: "error", text: "决定已记录；评价依据已更新。" });
+      }
+    }
+  };
+
   const review = async (
     candidate: EducationWorkCandidate,
     decision: EducationWorkCandidateDecision,
@@ -274,7 +299,11 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     note?: string,
   ) => {
     if (busy || !capability.enabled) return;
+    const reviewSequence = ++feedbackReviewSequence.current;
     setFeedback(null);
+    setPendingFeedback(null);
+    setEligibilityRetry(null);
+    setEligibilityBusy(false);
     setRetryReview(null);
     setSubmission({ candidateId: candidate.candidateId, decision });
     try {
@@ -284,12 +313,14 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       setChangingDecisionId(null);
       const task = taskById.get(candidate.taskId);
       const reviewed = result.data.workCandidates.find((item) => item.candidateId === candidate.candidateId);
-      setPendingFeedback(feedbackReady && task && reviewed && feedbackCaptureFor(reviewed, task, decision, "useful")
-        ? { candidate: reviewed, task, decision, note } : null);
+      setPendingFeedback(null);
       setRatingOpen(false);
       setSelectedRating("");
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: actionSuccess(decision) });
+      if (feedbackReady && task && reviewed && feedbackCaptureFor(reviewed, task, decision, "useful")) {
+        void checkFeedbackEligibility({ candidate: reviewed, task, decision, note }, reviewSequence);
+      }
     } catch (error) {
       if (error instanceof TodayWorkReviewError) {
         if (error.data) onEducation(error.data);
@@ -300,6 +331,17 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       } else setFeedback({ kind: "error", text: todayWorkErrorMessage("malformed") });
     } finally {
       setSubmission(null);
+    }
+  };
+
+  const retryFeedbackEligibility = async () => {
+    if (!eligibilityRetry || eligibilityBusy) return;
+    const sequence = feedbackReviewSequence.current;
+    setEligibilityBusy(true);
+    try {
+      await checkFeedbackEligibility(eligibilityRetry, sequence, true);
+    } finally {
+      if (feedbackReviewSequence.current === sequence) setEligibilityBusy(false);
     }
   };
 
@@ -318,10 +360,10 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: "评价已记录。" });
     } catch (error) {
-      if (error instanceof TeacherFeedbackError && ["teacher_feedback_target_stale", "teacher_feedback_target_missing"].includes(error.code)) {
+      if (!canRetryFeedbackEligibility(error)) {
         setFeedbackRetry(null);
         setFeedback({ kind: "error", text: "评价目标已变化，请刷新待办。", action: "refresh" });
-      } else setFeedback({ kind: "error", text: "决定已记录；评价未能记录，请重试。" });
+      } else setFeedback({ kind: "error", text: teacherFeedbackRetryMessage(error) });
     } finally {
       setFeedbackBusy(false);
     }
@@ -337,18 +379,21 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: "反馈已记录。" });
     } catch (error) {
-      if (error instanceof TeacherFeedbackError && ["teacher_feedback_target_stale", "teacher_feedback_target_missing"].includes(error.code)) {
+      if (!canRetryFeedbackEligibility(error)) {
         setFeedbackRetry(null);
         setFeedback({ kind: "error", text: "评价目标已变化，请刷新待办。", action: "refresh" });
-      } else setFeedback({ kind: "error", text: "反馈记录仍未成功，请稍后重试。" });
+      } else setFeedback({ kind: "error", text: teacherFeedbackRetryMessage(error, true) });
     } finally {
       setFeedbackBusy(false);
     }
   };
 
   const refreshEducation = () => {
+    feedbackReviewSequence.current += 1;
     setFeedback(null);
     setPendingFeedback(null);
+    setEligibilityRetry(null);
+    setEligibilityBusy(false);
     setRetryReview(null);
     window.dispatchEvent(new Event("edupi-education-refresh"));
   };
@@ -497,6 +542,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     {feedback ? <div className={`edupi-today-work__feedback is-${feedback.kind}`} role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite">
       <span>{feedback.text}</span>
       {feedbackRetry ? <button type="button" disabled={feedbackBusy} onClick={() => void retryTeacherFeedback()}>{feedbackBusy ? "记录中…" : "重试记录"}</button>
+        : eligibilityRetry ? <button type="button" disabled={eligibilityBusy} onClick={() => void retryFeedbackEligibility()}>{eligibilityBusy ? "核对中…" : "重试评价"}</button>
         : feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button>
           : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button>
             : pendingFeedback && !ratingOpen ? <button type="button" onClick={() => setRatingOpen(true)}>评价</button> : null}

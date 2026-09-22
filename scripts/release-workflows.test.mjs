@@ -416,9 +416,17 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("name: Verify paired Core runtime"));
   assert.ok(buildJob.includes("if: runner.os != 'Windows'"));
   assert.ok(buildJob.includes("test:edupi-ambient-today-runtime"));
+  assert.ok(buildJob.includes("test:edupi-schedule-conflicts-e2"));
+  assert.ok(buildJob.includes("test:edupi-schedule-occurrence-e2"));
   assert.ok(buildJob.includes("scripts/test-edupi-c2-e2.mjs"));
   assert.ok(buildJob.includes("scripts/test-edupi-c3-e2.mjs"));
   assert.ok(buildJob.includes("scripts/packaged-core-bundle.test.mjs"));
+  assert.match(buildJob, /name: Verify staged packaged server[\s\S]*?run: npm run test:staged-desktop-runtime/);
+  assert.ok(buildJob.includes("EDUPI_STAGED_IDENTITY_ONLY"));
+  assert.match(buildJob, /name: Verify staged macOS integrations\s+if: runner\.os == 'macOS'/);
+  assert.ok(buildJob.includes("test:staged-schedule-conflicts-runtime"));
+  assert.ok(buildJob.includes("test:staged-schedule-occurrence-runtime"));
+  assert.ok(buildJob.includes("test:staged-feedback-runtime"));
   assert.ok(buildJob.includes("name: Verify paired Core bundle on Windows"));
   assert.ok(buildJob.includes("if: runner.os == 'Windows'"));
   assert.ok(buildJob.includes("--test-name-pattern"));

@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { validateCoreEnvelopeSchema } from "./edupi-bridge-contract";
-import { activeBridgeIdentity } from "./edupi-bridge-manifest";
+import { activeBridgeIdentity, scheduleOccurrenceIdentity } from "./edupi-bridge-manifest";
 import { callEduPiCore } from "./edupi-core-process-client";
-import { readEduPiEducationSnapshot, type CoreEducationSnapshotPayload, type EduPiBridgeRoots } from "./edupi-core-snapshot";
+import { readEduPiEducationSnapshot, validateScheduleOccurrenceV12Envelope, type CoreEducationSnapshotPayload, type EduPiBridgeRoots } from "./edupi-core-snapshot";
 
 type IntakeSource = {
   source_id: string;
@@ -19,6 +19,23 @@ export type CalendarImportEvent = {
   type: "exam" | "activity" | "meeting" | "holiday" | "festival" | "teaching" | "custom";
   confidence: "confirmed" | "teacher_confirmed" | "inferred";
   notes: string | null;
+  source_occurrence_ref?: string;
+  time_interval?: { start: string; end: string; time_zone: string };
+  location?: string | null;
+};
+
+export type CalendarIntakeInput = {
+  eventId: string | null;
+  date: string;
+  endDate: string | null;
+  name: string;
+  type: string;
+  notes: string | null;
+  sourceOccurrenceRef: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  timeZone: string | null;
+  location: string | null;
 };
 
 export type TimetableImportSlot = {
@@ -95,6 +112,11 @@ export function contentHash(value: unknown): string {
   return `sha256:${crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
 }
 
+function usesScheduleOccurrenceV12(command: EducationIntakeCommand): boolean {
+  return command.command_type === "import_calendar" && command.events.some((event) =>
+    event.source_occurrence_ref !== undefined || event.time_interval !== undefined || event.location !== undefined);
+}
+
 export function buildEducationIntakeCommandEnvelope({
   snapshotId,
   command,
@@ -110,7 +132,8 @@ export function buildEducationIntakeCommandEnvelope({
   messageId?: string;
   idempotencyKey?: string;
 }): RawRecord {
-  const identity = activeBridgeIdentity();
+  const occurrence = usesScheduleOccurrenceV12(command);
+  const identity = occurrence ? scheduleOccurrenceIdentity() : activeBridgeIdentity().contract;
   const provenance = [{
     source_kind: command.source.source_kind,
     source_id: command.source.source_id,
@@ -122,12 +145,12 @@ export function buildEducationIntakeCommandEnvelope({
     parent_ids: [],
   }];
   const envelope = {
-    contract_version: identity.contract.contract_version,
+    contract_version: identity.contract_version,
     message_id: messageId,
     request_id: requestId,
     issued_at: issuedAt,
     producer: "edupi-desktop",
-    schema_hash: identity.contract.schema_hash,
+    schema_hash: identity.schema_hash,
     snapshot_id: snapshotId,
     idempotency_key: idempotencyKey,
     provenance,
@@ -135,7 +158,9 @@ export function buildEducationIntakeCommandEnvelope({
     external_send: false,
     command,
   };
-  if (!validateCoreEnvelopeSchema(envelope)) throw new EducationIntakeError("invalid_envelope", "教育导入请求无效。");
+  if (!(occurrence ? validateScheduleOccurrenceV12Envelope(envelope) : validateCoreEnvelopeSchema(envelope))) {
+    throw new EducationIntakeError("invalid_envelope", "教育导入请求无效。");
+  }
   return envelope;
 }
 
@@ -157,15 +182,18 @@ async function productionSnapshot(): Promise<SnapshotResult> {
 
 function validateReceiptResponse(value: unknown, envelope: RawRecord): { receiptEnvelope: RawRecord; receipt: RawRecord } {
   const response = record(value);
-  const identity = activeBridgeIdentity();
+  const bridge = activeBridgeIdentity();
+  const occurrence = envelope.contract_version === "1.2";
+  const identity = occurrence ? scheduleOccurrenceIdentity() : bridge.contract;
   if (!response || response.ok !== true || response.operation !== "command"
-    || !sameList(response.supported_commands, identity.contract.supported_commands)
-    || !sameList(response.supported_projections, identity.contract.supported_projections)) {
+    || !sameList(response.supported_commands, bridge.contract.supported_commands)
+    || !sameList(response.supported_projections, bridge.contract.supported_projections)) {
     throw new EducationIntakeError("unavailable", "Core 教育导入回执不可用。");
   }
   const receiptEnvelope = record(response.receipt);
-  if (!receiptEnvelope || !validateCoreEnvelopeSchema(receiptEnvelope)
+  if (!receiptEnvelope || !(occurrence ? validateScheduleOccurrenceV12Envelope(receiptEnvelope) : validateCoreEnvelopeSchema(receiptEnvelope))
     || receiptEnvelope.producer !== "edupi-core" || receiptEnvelope.external_send !== false
+    || receiptEnvelope.contract_version !== identity.contract_version || receiptEnvelope.schema_hash !== identity.schema_hash
     || receiptEnvelope.request_id !== envelope.request_id) {
     throw new EducationIntakeError("invalid_envelope", "Core 教育导入回执无效。");
   }

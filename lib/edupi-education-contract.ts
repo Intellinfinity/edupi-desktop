@@ -19,6 +19,11 @@ export type CalendarFact = {
   confidence: CalendarConfidence;
   notes: string | null;
   preparationStatus: CalendarPreparationStatus;
+  occurrenceRef: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  timeZone: string | null;
+  location: string | null;
 };
 
 export type TeacherTask = {
@@ -1596,6 +1601,7 @@ function normalizeDocuments(value: unknown): EducationDocument[] {
 
 function normalizeCalendarEvent(value: unknown): CalendarFact {
   const source = record(value);
+  const interval = record(source.time_interval);
   const start = isoDateStatus(source.date);
   const end = isoDateStatus(source.end_date);
   // Core's status is authoritative; a syntactically valid date cannot promote a held fact.
@@ -1635,6 +1641,11 @@ function normalizeCalendarEvent(value: unknown): CalendarFact {
     confidence: eventConfidence,
     notes: text(source.notes),
     preparationStatus,
+    occurrenceRef: text(source.source_occurrence_ref),
+    startsAt: text(interval.start),
+    endsAt: text(interval.end),
+    timeZone: text(interval.time_zone),
+    location: text(source.location),
   };
 }
 

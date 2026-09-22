@@ -25,6 +25,15 @@ for (const required of [
   path.join(stagedServerDir, "node_modules/next/package.json"),
   path.join(stagedServerDir, "node_modules/next/dist/server/lib/start-server.js"),
 ]) assert.equal(fs.existsSync(required), true, `missing staged resource: ${required}`);
+const occurrenceIdentity = compat.contract_identities.find((item) => item.contract_id === "edupi-schedule-occurrence-v1.2");
+assert.ok(occurrenceIdentity, "missing schedule occurrence compatibility identity");
+const occurrenceSchema = path.join(stagedCoreRoot, occurrenceIdentity.schema_path);
+const occurrenceHash = path.join(stagedCoreRoot, "contracts/edupi-schedule-occurrence-v1.2-hash.json");
+const runtimeSchemaHash = path.join(stagedCoreRoot, "contracts/edupi-core-runtime-v1-hash.json");
+for (const required of [occurrenceSchema, occurrenceHash, runtimeSchemaHash]) assert.equal(fs.existsSync(required), true, `missing staged Core contract: ${required}`);
+assert.deepEqual(JSON.parse(fs.readFileSync(occurrenceSchema, "utf8")), JSON.parse(fs.readFileSync(path.join(root, occurrenceIdentity.schema_path), "utf8")));
+assert.equal(JSON.parse(fs.readFileSync(occurrenceHash, "utf8")).schema_hash, occurrenceIdentity.schema_hash);
+assert.equal(JSON.parse(fs.readFileSync(runtimeSchemaHash, "utf8")).schema_hash, compat.core_runtime.runtime_schema_hash);
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-staged-runtime-"));
 const isolatedResources = path.join(temporaryRoot, "staged-resources");
@@ -116,7 +125,9 @@ try {
     assert.equal(status.core.status, "ready");
     assert.equal(status.projection.status, "ready");
     assert.equal(status.externalSend, false);
-    console.log(JSON.stringify({ status: "passed", coreCommit: status.compatibility.actual.coreCommit, coreStatus: status.core.status, projectionStatus: status.projection.status, proactivity: status.proactivity.status, externalSend: status.externalSend }, null, 2));
+    console.log(JSON.stringify({ status: "passed", coreCommit: status.compatibility.actual.coreCommit, coreStatus: status.core.status,
+      projectionStatus: status.projection.status, occurrenceContract: occurrenceIdentity.contract_version,
+      proactivity: status.proactivity.status, externalSend: status.externalSend }, null, 2));
   }
 } finally {
   await stop();

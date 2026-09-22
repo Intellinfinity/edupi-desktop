@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { validateContainedRegularFile, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
 import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-model-host";
+import { loadOwnerControlToken } from "./edupi-owner-control-token";
 
 export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callOwnerControl(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
@@ -21,6 +22,7 @@ const STARTUP_FAILURE_REASONS = Object.freeze({
   runtime_root_invalid: "Core Runtime 数据目录校验失败（runtime_root_invalid）",
   runtime_state_invalid: "Core Runtime 状态需要修复（runtime_state_invalid）",
   runtime_writer_unavailable: "Core Runtime 正被另一个写入进程占用（runtime_writer_unavailable）",
+  owner_control_credential_unavailable: "主动运行授权凭据不可用；原数据已保留，需要恢复授权状态后再启用",
 });
 type StartupFailureCode = keyof typeof STARTUP_FAILURE_REASONS | "runtime_unavailable";
 const STARTUP_FAILURE_CODES = new Set<StartupFailureCode>([...(Object.keys(STARTUP_FAILURE_REASONS) as Array<keyof typeof STARTUP_FAILURE_REASONS>), "runtime_unavailable"]);
@@ -101,7 +103,8 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   const bootstrap = fs.existsSync(packaged) ? packaged : path.join(process.cwd(), "desktop/core-runtime-host.mjs");
   const configuredStateDir = process.env.PI_DESKTOP_STATE_DIR?.trim();
   const ambientPlanning = process.env.EDUPI_AMBIENT_PLANNING === "1";
-  const ownerControlToken = ambientPlanning ? randomBytes(32).toString("base64url") : null;
+  const ownerControlAvailable = ambientPlanning || Boolean(configuredStateDir && path.isAbsolute(configuredStateDir));
+  const ownerControlToken = ownerControlAvailable ? loadOwnerControlToken(configuredStateDir, dataRoot.root) : null;
   const child = fork(bootstrap, [], {
     cwd: runtime.root, execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"],
     env: { PATH: process.env.PATH, LANG: process.env.LANG || "en_US.UTF-8", TZ: process.env.TZ || "Asia/Shanghai", NODE_ENV: process.env.NODE_ENV || "production", EDUPI_PROJECT_ROOT: dataRoot.root, EDUPI_HOME: path.join(dataRoot.root, ".edupi"), EDUPI_MEMORY_DIR: dataRoot.memoryDir, EDUPI_OUTPUT_DIR: dataRoot.outputDir, EDUPI_LOCK_DIR: dataRoot.lockDir, EDUPI_CORE_COMMIT: runtime.coreCommit, EDUPI_CORE_PARENT_PID: String(process.pid), ...(configuredStateDir && path.isAbsolute(configuredStateDir) ? { PI_DESKTOP_STATE_DIR: path.resolve(configuredStateDir) } : {}) },

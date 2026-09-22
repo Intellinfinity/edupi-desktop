@@ -12,7 +12,8 @@ type AttentionAction = {
 
 type AttentionTransition = "queued" | "delivered" | "failed" | "retry" | "opened";
 
-type SyncResult = { status: "synced" | "unsupported" | "unavailable"; recorded: number };
+type SyncResult = { status: "synced" | "unsupported" | "unavailable"; recorded: number;
+  linkedNotificationIds?: string[]; currentNotificationIds?: string[] };
 type RuntimeHost = { call(operation: string, payload: unknown): Promise<Record<string, unknown>> };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -51,6 +52,17 @@ function commandId(deliveryId: string, status: AttentionTransition, version: num
   return `desktop_attention_${deliveryId}_${status}_${version}`;
 }
 
+export function selectNativeReminderNotifications(claimed: readonly Reminder[], attention: SyncResult): Reminder[] {
+  const linked = new Set(attention.linkedNotificationIds);
+  const current = new Set(attention.currentNotificationIds);
+  // An empty Core read does not prove that an old unmarked task never had a withdrawn intent.
+  return claimed.filter((item) => {
+    if (attention.status === "synced" && current.has(item.id)) return true;
+    return !linked.has(item.id) && (item.nativeSource === "teacher_created"
+      || item.kind === "brief" && item.taskId.startsWith("document:"));
+  });
+}
+
 export async function syncReminderAttention({ data, items, action, now = new Date(), runtime }: {
   data: EducationContract;
   items: readonly Reminder[];
@@ -61,9 +73,14 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
   if (!["claim_notifications", "notification_delivered", "notification_failed", "notification_opened"].includes(action.type)) {
     return { status: "synced", recorded: 0 };
   }
-  if (!data.l4Preparation?.attentionIntents.length) return { status: "unsupported", recorded: 0 };
   const targets = affectedItems(items, action);
   if (!targets.length) return { status: "synced", recorded: 0 };
+  const claiming = action.type === "claim_notifications";
+  const linked = targets.filter((item) => intentFor(data, item) || data.l4Preparation?.attentionDeliveries.some((delivery) => delivery.deliveryId === item.id));
+  const linkedNotificationIds = linked.map((item) => item.id);
+  const claimResult = (status: SyncResult["status"], recorded = 0, currentNotificationIds: string[] = []): SyncResult =>
+    ({ status, recorded, ...(claiming ? { linkedNotificationIds, currentNotificationIds } : {}) });
+  if (!claiming && !data.l4Preparation?.attentionIntents.length) return claimResult("unsupported");
   let roots;
   let host: RuntimeHost;
   try {
@@ -78,9 +95,10 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
     const fingerprint = healthResult?.data_root_fingerprint;
     const capabilities = asRecord(healthResult?.capabilities);
     const supported = capabilities?.supported_operations;
-    if (typeof fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(fingerprint)
-      || !Array.isArray(supported) || !supported.includes("attention_delivery_record")) {
-      return { status: "unsupported", recorded: 0 };
+    if (health?.ok !== true || typeof fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(fingerprint)
+      || !Array.isArray(supported) || !supported.includes("attention_delivery_record")
+      || claiming && !supported.includes("attention_delivery_read")) {
+      return claimResult("unsupported");
     }
     const instanceId = process.env[DESKTOP_INSTANCE_ID_ENV]?.trim() || "desktop-dev";
     let recorded = 0;
@@ -119,8 +137,33 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
       if (!next) continue;
       await record(next, currentVersion);
     }
-    return { status: "synced", recorded };
+    if (!claiming) return claimResult("synced", recorded);
+    const response = asRecord(await host.call("attention_delivery_read", {
+      root_ref: fingerprint,
+      carrier: { kind: "desktop", instance_id: instanceId },
+    }));
+    const snapshot = asRecord(response?.result);
+    if (response?.ok !== true || snapshot?.root_ref !== fingerprint || snapshot?.apply !== false
+      || snapshot?.external_send !== false || !Array.isArray(snapshot?.deliveries)) return claimResult("unavailable", recorded);
+    const currentNotificationIds: string[] = [];
+    for (const item of targets) {
+      const deliveries = snapshot.deliveries.map(asRecord).filter((delivery) => delivery?.delivery_id === item.id);
+      if (deliveries.length) {
+        if (!linkedNotificationIds.includes(item.id)) linkedNotificationIds.push(item.id);
+        const intent = intentFor(data, item);
+        const delivery = deliveries.length === 1 ? deliveries[0] : null;
+        const carrier = asRecord(delivery?.carrier);
+        if (intent && delivery?.attention_intent_id === intent.attentionIntentId
+          && delivery.opportunity_id === intent.opportunityId && delivery.work_case_id === intent.workCaseId
+          && delivery.deep_link === intent.deepLink && carrier?.kind === "desktop"
+          && carrier.instance_id === instanceId && delivery.intent_current === true
+          && delivery.external_send === false && (delivery.status === "queued" || delivery.status === "retry")) {
+          currentNotificationIds.push(item.id);
+        }
+      }
+    }
+    return claimResult("synced", recorded, currentNotificationIds);
   } catch {
-    return { status: "unavailable", recorded: 0 };
+    return claimResult("unavailable");
   }
 }

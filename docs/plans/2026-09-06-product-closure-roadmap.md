@@ -1,5 +1,13 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-23 L4 风险收敛与行程 occurrence 配对（已实现待远端/安装验收）
+
+- Core 风险批已按顺序合并：[Core #170](https://github.com/Intellinfinity/edupi/pull/170) 为 `03a25b0e3a2d40ceb60040d00685f3841ac57b7e`，[Core #171](https://github.com/Intellinfinity/edupi/pull/171) 为 `d1478ce6d917bbea03db7df5c01854d3500a9ef5`，[Core #172](https://github.com/Intellinfinity/edupi/pull/172) 为 `172f75531f84b0bb0fca422598bd895eb2920cb8`，[Core #173](https://github.com/Intellinfinity/edupi/pull/173) 为 `860594a05c5d32617fffdbdf03d56e6ade6dc211`。#172/#173 的 `core-quality` runs `35782721446`、`35788428478` 均通过。Desktop 现在精确 pin 最后一个 merge commit，Desktop/Runtime component hash 分别为 `sha256:5a767d1c…` 与 `sha256:f98d0de5…`。
+- Risk 已完成源码与 packaged staged 收敛：反馈只接受当前 Core 目标的真实领域、班级和学科；日程按 issuer + occurrence ref 稳定标识，精确重复合并，同一 occurrence 改期进入 hold 和 owner 审核，“保留两项”对 same-ref 冲突被拒绝；来源删除、旧提醒、旧进程写入和 snapshot CAS 均 fail closed。显式冲突审核在 ambient planning 默认关闭时可用，owner 二次凭据仍必需，conversation、intent、attention 和自动调度保持关闭。occurrence E2 从首次 intake 起保持 ambient 开启，command receipt 的 after snapshot 与紧接读取完全一致，不再依赖切换模式的绕路。
+- Desktop 已合并最新 `main` `384e952` 的 v0.3.33 standalone 依赖与跨平台启动修复，并完成源码与 staged 证据：`npm test` 1447 tests，1421 passed / 26 skipped / 0 failed；TypeScript、lint、`desktop:prepare`、packaged Core closure 3/3、隔离 model host 2/2 通过。source 与 staged occurrence E2 均完成 intake、精确重放、v1.2 投影、改期 hold、same-ref keep-both 拒绝、replace 和重启回读；source/staged schedule conflict 在 ambient 默认关闭时完成 owner bootstrap、读取、决定、重放与重启回读；feedback 与 desktop runtime 同时通过。完整记录见 [Core 860594a 与 Desktop occurrence 配对验收](../acceptance/2026-09-23-desktop-core-occurrence-pin.md)。
+- Unverified：PDF、图片和 ICS 尚未形成可信 occurrence ref、时区和地点提取闭环；macOS/Windows 安装版的后台通知显示与点击、真实睡眠补跑、应用内升级和数据保持尚未在本批执行；旧随机 owner key 没有自动迁移，已有 owner 状态缺凭据时继续保留数据并 fail closed。以上不能由 staged server 代替。
+- L4 仍为“L4 功能收敛中”：六领域机制和统一反馈通道已有工程闭环，但实际教学内容仍需逐域人工核对；正式盲测、真实教师 5 日基线、至少 10 日试用和不少于 20 个机会仍未开始。真实教师价值由用户组织，本地合成反馈不计入价值门。
+
 ## 2026-09-23 v0.3.32 DMG 公证、启动回滚与 v0.3.33 修复（待发布）
 
 - v0.3.31 已由正式 run `35757858707` 从 merge `bef61195` 完成三平台构建、签名和 manifest，公开 Release 含 11 项资产；canonical `updater-feed` 为 0.3.31、7 个平台键，更新资产均走 GitHub API。macOS updater tar 内 `.app` 的 Developer ID、公证和 Gatekeeper 验收通过。
@@ -10,7 +18,7 @@
 - v0.3.33 修复普通 standalone `node_modules` 被排除的问题，保留 symlink/NFT 路径，并增加 staged Next/React 依赖硬门禁。行为测试先复现缺失后通过；正式三平台打包、Linux/Windows 公共安装和 macOS 应用内升级尚待新发布，R22 整体仍不能勾选。
 - 本地门禁通过：`npm test` 1398 项中 1373 passed、25 skipped、0 failed；TypeScript、lint、npm audit、release verify、目标仓库校验、actionlint、`cargo metadata --locked` 与 28 项 Tauri/Cargo 测试通过。41 项发布事务定向测试覆盖发布/改 target/重复 tag 拒绝、上传失败、哈希不符、进程中断恢复、DELETE 响应丢失和 cleanup 持续失败；独立复审无 P1/P2。
 - 本机唯一安装副本仍为 v0.3.29；回滚后更新接口只检测已知可启动的 v0.3.30。Core/投影/Kernel ready，51 学生/240 任务/43 校历/9 课表、模型/认证/设置摘要和手机默认关闭均已记录。当前 Mac 锁屏；须等 v0.3.33 通过公共安装后再做原生更新、重启、Core G6/数据与唯一副本核对。
-- Core 继续固定已完整验证的 G6 `acce81e3b59ae93a998e7c1e9d1f008059ec3e85`。后续 Core schema、投影和命令扩展须在 v0.3.32 安全发布后独立配对；本次不把 Core 主线更新或本地脏工作树带入安装包。R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成。
+- 当前 L4 开发分支已按上节独立配对已合并 Core `860594a05c5d32617fffdbdf03d56e6ade6dc211`，只使用干净 merge checkout 并通过 packaged staged 验证。正式 v0.3.33 仍须在 Desktop PR 合并和远端质量门后重新构建，不能复用旧 G6 资产。R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成。
 
 ## 2026-09-22 v0.3.31 手机中断恢复与 Core G6 配对（历史，已由上节取代）
 

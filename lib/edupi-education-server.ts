@@ -71,7 +71,11 @@ export async function projectEducationContract(snapshot: EducationSnapshot): Pro
   for (const binding of taskSessionStore.bindings) {
     if (getRpcSession(binding.session_id)?.isAlive()) knownSessionIds.add(binding.session_id);
   }
-  const contract = buildEducationContractFromWorkspace(snapshot.workspace, {
+  const occurrenceProjection = snapshot.occurrenceProjection;
+  const occurrenceEvents = occurrenceProjection && occurrenceProjection.snapshot_id === snapshot.payload.snapshot_id
+    ? occurrenceProjection.events : null;
+  const workspace = occurrenceEvents ? { ...snapshot.workspace, calendar: occurrenceEvents } : snapshot.workspace;
+  const contract = buildEducationContractFromWorkspace(workspace, {
     workspacePath: snapshot.dataRoot.root,
     taskSessions: taskSessionStore,
     snapshotPayload: snapshot.payload,
@@ -107,11 +111,11 @@ export async function projectEducationContract(snapshot: EducationSnapshot): Pro
 }
 
 export async function readEducationContract(): Promise<EducationContract> {
-  return projectEducationContract(await readEduPiEducationSnapshot());
+  return projectEducationContract(await readEduPiEducationSnapshot({ scheduleOccurrenceVersion: "1.2" }));
 }
 
 export async function readEducationWorkspaceBundle(): Promise<{ context: TeacherContextSnapshot; data: EducationContract }> {
-  const snapshot = await readEduPiEducationSnapshot();
+  const snapshot = await readEduPiEducationSnapshot({ scheduleOccurrenceVersion: "1.2" });
   const [context, data] = await Promise.all([
     Promise.resolve(projectTeacherContextSnapshot(snapshot)),
     projectEducationContract(snapshot),

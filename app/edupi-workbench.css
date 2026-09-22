@@ -1791,7 +1791,9 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-staged-materials__actions button:last-child { color: var(--ep-muted); }
 .edupi-staged-materials__actions button:disabled { cursor: wait; opacity: .55; }
 .edupi-staged-materials__message { margin: 0; padding: 9px 14px; border-top: 1px solid var(--ep-border); color: var(--ep-muted); font-size: 11px; }
-.edupi-material-staging-toast { position: absolute; z-index: 90; right: 16px; bottom: 16px; max-width: min(360px, calc(100% - 32px)); padding: 10px 12px; border: 1px solid var(--ep-border); border-radius: 7px; background: var(--ep-surface); box-shadow: 0 6px 20px rgba(20, 24, 30, .12); color: var(--ep-text); font-size: 11px; }
+.edupi-material-staging-toast { position: absolute; z-index: 90; right: 16px; bottom: 16px; display: flex; align-items: flex-start; gap: 8px; max-width: min(360px, calc(100% - 32px)); padding: 10px 12px; border: 1px solid var(--ep-border); border-radius: 7px; background: var(--ep-surface); box-shadow: 0 6px 20px rgba(20, 24, 30, .12); color: var(--ep-text); font-size: 11px; }
+.edupi-material-staging-toast > span { min-width: 0; overflow-wrap: anywhere; }
+.edupi-material-staging-toast > button { flex: 0 0 22px; width: 22px; height: 22px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 17px; line-height: 22px; }
 .edupi-material-staging-toast.is-success { border-color: color-mix(in srgb, var(--ep-green) 38%, var(--ep-border)); color: var(--ep-green); }
 .edupi-material-staging-toast.is-error { border-color: color-mix(in srgb, var(--ep-red) 38%, var(--ep-border)); color: var(--ep-red); }
 .edupi-global-material-drop { position: absolute; z-index: 220; inset: 12px; display: grid; place-content: center; gap: 4px; pointer-events: none; border: 1px dashed color-mix(in srgb, var(--ep-blue) 58%, var(--ep-border)); border-radius: 10px; background: color-mix(in srgb, var(--ep-surface) 92%, transparent); box-shadow: 0 10px 34px rgba(20, 24, 30, .14); color: var(--ep-text); text-align: center; }
@@ -2080,6 +2082,7 @@ details[open] > .edupi-disclosure-detail { animation: edupi-expand-in .17s ease-
 }
 
 @media (max-width: 820px) {
+  .edupi-material-staging-toast { bottom: 76px; }
   .edupi-teacher-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 60px; }
   .edupi-teacher-shell.is-navigation-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 60px; }
   .edupi-teacher-shell.has-desktop-drag-region,

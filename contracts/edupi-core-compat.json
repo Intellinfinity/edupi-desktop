@@ -2,10 +2,11 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "acce81e3b59ae93a998e7c1e9d1f008059ec3e85",
+    "core_commit": "860594a05c5d32617fffdbdf03d56e6ade6dc211",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:5b29ca9a7714f43eecb107e4420c5048c43bc2e440a69b766afd882b6e10c410",
-    "runtime_component_manifest_hash": "sha256:eea378a07450e254b40f969c6d8178aa2b2887405e6e2eff3214a78ec2a981b5"
+    "component_manifest_hash": "sha256:5a767d1c720b87e3b7e6681fdf16c2c2967606231199f82da94c62d3c0d49430",
+    "runtime_component_manifest_hash": "sha256:f98d0de51c19773c760a9cc208029eac091d7f31b37a7665bfe953d23813a4ca",
+    "runtime_schema_hash": "sha256:5ec30b6043bcb89e170d2cb7a4c2b8fe3be2660d546c13df9b0b3996a3dc3c1e"
   },
   "contract_identities": [
     {
@@ -32,6 +33,21 @@
         "education_workspace"
       ],
       "depends_on": []
+    },
+    {
+      "contract_id": "edupi-schedule-occurrence-v1.2",
+      "contract_version": "1.2",
+      "schema_path": "contracts/edupi-schedule-occurrence-v1.2.schema.json",
+      "schema_hash": "sha256:b739852f427520f787ad32c7f41b258976a3b41d60fa6116439696c1495b97cb",
+      "supported_commands": [
+        "import_calendar"
+      ],
+      "supported_projections": [
+        "schedule_occurrence"
+      ],
+      "depends_on": [
+        "edupi-bridge-v1.1"
+      ]
     }
   ],
   "cumulative_projection_manifest": null,
@@ -122,7 +138,12 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/145",
     "https://github.com/PIGU-PPPgu/edupi/pull/166",
     "https://github.com/Intellinfinity/edupi/pull/167",
-    "https://github.com/Intellinfinity/edupi/pull/168"
+    "https://github.com/Intellinfinity/edupi/pull/168",
+    "https://github.com/Intellinfinity/edupi/pull/169",
+    "https://github.com/Intellinfinity/edupi/pull/170",
+    "https://github.com/Intellinfinity/edupi/pull/171",
+    "https://github.com/Intellinfinity/edupi/pull/172",
+    "https://github.com/Intellinfinity/edupi/pull/173"
   ],
-  "change_note": "Desktop G6 pin to Core acce81e: preserves the paired v1.1 bridge and 12 commands while accepting verified feedback scope, ambiguous schedule fencing, and the new runtime schema. Parent communication remains Core-owned and is not exposed as a Desktop send action; external_send stays false."
+  "change_note": "Desktop pin to merged Core 860594a: preserves the frozen v1.1 bridge and opt-in v1.2 occurrence contract, stabilizes ambient-aware command receipts, and enables explicit owner-bound schedule review while ambient planning remains off. external_send=false is unchanged."
 }

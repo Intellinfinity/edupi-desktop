@@ -3,7 +3,6 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import {
   EducationIntakeError,
   issueEducationIntake,
-  type CalendarImportEvent,
   type EducationIntakeCommand,
   type TimetableImportSlot,
 } from "@/lib/edupi-education-intake";
@@ -12,14 +11,13 @@ import { intakeRecognizedMaterial } from "@/lib/edupi-material-intake-flow";
 import { MaterialRecognitionError } from "@/lib/edupi-material-recognition";
 import { MaterialRecognitionAdmissionError, withMaterialRecognitionLock } from "@/lib/edupi-material-recognition-lock";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
-import { stableCalendarEventId, stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
+import { stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
+import { parseCalendarIntakeCommand } from "@/lib/edupi-calendar-intake-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 256 * 1024;
-const CALENDAR_TYPES = new Set(["exam", "activity", "meeting", "holiday", "festival", "teaching", "custom"]);
-const CALENDAR_CONFIDENCE = new Set(["confirmed", "teacher_confirmed", "inferred"]);
 const MATERIAL_KINDS = new Set(["worksheet", "lesson_note", "assessment", "classroom_record", "other"]);
 
 type RawRecord = Record<string, unknown>;
@@ -44,33 +42,10 @@ function requiredText(value: unknown, max: number): string {
   return value.trim();
 }
 
-function sourceFor(kind: "calendar" | "timetable", raw: readonly RawRecord[]) {
+function sourceFor(kind: "calendar" | "timetable", raw: readonly RawRecord[], stableSourceId?: string) {
   const hash = stableScheduleSourceHash(raw);
   const token = hash.slice("sha256:".length, "sha256:".length + 24);
-  return { source_id: `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
-}
-
-function calendarCommand(body: RawRecord): EducationIntakeCommand {
-  if (!exactKeys(body, ["kind", "events"]) || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > 200) {
-    throw new EducationIntakeError("invalid_envelope", "校历导入必须包含 1—200 个事件。");
-  }
-  const events: CalendarImportEvent[] = body.events.map((value) => {
-    const item = record(value);
-    if (!item || !exactKeys(item, ["eventId", "date", "endDate", "name", "type", "confidence", "notes"])) throw new EducationIntakeError("invalid_envelope", "校历事件字段无效。");
-    const type = requiredText(item.type, 40);
-    const confidence = item.confidence === undefined ? "teacher_confirmed" : requiredText(item.confidence, 40);
-    if (!CALENDAR_TYPES.has(type) || !CALENDAR_CONFIDENCE.has(confidence)) throw new EducationIntakeError("invalid_envelope", "校历事件类型无效。");
-    return {
-      event_id: typeof item.eventId === "string" && item.eventId.trim() ? requiredText(item.eventId, 160) : stableCalendarEventId(item),
-      date: typeof item.date === "string" ? item.date.trim().slice(0, 32) : "",
-      end_date: optionalText(item.endDate, 32) ?? null,
-      name: requiredText(item.name, 240),
-      type: type as CalendarImportEvent["type"],
-      confidence: confidence as CalendarImportEvent["confidence"],
-      notes: optionalText(item.notes, 1000) ?? null,
-    };
-  });
-  return { command_type: "import_calendar", source: sourceFor("calendar", events as unknown as RawRecord[]), events };
+  return { source_id: stableSourceId || `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
 }
 
 function timetableCommand(body: RawRecord): EducationIntakeCommand {
@@ -119,7 +94,7 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
 }
 
 function statusFor(error: EducationIntakeError): number {
-  if (error.code === "invalid_envelope") return 400;
+  if (error.code === "invalid_envelope" || error.code.startsWith("invalid_occurrence_")) return 400;
   if (error.code === "stale_snapshot" || error.code === "staging_missing" || error.code.includes("integrity") || error.code.includes("conflict")) return 409;
   return 503;
 }
@@ -135,10 +110,10 @@ export async function POST(request: Request) {
       const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => intakeRecognizedMaterial(material));
       const receipt = result.receipts[0];
       if (receipt?.status === "accepted") settleStagedMaterial(material.descriptor.staging_id, "accepted_receipt");
-      return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition, staged: listStagedMaterials() });
+      return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition, scheduleNeedsReview: result.scheduleNeedsReview, staged: listStagedMaterials() });
     }
     const command = body.kind === "calendar"
-      ? calendarCommand(body)
+      ? parseCalendarIntakeCommand(body)
       : body.kind === "timetable"
         ? timetableCommand(body)
         : (() => { throw new EducationIntakeError("invalid_envelope", "不支持的教育导入类型。"); })();
@@ -147,7 +122,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Education intake request is too large" }, { status: 413 });
     if (error instanceof EducationIntakeError) return NextResponse.json({ error: error.message, code: error.code }, { status: statusFor(error) });
-    if (error instanceof MaterialRecognitionError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.code === "too_large" ? 413 : 503 });
+    if (error instanceof MaterialRecognitionError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.code === "too_large" ? 413 : error.code === "ambiguous_schedule" ? 409 : 503 });
     if (error instanceof MaterialRecognitionAdmissionError) return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
     return NextResponse.json({ error: "教育导入暂不可用", code: "unavailable" }, { status: 503 });
   }

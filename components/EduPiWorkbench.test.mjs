@@ -328,6 +328,7 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   const panel = await read("./EduPiEducationPanel.tsx");
   const calendarWorkspace = await read("./EduPiCalendarWorkspace.tsx");
   const intakeRoute = await read("../app/api/edupi/intake/route.ts");
+  const calendarIntake = await read("../lib/edupi-calendar-intake-request.ts");
   const objectSider = await read("./EduPiObjectSider.tsx");
   const workspaceViews = await read("./EduPiWorkspaceViews.tsx");
   const css = `${await read("../app/edupi-workspace.css")}\n${await read("../app/edupi-workbench.css")}`;
@@ -338,10 +339,17 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   assert.match(calendarWorkspace, /calendarEvent\?\.notes \|\| ""/);
   assert.match(calendarWorkspace, /editingCalendarId/);
   assert.match(calendarWorkspace, /保存更改/);
-  assert.match(panel, /eventId: string \| null/);
-  assert.match(panel, /events: \[\{ \.\.\.event, confidence: "teacher_confirmed" \}\]/);
+  assert.match(panel, /CalendarIntakeInput/);
+  assert.match(panel, /sourceOccurrenceRef: event\.sourceOccurrenceRef/);
+  assert.match(panel, /timeInterval/);
+  assert.match(calendarWorkspace, /sourceOccurrenceRef/);
+  assert.match(calendarWorkspace, /startAt/);
+  assert.match(calendarWorkspace, /location/);
+  assert.match(calendarWorkspace, /enabled=\{data\.capabilities\.calendar\.enabled \|\| data\.capabilities\.timetable\.enabled\}/);
+  assert.doesNotMatch(calendarWorkspace, /enabled=\{Boolean\(data\.l4Preparation\)\}/);
   assert.doesNotMatch(panel, /preservedEvents/);
-  assert.match(intakeRoute, /eventId/);
+  assert.match(intakeRoute, /parseCalendarIntakeCommand/);
+  assert.match(calendarIntake, /eventId/);
   assert.match(calendarWorkspace, /onSelect\(\{ kind: entry\.kind, sourceId:/);
   assert.match(calendarWorkspace, /className=\{`\$\{entryClass\(entry\)\}/);
   assert.match(objectSider, /onCalendarItem/);

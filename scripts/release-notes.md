@@ -1,16 +1,14 @@
-EduPi Desktop 0.3.30。
+EduPi Desktop 0.3.31。
 
-- 更新清单迁移到 raw feed，安装资产通过 GitHub API 端点下载并保留签名验证
-- 更新失败按清单、下载、签名和安装阶段反馈安全诊断码
-- 增加 Safe Mode，启动时暂停第三方 Plugins 与 Skills，不改 Core 数据
-- 增加局域网手机配对，可在批准后查看并继续已有教师对话
-- 0.3.25–0.3.28 客户端仍需一次手动 bootstrap，0.3.29 起使用新 feed
-- 修复对话流式操作菜单、附件入口和桌面左下手机控制入口
-- 增加教师确认的 Core Runtime 状态修复，保留双库备份与恢复意图
+- 手机入口经独立局域网网关只开放配对、会话和提醒路径；桌面 API 与配对管理要求桌面进程令牌
+- 手机批准后立即显示已有对话；网关不可达时设置页不显示可用地址或生成配对码
+- Safe Mode 只加载 Core 清单内的内置 Skills，不运行教师目录中的第三方 Skills
+- Core 配对更新至 G5，保留 12 个桥接命令和教师确认；家校沟通发送未开放给桌面端
+- 正式 macOS 发布缺签名或公证凭据时停止，发布前验证应用公证 ticket 与 DMG 签名
 
 - macOS Apple Silicon DMG
 - Windows x64 安装程序
 - Linux x64 Debian / AppImage
 - 应用内检查、下载、安装并重启更新
 
-更新签名用于验证安装包来源，不代表 Apple 公证或 Windows 代码签名。
+macOS 应用使用 Developer ID 签名并公证；更新包签名与 Windows 代码签名是独立机制。

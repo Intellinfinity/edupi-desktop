@@ -341,6 +341,11 @@ test("the published Linux installer workflow verifies a real packaged Core start
   assert.match(workflow, /EDUPI_DATA_ROOT/);
   assert.match(workflow, /api\/edupi\/status\?summary=1/);
   assert.match(workflow, /core.*status.*ready/);
+  assert.match(workflow, /kill -0 "\$app_pid"/);
+  assert.match(workflow, /dump_diagnostics/);
+  assert.match(workflow, /tail -n 160/);
+  assert.match(workflow, /startup-diagnostics\.jsonl/);
+  assert.match(workflow, /\[redacted\]/);
 });
 
 test("nothing reintroduces a literal homedir() into an fs call", async () => {

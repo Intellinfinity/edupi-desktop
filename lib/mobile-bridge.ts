@@ -14,6 +14,7 @@ type PairingStatus = "waiting" | "requested" | "approved" | "active" | "revoked"
 type PairingRecord = {
   id: string;
   codeDigest: string;
+  requestKeyDigest?: string;
   tokenDigest: string;
   token: string;
   status: PairingStatus;
@@ -23,7 +24,7 @@ type PairingRecord = {
   scopes: readonly MobileScope[];
 };
 
-type PublicPairing = Omit<PairingRecord, "codeDigest" | "tokenDigest" | "token" | "scopes"> & { scopes: readonly MobileScope[] };
+type PublicPairing = Omit<PairingRecord, "codeDigest" | "requestKeyDigest" | "tokenDigest" | "token" | "scopes"> & { scopes: readonly MobileScope[] };
 
 type MobileBridgeState = { pairings: Map<string, PairingRecord>; attempts: Map<string, { count: number; resetAt: number }> };
 
@@ -76,8 +77,9 @@ export function allowMobilePairAttempt(key: string, now = Date.now()): boolean {
 }
 
 function publicPairing(record: PairingRecord): PublicPairing {
-  const { codeDigest, tokenDigest, token, ...safe } = record;
+  const { codeDigest, requestKeyDigest, tokenDigest, token, ...safe } = record;
   void codeDigest;
+  void requestKeyDigest;
   void tokenDigest;
   void token;
   return safe;
@@ -136,14 +138,19 @@ export function listMobilePairings(): PublicPairing[] {
   return [...state().pairings.values()].filter((record) => record.status !== "revoked").map(publicPairing);
 }
 
-export function requestMobilePairing(codeInput: string, deviceLabel?: unknown): PublicPairing | null {
+export function requestMobilePairing(codeInput: string, deviceLabel?: unknown, requestKey?: string): PublicPairing | null {
   cleanup();
   const code = normalizeCode(codeInput);
   if (!code) return null;
-  const record = [...state().pairings.values()].find((candidate) => candidate.status === "waiting" && equalDigest(candidate.codeDigest, digest(code)));
+  const record = [...state().pairings.values()].find((candidate) => equalDigest(candidate.codeDigest, digest(code)));
   if (!record) return null;
+  if (record.status !== "waiting") {
+    return requestKey && record.requestKeyDigest && (record.status === "requested" || record.status === "approved")
+      && equalDigest(record.requestKeyDigest, digest(requestKey)) ? publicPairing(record) : null;
+  }
   record.status = "requested";
   record.deviceLabel = safeLabel(deviceLabel);
+  if (requestKey) record.requestKeyDigest = digest(requestKey);
   persistMetadata();
   return publicPairing(record);
 }
@@ -157,14 +164,18 @@ export function approveMobilePairing(id: string): PublicPairing | null {
   return publicPairing(record);
 }
 
-export function completeMobilePairing(id: string, codeInput: string): { status: PairingStatus; token?: string; scopes?: readonly MobileScope[] } | null {
+export function completeMobilePairing(id: string, codeInput: string, requestKey?: string): { status: PairingStatus; token?: string; scopes?: readonly MobileScope[] } | null {
   cleanup();
   const record = state().pairings.get(id);
   if (!record || !equalDigest(record.codeDigest, digest(normalizeCode(codeInput)))) return null;
-  if (record.status === "approved") {
-    record.status = "active";
-    record.expiresAt = Date.now() + MOBILE_TOKEN_TTL_MS;
-    persistMetadata();
+  if (record.requestKeyDigest && (!requestKey || !equalDigest(record.requestKeyDigest, digest(requestKey)))) return null;
+  if (record.status === "approved" || record.status === "active") {
+    if (record.status === "active" && !record.requestKeyDigest) return { status: "active" };
+    if (record.status === "approved") {
+      record.status = "active";
+      record.expiresAt = Date.now() + MOBILE_TOKEN_TTL_MS;
+      persistMetadata();
+    }
     return { status: record.status, token: record.token, scopes: record.scopes };
   }
   return { status: record.status };
@@ -187,15 +198,4 @@ export function authorizeMobileRequest(request: Request, scope: MobileScope): Pu
   if (!token || token.length < 32) return null;
   const record = [...state().pairings.values()].find((candidate) => candidate.status === "active" && candidate.scopes.includes(scope) && equalDigest(candidate.tokenDigest, digest(token)));
   return record ? publicPairing(record) : null;
-}
-
-export function isLoopbackRequest(request: Request): boolean {
-  const host = request.headers.get("host");
-  if (!host) return false;
-  try {
-    const hostname = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    return hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "127.0.0.1" || hostname === "::1";
-  } catch {
-    return false;
-  }
 }

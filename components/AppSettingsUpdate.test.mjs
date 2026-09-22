@@ -13,6 +13,8 @@ test("settings exposes manual update checks and the signed installer action", ()
   assert.match(source, /desktopUpgradeErrorDetails\(error\)/);
   assert.match(source, /appSettings\.updateDiagnostics/);
   assert.match(source, /MobileBridgeSettingsCard/);
+  assert.match(source, /initialSection !== "mobile"/);
+  assert.match(source, /mobile-bridge-settings/);
   assert.match(source, /appSettings\.update/);
 });
 

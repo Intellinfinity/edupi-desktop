@@ -149,3 +149,32 @@ test("renders compact errors above the input as a wrapping alert", () => {
   assert.match(html, /white-space:pre-wrap/);
   assert.ok(html.indexOf('role="alert"') < html.indexOf("<textarea"));
 });
+
+test("keeps streaming actions behind an accessible more menu", async () => {
+  const source = await (await import("node:fs/promises")).readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+  assert.match(source, /queueMenuOpen/);
+  assert.match(source, /aria-label=\{t\("chat\.moreStreamingActions"\)\}/);
+  assert.match(source, /t\("chat\.steer"\)/);
+  assert.match(source, /t\("chat\.followUp"\)/);
+  assert.doesNotMatch(source, /\}\s*\{t\("chat\.stop"\)\}/);
+
+  const withActions = renderWithI18n(React.createElement(ChatInput, {
+    onSend() {}, onAbort() {}, onSteer() {}, onFollowUp() {}, isStreaming: true,
+  }));
+  const withoutActions = renderWithI18n(React.createElement(ChatInput, {
+    onSend() {}, onAbort() {}, isStreaming: true,
+  }));
+  assert.match(withActions, /aria-label="More message actions"/);
+  assert.match(withActions, /aria-label="Stop agent"/);
+  assert.doesNotMatch(withoutActions, /aria-label="More message actions"/);
+  assert.match(source, /setQueueMenuOpen\(false\)[\s\S]*setAttachmentMenuOpen\(false\)[\s\S]*\}, \[isStreaming\]\)/);
+});
+
+test("exposes plus attachment actions and a phone control affordance", async () => {
+  const source = await (await import("node:fs/promises")).readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+  assert.match(source, /attachmentMenuOpen/);
+  assert.match(source, /chat\.addAttachment/);
+  assert.match(source, /chat\.addFile/);
+  assert.match(source, /chat\.phoneControl/);
+  assert.match(source, /edupi-open-settings/);
+});

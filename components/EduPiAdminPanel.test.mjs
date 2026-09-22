@@ -52,6 +52,11 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /当前安装版本/);
   assert.match(admin, />刷新状态<\/button>/);
   assert.match(admin, /reconnectEduPiCore/);
+  assert.match(admin, /repairEduPiCore/);
+  assert.match(admin, /runtime_root_invalid/);
+  assert.match(admin, /runtime_state_invalid/);
+  assert.match(admin, /runtime_writer_unavailable/);
+  assert.match(admin, /desktopChrome\.isDesktop/);
   assert.match(admin, /onClick=\{coreConnected \? refresh : \(\) => void reconnectCore\(\)\}/);
   assert.match(admin, /coreConnected \? "已连接" : "重新连接"/);
   assert.match(admin, /aria-current=\{activeSection === section\.id \? "page" : undefined\}/);
@@ -83,11 +88,18 @@ test("management center is a full admin workspace with persistent navigation", a
 
   assert.match(rail, /APP_VERSION_DISPLAY/);
   assert.match(rail, /当前版本 v/);
+  assert.match(rail, /手机控制/);
+  assert.match(rail, /PhoneControlIcon/);
+  assert.match(rail, /onOpenPhoneControl/);
   assert.doesNotMatch(rail, /aria-label="教育设置"|aria-label="应用设置"/);
   assert.match(panel, /onOpenAdmin/);
+  assert.match(panel, /onOpenPhoneControl/);
   assert.match(panel, /打开管理中心/);
   assert.match(panel, /<EduPiNavigationRail[\s\S]+?onOpenAdmin=\{onOpenAdmin\}/);
+  assert.match(panel, /<EduPiNavigationRail[\s\S]+?onOpenPhoneControl=\{onOpenPhoneControl\}/);
   assert.match(appShell, /openEduPiAdmin/);
+  assert.match(appShell, /openPhoneControl/);
+  assert.match(appShell, /onOpenPhoneControl=\{openPhoneControl\}/);
   assert.match(appShell, /onOpenAdmin=\{\(\) => openEduPiAdmin\(\)\}/);
   assert.match(appShell, /edupiAdminOpen && <EduPiAdminPanel/);
   assert.match(appShell, /modelsPanel=\{<ModelsConfig[\s\S]+?embedded[\s\S]+?onDirtyChange=\{setAdminModelsDirty\}[\s\S]+?onSaved=/);

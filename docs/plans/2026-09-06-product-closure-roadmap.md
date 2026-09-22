@@ -1,5 +1,32 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-22 v0.3.31 手机中断恢复与 Core G6 配对（待发布）
+
+- 当前分支 `feat/jev-openconnector-integration`、PR #207；源码版本 `0.3.31` 精确 pin Core G6 `acce81e3b59ae93a998e7c1e9d1f008059ec3e85`。只使用独立干净 checkout 打包，Core 主工作树的未提交改动未触碰；下方 G5 条目是这一版本较早的历史快照，现由本节取代。打包后远端 `main` 又合并 #169 为 `156ee8e`，新增 owner 审核日程冲突；该合同不在本次签名包，下一轮配对时单独验收，不能宣称 Desktop 已消费。
+- R26 手机中断恢复已实现、待安装验收：响应头和 JSON 正文都受截止时间约束；配对响应丢失后只允许同一随机请求键重放，缺失或错误键不得取回激活令牌；退出手机撤销服务端授权。发送 POST 中断不自动重发、恢复可误发草稿或凭同文本消息自动确认；后台继续回读会话，须教师查看并明确核对。浏览器延迟 POST 为模拟响应，不冒充真实模型完成；真实第二台手机、网络切换和安装版重启仍未验收。默认关闭、可信局域网 HTTP 边界不变。
+- R21/R22 与 Core G6 配对已实现待远端/安装验收：可信反馈目标新增领域与班级/学科校验，未知范围不产生正向评价；日程歧义写入和旧进程写入受到 Core 围栏。Bridge v1.1、12 命令、`education_workspace` 和 `external_send=false` 不变。隔离 G6 全量 1377 通过/9 跳过、TypeScript、lint、Core 反馈和日程测试、生产资源 Core/投影 ready、反馈错班拒绝与回读及独立模型 host 通过；证据见 [G6 配对验收](../acceptance/2026-09-22-desktop-core-g6-pin.md)。公共 Release、应用内验签升级、原生通知/睡眠和真实价值仍分别待验收。
+- R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成；Windows/Linux 旧版升级和学校设备继续外部待验收。不能用 G6 pin 或这轮测试总数替代这些流程。
+
+## 2026-09-22 v0.3.31 手机安全修复与 Core G5 配对（历史阶段）
+
+- 该阶段源码版本 `0.3.31`，Core 当时精确 pin `7cbb280eaf33bdb259e719a0149b7f2ca343d356`；Bridge v1.1 schema、12 命令和教育投影不扩权。Core G5 的家校沟通仍为 Core 内部草稿能力，桌面端未开放外发。后续 G6 配对状态以上方新记录为准，不以更新 pin 代替真实教学价值验收。
+- R26 风险修正（已实现待安装验收，取代下方 v0.3.29 LAN 隔离已验收的旧结论）：公开 v0.3.30 在开启手机入口时可伪造 loopback Host 接触桌面 API。新包将 Next 固定监听 loopback，并把限定路径的网关绑定具体 LAN 地址；配对管理要求桌面进程令牌，未探测到真实网关就不显示手机地址或生成配对码。隔离 LAN 双接口实测：伪造 Host 的会话与配对管理均为 403，合法手机配对、批准、Cookie 会话回读均为 200；0.3.31 standalone 手机页无刷新显示会话，撤销后从已打开和未打开会话均自动退出，390×844 无溢出。真实第二台手机、网络切换与 0.3.31 安装版仍未验收。LAN 手机流量仍是 HTTP，默认关闭，仅在可信局域网启用；不受信任网络需要独立的加密接入方案。
+- R25 风险修正（已实现待安装验收）：Safe Mode 只传入 Core 清单列出的内置 Skill，并在 SDK 加载结果中过滤误传的教师目录 Skill；正常模式不变，不复制或删除教师 Skill。隔离 SDK 加载器测试通过；故障插件冷启动与正常模式恢复需要在 0.3.31 包内复核。
+- R22 发布门禁（已实现待远端验收）：正式 Release 缺任一 Apple 六项凭据就不建 draft；macOS 在上传资产后、公开 Release 前校验 `.app` 代码签名及公证 ticket、DMG 签名和 Gatekeeper。G5 隔离生产构建的 server/Core ready、教师反馈令牌拒绝与写入重放、模型 host 独立 localhost 调用通过，macOS CI 现在重跑这三项。v0.3.31 三平台签名发布、旧包应用内验签升级和用户数据保持仍待验收。
+- R21 通知中心点击、真实睡眠唤醒与补跑，以及 R23 JEV 实服/受管浏览器/Core Receipt、OpenConnector 安装版 sidecar 仍为部分实现或未验收；Windows/Linux 实机应用内升级、学校设备与账号继续外部待验收。详细操作与证据见 [v0.3.31 验收记录](../acceptance/2026-09-22-v0.3.31-mobile-safe-g5.md)。
+
+## 2026-09-22 Developer ID 签名与公证链路
+
+- Apple Developer ID Application 证书已创建、导入本机钥匙串并导出受限 `.p12`；p12 同时携带 Developer ID G2 中间证书，`security find-identity` 回读有效身份。
+- GitHub Actions 六个 Apple Secret 已配置；发布 workflow 的 macOS 资源签名修复已推送到远端 `783faf6`，对 packaged server/Core 的 Mach-O、dylib、node addon 和 helper app 加入 timestamped hardened-runtime 签名。
+- `npm test`、TypeScript、lint 和 audit 已通过；最终 run `35676436480` 三平台与 manifest 全绿。Apple submission `3e2d7f01-39bd-430f-8260-454d0df6bc28` 返回 `Accepted`，Tauri 完成 stapling，Latest `v0.3.30` 已发布并包含 11 个资产；公开 DMG 的 `codesign` 与 `spctl` 验收通过。
+
+## 2026-09-21 对话输入、手机入口与 Core Runtime 修复补记
+
+- Desktop 提交 `2e36729` 已完成三条反馈的代码收口：流式三点菜单与方形停止键、加号附件菜单、左下主导航手机图标及手机桥接设置定位。
+- Core Runtime 修复已加入缺库 fail-closed、死 admission lease 恢复和桌面 token 边界；安装版 server/Core/projection/kernel 已回读 ready，隔离 memory-write 通过。
+- 解锁后补齐安装版视觉与交互：附件菜单、流式三点菜单、方形停止键、主导航/输入区手机入口均真实操作；iPhone Simulator 经 LAN 完成配对、批准、100 会话/20 提醒回读、撤销与 loopback 恢复。测试会话已删除。
+- 公开 `v0.3.29` 尚未包含本提交；`d62f3cf` 已把版本推进到 `0.3.30` 并推送。发布只剩 Apple Developer ID 证书与公证 credentials：当前 GitHub secrets 和本机钥匙串均没有这些身份，不能发布 ad-hoc 包替代公证验收。
 ## 2026-09-22 L4 风险、未验证项与下一步
 
 - 合并：Core [#166](https://github.com/Intellinfinity/edupi/pull/166) 最终 head `bd39463` 的 `core-quality` 成功，合并为 `7cbb280`；Desktop [#206](https://github.com/Intellinfinity/edupi-desktop/pull/206) 最终 head `35ceb67` 的 `audit`/`rust-audit` 成功，合并为 `4d55f88`。Desktop 仍精确固定已合并的 Core G4 `368bcd8`，不把 G5 主线合并冒充已打包。该批未发布安装包，合并、发布和用户验收是不同状态。

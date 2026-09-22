@@ -61,6 +61,20 @@ if (require.main === module) {
   // The standalone Next.js entrypoint is CommonJS.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("./server.js");
+
+  if (process.env.EDUPI_MOBILE_BRIDGE_ENABLED === "1") {
+    const host = process.env.EDUPI_MOBILE_BRIDGE_HOST;
+    const port = Number(process.env.PORT);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    if (require("node:net").isIP(host) && Number.isInteger(port) && port > 0 && port <= 65_535) {
+      // This listener is bound to the LAN interface, never to the desktop's loopback address.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { createMobileGateway } = require("./mobile-gateway.cjs");
+      const gateway = createMobileGateway({ upstreamPort: port });
+      gateway.on("error", (error) => console.error("Mobile gateway unavailable:", error.code || "listen_failed"));
+      gateway.listen(port, host);
+    }
+  }
 }
 
 module.exports = { resolveEduPiLaunchRoots };

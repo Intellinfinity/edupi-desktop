@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  fetchDesktopApi,
   getDesktopRuntimeStatusNative,
   relaunchAppNative,
   setMobileBridgeEnabledNative,
@@ -22,21 +23,24 @@ export function MobileBridgeSettingsCard() {
     try { setStatus(await getDesktopRuntimeStatusNative()); } catch { setStatus(null); }
   }, []);
 
+  const loadPairings = useCallback(async () => {
+    const response = await fetchDesktopApi("/api/mobile/pairing", { cache: "no-store" });
+    if (!response.ok) throw new Error("手机连接状态暂不可用");
+    setRequests((await response.json() as { pairings?: Pairing[] }).pairings ?? []);
+  }, []);
+
   useEffect(() => { void loadStatus(); }, [loadStatus]);
 
   useEffect(() => {
     if (!status?.mobileBridgeEnabled) return;
-    let disposed = false;
     const poll = async () => {
-      try {
-        const response = await fetch("/api/mobile/pairing", { cache: "no-store" });
-        if (response.ok && !disposed) setRequests((await response.json() as { pairings?: Pairing[] }).pairings ?? []);
-      } catch { /* bridge may be restarting */ }
+      try { await loadPairings(); } catch { /* bridge may be restarting */ }
+      void loadStatus();
     };
     void poll();
     const timer = window.setInterval(() => void poll(), 2_000);
-    return () => { disposed = true; window.clearInterval(timer); };
-  }, [status?.mobileBridgeEnabled]);
+    return () => window.clearInterval(timer);
+  }, [status?.mobileBridgeEnabled, loadPairings, loadStatus]);
 
   const toggle = async () => {
     if (busy || !status) return;
@@ -55,7 +59,7 @@ export function MobileBridgeSettingsCard() {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/mobile/pairing", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const response = await fetchDesktopApi("/api/mobile/pairing", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const result = await response.json() as { code?: string; expiresAt?: string; error?: string };
       if (!response.ok || !result.code) throw new Error(result.error || "配对码生成失败");
       setPairingCode(result.code);
@@ -66,46 +70,53 @@ export function MobileBridgeSettingsCard() {
   };
 
   const approve = async (id: string) => {
+    setBusy(true);
+    setError(null);
     try {
-      await fetch(`/api/mobile/pairing/${encodeURIComponent(id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "approve" }) });
-      setRequests((items) => items.map((item) => item.id === id ? { ...item, status: "approved" } : item));
-    } catch { setError("手机批准失败"); }
+      const response = await fetchDesktopApi(`/api/mobile/pairing/${encodeURIComponent(id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "approve" }) });
+      if (!response.ok) throw new Error("手机批准失败");
+      await loadPairings();
+    } catch { setError("手机批准失败，请重试"); }
+    finally { setBusy(false); }
   };
 
   const revoke = async (id: string) => {
+    setBusy(true);
+    setError(null);
     try {
-      await fetch(`/api/mobile/pairing/${encodeURIComponent(id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "revoke" }) });
-      setRequests((items) => items.filter((item) => item.id !== id));
-    } catch { setError("手机撤销失败"); }
+      const response = await fetchDesktopApi(`/api/mobile/pairing/${encodeURIComponent(id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "revoke" }) });
+      if (!response.ok) throw new Error("手机撤销失败");
+      await loadPairings();
+    } catch { setError("手机撤销失败，请重试"); }
+    finally { setBusy(false); }
   };
 
-  if (!status) return null;
   return (
-    <div className="native-settings-card" style={{ padding: "13px 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)" }}>
+    <div id="mobile-bridge-settings" className="native-settings-card" style={{ padding: "13px 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)" }}>
       <div style={{ fontSize: 12, fontWeight: 700 }}>手机继续对话</div>
-      <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: 11, lineHeight: 1.5 }}>局域网配对后，只能查看 EduPi 对话并继续发送文字。</div>
+      <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: 11, lineHeight: 1.5 }}>仅在可信局域网使用；手机通信未加密。</div>
       <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ color: status.mobileBridgeEnabled ? "var(--accent)" : "var(--text-muted)", fontSize: 12 }}>{status.mobileBridgeEnabled ? "已启用 · 局域网配对" : "未启用"}</span>
-        <button type="button" className="native-button" disabled={busy} onClick={() => void toggle()}>{status.mobileBridgeEnabled ? "关闭手机入口" : "启用手机入口"}</button>
+        <span style={{ color: status?.mobileUrl ? "var(--accent)" : "var(--text-muted)", fontSize: 12 }}>{status ? status.mobileBridgeEnabled ? status.mobileUrl ? "已启用 · 局域网配对" : "手机入口未就绪" : "未启用" : "读取中"}</span>
+        <button type="button" className="native-button" disabled={busy || !status} onClick={() => void toggle()}>{status?.mobileBridgeEnabled ? "关闭手机入口" : "启用手机入口"}</button>
       </div>
-      {status.mobileBridgeEnabled ? (
+      {status?.mobileBridgeEnabled ? (
         <>
           {status.mobileUrl ? <div style={{ marginTop: 9, fontSize: 12, wordBreak: "break-all" }}><span style={{ color: "var(--text-muted)" }}>手机打开：</span>{status.mobileUrl}</div> : null}
           <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-            <button type="button" className="native-button native-button-primary" disabled={busy} onClick={() => void createPairing()}>生成配对码</button>
+            <button type="button" className="native-button native-button-primary" disabled={busy || !status.mobileUrl} onClick={() => void createPairing()}>生成配对码</button>
             {pairingCode ? <code style={{ padding: "5px 8px", borderRadius: 5, background: "var(--bg-hover)", letterSpacing: 2, fontWeight: 700 }}>{pairingCode}</code> : null}
             {pairingExpiresAt ? <span style={{ color: "var(--text-muted)", fontSize: 11 }}>10 分钟内有效</span> : null}
           </div>
           {requests.filter((item) => item.status === "requested").map((item) => (
             <div key={item.id} style={{ marginTop: 9, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
               <span>{item.deviceLabel} 请求连接</span>
-              <button type="button" className="native-button native-button-primary" onClick={() => void approve(item.id)}>批准</button>
+              <button type="button" className="native-button native-button-primary" disabled={busy} onClick={() => void approve(item.id)}>批准</button>
             </div>
           ))}
           {requests.filter((item) => item.status === "active" || item.status === "approved").map((item) => (
             <div key={item.id} style={{ marginTop: 9, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
               <span>{item.deviceLabel} · 已连接</span>
-              <button type="button" className="native-button" onClick={() => void revoke(item.id)}>撤销</button>
+              <button type="button" className="native-button" disabled={busy} onClick={() => void revoke(item.id)}>撤销</button>
             </div>
           ))}
         </>

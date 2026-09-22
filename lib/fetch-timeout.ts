@@ -37,6 +37,31 @@ export async function fetchWithDeadline(
   }
 }
 
+/** The deadline includes reading the response body, which can stall after headers arrive. */
+export async function fetchJsonWithDeadline<T>(
+  url: string,
+  timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+  init: RequestInit = {},
+): Promise<{ response: Response; body: T }> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  try {
+    const request = async () => {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      return { response, body: await response.json() as T };
+    };
+    return await Promise.race([request(), deadline]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 /**
  * Retry gets a longer deadline than the first attempt: reaching it at all
  * means the server was busy, and the most likely reason is a cold start whose

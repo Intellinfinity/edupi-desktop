@@ -8,9 +8,10 @@ import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { createJiti } from "jiti";
 import { copyRuntimeModelHostFiles, RUNTIME_MODEL_HOST_FILES } from "./runtime-model-host-files.mjs";
+import { piPackageDirNames } from "./pi-packages.mjs";
 
 const desktopRoot = path.resolve(import.meta.dirname, "..");
-const stagedServer = path.join(desktopRoot, "src-tauri/resources/server");
+const stagedServer = path.join(process.env.EDUPI_STAGED_RESOURCES || path.join(desktopRoot, "src-tauri/resources"), "server");
 test("model host files copy as regular files and reject symlinked sources", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-host-files-"));
   try {
@@ -25,7 +26,15 @@ test("model host files copy as regular files and reject symlinked sources", asyn
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test("copied host SDK runs a real isolated localhost model without Core node_modules or symlinks", { skip: !process.env.EDUPI_CORE_ROOT || !fs.existsSync(path.join(stagedServer, "node_modules")) }, async () => {
+test("copied host SDK runs a real isolated localhost model without Core node_modules or symlinks", { skip: !process.env.EDUPI_CORE_ROOT || !process.env.EDUPI_STAGED_RESOURCES || !fs.existsSync(path.join(stagedServer, "node_modules")) }, async () => {
+  for (const name of await piPackageDirNames()) {
+    assert.equal(fs.statSync(path.join(stagedServer, "node_modules/@earendil-works", name, "package.json")).isFile(), true, `${name} package metadata missing`);
+  }
+  for (const name of ["@earendil-works/pi-coding-agent/node_modules/proper-lockfile/node_modules/retry", "retry"]) {
+    const source = JSON.parse(fs.readFileSync(path.join(desktopRoot, "node_modules", name, "package.json"), "utf8"));
+    const bundled = JSON.parse(fs.readFileSync(path.join(stagedServer, "node_modules", name, "package.json"), "utf8"));
+    assert.equal(bundled.version, source.version, `${name} resolved to the wrong version`);
+  }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-host-copy-live-"));
   const priorCwd = process.cwd();
   let calls = 0;

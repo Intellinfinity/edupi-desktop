@@ -1,14 +1,16 @@
 import { stat } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { isAbsolute, relative, sep } from "node:path";
 import { EDUPI_ROOT } from "./edupi-runtime";
 import { listAllSessions, resolveSessionPath, buildSessionContext } from "./session-reader";
 import { openSessionManagerForRead } from "./session-manager-access";
 
 function isEduPiCwd(cwd: string): boolean {
-  const root = resolve(EDUPI_ROOT);
-  const candidate = resolve(cwd);
-  const remainder = relative(root, candidate);
-  return remainder === "" || (!isAbsolute(remainder) && remainder !== ".." && !remainder.startsWith(`..${remainder.includes("\\") ? "\\" : "/"}`));
+  if (!isAbsolute(cwd)) return false;
+  let candidate: string;
+  try { candidate = realpathSync(cwd); } catch { return false; }
+  const remainder = relative(EDUPI_ROOT, candidate);
+  return remainder === "" || (!isAbsolute(remainder) && remainder !== ".." && !remainder.startsWith(`..${sep}`));
 }
 
 function textContent(content: unknown): string {

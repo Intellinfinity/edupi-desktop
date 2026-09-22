@@ -27,11 +27,27 @@ jobs:
       - name: Check out EduPi Desktop
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Require Apple signing and notarization credentials
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$APPLE_CERTIFICATE"
+          test -n "$APPLE_CERTIFICATE_PASSWORD"
+          test -n "$APPLE_SIGNING_IDENTITY"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+
       - name: Create one draft release
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
+          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
         run: |
           set -euo pipefail
           version="$(node -p "require('./src-tauri/pi-agent-desktop-package.json').version")"
@@ -109,27 +125,18 @@ jobs:
           append_env() {
             printf '%s\n' "$1" >> "$GITHUB_ENV"
           }
-          if [ -n "$CODE_SIGN_CERTIFICATE" ] || [ -n "$CODE_SIGN_CERTIFICATE_PASSWORD" ]; then
-            test -n "$CODE_SIGN_CERTIFICATE"
-            test -n "$CODE_SIGN_CERTIFICATE_PASSWORD"
-            append_env "APPLE_CERTIFICATE=$CODE_SIGN_CERTIFICATE"
-            append_env "APPLE_CERTIFICATE_PASSWORD=$CODE_SIGN_CERTIFICATE_PASSWORD"
-            if [ -n "$CODE_SIGN_IDENTITY" ]; then
-              append_env "APPLE_SIGNING_IDENTITY=$CODE_SIGN_IDENTITY"
-            fi
-          else
-            append_env "APPLE_SIGNING_IDENTITY=-"
-            echo "::warning::macOS is ad-hoc signed; Accessibility and Screen Recording grants may need to be renewed after an update."
-          fi
-          if [ -n "$NOTARY_APPLE_ID" ] || [ -n "$NOTARY_PASSWORD" ] || [ -n "$NOTARY_TEAM_ID" ]; then
-            test -n "$CODE_SIGN_CERTIFICATE"
-            test -n "$NOTARY_APPLE_ID"
-            test -n "$NOTARY_PASSWORD"
-            test -n "$NOTARY_TEAM_ID"
-            append_env "APPLE_ID=$NOTARY_APPLE_ID"
-            append_env "APPLE_PASSWORD=$NOTARY_PASSWORD"
-            append_env "APPLE_TEAM_ID=$NOTARY_TEAM_ID"
-          fi
+          test -n "$CODE_SIGN_CERTIFICATE"
+          test -n "$CODE_SIGN_CERTIFICATE_PASSWORD"
+          test -n "$CODE_SIGN_IDENTITY"
+          test -n "$NOTARY_APPLE_ID"
+          test -n "$NOTARY_PASSWORD"
+          test -n "$NOTARY_TEAM_ID"
+          append_env "APPLE_CERTIFICATE=$CODE_SIGN_CERTIFICATE"
+          append_env "APPLE_CERTIFICATE_PASSWORD=$CODE_SIGN_CERTIFICATE_PASSWORD"
+          append_env "APPLE_SIGNING_IDENTITY=$CODE_SIGN_IDENTITY"
+          append_env "APPLE_ID=$NOTARY_APPLE_ID"
+          append_env "APPLE_PASSWORD=$NOTARY_PASSWORD"
+          append_env "APPLE_TEAM_ID=$NOTARY_TEAM_ID"
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -155,7 +162,7 @@ jobs:
       - name: Check out the pinned EduPi Core runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: PIGU-PPPgu/edupi
+          repository: Intellinfinity/edupi
           ref: ${{ steps.core.outputs.commit }}
           path: .edupi-core-runtime
           # Use the repository-scoped read-only deploy key for the private Core
@@ -234,6 +241,43 @@ jobs:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run desktop:prepare
 
+      - name: Verify staged desktop runtime
+        if: runner.os == 'macOS'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
+        run: |
+          npm run test:staged-desktop-runtime
+          npm run test:staged-feedback-runtime
+          node --test scripts/runtime-model-host-files.test.mjs
+
+      - name: Prepare macOS resource signing keychain
+        if: runner.os == 'macOS'
+        env:
+          CODE_SIGN_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          CODE_SIGN_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/edupi-resource-signing.keychain-db"
+          p12="$RUNNER_TEMP/edupi-resource-signing.p12"
+          keychain_password="$(openssl rand -hex 24)"
+          printf 'EDUPI_RESOURCE_KEYCHAIN_PATH=%s\n' "$keychain" >> "$GITHUB_ENV"
+          printf '%s' "$CODE_SIGN_CERTIFICATE" | base64 --decode > "$p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -k "$keychain" -P "$CODE_SIGN_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          security list-keychain -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+
+      - name: Sign bundled macOS native resources
+        if: runner.os == 'macOS'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          EDUPI_RESOURCE_KEYCHAIN_PATH: ${{ env.EDUPI_RESOURCE_KEYCHAIN_PATH }}
+        run: node scripts/sign-macos-resources.mjs
+
       - name: Test desktop shell
         if: runner.os == 'Windows' || runner.os == 'Linux'
         run: cargo test --release --manifest-path src-tauri/Cargo.toml --lib --target ${{ matrix.target }}
@@ -247,7 +291,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NO_STRIP: ${{ runner.os == 'Linux' && 'true' || '' }}
         with:
-          owner: PIGU-PPPgu
+          owner: Intellinfinity
           repo: edupi-desktop
           releaseId: ${{ needs.release.outputs.release_id }}
           tagName: ${{ needs.release.outputs.tag }}
@@ -256,6 +300,31 @@ jobs:
           includeUpdaterJson: false
           tauriScript: npx tauri
           args: --verbose --target ${{ matrix.target }} --bundles ${{ runner.os == 'macOS' && 'app,dmg' || runner.os == 'Windows' && 'nsis' || 'deb,appimage' }}
+
+      - name: Verify notarized macOS application and disk image
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app"
+          shopt -s nullglob
+          dmgs=(src-tauri/target/${{ matrix.target }}/release/bundle/dmg/EduPi_*.dmg)
+          test -d "$app_path"
+          test "${#dmgs[@]}" -eq 1
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          xcrun stapler validate "$app_path"
+          codesign --verify --verbose=2 "${dmgs[0]}"
+          spctl --assess --type execute --verbose=2 "$app_path"
+
+      - name: Clean up macOS resource signing keychain
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          set +e
+          if [ -n "${EDUPI_RESOURCE_KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$EDUPI_RESOURCE_KEYCHAIN_PATH"
+          fi
+          rm -f "$RUNNER_TEMP/edupi-resource-signing.p12"
 
   manifest:
     needs: [release, build]
@@ -267,7 +336,7 @@ jobs:
       - name: Upload component manifest to the release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
+          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
           FEED_BRANCH: updater-feed
           RELEASE_ID: ${{ needs.release.outputs.release_id }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}

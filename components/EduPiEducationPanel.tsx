@@ -80,6 +80,7 @@ type Props = {
   onOpenAdmin: () => void;
   onOpenProactive: () => void;
   onOpenGuide: () => void;
+  onOpenPhoneControl: () => void;
   onPrepareAgentPrompt: (prompt: string) => void;
   onReplaceAgentPrompt: (prompt: string) => void;
   quickEntryOpen: boolean;
@@ -123,7 +124,7 @@ function hasDroppedFiles(event: ReactDragEvent): boolean {
   return Array.from(event.dataTransfer.types).includes("Files");
 }
 
-export function EduPiEducationPanel({ initialModule = "home", refreshKey, activeAgentSessionId, onActivateAgentSession, chatPanel, reminderPanel, chatSidebar, renderFilePreview, onOpenAdmin, onOpenProactive, onOpenGuide, onPrepareAgentPrompt, onReplaceAgentPrompt, quickEntryOpen, onCloseQuickEntry, onFocusAgentChat }: Props) {
+export function EduPiEducationPanel({ initialModule = "home", refreshKey, activeAgentSessionId, onActivateAgentSession, chatPanel, reminderPanel, chatSidebar, renderFilePreview, onOpenAdmin, onOpenProactive, onOpenGuide, onOpenPhoneControl, onPrepareAgentPrompt, onReplaceAgentPrompt, quickEntryOpen, onCloseQuickEntry, onFocusAgentChat }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const desktopChrome = useDesktopChrome();
@@ -1155,7 +1156,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     >
       {desktopChrome.isDesktop ? <div className="edupi-window-drag-region" {...desktopChrome.dragRegionProps}><WindowControls /></div> : null}
       {educationFileDragOver ? <div className="edupi-global-material-drop" role="status" aria-live="polite"><strong>放入 EduPi</strong><span>松开后识别材料、日程与课表</span></div> : null}
-      <EduPiNavigationRail activeView={activeView} pendingReviewCount={pendingCount + c1PendingCount + factPendingCount + teacherContextPendingCount} runningAgentCount={runningAgentCount} memoryCount={education.continuity.memories.filter((memory) => memory.state === "active" && isUserFacingMemory(memory)).length} workspaceLabel={context?.school || context?.name || "教师工作区"} collapsed={navigationRail.collapsed} onSelect={selectView} onOpenAdmin={onOpenAdmin} onOpenProactive={onOpenProactive} onOpenGuide={onOpenGuide} onCollapse={navigationRail.toggle} />
+      <EduPiNavigationRail activeView={activeView} pendingReviewCount={pendingCount + c1PendingCount + factPendingCount + teacherContextPendingCount} runningAgentCount={runningAgentCount} memoryCount={education.continuity.memories.filter((memory) => memory.state === "active" && isUserFacingMemory(memory)).length} workspaceLabel={context?.school || context?.name || "教师工作区"} collapsed={navigationRail.collapsed} onSelect={selectView} onOpenAdmin={onOpenAdmin} onOpenProactive={onOpenProactive} onOpenGuide={onOpenGuide} onOpenPhoneControl={onOpenPhoneControl} onCollapse={navigationRail.toggle} />
       <div className="edupi-teacher-app">
         <div className={`edupi-teacher-body${activeView === "chat" ? " is-chat" : ""}${showingReminders ? " is-reminders" : ""}${bodyControlsVisible ? " has-body-controls" : ""}${detailSurfaceOpen ? " has-detail-surface" : ""}${objectSiderAvailable ? " has-object-sider" : ""}${objectSiderAvailable && objectSider.collapsed ? " is-object-sider-collapsed" : ""}${inspectorAvailable && inspectorOpen ? " has-inspector" : ""}`} style={bodyControlStyle}>
           {bodyControlsVisible ? <div className="edupi-teacher-body__controls">{loadError ? <button className="edupi-teacher-body__icon-button" type="button" onClick={retryLoadWorkspace} aria-label="重试读取工作区" title={`重试读取工作区：${loadError}`}><RetryWorkspaceIcon /></button> : null}{inspectorAvailable ? <button className={`edupi-teacher-body__icon-button${inspectorOpen ? " is-open" : ""}`} type="button" onClick={toggleInspector} aria-label={inspectorOpen ? "收起检查" : "打开检查"} title={inspectorOpen ? "收起检查" : "打开检查"} aria-pressed={inspectorOpen}><InspectorIcon /></button> : null}</div> : null}

@@ -15,16 +15,21 @@ const nodeBinary = path.join(resources, "Pi Agent Server.app/Contents/MacOS/node
 const dataRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "edupi-staged-feedback-")));
 const home = path.join(dataRoot, ".edupi");
 for (const directory of [path.join(home, "memory"), path.join(home, "output"), path.join(home, "locks")]) fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+Object.assign(process.env, { EDUPI_PROJECT_ROOT: dataRoot, EDUPI_HOME: home, EDUPI_MEMORY_DIR: path.join(home, "memory"), EDUPI_OUTPUT_DIR: path.join(home, "output"), EDUPI_LOCK_DIR: path.join(home, "locks") });
 
 const admissionModule = await import(path.join(coreRoot, "scripts/core_runtime_writer_admission.mjs"));
 const rootModule = await import(path.join(coreRoot, "scripts/core_runtime_root.mjs"));
 const planningModule = await import(path.join(coreRoot, "scripts/ambient_planning_store.mjs"));
 const engine = await import(path.join(coreRoot, "scripts/ambient_planning_engine.mjs"));
+const { buildRhythmPlan } = await import(path.join(coreRoot, "scripts/rhythm_planner.mjs"));
+const { syncWorkCandidates, loadTeacherReviewState } = await import(path.join(coreRoot, "scripts/teacher_review_store.mjs"));
+const { resolveTeacherFeedbackTargetFromStates } = await import(path.join(coreRoot, "scripts/teacher_feedback_target.mjs"));
 const prepared = rootModule.prepareCoreRuntimeRoot(dataRoot);
 const admission = await admissionModule.acquireCoreRuntimeWriterAdmission({ root: prepared, kind: "legacy_staged_feedback_seed" });
+let workTargetId;
 try {
   const planning = planningModule.createAmbientPlanningStore({ root: prepared });
-  const now = "2026-09-22T08:00:00.000Z";
+  const now = new Date().toISOString();
   planning.transact((state) => engine.applyPlanningGoalCommand(state, {
     action: "create",
     goal_id: "goal-staged-feedback",
@@ -35,7 +40,7 @@ try {
       text: "验证教师反馈通道",
       scope: { class_id: "class-7b", subject: "math" },
       starts_at: now,
-      ends_at: "2026-09-29T08:00:00.000Z",
+      ends_at: new Date(Date.parse(now) + 7 * 86_400_000).toISOString(),
       success_condition: "反馈可回读",
       allowed_actions: ["update"],
       budget: { max_calls: 4 },
@@ -43,6 +48,17 @@ try {
       escalate_hours: 2,
     },
   }));
+  const nextMonday = new Date();
+  nextMonday.setUTCDate(nextMonday.getUTCDate() + ((8 - nextMonday.getUTCDay()) % 7 || 7));
+  const lessonDate = nextMonday.toISOString().slice(0, 10);
+  const slot = { id: "slot-staged-feedback", day_of_week: 1, period: 2, subject: "math", class_name: "7B", class_id: "class-7b", kind: "class" };
+  fs.writeFileSync(path.join(home, "memory", "timetable.json"), `${JSON.stringify({ slots: [slot] })}\n`);
+  fs.writeFileSync(path.join(home, "memory", "semester.json"), `${JSON.stringify({ start_date: lessonDate, end_date: lessonDate })}\n`);
+  const task = buildRhythmPlan({ semesterStart: lessonDate, semesterEnd: lessonDate, timetableSlots: [slot] }).tasks[0];
+  assert.ok(task, "a verified timetable task is required");
+  syncWorkCandidates([task], { cycleToken: `cycle:${lessonDate}`, observedAt: now, authoritativeCandidateIds: [task.task_id] });
+  workTargetId = task.task_id;
+  assert.equal(resolveTeacherFeedbackTargetFromStates({ target: { kind: "work_candidate", target_id: workTargetId }, teacherReviewState: loadTeacherReviewState(), timetableState: { slots: [slot] }, deletionState: { records: [] } }).domain, "teaching_preparation");
 } finally {
   await admission.release();
 }
@@ -111,11 +127,13 @@ try {
   assert.equal((await fetch(`${baseUrl}/api/edupi/teacher-feedback`, { method: "POST", headers: { "content-type": "application/json" }, body: "null" })).status, 403);
   const bootstrap = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "bootstrap" }) });
   assert.equal(bootstrap.response.status, 200, JSON.stringify(bootstrap.body));
-  const targetRead = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "target_read", target: { kind: "goal", target_id: "goal-staged-feedback" } }) });
-  if (!targetRead.response.ok) console.error("target_read", JSON.stringify(targetRead.body));
+  const targetRead = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "target_read", target: { kind: "work_candidate", target_id: workTargetId } }) });
   assert.equal(targetRead.response.status, 200, JSON.stringify(targetRead.body));
+  assert.equal(targetRead.body.ok, true, JSON.stringify(targetRead.body));
   const target = targetRead.body.result;
   assert.ok(Array.isArray(target.evidence_ids) && target.evidence_ids.length > 0);
+  assert.equal(target.domain, "teaching_preparation");
+  assert.deepEqual(target.scope, { class_id: "class-7b", subject: "math" });
   const recordBody = JSON.stringify({ action: "record", record: {
       command_id: "staged-feedback-record-1",
       session_id: "staged-teacher-trial",
@@ -140,6 +158,12 @@ try {
   if (!record.response.ok) console.error(logs.slice(-6000));
   assert.equal(record.response.status, 200, JSON.stringify(record.body));
   assert.equal(record.body.ok, true);
+  const wrongScope = JSON.parse(recordBody);
+  wrongScope.record.command_id = "staged-feedback-wrong-class";
+  wrongScope.record.scope.class_id = "class-8a";
+  const denied = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(wrongScope) });
+  assert.equal(denied.body.ok, false);
+  assert.equal(denied.body.errorCode, "teacher_feedback_target_stale");
   const replay = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: recordBody });
   assert.equal(replay.response.status, 200, JSON.stringify(replay.body));
   assert.equal(replay.body.result.replayed, true);
@@ -149,7 +173,7 @@ try {
   assert.equal(read.body.result.summary.real_teacher_current, 0);
   assert.equal(read.body.result.summary.synthetic_excluded, 1);
   assert.equal(read.body.result.summary.time_saved_minutes, 0);
-  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, bound_replay: true, feedback_recorded: true, feedback_readback: true, synthetic_excluded: 1, external_send: false }, null, 2));
+  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, verified_scope: true, wrong_scope_rejected: true, bound_replay: true, feedback_recorded: true, feedback_readback: true, synthetic_excluded: 1, external_send: false }, null, 2));
 } finally {
   await stop();
   fs.rmSync(dataRoot, { recursive: true, force: true });

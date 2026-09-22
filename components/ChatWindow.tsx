@@ -453,6 +453,39 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   const cwd = session?.cwd ?? newSessionCwd;
   const projectImportBusyRef = useRef(false);
 
+  const attachProjectFiles = useCallback((projectFiles: File[]) => {
+    if (projectFiles.length === 0) return;
+    if (!cwd) {
+      addNotice({ type: "error", message: t("chat.dropNeedsProject") });
+      return;
+    }
+    if (projectImportBusyRef.current) return;
+    projectImportBusyRef.current = true;
+    void (async () => {
+      try {
+        const result = await importDroppedProjectFiles(cwd, projectFiles);
+        if (result.mentionText) {
+          chatInputRef?.current?.insertText(result.mentionText);
+          chatInputRef?.current?.focus();
+        }
+        if (result.uploaded.length > 0) onProjectFilesImported?.();
+        const failureParts = [
+          ...result.errors.map((item) => `${item.name}: ${item.error}`),
+          ...result.rejected.map((item) => `${item.name}: ${item.reason}`),
+        ];
+        if (failureParts.length > 0) {
+          addNotice({ type: result.mentionText ? "warning" : "error", message: t("chat.dropProjectPartialFailure", { detail: failureParts.slice(0, 3).join("; ") }) });
+        } else if (result.uploaded.length > 0 || result.skipped.length > 0) {
+          addNotice({ type: "success", message: t("chat.dropProjectSuccess", { count: result.uploaded.length + result.skipped.length }) });
+        }
+      } catch (error) {
+        addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
+      } finally {
+        projectImportBusyRef.current = false;
+      }
+    })();
+  }, [addNotice, chatInputRef, cwd, onProjectFilesImported, t]);
+
   const onDrop = useCallback((files: File[]) => {
     const { images, projectFiles } = partitionChatDroppedFiles(files);
 
@@ -463,50 +496,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
 
     // Documents/other files are copied into the project root and @mentioned so
     // the agent can read them with its normal tools — not inlined into the prompt.
-    if (projectFiles.length === 0) return;
-    if (!cwd) {
-      addNotice({ type: "error", message: t("chat.dropNeedsProject") });
-      return;
-    }
-    if (projectImportBusyRef.current) return;
-    projectImportBusyRef.current = true;
-
-    void (async () => {
-      try {
-        const result = await importDroppedProjectFiles(cwd, projectFiles);
-        if (result.mentionText) {
-          chatInputRef?.current?.insertText(result.mentionText);
-          chatInputRef?.current?.focus();
-        }
-        if (result.uploaded.length > 0) onProjectFilesImported?.();
-
-        const failureParts = [
-          ...result.errors.map((item) => `${item.name}: ${item.error}`),
-          ...result.rejected.map((item) => `${item.name}: ${item.reason}`),
-        ];
-        if (failureParts.length > 0) {
-          addNotice({
-            type: result.mentionText ? "warning" : "error",
-            message: t("chat.dropProjectPartialFailure", { detail: failureParts.slice(0, 3).join("; ") }),
-          });
-        } else if (result.uploaded.length > 0 || result.skipped.length > 0) {
-          addNotice({
-            type: "success",
-            message: t("chat.dropProjectSuccess", {
-              count: result.uploaded.length + result.skipped.length,
-            }),
-          });
-        }
-      } catch (error) {
-        addNotice({
-          type: "error",
-          message: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        projectImportBusyRef.current = false;
-      }
-    })();
-  }, [addNotice, chatInputRef, cwd, onProjectFilesImported, sessionBusy, t]);
+    attachProjectFiles(projectFiles);
+  }, [attachProjectFiles, chatInputRef, sessionBusy]);
 
   const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop);
 
@@ -874,6 +865,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       soundEnabled={soundEnabled}
       onSoundToggle={onSoundToggle}
       onAudioUnlock={unlockAudio}
+      onAttachFiles={attachProjectFiles}
       draftKey={session?.id ?? reminderDraftKey ?? (newSessionCwd ? `new:${newSessionCwd}` : undefined)}
       cwd={session?.cwd ?? newSessionCwd}
       autoFocus={isNew}

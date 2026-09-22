@@ -116,25 +116,18 @@ async function assembleServer() {
   const tracedDependencies = await copySymlinkedStandaloneDependencies(standaloneDir, serverResourcesDir);
   if (tracedDependencies > 0) console.log(`Expanded ${tracedDependencies} traced dependency files from a standalone node_modules symlink`);
 
-  // Next's file tracer follows normal imports but intentionally omits files
-  // reached through dynamic provider/export/plugin paths. These packages are
-  // serverExternalPackages, so preserve their complete runtime `dist/` trees.
+  // Next's trace omits dependencies reached by the external Pi packages at
+  // runtime. Keep their package exports and full dependency closure together.
+  const piPackages = new Set();
   for (const packageName of await piPackageDirNames()) {
-    const source = join(rootDir, "node_modules", "@earendil-works", packageName, "dist");
-    const destination = join(
-      serverResourcesDir,
-      "node_modules",
-      "@earendil-works",
-      packageName,
-      "dist",
-    );
-    await cp(source, destination, { recursive: true, force: true });
+    await copyPackageClosure(rootDir, serverResourcesDir, `@earendil-works/${packageName}`, piPackages);
   }
 
   await copyFile(
     join(rootDir, "desktop", "server-launcher.cjs"),
     join(serverResourcesDir, "desktop-server.cjs"),
   );
+  await copyFile(join(rootDir, "desktop", "mobile-gateway.cjs"), join(serverResourcesDir, "mobile-gateway.cjs"));
   await copyFile(join(rootDir, "desktop", "preparation-worker.mjs"), join(serverResourcesDir, "preparation-worker.mjs"));
   await copyFile(join(rootDir, "desktop", "core-runtime-host.mjs"), join(serverResourcesDir, "core-runtime-host.mjs"));
   await copyFile(join(rootDir, "desktop", "model-output-repair.mjs"), join(serverResourcesDir, "model-output-repair.mjs"));

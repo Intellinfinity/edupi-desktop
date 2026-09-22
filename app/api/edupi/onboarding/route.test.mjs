@@ -15,39 +15,55 @@ const dataRoot = process.env.EDUPI_DATA_ROOT;
 
 test("manual save refuses a real newer capture before it can accept the other values", { skip: !coreRoot }, async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "edupi-context-race-"));
-  const keys = ["EDUPI_PROJECT_ROOT", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR"];
+  const keys = ["EDUPI_PROJECT_ROOT", "EDUPI_DATA_ROOT", "EDUPI_DATA_ALLOWED_ROOT", "EDUPI_HOME", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR"];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   process.env.EDUPI_PROJECT_ROOT = root;
-  process.env.EDUPI_MEMORY_DIR = path.join(root, "memory");
-  process.env.EDUPI_OUTPUT_DIR = path.join(root, "output");
-  process.env.EDUPI_LOCK_DIR = path.join(root, "locks");
-  await mkdir(process.env.EDUPI_OUTPUT_DIR);
-  await mkdir(process.env.EDUPI_MEMORY_DIR);
+  process.env.EDUPI_DATA_ROOT = root;
+  process.env.EDUPI_DATA_ALLOWED_ROOT = path.dirname(root);
+  process.env.EDUPI_HOME = path.join(root, ".edupi");
+  process.env.EDUPI_MEMORY_DIR = path.join(root, ".edupi", "memory");
+  process.env.EDUPI_OUTPUT_DIR = path.join(root, ".edupi", "output");
+  process.env.EDUPI_LOCK_DIR = path.join(root, ".edupi", "locks");
+  await mkdir(process.env.EDUPI_OUTPUT_DIR, { recursive: true });
+  await mkdir(process.env.EDUPI_MEMORY_DIR, { recursive: true });
+  await mkdir(process.env.EDUPI_LOCK_DIR, { recursive: true });
   try {
     const store = await import(pathToFileURL(path.join(coreRoot, "scripts/teacher_review_store.mjs")).href);
+    const runtimeRoot = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_root.mjs")).href);
+    const admission = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_writer_admission.mjs")).href);
+    const prepared = runtimeRoot.prepareCoreRuntimeRoot(root);
+    assert.equal(prepared.ok, true, JSON.stringify(prepared));
     let latest;
     let reviews = 0;
     let race = true;
     let sequence = 0;
+    let captureFailure;
     const source = await readFile(new URL("./route.ts", import.meta.url), "utf8");
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const routeModule = { exports: {} };
     const dependencies = {
       "next/server": { NextResponse: { json: (body, init) => new Response(JSON.stringify(body), init) } },
       "@/lib/edupi-core-snapshot": { resolveEduPiBridgeRoots: () => ({}) },
+      "@/lib/edupi-teacher-context-review": { TeacherContextReviewError: class extends Error {} },
       "@/lib/request-security": { isApiRequestAllowed: () => true, hasJsonContentType: () => true },
       "@/lib/bounded-form-data": { parseJsonWithinLimit: request => request.json() },
       "@/lib/edupi-context-editor-model": { normalizeTeacherContextValues: values => values },
       "@/lib/edupi-core-process-client": { runCoreProcess: async ({ request }) => {
-        const a = store.captureTeacherContextProposal({ source_message_id: `manual-a-${sequence++}`, source_text: "手动填写", values: request.values });
-        latest = race ? store.captureTeacherContextProposal({ source_message_id: `chat-b-${sequence++}`, source_text: "对话更新", values: { name: "另一份资料" } }) : a;
-        return { ok: true, context_id: a.context_id, revision: a.context.teacher_review.revision, proposed_values: a.context.proposed_values };
+        const lease = await admission.acquireCoreRuntimeWriterAdmission({ root: prepared, kind: "legacy_onboarding_test", busyTimeoutMs: 250 });
+        try {
+          const a = store.captureTeacherContextProposal({ source_message_id: `manual-a-${sequence++}`, source_text: "手动填写", values: request.values });
+          latest = race ? store.captureTeacherContextProposal({ source_message_id: `chat-b-${sequence++}`, source_text: "对话更新", values: { name: "另一份资料" } }) : a;
+          return { ok: true, context_id: a.context_id, revision: a.context.teacher_review.revision, proposed_values: a.context.proposed_values };
+        } catch (error) {
+          captureFailure = error instanceof Error ? error.message : String(error);
+          throw error;
+        } finally { await lease.release(); }
       } },
       "@/lib/edupi-education-server": { readEducationContract: async () => ({ teacherContextCandidates: [{ contextId: latest.context_id, revision: latest.context.teacher_review.revision, proposedValues: latest.context.proposed_values, snapshotId: "test-snapshot" }] }), reviewTeacherContextCandidate: async () => { reviews++; return { receipt: {}, data: {} }; } },
     };
     new Function("require", "module", "exports", output)(name => dependencies[name] || {}, routeModule, routeModule.exports);
     const request = () => new Request("http://localhost/api/edupi/onboarding", { method: "POST", body: JSON.stringify({ name: "本次填写" }) });
-    assert.equal((await routeModule.exports.POST(request())).status, 409);
+    assert.equal((await routeModule.exports.POST(request())).status, 409, captureFailure);
     assert.equal(reviews, 0);
     race = false;
     assert.equal((await routeModule.exports.POST(request())).status, 200);

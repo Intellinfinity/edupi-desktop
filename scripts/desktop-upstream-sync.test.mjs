@@ -239,7 +239,7 @@ test("current release destinations pass the standalone sentinel", async () => {
 test("release destination sentinel rejects a different action owner", async () => {
   const files = await readReleaseDestinationFiles(root);
   files[".github/workflows/release.yml"] = files[".github/workflows/release.yml"].replace(
-    "owner: PIGU-PPPgu",
+    "owner: Intellinfinity",
     "owner: abcwyc",
   );
 

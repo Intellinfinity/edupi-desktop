@@ -5,8 +5,8 @@ import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { desktopTargetTriple } from "./desktop-platform.mjs";
+import { copyDesktopStandaloneTree, verifyDesktopServerRuntime } from "./desktop-standalone-tree.mjs";
 import { buildPackagedCoreBundle } from "./packaged-core-bundle.mjs";
-import { isDesktopServerInput } from "./desktop-package-inputs.mjs";
 import { piPackageDirNames } from "./pi-packages.mjs";
 import { removeUnusedMuslSharp } from "./packaged-sharp.mjs";
 import { copyPackageClosure, copyPreparationDependencies } from "./preparation-runtime.mjs";
@@ -108,11 +108,7 @@ async function assembleServer() {
   await access(join(standaloneDir, "server.js"), constants.R_OK);
   await rm(serverResourcesDir, { recursive: true, force: true });
   await mkdir(dirname(serverResourcesDir), { recursive: true });
-  const standaloneNodeModules = join(standaloneDir, "node_modules");
-  await cp(standaloneDir, serverResourcesDir, {
-    recursive: true,
-    filter: source => source !== standaloneNodeModules && isDesktopServerInput(standaloneDir, source),
-  });
+  await copyDesktopStandaloneTree({ standaloneRoot: standaloneDir, destinationRoot: serverResourcesDir });
   const tracedDependencies = await copySymlinkedStandaloneDependencies(standaloneDir, serverResourcesDir);
   if (tracedDependencies > 0) console.log(`Expanded ${tracedDependencies} traced dependency files from a standalone node_modules symlink`);
 
@@ -329,6 +325,7 @@ if (overlong.length > 0) {
 const { binaryPath: nodeBinary, triple } = await bundleNodeRuntime();
 const coreBundle = await buildPackagedCoreBundle({ coreRoot: process.env.EDUPI_CORE_ROOT, desktopRoot: rootDir });
 await copyRuntimeModelHostFiles(coreBundle.sourceRoot, serverResourcesDir);
+await verifyDesktopServerRuntime(serverResourcesDir);
 
 console.log(`Desktop server staged at ${serverResourcesDir}`);
 console.log(`Node runtime staged at ${nodeBinary} (${triple})`);

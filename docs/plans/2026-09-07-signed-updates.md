@@ -1,14 +1,15 @@
 # 自动下载安装
 
-## 2026-09-23 v0.3.31 发布完成与 v0.3.32 DMG 收口（发布通过）
+## 2026-09-23 v0.3.31-v0.3.32 启动回滚与 v0.3.33 修复
 
 - 受限 Core 只读凭据恢复后，正式 run `35757858707` 在 merge `bef61195` 上完成 macOS、Linux、Windows 和 manifest；v0.3.31 已公开为非草稿 Release，11 项资产、7 个签名 updater 平台键与 canonical Raw feed 完整。DMG、macOS updater 和 `latest.json` 的 Release digest 分别为 `fa4ccd48…`、`da2f3e79…`、`6e32a370…`。
 - 独立复核发现 v0.3.31 只对 `.app` 完成 Apple 公证：解包应用为 `accepted / Notarized Developer ID`，公开 DMG 没有 stapled ticket，`spctl --type open` 为 `Unnotarized Developer ID`。应用内 updater tar 可继续由 Tauri 验签升级，但 v0.3.31 DMG 不满足离线 ticket 验收。
 - v0.3.32 将 canonical 仓库和首选 feed 固定为 `Intellinfinity/edupi-desktop`，保留两个旧 endpoint 作迁移 fallback；macOS workflow 新增 DMG `notarytool submit --wait`、staple 和 Gatekeeper 验证。公证后的 DMG 不再用 tag `--clobber`：脚本绑定 release ID、唯一 tag、draft、目标 SHA，先改名保留旧资产，再通过 `uploads.github.com/.../releases/{release_id}/assets` 上传并重新下载核对 size/SHA-256，最后删除备份。
 - 发布事务在首次删除备份时进入提交状态；之后只幂等重试同一 backup asset ID，404 视为已删除。其他 cleanup 不确定性会同时保留已验真的正式 DMG 与备份，使精确资产集合门禁失败并保持 draft，不会再回滚删除已验真 DMG。上传、验真或提交前错误恢复旧资产。
 - 本地最终门禁：`npm test` 1373 passed / 25 skipped / 0 failed，TypeScript、ESLint、npm audit（0 vulnerabilities）、release verify、目标仓库校验、actionlint、Cargo metadata 和 28 项 Rust library tests 通过；发布事务 41 项定向测试及独立复审无 P1/P2。
-- 正式验收：全平台 run `35771039553` 完成 Linux/Windows，macOS 的一次 G6 临时根失败保持 draft；同提交 macOS retry `35772209888` 通过并完成 manifest。Release ID `394034871` 固定 `9f33463`，11 项资产、7 个签名 feed 键且无 backup。Apple submission `500735b4-4a03-4b0b-8376-c6cf3270c48c` Accepted；runner 的 DMG staple/validate、Gatekeeper 和重新下载 SHA-256 `3ee2667b…` 全部通过，公开 DMG 本机 Gatekeeper 为 `Notarized Developer ID`。本机 `stapler validate` 仍受 Apple CloudKit TLS `-1200` 阻断，未记为通过。证据见 [v0.3.32 公证 DMG 验收](../acceptance/2026-09-23-v0.3.32-notarized-dmg.md)。
-- 安装升级仍待验收：唯一安装副本为 v0.3.29，真实更新接口已发现 v0.3.32；Mac 当前锁屏，尚未点击更新、验签安装、重启并核对 Core G6、教师数据、模型摘要与唯一副本。
+- DMG 验收：全平台 run `35771039553` 完成 Linux/Windows 构建，macOS 的一次 G6 临时根失败保持 draft；同提交 macOS retry `35772209888` 完成 manifest。Release ID `394034871` 固定 `9f33463`，Apple submission `500735b4-4a03-4b0b-8376-c6cf3270c48c` Accepted；runner 的 DMG staple/validate、Gatekeeper 和重新下载 SHA-256 `3ee2667b…` 全部通过。公开 DMG 本机 Gatekeeper 为 `Notarized Developer ID`，本机 `stapler validate` 仍受 Apple CloudKit TLS `-1200` 阻断，未记为通过。
+- 启动回归：Linux `35783207989` 和 Windows `35783220232` 均从已安装 v0.3.32 的 `server.log` 读到 `Cannot find module 'next'`。原因是普通 standalone `node_modules` 被排除，而 staged 测试从源码上级依赖形成假通过。v0.3.31/v0.3.32 已退回 draft，v0.3.30 已恢复 Latest；feed commit `446a73a` 为 v0.3.30、7 个签名键，三条 endpoint 与本机更新接口均已回读。
+- v0.3.33 已增加普通目录复制、symlink/NFT 兼容、最终产物零 symlink/realpath containment 和三平台隔离 staged server 启动门禁；本地全量 1380 passed / 25 skipped / 0 failed，TypeScript、lint、audit、release verify、actionlint、Cargo metadata 和 28 项 Rust tests 通过。新三平台 Release、Linux/Windows 公共安装与 macOS 应用内升级仍待验收。
 
 ## 2026-09-22 v0.3.31 发布阻塞（历史，已解除）
 

@@ -31,6 +31,12 @@ function hash(bytes) {
   return `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
 }
 
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
+}
+
 function destinationRoot() {
   const relative = `src-tauri/resources/edupi-core-test-${process.pid}-${Math.random().toString(16).slice(2)}`;
   const destination = path.join(desktopRoot, relative);
@@ -47,12 +53,27 @@ test("copies exactly the Desktop and Runtime closure union and validates without
     assert.equal(result.componentManifestHash, compat.core_runtime.component_manifest_hash);
     assert.equal(fs.existsSync(path.join(destination, ".git")), false);
     assert.equal(fs.existsSync(path.join(destination, "fixtures/bridge/v1.1/fixture-manifest.json")), true);
+    const bridgeIdentity = compat.contract_identities.find(item => item.contract_id === "edupi-bridge-v1.1");
+    const occurrenceIdentity = compat.contract_identities.find(item => item.contract_id === "edupi-schedule-occurrence-v1.2");
+    assert.ok(bridgeIdentity);
+    assert.ok(occurrenceIdentity);
+    const occurrenceSchemaPath = path.join(destination, occurrenceIdentity.schema_path);
+    const occurrenceHashPath = path.join(destination, "contracts/edupi-schedule-occurrence-v1.2-hash.json");
+    assert.equal(fs.existsSync(occurrenceSchemaPath), true);
+    assert.equal(fs.existsSync(occurrenceHashPath), true);
+    const occurrenceSchema = JSON.parse(fs.readFileSync(occurrenceSchemaPath, "utf8"));
+    const occurrenceHash = JSON.parse(fs.readFileSync(occurrenceHashPath, "utf8"));
+    assert.equal(hash(Buffer.from(JSON.stringify(canonical(occurrenceSchema)), "utf8")), occurrenceIdentity.schema_hash);
+    assert.equal(occurrenceHash.schema_hash, occurrenceIdentity.schema_hash);
     const manifest = JSON.parse(fs.readFileSync(path.join(destination, compat.core_runtime.component_manifest_path), "utf8"));
     const runtimeManifestPath = "contracts/edupi-core-runtime-component-manifest.json";
     const sourceRuntimeManifest = JSON.parse(fs.readFileSync(path.join(result.sourceRoot, runtimeManifestPath), "utf8"));
     const runtimeManifest = JSON.parse(fs.readFileSync(path.join(destination, runtimeManifestPath), "utf8"));
     assert.deepEqual(runtimeManifest, sourceRuntimeManifest);
     assert.equal(runtimeManifest.entrypoint, "scripts/core_runtime_daemon.mjs");
+    assert.equal(runtimeManifest.component_manifest_hash, compat.core_runtime.runtime_component_manifest_hash);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(destination, "contracts/edupi-core-runtime-v1-hash.json"), "utf8")).schema_hash,
+      compat.core_runtime.runtime_schema_hash);
     const closure = value => [
       ...value.modules.map(entry => entry.path),
       ...value.assets.map(entry => entry.path),
@@ -63,7 +84,7 @@ test("copies exactly the Desktop and Runtime closure union and validates without
       runtimeManifestPath,
       ...closure(manifest),
       ...closure(sourceRuntimeManifest),
-      compat.contract_identities[0].fixture_manifest_path,
+      bridgeIdentity.fixture_manifest_path,
     ])].sort();
     assert.deepEqual(listFiles(destination).sort(), expectedFiles);
     assert.equal(result.files, expectedFiles.length);

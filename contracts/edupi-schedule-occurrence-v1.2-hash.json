@@ -1,0 +1,6 @@
+{
+  "algorithm": "sha256-canonical-json-v1",
+  "contract_version": "1.2",
+  "schema_path": "contracts/edupi-schedule-occurrence-v1.2.schema.json",
+  "schema_hash": "sha256:b739852f427520f787ad32c7f41b258976a3b41d60fa6116439696c1495b97cb"
+}

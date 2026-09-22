@@ -13,9 +13,18 @@ const COMPONENT_MANIFEST_VERSION = "1";
 const COMPONENT_MANIFEST_ALGORITHM = "sha256-canonical-component-payload-v1";
 const FIXTURE_MANIFEST_RELATIVE_PATH = "fixtures/bridge/v1.1/fixture-manifest.json";
 const RUNTIME_MANIFEST_PATH = "contracts/edupi-core-runtime-component-manifest.json";
+const RUNTIME_SCHEMA_HASH_PATH = "contracts/edupi-core-runtime-v1-hash.json";
+const OCCURRENCE_SCHEMA_PATH = "contracts/edupi-schedule-occurrence-v1.2.schema.json";
+const OCCURRENCE_HASH_PATH = "contracts/edupi-schedule-occurrence-v1.2-hash.json";
 
 function sha256(bytes) {
   return `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalize(value[key])]));
 }
 
 function isInside(root, candidate) {
@@ -106,6 +115,29 @@ async function verifyFixtureManifest(coreRoot, contractIdentity) {
   return fixture.bytes;
 }
 
+async function verifyScheduleOccurrenceContract(coreRoot, desktopRoot, contractIdentity) {
+  if (!contractIdentity || contractIdentity.contract_id !== "edupi-schedule-occurrence-v1.2"
+    || contractIdentity.contract_version !== "1.2" || contractIdentity.schema_path !== OCCURRENCE_SCHEMA_PATH) {
+    throw new Error("Desktop schedule occurrence contract identity is unavailable");
+  }
+  const [coreSchemaFile, coreHashFile, desktopSchemaFile, desktopHashFile] = await Promise.all([
+    readRegularFile(coreRoot, OCCURRENCE_SCHEMA_PATH, "Core schedule occurrence schema"),
+    readRegularFile(coreRoot, OCCURRENCE_HASH_PATH, "Core schedule occurrence hash"),
+    readRegularFile(desktopRoot, OCCURRENCE_SCHEMA_PATH, "Desktop schedule occurrence schema"),
+    readRegularFile(desktopRoot, OCCURRENCE_HASH_PATH, "Desktop schedule occurrence hash"),
+  ]);
+  const coreSchema = JSON.parse(coreSchemaFile.bytes.toString("utf8"));
+  const coreHash = JSON.parse(coreHashFile.bytes.toString("utf8"));
+  const calculated = sha256(Buffer.from(JSON.stringify(canonicalize(coreSchema)), "utf8"));
+  if (coreHash.algorithm !== "sha256-canonical-json-v1" || coreHash.contract_version !== "1.2"
+    || coreHash.schema_path !== OCCURRENCE_SCHEMA_PATH || coreHash.schema_hash !== calculated
+    || contractIdentity.schema_hash !== calculated
+    || !isDeepStrictEqual(JSON.parse(desktopSchemaFile.bytes.toString("utf8")), coreSchema)
+    || !isDeepStrictEqual(JSON.parse(desktopHashFile.bytes.toString("utf8")), coreHash)) {
+    throw new Error("Schedule occurrence contract identity mismatch");
+  }
+}
+
 async function listFiles(root, current = root) {
   const files = [];
   for (const entry of (await readdir(current, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
@@ -164,7 +196,8 @@ export async function buildPackagedCoreBundle({
   const { loadEduPiCompatManifest, resolveEduPiCoreRoot } = await loadSharedResolvers();
   const identity = loadEduPiCompatManifest();
   const runtimeIdentity = identity.core_runtime;
-  const contractIdentity = identity.contract_identities[0];
+  const contractIdentity = identity.contract_identities.find(item => item.contract_id === "edupi-bridge-v1.1");
+  const occurrenceIdentity = identity.contract_identities.find(item => item.contract_id === "edupi-schedule-occurrence-v1.2");
   const external = resolveEduPiCoreRoot({
     configuredRoot: sourceRoot,
     allowedRoot: path.dirname(sourceRoot),
@@ -179,12 +212,20 @@ export async function buildPackagedCoreBundle({
   const manifest = JSON.parse(manifestBytes.toString("utf8"));
   const { files } = componentFiles(manifest);
   await verifyFixtureManifest(external.root, contractIdentity);
+  await verifyScheduleOccurrenceContract(external.root, resolvedDesktopRoot, occurrenceIdentity);
   await verifyRuntimeFileClosure(external.root, manifest);
   const runtimeFiles = [];
   if (fs.existsSync(path.join(external.root, RUNTIME_MANIFEST_PATH))) {
     const runtimeManifest = JSON.parse((await readRegularFile(external.root, RUNTIME_MANIFEST_PATH, "Core runtime manifest")).bytes.toString("utf8"));
+    const runtimeSchemaHash = JSON.parse((await readRegularFile(external.root, RUNTIME_SCHEMA_HASH_PATH, "Core runtime schema hash")).bytes.toString("utf8"));
     const listed = componentFiles(runtimeManifest);
     if (runtimeManifest.entrypoint !== "scripts/core_runtime_daemon.mjs") throw new Error("Unexpected Core runtime entrypoint");
+    if (runtimeManifest.component_manifest_hash !== runtimeIdentity.runtime_component_manifest_hash) {
+      throw new Error("Core runtime component manifest does not match Desktop pin");
+    }
+    if (runtimeSchemaHash.schema_hash !== runtimeIdentity.runtime_schema_hash) {
+      throw new Error("Core runtime schema does not match Desktop pin");
+    }
     const generator = await createJiti(import.meta.url).import(path.join(external.root, "scripts/edupi_component_manifest.mjs"));
     const current = generator.generateComponentManifest({ root: external.root, entrypoint: runtimeManifest.entrypoint, assets: runtimeManifest.assets.map(item => item.path), write: false });
     if (!isDeepStrictEqual(current, runtimeManifest)) throw new Error("Core runtime component manifest is stale");

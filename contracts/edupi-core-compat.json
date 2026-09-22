@@ -2,10 +2,11 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "156ee8ec5daa11d5f1e38dbdee3e60799f46b3a1",
+    "core_commit": "d1478ce6d917bbea03db7df5c01854d3500a9ef5",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:d131daa7f6d42adcaeca9db478394180c64da510b14dcb547a9690e25694035e",
-    "runtime_component_manifest_hash": "sha256:44cafdb91843a5690ea20b4bda138cc23d3eaf165a8a034a75019c4bd2313276"
+    "component_manifest_hash": "sha256:454c14a528c8a01308e10f4265dc272e4b5f0db884969c51c47f4f55327fab9b",
+    "runtime_component_manifest_hash": "sha256:983dd7c3838f335e1842be0dd4ebcb690895d7e3230ed2e0292332de874201b5",
+    "runtime_schema_hash": "sha256:5ec30b6043bcb89e170d2cb7a4c2b8fe3be2660d546c13df9b0b3996a3dc3c1e"
   },
   "contract_identities": [
     {
@@ -32,6 +33,21 @@
         "education_workspace"
       ],
       "depends_on": []
+    },
+    {
+      "contract_id": "edupi-schedule-occurrence-v1.2",
+      "contract_version": "1.2",
+      "schema_path": "contracts/edupi-schedule-occurrence-v1.2.schema.json",
+      "schema_hash": "sha256:b739852f427520f787ad32c7f41b258976a3b41d60fa6116439696c1495b97cb",
+      "supported_commands": [
+        "import_calendar"
+      ],
+      "supported_projections": [
+        "schedule_occurrence"
+      ],
+      "depends_on": [
+        "edupi-bridge-v1.1"
+      ]
     }
   ],
   "cumulative_projection_manifest": null,
@@ -123,7 +139,9 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/166",
     "https://github.com/Intellinfinity/edupi/pull/167",
     "https://github.com/Intellinfinity/edupi/pull/168",
-    "https://github.com/Intellinfinity/edupi/pull/169"
+    "https://github.com/Intellinfinity/edupi/pull/169",
+    "https://github.com/Intellinfinity/edupi/pull/170",
+    "https://github.com/Intellinfinity/edupi/pull/171"
   ],
-  "change_note": "Desktop risk pin to merged Core 156ee8e: owner-controlled calendar and timetable conflict reads and decisions, exact replay, deleted-source filtering, and stable distinct occurrences. Bridge v1.1 and external_send=false are unchanged; ambient preparation remains opt-in."
+  "change_note": "Desktop pin to merged Core d1478ce: preserves the frozen v1.1 bridge and adds an opt-in v1.2 calendar occurrence contract with issuer-scoped identity, explicit intervals and locations. Default snapshots and external_send=false are unchanged; ambient preparation remains opt-in."
 }

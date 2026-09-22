@@ -1,7 +1,10 @@
 import { dirname, isAbsolute } from "node:path";
+import { Value } from "typebox/value";
+import type { TSchema } from "typebox";
+import scheduleOccurrenceSchema from "../contracts/edupi-schedule-occurrence-v1.2.schema.json";
 import { callEduPiCore, EduPiCoreProcessError } from "./edupi-core-process-client";
 import { isWindowsAbsolutePath } from "./file-access";
-import { activeBridgeIdentity } from "./edupi-bridge-manifest";
+import { activeBridgeIdentity, scheduleOccurrenceIdentity } from "./edupi-bridge-manifest";
 import { consumeCoreEnvelope } from "./edupi-bridge-consumer";
 import type { BridgeErrorCode } from "./edupi-bridge-contract";
 import type { EducationMemoryScopeProjection } from "./edupi-memory-scopes";
@@ -11,6 +14,14 @@ import { ensureEduPiRuntime } from "./edupi-runtime-supervisor";
 export type CoreEducationWorkspace = Record<string, unknown>;
 export type CoreEducationSnapshotPayload = Record<string, unknown> & {
   education_workspace: CoreEducationWorkspace;
+};
+
+export type CoreScheduleOccurrenceProjection = {
+  contract_version: "1.2";
+  schema_hash: string;
+  snapshot_id: string;
+  events: Array<Record<string, unknown>>;
+  external_send: false;
 };
 
 export type EduPiBridgeRoots = {
@@ -37,6 +48,25 @@ type CoreHealth = {
 };
 
 const CORE_OPERATIONS = ["health", "snapshot", "workspace-resources", "generated-artifacts", "command", "students", "teaching-priorities", "material-metadata", "education-facts", "delete", "kernel", "memory-scopes", "teaching-skills", "connectors", "agent-computer", "platform", "connector-setup"] as const;
+
+export function validateScheduleOccurrenceV12Envelope(value: unknown): boolean {
+  try {
+    return Value.Check(scheduleOccurrenceSchema as TSchema, value);
+  } catch {
+    return false;
+  }
+}
+
+export function validateScheduleOccurrenceV12Projection(value: unknown, snapshotId: string): value is CoreScheduleOccurrenceProjection {
+  if (!validateScheduleOccurrenceV12Envelope(value) || !value || typeof value !== "object" || Array.isArray(value)) return false;
+  const projection = value as Record<string, unknown>;
+  const identity = scheduleOccurrenceIdentity();
+  return projection.contract_version === identity.contract_version
+    && projection.schema_hash === identity.schema_hash
+    && projection.snapshot_id === snapshotId
+    && Array.isArray(projection.events)
+    && projection.external_send === false;
+}
 
 export type CoreProactiveWorkRun = {
   run_id: string;
@@ -104,16 +134,19 @@ function sameCapabilityList(actual: unknown, expected: readonly string[]): boole
 
 export async function readEduPiEducationSnapshot({
   requestId = `desktop-education-${Date.now().toString(36)}`,
+  scheduleOccurrenceVersion,
   signal,
   roots,
 }: {
   requestId?: string;
+  scheduleOccurrenceVersion?: "1.2";
   signal?: AbortSignal;
   roots?: EduPiBridgeRoots;
 } = {}): Promise<{
   envelope: Record<string, unknown>;
   payload: CoreEducationSnapshotPayload;
   workspace: CoreEducationWorkspace;
+  occurrenceProjection: CoreScheduleOccurrenceProjection | null;
   runtime: ResolvedEduPiCore;
   dataRoot: ResolvedEduPiDataRoot;
 }> {
@@ -126,6 +159,7 @@ export async function readEduPiEducationSnapshot({
       requestId,
       runtime: resolved.runtime,
       dataRoot: resolved.dataRoot,
+      scheduleOccurrenceVersion,
       signal,
     });
   } catch (error) {
@@ -146,7 +180,21 @@ export async function readEduPiEducationSnapshot({
   const payload = consumed.value as CoreEducationSnapshotPayload;
   const workspace = payload.education_workspace;
   if (!workspace || workspace.projection_kind !== "education_workspace" || workspace.projection_version !== "1.1") throw new EduPiSnapshotError("projection_unavailable", "Core education workspace projection unavailable");
-  return { envelope: response.envelope as Record<string, unknown>, payload, workspace, runtime: resolved.runtime, dataRoot: resolved.dataRoot };
+  if (scheduleOccurrenceVersion === undefined && Object.hasOwn(response, "occurrence_projection")) {
+    throw new EduPiSnapshotError("invalid_envelope", "Core returned an unrequested schedule occurrence projection");
+  }
+  const occurrenceProjection = scheduleOccurrenceVersion === "1.2" ? response.occurrence_projection : null;
+  if (scheduleOccurrenceVersion === "1.2" && !validateScheduleOccurrenceV12Projection(occurrenceProjection, String(payload.snapshot_id))) {
+    throw new EduPiSnapshotError("projection_unavailable", "Core schedule occurrence projection unavailable");
+  }
+  return {
+    envelope: response.envelope as Record<string, unknown>,
+    payload,
+    workspace,
+    occurrenceProjection: occurrenceProjection as CoreScheduleOccurrenceProjection | null,
+    runtime: resolved.runtime,
+    dataRoot: resolved.dataRoot,
+  };
 }
 
 export async function readEduPiCoreHealth({

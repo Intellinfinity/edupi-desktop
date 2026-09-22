@@ -141,6 +141,7 @@ export async function callEduPiCore<T = unknown>({
   runtime,
   dataRoot,
   envelope,
+  scheduleOccurrenceVersion,
   signal,
 }: {
   operation: "health" | "snapshot" | "command" | "kernel" | "memory-scopes" | "teaching-skills" | "connectors" | "agent-computer" | "platform" | "connector-setup";
@@ -148,14 +149,19 @@ export async function callEduPiCore<T = unknown>({
   runtime: ResolvedEduPiCore;
   dataRoot?: ResolvedEduPiDataRoot;
   envelope?: unknown;
+  scheduleOccurrenceVersion?: "1.2";
   signal?: AbortSignal;
 }): Promise<T> {
+  if (scheduleOccurrenceVersion !== undefined && operation !== "snapshot") {
+    throw new EduPiCoreProcessError("invalid_request", "Schedule occurrence projection is available only for snapshot reads");
+  }
   const request = {
     protocol: "edupi-desktop-bridge",
     protocol_version: 1,
     producer: "edupi-desktop",
     operation,
     request_id: requestId,
+    ...(scheduleOccurrenceVersion === undefined ? {} : { schedule_occurrence_version: scheduleOccurrenceVersion }),
     ...(envelope === undefined ? {} : { envelope }),
   };
   return runCoreProcess<T>({ runtime, dataRoot, request, timeoutMs: operation === "command" ? CORE_COMMAND_TIMEOUT_MS : CORE_READ_TIMEOUT_MS, signal });

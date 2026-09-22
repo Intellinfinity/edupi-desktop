@@ -94,7 +94,7 @@ export function MobileBridgeSettingsCard() {
   return (
     <div id="mobile-bridge-settings" className="native-settings-card" style={{ padding: "13px 14px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)" }}>
       <div style={{ fontSize: 12, fontWeight: 700 }}>手机继续对话</div>
-      <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: 11, lineHeight: 1.5 }}>局域网配对后，只能查看 EduPi 对话并继续发送文字。</div>
+      <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: 11, lineHeight: 1.5 }}>仅在可信局域网使用；手机通信未加密。</div>
       <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ color: status?.mobileUrl ? "var(--accent)" : "var(--text-muted)", fontSize: 12 }}>{status ? status.mobileBridgeEnabled ? status.mobileUrl ? "已启用 · 局域网配对" : "手机入口未就绪" : "未启用" : "读取中"}</span>
         <button type="button" className="native-button" disabled={busy || !status} onClick={() => void toggle()}>{status?.mobileBridgeEnabled ? "关闭手机入口" : "启用手机入口"}</button>

@@ -116,19 +116,11 @@ async function assembleServer() {
   const tracedDependencies = await copySymlinkedStandaloneDependencies(standaloneDir, serverResourcesDir);
   if (tracedDependencies > 0) console.log(`Expanded ${tracedDependencies} traced dependency files from a standalone node_modules symlink`);
 
-  // Next's file tracer follows normal imports but intentionally omits files
-  // reached through dynamic provider/export/plugin paths. These packages are
-  // serverExternalPackages, so preserve their complete runtime `dist/` trees.
+  // Next's trace omits dependencies reached by the external Pi packages at
+  // runtime. Keep their package exports and full dependency closure together.
+  const piPackages = new Set();
   for (const packageName of await piPackageDirNames()) {
-    const sourcePackage = join(rootDir, "node_modules", "@earendil-works", packageName);
-    const destinationPackage = join(
-      serverResourcesDir,
-      "node_modules",
-      "@earendil-works",
-      packageName,
-    );
-    await cp(join(sourcePackage, "dist"), join(destinationPackage, "dist"), { recursive: true, force: true });
-    await copyFile(join(sourcePackage, "package.json"), join(destinationPackage, "package.json"));
+    await copyPackageClosure(rootDir, serverResourcesDir, `@earendil-works/${packageName}`, piPackages);
   }
 
   await copyFile(

@@ -1,5 +1,11 @@
 # L4 Schedule Intake Risk Boundary
 
+## Local continuation: source risk and teacher feedback
+
+- Core local convergence `36c7245` is based on merged `156ee8e`, not yet pushed or merged. The final combined full suite remains pending the canonical mirror/G1 guard. Current targeted feedback, attention delivery, Bridge parity, manifest, writer and type checks passed. A deleted material cannot make an old schedule-derived feedback or notification current through a quick restore; after 500 retained delete-history rows, old unproven material lessons are held. Fresh post-restore source evidence can make a new intent.
+- Desktop local `782cedb` still pins merged Core `156ee8e`, not the unmerged convergence commit. `EDUPI_CORE_ROOT` paired source `npm test` passed 1359/8 skipped/0 failed, TypeScript and lint passed. In an isolated development browser with synthetic responses, a successful Today acceptance released the decision UI immediately; a failed feedback eligibility read showed a retry, then a verified target allowed a rating and displayed “评价已记录” without submitting the decision again. No teacher data was written, and this is not packaged Tauri verification.
+- GitHub authentication now identifies `PIGU-PPPgu` and allows Git pushes, but Core Pull Requests API and Desktop #210 merge both return 403 because this token lacks Pull Requests write access. No Core risk PR, final Desktop pin, remote CI, or release has occurred. The scoped Core read credential for v0.3.31 remains separately unavailable. The canonical mirror/G1 and Desktop native notification race remain in progress.
+
 ## Current checkpoint: Core #169 and Desktop #209
 
 - Core [#168](https://github.com/Intellinfinity/edupi/pull/168) and [#169](https://github.com/Intellinfinity/edupi/pull/169) are merged; #169 merge commit is `156ee8ec5daa11d5f1e38dbdee3e60799f46b3a1`. Desktop #209 remains open. Its interim pin matches this merge commit and Core component hashes, not an installed release.

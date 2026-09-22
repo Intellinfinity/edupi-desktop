@@ -85,7 +85,7 @@ export default function MobilePage() {
           return;
         }
         if (!response.ok) { setError(result.error || "配对失败"); setRequestId(null); return; }
-        setPairingStatus(result.status || "等待教师批准");
+        setPairingStatus("等待桌面批准");
       } catch { if (!disposed) setError("正在等待桌面响应"); }
     };
     void poll();
@@ -108,7 +108,7 @@ export default function MobilePage() {
       const result = await response.json() as { requestId?: string; status?: string; error?: string };
       if (generation !== connectionGeneration.current) return;
       if (!response.ok || !result.requestId) throw new Error(result.error || "配对失败");
-      setRequestId(result.requestId); setPairingStatus(result.status || "等待批准");
+      setRequestId(result.requestId); setPairingStatus("等待桌面批准");
     } catch (cause) { if (generation === connectionGeneration.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(false); }
   };
@@ -158,7 +158,7 @@ export default function MobilePage() {
             <p style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6 }}>在桌面设置中生成配对码，批准后即可继续已有对话。</p>
             <label style={{ display: "block", marginTop: 20, fontSize: 12, color: "var(--text-muted)" }}>配对码<input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} inputMode="text" autoComplete="one-time-code" placeholder="输入 8 位配对码" style={{ display: "block", width: "100%", marginTop: 7, padding: "12px 13px", border: "1px solid var(--border)", borderRadius: 9, background: "var(--bg-panel)", color: "var(--text)", fontSize: 20, letterSpacing: 3 }} /></label>
             <label style={{ display: "block", marginTop: 12, fontSize: 12, color: "var(--text-muted)" }}>设备名称<input value={deviceLabel} onChange={(event) => setDeviceLabel(event.target.value)} style={{ display: "block", width: "100%", marginTop: 7, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 9, background: "var(--bg-panel)", color: "var(--text)" }} /></label>
-            <button type="button" className="native-button native-button-primary" disabled={busy || !code.trim()} onClick={() => void pair()} style={{ width: "100%", marginTop: 16, height: 42 }}>{pairingStatus || "请求连接"}</button>
+            <button type="button" className="native-button native-button-primary" disabled={busy || !code.trim() || Boolean(requestId)} onClick={() => void pair()} style={{ width: "100%", marginTop: 16, height: 42 }}>{pairingStatus || "请求连接"}</button>
             {error ? <div role="alert" style={{ marginTop: 12, color: "var(--danger, #b42318)", fontSize: 12 }}>{error}</div> : null}
           </section>
         ) : (
@@ -169,7 +169,7 @@ export default function MobilePage() {
               {sessions.length === 0 ? <div style={{ color: "var(--text-muted)", fontSize: 12, padding: 8 }}>暂无已保存对话</div> : null}
               {reminders.length > 0 ? <div style={{ marginTop: 14, padding: 8, borderTop: "1px solid var(--border)", color: "var(--text-muted)", fontSize: 11 }}>有 {reminders.length} 条提醒</div> : null}
             </aside>
-            <section style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+            <section style={{ display: "flex", flex: 1, flexDirection: "column", minWidth: 0, minHeight: 0 }}>
               <div style={{ padding: "4px 2px 10px", borderBottom: "1px solid var(--border)" }}><strong style={{ fontSize: 14 }}>{selected?.name || selected?.firstMessage || "选择一段对话"}</strong></div>
               <div style={{ flex: 1, overflowY: "auto", padding: "12px 2px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {messages.map((message, index) => <div key={`${message.timestamp || "message"}-${index}`} style={{ alignSelf: message.role === "user" ? "flex-end" : "flex-start", maxWidth: "88%", padding: "9px 11px", borderRadius: 11, background: message.role === "user" ? "var(--user-bg)" : "var(--bg-panel)", whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.55 }}>{message.text}</div>)}

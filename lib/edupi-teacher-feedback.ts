@@ -114,6 +114,10 @@ export async function prepareTeacherFeedbackCapture(input: TeacherFeedbackCaptur
     || !Number.isSafeInteger(target.revision) || Number(target.revision) < 0
     || input.reviewedRevision !== undefined && target.revision !== input.reviewedRevision
     || typeof target.fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/.test(target.fingerprint)
+    || target.domain !== input.domain
+    || !target.scope || typeof target.scope !== "object" || Array.isArray(target.scope)
+    || (target.scope as Record<string, unknown>).class_id !== input.scope.classId
+    || (target.scope as Record<string, unknown>).subject !== input.scope.subject
     || !input.evidenceIds.some((item) => targetEvidence.includes(item))) {
     throw new TeacherFeedbackError("teacher_feedback_target_stale", "反馈依据与当前目标不一致");
   }

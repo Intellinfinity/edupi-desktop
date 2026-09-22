@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "7cbb280eaf33bdb259e719a0149b7f2ca343d356",
+    "core_commit": "acce81e3b59ae93a998e7c1e9d1f008059ec3e85",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:f6a6c390e470f827298c8c0ce133861c2f0818db56bec94cc25e9a3e72b8d408",
-    "runtime_component_manifest_hash": "sha256:2faf92efd0c258beb8af3f1d3c6bb6a3fe6910bc09c29f76559ba504284a2c4d"
+    "component_manifest_hash": "sha256:5b29ca9a7714f43eecb107e4420c5048c43bc2e440a69b766afd882b6e10c410",
+    "runtime_component_manifest_hash": "sha256:eea378a07450e254b40f969c6d8178aa2b2887405e6e2eff3214a78ec2a981b5"
   },
   "contract_identities": [
     {
@@ -120,7 +120,9 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/141",
     "https://github.com/PIGU-PPPgu/edupi/pull/143",
     "https://github.com/PIGU-PPPgu/edupi/pull/145",
-    "https://github.com/PIGU-PPPgu/edupi/pull/166"
+    "https://github.com/PIGU-PPPgu/edupi/pull/166",
+    "https://github.com/Intellinfinity/edupi/pull/167",
+    "https://github.com/Intellinfinity/edupi/pull/168"
   ],
-  "change_note": "Desktop G5 pin to Core 7cbb280: preserves the paired v1.1 bridge and 12 commands while accepting the new runtime manifest. Parent communication remains Core-owned and is not exposed as a Desktop send action; external_send stays false."
+  "change_note": "Desktop G6 pin to Core acce81e: preserves the paired v1.1 bridge and 12 commands while accepting verified feedback scope, ambiguous schedule fencing, and the new runtime schema. Parent communication remains Core-owned and is not exposed as a Desktop send action; external_send stays false."
 }

@@ -147,7 +147,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Education intake request is too large" }, { status: 413 });
     if (error instanceof EducationIntakeError) return NextResponse.json({ error: error.message, code: error.code }, { status: statusFor(error) });
-    if (error instanceof MaterialRecognitionError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.code === "too_large" ? 413 : 503 });
+    if (error instanceof MaterialRecognitionError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.code === "too_large" ? 413 : error.code === "ambiguous_schedule" ? 409 : 503 });
     if (error instanceof MaterialRecognitionAdmissionError) return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
     return NextResponse.json({ error: "教育导入暂不可用", code: "unavailable" }, { status: 503 });
   }

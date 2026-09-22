@@ -51,6 +51,7 @@
     "test:edupi-follow-up-e2": "node scripts/test-edupi-follow-up-e2.mjs",
     "test:edupi-calendar-dedupe-e2": "node scripts/test-edupi-calendar-dedupe-e2.mjs",
     "test:edupi-schedule-conflicts-e2": "node scripts/test-edupi-schedule-conflicts-e2.mjs",
+    "test:staged-schedule-conflicts-runtime": "EDUPI_SCHEDULE_E2_STAGED=1 node scripts/test-edupi-schedule-conflicts-e2.mjs",
     "test:staged-desktop-runtime": "node scripts/test-staged-desktop-runtime.mjs",
     "test:staged-feedback-runtime": "node scripts/test-staged-feedback-runtime.mjs",
     "test:edupi-c6-e2": "node scripts/test-edupi-c6-e2.mjs",

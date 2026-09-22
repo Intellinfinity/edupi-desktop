@@ -28,7 +28,7 @@ Object.assign(process.env, {
   EDUPI_MEMORY_DIR: memoryDir,
   EDUPI_OUTPUT_DIR: outputDir,
   EDUPI_LOCK_DIR: lockDir,
-  EDUPI_CORE_COMMIT: "368bcd8b6fbe04d78860c96c37f27bec312c8e4c",
+  EDUPI_CORE_COMMIT: "156ee8ec5daa11d5f1e38dbdee3e60799f46b3a1",
 });
 
 let admission;

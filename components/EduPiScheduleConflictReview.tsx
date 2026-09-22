@@ -77,8 +77,9 @@ export function EduPiScheduleConflictReview({ enabled }: { enabled: boolean }) {
         await load();
       }
       setOpen(true);
-    } catch {
-      setError("待核对安排暂不可用，请重试。");
+    } catch (cause) {
+      setError(cause instanceof ScheduleConflictError && cause.code === "owner_control_credential_unavailable"
+        ? "授权状态需要恢复，原数据未更改。" : "待核对安排暂不可用，请重试。");
     } finally { setBusy(false); }
   };
 

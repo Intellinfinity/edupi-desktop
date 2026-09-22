@@ -22,8 +22,9 @@ export async function copyRuntimeModelHostFiles(coreRoot, serverRoot) {
     if (!(await lstat(source)).isFile()) throw new Error("Runtime model host source must be a regular file");
     await copyFile(source, path.join(destination, name));
   }
-  // These host-only files import typebox directly; standalone tracing may only
-  // retain a nested SDK copy. Materialize the direct dependency without links.
+  // The isolated host imports these outside Next's traced server graph.
   const typebox = await realpath(path.resolve(import.meta.dirname, "../node_modules/typebox"));
   await cp(typebox, path.join(serverRoot, "node_modules/typebox"), { recursive: true, dereference: true });
+  const telemetry = await realpath(path.resolve(import.meta.dirname, "../node_modules/@earendil-works/pi-telemetry"));
+  await cp(telemetry, path.join(serverRoot, "node_modules/@earendil-works/pi-telemetry"), { recursive: true, dereference: true });
 }

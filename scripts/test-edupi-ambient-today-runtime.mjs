@@ -15,6 +15,7 @@ if (!configuredCoreRoot || !path.isAbsolute(configuredCoreRoot)) {
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const coreRoot = fs.realpathSync(configuredCoreRoot);
 const requestedDataRoot = process.env.EDUPI_AMBIENT_TODAY_RUNTIME_DATA_ROOT;
+const previousDesktopStateDir = process.env.PI_DESKTOP_STATE_DIR;
 const temporaryRoot = requestedDataRoot
   ? path.resolve(requestedDataRoot)
   : fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "edupi-ambient-today-runtime-")));
@@ -68,6 +69,8 @@ try {
   }
 
   process.env.EDUPI_AMBIENT_PLANNING = "1";
+  process.env.PI_DESKTOP_STATE_DIR = path.join(temporaryRoot, "desktop-state");
+  fs.mkdirSync(process.env.PI_DESKTOP_STATE_DIR, { recursive: true, mode: 0o700 });
   process.env.EDUPI_CORE_ROOT = coreRoot;
   process.env.EDUPI_DATA_ROOT = dataRootPath;
   process.env.EDUPI_DATA_ALLOWED_ROOT = temporaryRoot;
@@ -100,6 +103,8 @@ try {
   }, null, 2));
 } finally {
   delete process.env.EDUPI_AMBIENT_PLANNING;
+  if (previousDesktopStateDir === undefined) delete process.env.PI_DESKTOP_STATE_DIR;
+  else process.env.PI_DESKTOP_STATE_DIR = previousDesktopStateDir;
   await handle?.close();
   if (!requestedDataRoot) fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }

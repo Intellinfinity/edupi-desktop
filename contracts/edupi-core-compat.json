@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "acce81e3b59ae93a998e7c1e9d1f008059ec3e85",
+    "core_commit": "156ee8ec5daa11d5f1e38dbdee3e60799f46b3a1",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:5b29ca9a7714f43eecb107e4420c5048c43bc2e440a69b766afd882b6e10c410",
-    "runtime_component_manifest_hash": "sha256:eea378a07450e254b40f969c6d8178aa2b2887405e6e2eff3214a78ec2a981b5"
+    "component_manifest_hash": "sha256:d131daa7f6d42adcaeca9db478394180c64da510b14dcb547a9690e25694035e",
+    "runtime_component_manifest_hash": "sha256:44cafdb91843a5690ea20b4bda138cc23d3eaf165a8a034a75019c4bd2313276"
   },
   "contract_identities": [
     {
@@ -122,7 +122,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/145",
     "https://github.com/PIGU-PPPgu/edupi/pull/166",
     "https://github.com/Intellinfinity/edupi/pull/167",
-    "https://github.com/Intellinfinity/edupi/pull/168"
+    "https://github.com/Intellinfinity/edupi/pull/168",
+    "https://github.com/Intellinfinity/edupi/pull/169"
   ],
-  "change_note": "Desktop G6 pin to Core acce81e: preserves the paired v1.1 bridge and 12 commands while accepting verified feedback scope, ambiguous schedule fencing, and the new runtime schema. Parent communication remains Core-owned and is not exposed as a Desktop send action; external_send stays false."
+  "change_note": "Desktop risk pin to merged Core 156ee8e: owner-controlled calendar and timetable conflict reads and decisions, exact replay, deleted-source filtering, and stable distinct occurrences. Bridge v1.1 and external_send=false are unchanged; ambient preparation remains opt-in."
 }

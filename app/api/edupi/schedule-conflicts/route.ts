@@ -57,6 +57,11 @@ function statusFor(code: string): number {
   return 503;
 }
 
+function unavailableCode(error: unknown): string {
+  return error && typeof error === "object" && "code" in error && error.code === "owner_control_credential_unavailable"
+    ? "owner_control_credential_unavailable" : "schedule_conflict_unavailable";
+}
+
 export async function GET(request: Request) {
   if (!isDesktopApiRequestAllowed(request)) return errorResponse("forbidden", 403);
   const params = new URL(request.url).searchParams;
@@ -76,8 +81,8 @@ export async function GET(request: Request) {
     });
     if (response.ok !== true) return errorResponse(String(response.error_code || "schedule_conflict_unavailable"), statusFor(String(response.error_code)));
     return NextResponse.json({ ok: true, result: response.result, externalSend: false });
-  } catch {
-    return errorResponse("schedule_conflict_unavailable", 503);
+  } catch (error) {
+    return errorResponse(unavailableCode(error), 503);
   }
 }
 
@@ -108,6 +113,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, result: response.result, externalSend: false });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return errorResponse("schedule_conflict_invalid", 413);
-    return errorResponse("schedule_conflict_unavailable", 503);
+    return errorResponse(unavailableCode(error), 503);
   }
 }

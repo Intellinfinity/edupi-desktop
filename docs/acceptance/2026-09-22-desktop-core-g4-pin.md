@@ -11,7 +11,7 @@
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Desktop regression | `npm test` | 1318 passed, 25 skipped, 0 failed |
+| Desktop regression | `npm test` | 1321 passed, 25 skipped, 0 failed |
 | Type and lint | `node_modules/.bin/tsc --noEmit && npm run lint` | passed |
 | Dependency audit | `npm run security:audit` | 0 vulnerabilities |
 | Core C2/C3 pairing | `EDUPI_CORE_ROOT=/tmp/edupi-core-g4-pin-test npm run test:edupi-c2-e2` and `test:edupi-c3-e2` | GREEN; exact G4 identity and 12-command capability list |

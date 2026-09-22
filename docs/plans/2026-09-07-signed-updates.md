@@ -2,8 +2,8 @@
 
 ## 2026-09-23 L4 Core 配对开发状态（未发布）
 
-- 当前开发分支已基于 Desktop `main` `9f33463` 固定 Core merge `172f75531f84b0bb0fca422598bd895eb2920cb8`，并把 occurrence E2 加入 macOS release 的源码与 staged server 门禁。`desktop:prepare` 实际写入 2165 个 Core 文件，staged status 回读 Core/projection ready、occurrence contract 1.2、`externalSend=false`。
-- staged desktop、schedule conflict、teacher feedback 和 ambient occurrence 全部通过；packaged Core closure 3/3、隔离 model host 2/2 通过。该证据证明待发布资源可以启动并完成隔离工作流，不代表 v0.3.32 已构建、签名、公证、公开或安装。
+- 当前开发分支已基于 Desktop `main` `9f33463` 固定 Core merge `860594a05c5d32617fffdbdf03d56e6ade6dc211`，并把 occurrence E2 加入 macOS release 的源码与 staged server 门禁。`desktop:prepare` 实际写入 2165 个 Core 文件，staged status 回读 Core/projection ready、occurrence contract 1.2、proactivity disabled、`externalSend=false`。
+- staged desktop、ambient 默认关闭的 schedule conflict、teacher feedback 和 ambient occurrence 全部通过；packaged Core closure 3/3、隔离 model host 2/2 通过。该证据证明待发布资源可以启动并完成隔离工作流，不代表 v0.3.32 已构建、签名、公证、公开或安装。
 - v0.3.32 的真实三平台 Release、DMG ticket、旧客户端应用内升级、macOS/Windows 通知点击和睡眠恢复仍沿用下节未验收状态。本节不改变公开 Latest 或本机已安装版本。
 
 ## 2026-09-23 v0.3.31 发布完成与 v0.3.32 DMG 收口

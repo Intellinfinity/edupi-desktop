@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } });
 const React = await jiti.import("react");
-const { EduPiTodayWork, feedbackCaptureFor } = await jiti.import("./EduPiTodayWork.tsx");
+const { EduPiTodayWork, feedbackCaptureFor, teacherFeedbackRetryMessage } = await jiti.import("./EduPiTodayWork.tsx");
+const { TeacherFeedbackError } = await jiti.import("../lib/edupi-teacher-feedback.ts");
 const { buildEducationContract } = await jiti.import("../lib/edupi-education-contract.ts");
 
 test("renders Core ambient preparation without exposing decision authority controls", () => {
@@ -77,4 +78,10 @@ test("Today does not invent scope or value from a work candidate", () => {
   assert.equal(feedbackCaptureFor({ ...candidate, evidenceIds: [], sourceIds: [] }, task, "accept", "useful"), null);
   assert.match(capture.commandId, /^desktop-feedback-[a-f0-9-]{36}$/);
   assert.equal(feedbackCaptureFor(candidate, task, "accept", "unsafe")?.issueCodes?.[0], "safety");
+});
+
+test("owner credential recovery keeps the bound teacher rating retryable", () => {
+  const error = new TeacherFeedbackError("owner_control_credential_unavailable", "credential unavailable");
+  assert.match(teacherFeedbackRetryMessage(error), /授权状态需要恢复/);
+  assert.match(teacherFeedbackRetryMessage(error, true), /恢复后重试/);
 });

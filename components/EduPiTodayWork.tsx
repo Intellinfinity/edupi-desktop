@@ -20,7 +20,7 @@ import {
 import { summarizeL4Preparation, type L4PreparationSummaryItem } from "@/lib/edupi-l4-preparation";
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
 import { todayActiveTasks } from "@/lib/edupi-work-case";
-import { canRetryFeedbackEligibility, prepareTeacherFeedbackCapture, recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
+import { canRetryFeedbackEligibility, prepareTeacherFeedbackCapture, recordTeacherFeedback, TeacherFeedbackError, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 
 type Props = {
@@ -90,6 +90,13 @@ export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: Teac
     evidenceIds: candidate.evidenceIds.length > 0 ? candidate.evidenceIds : candidate.sourceIds,
     occurredAt,
   };
+}
+
+export function teacherFeedbackRetryMessage(error: unknown, retrying = false): string {
+  if (error instanceof TeacherFeedbackError && error.code === "owner_control_credential_unavailable") {
+    return "授权状态需要恢复；本次评价尚未写入，可在恢复后重试。";
+  }
+  return retrying ? "反馈记录仍未成功，请稍后重试。" : "决定已记录；评价未能记录，请重试。";
 }
 
 const STATUS_LABELS: Record<EducationWorkCandidate["status"], string> = {
@@ -356,7 +363,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       if (!canRetryFeedbackEligibility(error)) {
         setFeedbackRetry(null);
         setFeedback({ kind: "error", text: "评价目标已变化，请刷新待办。", action: "refresh" });
-      } else setFeedback({ kind: "error", text: "决定已记录；评价未能记录，请重试。" });
+      } else setFeedback({ kind: "error", text: teacherFeedbackRetryMessage(error) });
     } finally {
       setFeedbackBusy(false);
     }
@@ -375,7 +382,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       if (!canRetryFeedbackEligibility(error)) {
         setFeedbackRetry(null);
         setFeedback({ kind: "error", text: "评价目标已变化，请刷新待办。", action: "refresh" });
-      } else setFeedback({ kind: "error", text: "反馈记录仍未成功，请稍后重试。" });
+      } else setFeedback({ kind: "error", text: teacherFeedbackRetryMessage(error, true) });
     } finally {
       setFeedbackBusy(false);
     }

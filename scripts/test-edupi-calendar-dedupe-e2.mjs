@@ -8,6 +8,8 @@ import { createJiti } from "jiti";
 
 const coreRoot = process.env.EDUPI_CORE_ROOT;
 if (typeof coreRoot !== "string" || !path.isAbsolute(coreRoot)) throw new Error("EDUPI_CORE_ROOT must be an absolute Core checkout");
+const desktopRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const compat = JSON.parse(fs.readFileSync(path.join(desktopRoot, "contracts", "edupi-core-compat.json"), "utf8"));
 const dataRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "edupi-calendar-dedupe-e2-")));
 const home = path.join(dataRoot, ".edupi");
 const memoryDir = path.join(home, "memory");
@@ -25,7 +27,7 @@ Object.assign(process.env, {
   EDUPI_MEMORY_DIR: memoryDir,
   EDUPI_OUTPUT_DIR: outputDir,
   EDUPI_LOCK_DIR: lockDir,
-  EDUPI_CORE_COMMIT: "156ee8ec5daa11d5f1e38dbdee3e60799f46b3a1",
+  EDUPI_CORE_COMMIT: compat.core_runtime.core_commit,
 });
 
 try {

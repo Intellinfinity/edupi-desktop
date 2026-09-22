@@ -345,6 +345,8 @@ test("calendar entries and sidebar nodes open a right-side raw detail drawer wit
   assert.match(calendarWorkspace, /sourceOccurrenceRef/);
   assert.match(calendarWorkspace, /startAt/);
   assert.match(calendarWorkspace, /location/);
+  assert.match(calendarWorkspace, /enabled=\{data\.capabilities\.calendar\.enabled \|\| data\.capabilities\.timetable\.enabled\}/);
+  assert.doesNotMatch(calendarWorkspace, /enabled=\{Boolean\(data\.l4Preparation\)\}/);
   assert.doesNotMatch(panel, /preservedEvents/);
   assert.match(intakeRoute, /parseCalendarIntakeCommand/);
   assert.match(calendarIntake, /eventId/);

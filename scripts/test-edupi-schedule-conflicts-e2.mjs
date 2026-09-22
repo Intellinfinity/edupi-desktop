@@ -32,9 +32,10 @@ Object.assign(process.env, {
   EDUPI_PROJECT_ROOT: dataRoot, EDUPI_DATA_ROOT: dataRoot, EDUPI_DATA_ALLOWED_ROOT: path.dirname(dataRoot),
   EDUPI_CORE_ROOT: coreRoot, EDUPI_CORE_ALLOWED_ROOT: staged ? resources : path.dirname(coreRoot), EDUPI_HOME: home, EDUPI_MEMORY_DIR: memoryDir,
   EDUPI_OUTPUT_DIR: outputDir, EDUPI_LOCK_DIR: lockDir, EDUPI_CORE_COMMIT: compat.core_runtime.core_commit,
-  EDUPI_AMBIENT_PLANNING: "1", PI_DESKTOP_STATE_DIR: desktopStateDir,
+  PI_DESKTOP_STATE_DIR: desktopStateDir,
   PI_DESKTOP_API_TOKEN: "schedule-review-test-token-012345678901234567890123456789",
 });
+delete process.env.EDUPI_AMBIENT_PLANNING;
 
 let admission;
 let runtimeSupervisor;
@@ -207,7 +208,8 @@ try {
   assert.equal(fs.readdirSync(credentialDirectory).length, 0);
   console.log(JSON.stringify({ status: "passed", token_guard: true, owner_bootstrap: true, conflict_read: true,
     resolution: true, exact_replay: true, changed_decision_rejected: true, stale_revision_rejected: true,
-    restart_readback: true, lost_credential_rejected: true, staged_server: staged, external_send: false }));
+    restart_readback: true, lost_credential_rejected: true, ambient_planning_default_off: true,
+    staged_server: staged, external_send: false }));
   }
 } finally {
   if (admission) await admission.release().catch(() => {});

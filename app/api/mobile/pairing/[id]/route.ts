@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
-import { approveMobilePairing, isLoopbackRequest, revokeMobilePairing } from "@/lib/mobile-bridge";
+import { hasJsonContentType } from "@/lib/request-security";
+import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
+import { approveMobilePairing, revokeMobilePairing } from "@/lib/mobile-bridge";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!isLoopbackRequest(request) || !isApiRequestAllowed(request) || !hasJsonContentType(request)) {
+  if (!isDesktopApiRequestAllowed(request) || !hasJsonContentType(request)) {
     return NextResponse.json({ error: "桌面授权请求被拒绝" }, { status: 403 });
   }
   if (Number(request.headers.get("content-length") || 0) > 2_048) return NextResponse.json({ error: "请求过大" }, { status: 413 });

@@ -20,14 +20,14 @@ export default function MobilePage() {
   const [reminders, setReminders] = useState<unknown[]>([]);
 
   const loadSessions = useCallback(async () => {
-    if (!paired) return false;
     const response = await fetch("/api/mobile/sessions", { cache: "no-store" });
     if (response.status === 401) { setPaired(false); return false; }
     if (!response.ok) throw new Error("对话列表暂不可用");
     const result = await response.json() as { sessions?: Session[] };
+    setPaired(true);
     setSessions(Array.isArray(result.sessions) ? result.sessions : []);
     return true;
-  }, [paired]);
+  }, []);
 
   const loadSession = useCallback(async (id: string) => {
     if (!paired) return;
@@ -39,13 +39,8 @@ export default function MobilePage() {
   }, [paired]);
 
   useEffect(() => {
-    void fetch("/api/mobile/sessions", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok) return;
-      setPaired(true);
-      const result = await response.json() as { sessions?: Session[] };
-      setSessions(Array.isArray(result.sessions) ? result.sessions : []);
-    }).catch(() => undefined);
-  }, []);
+    void loadSessions().catch(() => undefined);
+  }, [loadSessions]);
 
   useEffect(() => {
     if (!requestId || !code) return;
@@ -59,7 +54,7 @@ export default function MobilePage() {
           setPaired(true);
           setRequestId(null);
           setPairingStatus("已连接");
-          await loadSessions();
+          await loadSessions().catch(() => setError("对话列表暂不可用"));
           return;
         }
         if (!response.ok) { setError(result.error || "配对失败"); setRequestId(null); return; }

@@ -188,14 +188,3 @@ export function authorizeMobileRequest(request: Request, scope: MobileScope): Pu
   const record = [...state().pairings.values()].find((candidate) => candidate.status === "active" && candidate.scopes.includes(scope) && equalDigest(candidate.tokenDigest, digest(token)));
   return record ? publicPairing(record) : null;
 }
-
-export function isLoopbackRequest(request: Request): boolean {
-  const host = request.headers.get("host");
-  if (!host) return false;
-  try {
-    const hostname = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    return hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "127.0.0.1" || hostname === "::1";
-  } catch {
-    return false;
-  }
-}

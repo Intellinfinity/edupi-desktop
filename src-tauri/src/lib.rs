@@ -244,6 +244,27 @@ fn chrono_like_timestamp() -> String {
         .unwrap_or_else(|_| "0".into())
 }
 
+fn mobile_gateway_reachable(address: SocketAddr) -> bool {
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(300)) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+    if stream.write_all(b"GET /mobile HTTP/1.1\r\nHost: mobile.local\r\nConnection: close\r\n\r\n").is_err() {
+        return false;
+    }
+    let mut response = Vec::with_capacity(1024);
+    let mut chunk = [0_u8; 1024];
+    while response.len() < 4096 {
+        let Ok(size) = stream.read(&mut chunk) else { return false };
+        if size == 0 { break; }
+        response.extend_from_slice(&chunk[..size]);
+        if response.windows(4).any(|window| window == b"\r\n\r\n") { break; }
+    }
+    let header = String::from_utf8_lossy(&response).to_ascii_lowercase();
+    header.starts_with("http/1.1 200 ") && header.contains("\r\nx-edupi-mobile-gateway: 1\r\n")
+}
+
 fn mobile_bridge_status(app: &AppHandle, restart_required: bool) -> DesktopRuntimeStatus {
     let enabled = mobile_bridge_enabled_from_prefs(app);
     let port = env::var("PORT")
@@ -260,7 +281,9 @@ fn mobile_bridge_status(app: &AppHandle, restart_required: bool) -> DesktopRunti
             }
         });
     let mobile_url = if enabled {
-        local_lan_ip().or(Some(IpAddr::V4(Ipv4Addr::LOCALHOST))).zip(port).map(|(ip, port)| {
+        local_lan_ip().filter(|ip| !ip.is_loopback() && !ip.is_unspecified()).zip(port).filter(|(ip, port)| {
+            mobile_gateway_reachable(SocketAddr::new(*ip, *port))
+        }).map(|(ip, port)| {
             match ip {
                 IpAddr::V6(value) => format!("http://[{value}]:{port}/mobile"),
                 IpAddr::V4(value) => format!("http://{value}:{port}/mobile"),
@@ -1600,14 +1623,13 @@ fn start_packaged_server(
     let roots = edupi_launch_roots(app)?;
     let port = choose_port(app)?;
     let mobile_enabled = mobile_bridge_enabled_from_prefs(app);
-    let bind_host = if mobile_enabled { "0.0.0.0" } else { "127.0.0.1" };
     let desktop_state_dir = app.path().app_config_dir()?;
     fs::create_dir_all(&desktop_state_dir)?;
     let mut command = Command::new(&node_path);
     command
         .arg(&server_script)
         .current_dir(&server_dir)
-        .env("HOSTNAME", bind_host)
+        .env("HOSTNAME", "127.0.0.1")
         .env("PORT", port.to_string())
         .env("NODE_ENV", "production")
         .env("NEXT_TELEMETRY_DISABLED", "1")
@@ -1626,6 +1648,12 @@ fn start_packaged_server(
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
+
+    if mobile_enabled {
+        if let Some(ip) = local_lan_ip().filter(|ip| !ip.is_loopback() && !ip.is_unspecified()) {
+            command.env("EDUPI_MOBILE_BRIDGE_HOST", ip.to_string());
+        }
+    }
 
     if let Some(path) = server_process_path(&node_path) {
         command.env("PATH", path);
@@ -1653,7 +1681,7 @@ fn start_packaged_server(
 mod tests {
     use super::{
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
-        default_allowed_root, ensure_data_directories, is_filesystem_root,
+        default_allowed_root, ensure_data_directories, is_filesystem_root, mobile_gateway_reachable,
         args_request_safe_mode,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
         response_has_instance_id, resume_gap_detected, should_reconcile_webview_cache,
@@ -1663,7 +1691,8 @@ mod tests {
         FALLBACK_PERSISTED_SYMLINK,
     };
     use std::fs;
-    use std::io;
+    use std::io::{self, Read, Write};
+    use std::net::TcpListener;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, SystemTime};
@@ -1681,6 +1710,25 @@ mod tests {
         assert!(args_request_safe_mode(["edupi", "--safe-mode"]));
         assert!(!args_request_safe_mode(["edupi", "--safe-mode=1"]));
         assert!(!args_request_safe_mode(["edupi", "--safe"]));
+    }
+
+    #[test]
+    fn mobile_status_requires_the_actual_gateway_not_an_occupied_port() {
+        for (response, expected) in [
+            ("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n", false),
+            ("HTTP/1.1 200 OK\r\nX-EduPi-Mobile-Gateway: 1\r\nContent-Length: 0\r\n\r\n", true),
+        ] {
+            let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0_u8; 256];
+                stream.read(&mut request).unwrap();
+                stream.write_all(response.as_bytes()).unwrap();
+            });
+            assert_eq!(mobile_gateway_reachable(address), expected);
+            server.join().unwrap();
+        }
     }
 
     #[test]

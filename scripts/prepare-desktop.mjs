@@ -69,6 +69,7 @@ async function assembleServer() {
     join(rootDir, "desktop", "server-launcher.cjs"),
     join(serverResourcesDir, "desktop-server.cjs"),
   );
+  await copyFile(join(rootDir, "desktop", "mobile-gateway.cjs"), join(serverResourcesDir, "mobile-gateway.cjs"));
   await copyFile(join(rootDir, "desktop", "preparation-worker.mjs"), join(serverResourcesDir, "preparation-worker.mjs"));
   await copyFile(join(rootDir, "desktop", "core-runtime-host.mjs"), join(serverResourcesDir, "core-runtime-host.mjs"));
   await copyFile(join(rootDir, "desktop", "model-output-repair.mjs"), join(serverResourcesDir, "model-output-repair.mjs"));

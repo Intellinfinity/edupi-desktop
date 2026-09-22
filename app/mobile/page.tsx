@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Session = { id: string; name?: string; modified: string; firstMessage: string; messageCount: number };
 type Message = { role: "user" | "assistant"; text: string; timestamp?: string };
@@ -18,29 +18,56 @@ export default function MobilePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reminders, setReminders] = useState<unknown[]>([]);
+  const connectionGeneration = useRef(0);
+
+  const disconnect = useCallback(() => {
+    connectionGeneration.current += 1;
+    setPaired(false);
+    setCode("");
+    setRequestId(null);
+    setPairingStatus(null);
+    setSessions([]);
+    setSelectedId(null);
+    setMessages([]);
+    setReminders([]);
+    setDraft("");
+  }, []);
 
   const loadSessions = useCallback(async () => {
+    const generation = connectionGeneration.current;
     const response = await fetch("/api/mobile/sessions", { cache: "no-store" });
-    if (response.status === 401) { setPaired(false); return false; }
+    if (generation !== connectionGeneration.current) return false;
+    if (response.status === 401) { disconnect(); return false; }
     if (!response.ok) throw new Error("对话列表暂不可用");
     const result = await response.json() as { sessions?: Session[] };
+    if (generation !== connectionGeneration.current) return false;
     setPaired(true);
     setSessions(Array.isArray(result.sessions) ? result.sessions : []);
     return true;
-  }, []);
+  }, [disconnect]);
 
   const loadSession = useCallback(async (id: string) => {
     if (!paired) return;
+    const generation = connectionGeneration.current;
     const response = await fetch(`/api/mobile/sessions/${encodeURIComponent(id)}`, { cache: "no-store" });
+    if (generation !== connectionGeneration.current) return;
+    if (response.status === 401) { disconnect(); return; }
     if (!response.ok) throw new Error("对话暂不可用");
     const result = await response.json() as { messages?: Message[] };
+    if (generation !== connectionGeneration.current) return;
     setSelectedId(id);
     setMessages(Array.isArray(result.messages) ? result.messages : []);
-  }, [paired]);
+  }, [paired, disconnect]);
 
   useEffect(() => {
     void loadSessions().catch(() => undefined);
   }, [loadSessions]);
+
+  useEffect(() => {
+    if (!paired) return;
+    const timer = window.setInterval(() => void loadSessions().catch(() => undefined), 5_000);
+    return () => window.clearInterval(timer);
+  }, [paired, loadSessions]);
 
   useEffect(() => {
     if (!requestId || !code) return;
@@ -73,32 +100,45 @@ export default function MobilePage() {
   }, [loadSession, selectedId, paired]);
 
   const pair = async () => {
+    const generation = connectionGeneration.current;
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/mobile/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, deviceLabel }) });
+      if (generation !== connectionGeneration.current) return;
       const result = await response.json() as { requestId?: string; status?: string; error?: string };
+      if (generation !== connectionGeneration.current) return;
       if (!response.ok || !result.requestId) throw new Error(result.error || "配对失败");
       setRequestId(result.requestId); setPairingStatus(result.status || "等待批准");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch (cause) { if (generation === connectionGeneration.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(false); }
   };
 
   const send = async () => {
     if (!paired || !selectedId || !draft.trim() || busy) return;
+    const generation = connectionGeneration.current;
     const message = draft.trim();
     setDraft(""); setBusy(true); setError("");
     try {
       const response = await fetch(`/api/mobile/sessions/${encodeURIComponent(selectedId)}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
+      if (generation !== connectionGeneration.current) return;
+      if (response.status === 401) { disconnect(); return; }
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "发送失败");
       await loadSession(selectedId);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch (cause) { if (generation === connectionGeneration.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(false); }
   };
 
   const loadSummary = async () => {
     if (!paired) return;
-    try { const response = await fetch("/api/mobile/summary", { cache: "no-store" }); const result = await response.json() as { reminders?: unknown[] }; setReminders(Array.isArray(result.reminders) ? result.reminders : []); } catch { setReminders([]); }
+    const generation = connectionGeneration.current;
+    try {
+      const response = await fetch("/api/mobile/summary", { cache: "no-store" });
+      if (generation !== connectionGeneration.current) return;
+      if (response.status === 401) { disconnect(); return; }
+      const result = await response.json() as { reminders?: unknown[] };
+      if (generation === connectionGeneration.current) setReminders(Array.isArray(result.reminders) ? result.reminders : []);
+    } catch { if (generation === connectionGeneration.current) setReminders([]); }
   };
 
   const selected = useMemo(() => sessions.find((item) => item.id === selectedId) ?? null, [selectedId, sessions]);
@@ -109,7 +149,7 @@ export default function MobilePage() {
       <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 2px 14px", borderBottom: "1px solid var(--border)" }}>
           <div><strong style={{ fontSize: 18 }}>EduPi</strong><div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 3 }}>手机继续对话</div></div>
-          {paired ? <button type="button" className="native-button" onClick={() => { void fetch("/api/mobile/logout", { method: "POST" }); setPaired(false); setSelectedId(null); }}>退出手机</button> : null}
+          {paired ? <button type="button" className="native-button" onClick={() => { void fetch("/api/mobile/logout", { method: "POST" }); disconnect(); }}>退出手机</button> : null}
         </header>
 
         {!paired ? (

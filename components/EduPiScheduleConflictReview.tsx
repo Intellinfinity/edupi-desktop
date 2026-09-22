@@ -22,7 +22,10 @@ const CALENDAR_TYPES: Record<string, string> = { exam: "考试", activity: "活�
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
 function value(item: Record<string, unknown>, key: string): string {
-  const raw = item[key];
+  const raw = key.startsWith("time_interval.")
+    ? (item.time_interval && typeof item.time_interval === "object" && !Array.isArray(item.time_interval)
+      ? (item.time_interval as Record<string, unknown>)[key.slice("time_interval.".length)] : null)
+    : item[key];
   if (key === "confidence") return ({ confirmed: "已确认", teacher_confirmed: "教师确认", inferred: "识别待确认" } as Record<string, string>)[String(raw)] || "未设置";
   if (key === "type") return CALENDAR_TYPES[String(raw)] || (typeof raw === "string" && raw.trim() ? raw : "未设置");
   if (key === "kind") return ({ class: "课程", routine: "固定事务" } as Record<string, string>)[String(raw)] || "未设置";
@@ -40,7 +43,7 @@ function scheduleLabel(conflict: ScheduleConflict, item: Record<string, unknown>
 
 function ScheduleDetails({ conflict, item, title }: { conflict: ScheduleConflict; item: Record<string, unknown>; title: string }) {
   const fields = conflict.kind === "calendar"
-    ? [["日期", "date"], ["结束日期", "end_date"], ["原文日期", "raw_date"], ["事项", "name"], ["类型", "type"], ["来源状态", "confidence"], ["备注", "notes"]]
+    ? [["日期", "date"], ["结束日期", "end_date"], ["开始时间", "time_interval.start"], ["结束时间", "time_interval.end"], ["时区", "time_interval.time_zone"], ["地点", "location"], ["原文日期", "raw_date"], ["事项", "name"], ["类型", "type"], ["来源状态", "confidence"], ["备注", "notes"]]
     : [["星期", "day_of_week"], ["节次", "period"], ["科目", "subject"], ["班级", "class_name"], ["班级 ID", "class_id"], ["类型", "kind"], ["开始时间", "start_time"], ["时区", "time_zone"], ["备注", "notes"]];
   return <div className="edupi-schedule-review__source">
     <strong>{title}</strong>
@@ -120,6 +123,8 @@ export function EduPiScheduleConflictReview({ enabled }: { enabled: boolean }) {
   };
 
   const selected = items.find((item) => item.conflictId === selectedId);
+  const sameOccurrence = selected?.kind === "calendar" && typeof selected.canonical.source_occurrence_ref === "string"
+    && selected.canonical.source_occurrence_ref === selected.candidate.source_occurrence_ref;
   return <section className="edupi-schedule-review" aria-label="待核对安排" aria-busy={busy}>
     <header>
       <strong>待核对安排{open && !error ? ` · ${items.length}` : ""}</strong>
@@ -133,7 +138,7 @@ export function EduPiScheduleConflictReview({ enabled }: { enabled: boolean }) {
       {selected && !pending ? <div className="edupi-schedule-review__detail">
         <ScheduleDetails conflict={selected} item={selected.canonical} title="原安排" />
         <ScheduleDetails conflict={selected} item={selected.candidate} title="新来源" />
-        <div className="edupi-schedule-review__actions"><select aria-label="处理方式" value={decision} disabled={busy} onChange={(event) => setDecision(event.target.value as ScheduleConflictDecision | "")}><option value="">选择处理方式</option>{DECISIONS.filter((option) => option.value !== "keep_both_distinct" || selected.canonicalId !== selected.candidate.source_item_id).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><button type="button" className="is-primary" disabled={!decision || busy} onClick={() => { if (decision) void decide(captureScheduleDecision(selected, decision)); }}>确认处理</button></div>
+        <div className="edupi-schedule-review__actions"><select aria-label="处理方式" value={decision} disabled={busy} onChange={(event) => setDecision(event.target.value as ScheduleConflictDecision | "")}><option value="">选择处理方式</option>{DECISIONS.filter((option) => option.value !== "keep_both_distinct" || !sameOccurrence && selected.canonicalId !== selected.candidate.source_item_id).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><button type="button" className="is-primary" disabled={!decision || busy} onClick={() => { if (decision) void decide(captureScheduleDecision(selected, decision)); }}>确认处理</button></div>
       </div> : null}
       {pending ? <div className="edupi-schedule-review__actions"><span>处理结果待核对</span><button type="button" disabled={busy} onClick={() => void decide(pending)}>重试原决定</button></div> : null}
       {cursor ? <button type="button" disabled={busy} onClick={() => { setBusy(true); void load(cursor).catch(() => setError("更多安排暂不可用，请重试。")).finally(() => setBusy(false)); }}>更多</button> : null}

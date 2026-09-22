@@ -2,7 +2,7 @@ import { issueEducationIntake, type EducationIntakeCommand, type MaterialIntake 
 import { MaterialRecognitionError, recognizeStagedMaterial, type MaterialRecognitionResult } from "./edupi-material-recognition";
 import type { MaterialStagingDescriptor } from "./edupi-material-staging";
 import { markRecognizedTimetableNote } from "./edupi-recognition-markers";
-import { stableCalendarEventId, stableRecognizedCalendarEventId, stableRecognizedTimetableSlotId, stableTimetableSlotId } from "./edupi-schedule-upload";
+import { stableCalendarEventId, stableFileScheduleIssuer, stableRecognizedCalendarEventId, stableRecognizedTimetableSlotId, stableTimetableSlotId } from "./edupi-schedule-upload";
 
 type RawRecord = Record<string, unknown>;
 
@@ -60,15 +60,16 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   const slots = baseSlots.map((slot) => ({ ...slot,
     slot_id: stableRecognizedTimetableSlotId({ dayOfWeek: slot.day_of_week, period: slot.period, subject: slot.subject, className: slot.class_name, kind: slot.kind, notes: slot.notes }),
   }));
-  const source = {
+  const materialSource = {
     source_id: input.descriptor.staging_id,
     source_kind: "teacher_file" as const,
     source_hash: input.descriptor.source_hash,
     evidence_ids: [input.descriptor.staging_id],
   };
+  const scheduleSource = { ...materialSource, source_id: stableFileScheduleIssuer(input.descriptor.original_name) };
   const commands: EducationIntakeCommand[] = [{
     command_type: "intake_material",
-    source,
+    source: materialSource,
     material: {
       material_id: `material-${input.descriptor.staging_id.slice("stg_".length)}`,
       staging_id: input.descriptor.staging_id,
@@ -83,10 +84,10 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
       source_scope: "desktop_staging",
     },
   }];
-  if (events.length > 0) commands.push({ command_type: "import_calendar", source, events });
+  if (events.length > 0) commands.push({ command_type: "import_calendar", source: scheduleSource, events });
   if (slots.length > 0) commands.push({
     command_type: "import_timetable",
-    source,
+    source: scheduleSource,
     slots: slots.map((slot) => ({ ...slot, notes: markRecognizedTimetableNote(slot.notes) })),
   });
 

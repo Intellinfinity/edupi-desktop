@@ -19,6 +19,23 @@ export type CalendarImportEvent = {
   type: "exam" | "activity" | "meeting" | "holiday" | "festival" | "teaching" | "custom";
   confidence: "confirmed" | "teacher_confirmed" | "inferred";
   notes: string | null;
+  source_occurrence_ref?: string;
+  time_interval?: { start: string; end: string; time_zone: string };
+  location?: string | null;
+};
+
+export type CalendarIntakeInput = {
+  eventId: string | null;
+  date: string;
+  endDate: string | null;
+  name: string;
+  type: string;
+  notes: string | null;
+  sourceOccurrenceRef: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  timeZone: string | null;
+  location: string | null;
 };
 
 export type TimetableImportSlot = {

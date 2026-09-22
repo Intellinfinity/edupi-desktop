@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 
 type RawRecord = Record<string, unknown>;
 
+export const MANUAL_CALENDAR_ISSUER = "desktop-calendar-manual-v1";
+
 function normalizedScheduleText(value: unknown): string {
   return typeof value === "string" ? value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase() : "";
 }
@@ -27,6 +29,19 @@ export function stableCalendarEventId(value: { date?: unknown; endDate?: unknown
     name: normalizedScheduleText(value.name),
     type: normalizedScheduleText(value.type),
   })}`;
+}
+
+export function stableOccurrenceCalendarEventId(issuer: unknown, sourceOccurrenceRef: unknown): string {
+  const normalizedIssuer = typeof issuer === "string" ? issuer.normalize("NFKC").trim() : "";
+  const normalizedRef = typeof sourceOccurrenceRef === "string" ? sourceOccurrenceRef.normalize("NFKC").trim() : "";
+  if (!normalizedIssuer || !normalizedRef) throw new Error("Occurrence identity is unavailable");
+  return `calendar-occurrence-${stableScheduleToken({ issuer: normalizedIssuer, source_occurrence_ref: normalizedRef })}`;
+}
+
+export function stableFileScheduleIssuer(originalName: unknown): string {
+  const normalizedName = normalizedScheduleText(originalName);
+  if (!normalizedName) throw new Error("Schedule file identity is unavailable");
+  return `desktop-file-schedule-${stableScheduleToken({ original_name: normalizedName }).slice(0, 24)}`;
 }
 
 export function stableRecognizedCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown; notes?: unknown }): string {

@@ -28,6 +28,7 @@ import type { TaskBoardLaneId } from "@/lib/edupi-task-board";
 import type { EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
 import type { EduPiTeachingSkillLifecycle } from "@/lib/edupi-platform-client";
 import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
+import type { CalendarIntakeInput } from "@/lib/edupi-education-intake";
 import type { EduPiKernelState } from "@/lib/edupi-kernel-client";
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
 
@@ -57,7 +58,7 @@ type Props = {
   onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => Promise<unknown>;
   onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>;
   onCalendarSelection: (selection: CalendarItemSelection | null) => void;
-  onImportCalendar: (event: { eventId: string | null; date: string; endDate: string | null; name: string; type: string; notes: string | null }) => Promise<void>;
+  onImportCalendar: (event: CalendarIntakeInput) => Promise<void>;
   onImportTimetable: (slot: { slotId: string | null; dayOfWeek: number; period: number; subject: string; className: string | null; kind: "class" | "routine"; notes: string | null }) => Promise<void>;
   onOpenContext: () => void;
   onOpenAdmin: () => void;

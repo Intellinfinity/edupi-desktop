@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createJiti } from "jiti";
 
-const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
-const { stableCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
+const { POST, calendarCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
 
 function request(body, headers = {}) {
   return new Request("http://localhost/api/edupi/intake", {
@@ -27,11 +27,33 @@ test("rejects unknown and unbounded intake shapes before Core dispatch", async (
     { kind: "timetable", slots: [] },
     { kind: "material", stagingId: "bad", unknown: true },
     { kind: "unknown" },
+    { kind: "calendar", events: [{ date: "2026-10-01", name: "教研", type: "meeting", sourceOccurrenceRef: "ref-1", timeInterval: { start: "2026-10-01T09:00", end: "2026-10-01T10:00+08:00", timeZone: "Asia/Shanghai" } }] },
+    { kind: "calendar", events: [{ date: "2026-10-01", name: "教研", type: "meeting", location: "东楼" }] },
+    { kind: "calendar", events: [{ date: "2026-10-01", name: "教研", type: "meeting", sourceOccurrenceRef: "ref-1", timeInterval: { start: "2026-10-01T09:00+08:00", timeZone: "Asia/Shanghai" } }] },
+    { kind: "calendar", events: [{ date: "2026-10-01", name: "教研", type: "meeting", sourceOccurrenceRef: "ref-1", location: "x".repeat(241) }] },
   ]) {
     const response = await POST(request(body));
     assert.equal(response.status, 400);
     assert.equal((await response.json()).code, "invalid_envelope");
   }
+});
+
+test("keeps a manual occurrence issuer and event identity stable across a move", () => {
+  const base = { kind: "calendar", events: [{ eventId: null, date: "2026-10-01", endDate: null, name: "教研会", type: "meeting",
+    confidence: "teacher_confirmed", notes: null, sourceOccurrenceRef: "manual-ref-42", location: "东楼 203",
+    timeInterval: { start: "2026-10-01T09:00+08:00", end: "2026-10-01T10:00+08:00", timeZone: "Asia/Shanghai" } }] };
+  const moved = structuredClone(base);
+  moved.events[0].date = "2026-10-02";
+  moved.events[0].timeInterval = { start: "2026-10-02T11:00+08:00", end: "2026-10-02T12:00+08:00", timeZone: "Asia/Shanghai" };
+  const first = calendarCommand(base);
+  const second = calendarCommand(moved);
+  assert.equal(first.source.source_id, MANUAL_CALENDAR_ISSUER);
+  assert.equal(second.source.source_id, MANUAL_CALENDAR_ISSUER);
+  assert.equal(first.events[0].event_id, stableOccurrenceCalendarEventId(MANUAL_CALENDAR_ISSUER, "manual-ref-42"));
+  assert.equal(second.events[0].event_id, first.events[0].event_id);
+  assert.notEqual(second.source.source_hash, first.source.source_hash);
+  assert.deepEqual(first.events[0].time_interval, { start: "2026-10-01T09:00+08:00", end: "2026-10-01T10:00+08:00", time_zone: "Asia/Shanghai" });
+  assert.equal(first.events[0].location, "东楼 203");
 });
 
 test("derives stable semantic IDs for schedule uploads without caller IDs", () => {

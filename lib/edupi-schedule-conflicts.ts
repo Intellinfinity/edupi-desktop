@@ -23,6 +23,8 @@ const CONFLICT_ID = /^schedule_conflict_[a-f0-9]{32}$/;
 const RESOLUTION_ID = /^schedule_resolution_[a-f0-9]{32}$/;
 const HASH = /^sha256:[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]*$/;
+const OFFSET_TIME = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d[+-](?:(?:0\d|1[0-4]):[0-5]\d)$/;
+const TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+/-]{0,99}$/;
 const DECISIONS = new Set<ScheduleConflictDecision>(["keep_existing", "replace_with_candidate", "keep_both_distinct"]);
 
 export class ScheduleConflictError extends Error {
@@ -48,6 +50,17 @@ function stringList(value: unknown): boolean {
   return Array.isArray(value) && value.length <= 50 && value.every((item) => boundedScheduleText(item, 240));
 }
 
+function validOccurrenceFields(value: RawRecord): boolean {
+  if (value.source_occurrence_ref !== undefined && !boundedScheduleText(value.source_occurrence_ref, 160)) return false;
+  if (value.location !== undefined && value.location !== null && !boundedScheduleText(value.location, 240)) return false;
+  if (value.time_interval === undefined) return true;
+  const interval = record(value.time_interval);
+  return Boolean(interval && Object.keys(interval).sort().join("|") === "end|start|time_zone"
+    && typeof interval.start === "string" && OFFSET_TIME.test(interval.start)
+    && typeof interval.end === "string" && OFFSET_TIME.test(interval.end)
+    && typeof interval.time_zone === "string" && TIME_ZONE.test(interval.time_zone));
+}
+
 export function normalizeScheduleConflict(value: unknown): ScheduleConflict {
   const raw = record(value);
   const canonical = record(raw?.canonical);
@@ -61,7 +74,8 @@ export function normalizeScheduleConflict(value: unknown): ScheduleConflict {
     || canonical[raw.kind === "calendar" ? "event_id" : "slot_id"] !== raw.canonical_id
     || !boundedScheduleText(candidate.source_item_id)
     || !stringList(canonical.source_ids) || !stringList(canonical.evidence_ids)
-    || !stringList(candidate.source_ids) || !stringList(candidate.evidence_ids)) {
+    || !stringList(candidate.source_ids) || !stringList(candidate.evidence_ids)
+    || raw.kind === "calendar" && (!validOccurrenceFields(canonical) || !validOccurrenceFields(candidate))) {
     throw new ScheduleConflictError("invalid_conflict_response");
   }
   return {
@@ -103,7 +117,10 @@ export async function readScheduleConflicts(fetcher: ScheduleConflictFetcher = f
 export function captureScheduleDecision(conflict: ScheduleConflict, decision: ScheduleConflictDecision, commandId = `desktop-schedule-${globalThis.crypto.randomUUID()}`): ScheduleResolution {
   if (!DECISIONS.has(decision) || !boundedId(commandId) || !CONFLICT_ID.test(conflict.conflictId)
     || !boundedScheduleText(conflict.canonicalId) || !HASH.test(conflict.expectedContentHash) || !HASH.test(conflict.expectedConflictHash)
-    || !Number.isSafeInteger(conflict.expectedRevision) || conflict.expectedRevision < 1) throw new ScheduleConflictError("invalid_conflict_request");
+    || !Number.isSafeInteger(conflict.expectedRevision) || conflict.expectedRevision < 1
+    || decision === "keep_both_distinct" && conflict.kind === "calendar"
+      && typeof conflict.canonical.source_occurrence_ref === "string"
+      && conflict.canonical.source_occurrence_ref === conflict.candidate.source_occurrence_ref) throw new ScheduleConflictError("invalid_conflict_request");
   const { conflictId, kind, canonicalId, expectedRevision, expectedContentHash, expectedConflictHash } = conflict;
   return { commandId, conflictId, kind, canonicalId, expectedRevision, expectedContentHash, expectedConflictHash, decision };
 }

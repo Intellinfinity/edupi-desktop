@@ -12,7 +12,7 @@ import { intakeRecognizedMaterial } from "@/lib/edupi-material-intake-flow";
 import { MaterialRecognitionError } from "@/lib/edupi-material-recognition";
 import { MaterialRecognitionAdmissionError, withMaterialRecognitionLock } from "@/lib/edupi-material-recognition-lock";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
-import { stableCalendarEventId, stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
+import { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableOccurrenceCalendarEventId, stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,33 +44,57 @@ function requiredText(value: unknown, max: number): string {
   return value.trim();
 }
 
-function sourceFor(kind: "calendar" | "timetable", raw: readonly RawRecord[]) {
+const OFFSET_TIME = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d[+-](?:(?:0\d|1[0-4]):[0-5]\d)$/;
+const TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+/-]{0,99}$/;
+
+function sourceFor(kind: "calendar" | "timetable", raw: readonly RawRecord[], stableSourceId?: string) {
   const hash = stableScheduleSourceHash(raw);
   const token = hash.slice("sha256:".length, "sha256:".length + 24);
-  return { source_id: `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
+  return { source_id: stableSourceId || `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
 }
 
-function calendarCommand(body: RawRecord): EducationIntakeCommand {
+function occurrenceInterval(value: unknown): CalendarImportEvent["time_interval"] | undefined {
+  if (value === undefined || value === null) return undefined;
+  const interval = record(value);
+  if (!interval || !exactKeys(interval, ["start", "end", "timeZone"])) throw new EducationIntakeError("invalid_envelope", "日程时间字段无效。");
+  const start = requiredText(interval.start, 22);
+  const end = requiredText(interval.end, 22);
+  const timeZone = requiredText(interval.timeZone, 100);
+  if (!OFFSET_TIME.test(start) || !OFFSET_TIME.test(end) || !TIME_ZONE.test(timeZone)) throw new EducationIntakeError("invalid_envelope", "日程时间字段无效。");
+  return { start, end, time_zone: timeZone };
+}
+
+export function calendarCommand(body: RawRecord): EducationIntakeCommand {
   if (!exactKeys(body, ["kind", "events"]) || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > 200) {
     throw new EducationIntakeError("invalid_envelope", "校历导入必须包含 1—200 个事件。");
   }
   const events: CalendarImportEvent[] = body.events.map((value) => {
     const item = record(value);
-    if (!item || !exactKeys(item, ["eventId", "date", "endDate", "name", "type", "confidence", "notes"])) throw new EducationIntakeError("invalid_envelope", "校历事件字段无效。");
+    if (!item || !exactKeys(item, ["eventId", "date", "endDate", "name", "type", "confidence", "notes", "sourceOccurrenceRef", "timeInterval", "location"])) throw new EducationIntakeError("invalid_envelope", "校历事件字段无效。");
     const type = requiredText(item.type, 40);
     const confidence = item.confidence === undefined ? "teacher_confirmed" : requiredText(item.confidence, 40);
     if (!CALENDAR_TYPES.has(type) || !CALENDAR_CONFIDENCE.has(confidence)) throw new EducationIntakeError("invalid_envelope", "校历事件类型无效。");
+    const sourceOccurrenceRef = optionalText(item.sourceOccurrenceRef, 160);
+    if (item.sourceOccurrenceRef !== undefined && item.sourceOccurrenceRef !== null && !sourceOccurrenceRef) throw new EducationIntakeError("invalid_envelope", "日程身份无效。");
+    const timeInterval = occurrenceInterval(item.timeInterval);
+    const location = optionalText(item.location, 240);
+    if ((timeInterval || location) && !sourceOccurrenceRef) throw new EducationIntakeError("invalid_envelope", "时间和地点必须绑定稳定日程身份。");
     return {
-      event_id: typeof item.eventId === "string" && item.eventId.trim() ? requiredText(item.eventId, 160) : stableCalendarEventId(item),
+      event_id: typeof item.eventId === "string" && item.eventId.trim() ? requiredText(item.eventId, 160)
+        : sourceOccurrenceRef ? stableOccurrenceCalendarEventId(MANUAL_CALENDAR_ISSUER, sourceOccurrenceRef) : stableCalendarEventId(item),
       date: typeof item.date === "string" ? item.date.trim().slice(0, 32) : "",
       end_date: optionalText(item.endDate, 32) ?? null,
       name: requiredText(item.name, 240),
       type: type as CalendarImportEvent["type"],
       confidence: confidence as CalendarImportEvent["confidence"],
       notes: optionalText(item.notes, 1000) ?? null,
+      ...(sourceOccurrenceRef ? { source_occurrence_ref: sourceOccurrenceRef } : {}),
+      ...(timeInterval ? { time_interval: timeInterval } : {}),
+      ...(sourceOccurrenceRef && item.location !== undefined ? { location: location ?? null } : {}),
     };
   });
-  return { command_type: "import_calendar", source: sourceFor("calendar", events as unknown as RawRecord[]), events };
+  const occurrenceBound = events.some((event) => event.source_occurrence_ref !== undefined);
+  return { command_type: "import_calendar", source: sourceFor("calendar", events as unknown as RawRecord[], occurrenceBound ? MANUAL_CALENDAR_ISSUER : undefined), events };
 }
 
 function timetableCommand(body: RawRecord): EducationIntakeCommand {
@@ -119,7 +143,7 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
 }
 
 function statusFor(error: EducationIntakeError): number {
-  if (error.code === "invalid_envelope") return 400;
+  if (error.code === "invalid_envelope" || error.code.startsWith("invalid_occurrence_")) return 400;
   if (error.code === "stale_snapshot" || error.code === "staging_missing" || error.code.includes("integrity") || error.code.includes("conflict")) return 409;
   return 503;
 }

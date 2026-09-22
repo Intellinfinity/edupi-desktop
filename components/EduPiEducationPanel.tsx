@@ -27,6 +27,7 @@ import { EduPiTaskDetailDrawer } from "./EduPiTaskDetailDrawer";
 import { EduPiTaskWorkspace } from "./EduPiTaskWorkspace";
 import { EduPiDeleteConfirmation } from "./EduPiDeleteConfirmation";
 import type { ReviewPayload } from "./EduPiTaskStage";
+import type { CalendarIntakeInput } from "@/lib/edupi-education-intake";
 import { submitTodayWorkReview, TodayWorkReviewError } from "@/lib/edupi-today-work";
 import { EduPiWorkspaceDrawer } from "./EduPiWorkspaceDrawer";
 import { EduPiWorkspaceViews } from "./EduPiWorkspaceViews";
@@ -107,6 +108,7 @@ type EducationIntakeApiResult = {
   staged?: MaterialStagingDescriptor[];
   recognition?: { eventCount?: number; slotCount?: number };
   scheduleNeedsReview?: boolean;
+  receipt?: { status?: string };
 };
 
 type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null; retryable?: boolean };
@@ -372,9 +374,15 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     return result;
   }, [submitEducationIntake]);
 
-  const importCalendarEvent = useCallback(async (event: { eventId: string | null; date: string; endDate: string | null; name: string; type: string; notes: string | null }) => {
-    await submitEducationIntake({ kind: "calendar", events: [{ ...event, confidence: "teacher_confirmed" }] });
-    setMaterialStagingMessage({ tone: "success", text: event.eventId ? "日程更改已保存。" : "日程已写入 EduPi 行事历。" });
+  const importCalendarEvent = useCallback(async (event: CalendarIntakeInput) => {
+    const timeInterval = event.startAt && event.endAt && event.timeZone
+      ? { start: event.startAt, end: event.endAt, timeZone: event.timeZone } : undefined;
+    const result = await submitEducationIntake({ kind: "calendar", events: [{ eventId: event.eventId, date: event.date,
+      endDate: event.endDate, name: event.name, type: event.type, notes: event.notes, confidence: "teacher_confirmed",
+      sourceOccurrenceRef: event.sourceOccurrenceRef, timeInterval, location: event.location }] });
+    setMaterialStagingMessage(result.receipt?.status === "held"
+      ? { tone: "error", sticky: true, text: "日程更改待核对。" }
+      : { tone: "success", text: event.eventId ? "日程更改已保存。" : "日程已写入 EduPi 行事历。" });
   }, [submitEducationIntake]);
 
   const importTimetableSlot = useCallback(async (slot: { slotId: string | null; dayOfWeek: number; period: number; subject: string; className: string | null; kind: "class" | "routine"; notes: string | null }) => {

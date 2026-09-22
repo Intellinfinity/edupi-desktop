@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "368bcd8b6fbe04d78860c96c37f27bec312c8e4c",
+    "core_commit": "7cbb280eaf33bdb259e719a0149b7f2ca343d356",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:d5ad788cffb8c4cede90e2e813c31782867c531b411befc885727ba38e66f38f",
-    "runtime_component_manifest_hash": "sha256:fc371b92b346aa99d6f60b7772bbc3b90b3736cd103ab04352396905ba4d8c75"
+    "component_manifest_hash": "sha256:f6a6c390e470f827298c8c0ce133861c2f0818db56bec94cc25e9a3e72b8d408",
+    "runtime_component_manifest_hash": "sha256:2faf92efd0c258beb8af3f1d3c6bb6a3fe6910bc09c29f76559ba504284a2c4d"
   },
   "contract_identities": [
     {
@@ -119,7 +119,8 @@
     "https://github.com/PIGU-PPPgu/edupi/pull/121",
     "https://github.com/PIGU-PPPgu/edupi/pull/141",
     "https://github.com/PIGU-PPPgu/edupi/pull/143",
-    "https://github.com/PIGU-PPPgu/edupi/pull/145"
+    "https://github.com/PIGU-PPPgu/edupi/pull/145",
+    "https://github.com/PIGU-PPPgu/edupi/pull/166"
   ],
-  "change_note": "Desktop G4 pin to Core 368bcd8: syncs the v1.1 schema and fixture manifest, enables privacy-bounded review_follow_up, and consumes attention_deliveries while keeping teacher review and external_send=false. Core ambient preparation remains opt-in and all higher-risk actions stay fail-closed."
+  "change_note": "Desktop G5 pin to Core 7cbb280: preserves the paired v1.1 bridge and 12 commands while accepting the new runtime manifest. Parent communication remains Core-owned and is not exposed as a Desktop send action; external_send stays false."
 }

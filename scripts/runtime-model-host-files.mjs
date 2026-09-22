@@ -8,6 +8,7 @@ export const RUNTIME_MODEL_HOST_FILES = Object.freeze([
   "calendar_work_model_runner.mjs",
   "core_runtime_harness.mjs",
   "core_runtime_g1_live_contract.mjs",
+  "ambient_safety_policy.mjs",
 ]);
 
 export async function copyRuntimeModelHostFiles(coreRoot, serverRoot) {

@@ -7,6 +7,9 @@
 - R21/R22 与 Core G6 配对已实现待远端/安装验收：可信反馈目标新增领域与班级/学科校验，未知范围不产生正向评价；日程歧义写入和旧进程写入受到 Core 围栏。Bridge v1.1、12 命令、`education_workspace` 和 `external_send=false` 不变。隔离 G6 全量 1377 通过/9 跳过、TypeScript、lint、Core 反馈和日程测试、生产资源 Core/投影 ready、反馈错班拒绝与回读及独立模型 host 通过；证据见 [G6 配对验收](../acceptance/2026-09-22-desktop-core-g6-pin.md)。公共 Release、应用内验签升级、原生通知/睡眠和真实价值仍分别待验收。
 - R23 JEV 实服/受管浏览器/Core Receipt 与 OpenConnector 安装版 sidecar 仍未完成；Windows/Linux 旧版升级和学校设备继续外部待验收。不能用 G6 pin 或这轮测试总数替代这些流程。
 - R22 正式发布现为外部阻塞：Desktop #207 合并为 `0d36b5f`，run `35714740346` 已通过三平台源码质量门和 Apple 六项凭据门，但三平台在私有 Core checkout 统一收到 SSH `Repository not found`；组织禁用 Deploy Key，注册新只读 Key 返回 HTTP 422。`v0.3.31` 仅为绑定该 merge SHA 的草稿，manifest/feed 未发布，本机安装版仍是 0.3.29。禁止用广权限个人 OAuth token 替代；等待仅限 Core 的短期 Contents 只读凭据或组织批准的等价方案，仍需重跑同一草稿、三平台、公证、更新与安装验收。
+- R22 凭据路径修正由 [Desktop #210](https://github.com/Intellinfinity/edupi-desktop/pull/210) 承载：已把三套打包工作流的 Core checkout 统一到新仓库，并在有受限 Token 时优先 HTTPS、否则沿用旧 SSH。29 项工作流测试、release/preview 的 actionlint 和 lint 通过；不宣称该 PR 能在缺凭据时完成发布。当前 `gh auth` 返回 401，需要重新登录；PR 公开只读 API 显示 head `b33b3ed` 且可合并，依赖审计因未改依赖的路径过滤无新检查。直接 Raw feed 本机超时，经 GitHub API 读取的公开 feed 仍为 0.3.30/7 平台键。
+- R21 安装版原生通知仍未验收：本机唯一正在运行的 EduPi 仍是 0.3.29、Core `d05cf89`，Core/投影/Kernel ready，51 学生/240 任务/43 校历/9 课表与模型、认证、设置文件摘要保持；原生设置显示“系统通知 待授权”，未替教师点击系统授权或宣称通知中心跳转成功。
+- R27 新增 Core #169 日程冲突审核消费（未实现）：已合并 Core `156ee8e` 在 Runtime 新增 `schedule_conflicts_read`、`schedule_conflict_resolve`，要求 owner 控制与 `conflict_id`、revision、内容及冲突哈希；决定限于保留原项、替换候选、保留两个不同项。Desktop 当前 G6 pin 不包含这两个操作。先完成 v0.3.31 安全发布，再在独立 G7 配对里接日程工作台的明确审核、失效拒绝、重放和跨页重读，不提前把 Core 合并等同于可用 UI。
 
 ## 2026-09-22 v0.3.31 手机安全修复与 Core G5 配对（历史阶段）
 

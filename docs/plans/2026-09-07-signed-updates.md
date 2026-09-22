@@ -5,6 +5,7 @@
 - Desktop #207 合并为 `0d36b5f`，Release run `35714740346` 创建 `v0.3.31` 草稿；三平台 npm/type/lint/audit 及 Apple 六项 Secret 门禁通过，但私有 Core checkout 都在 `git@github.com:Intellinfinity/edupi.git` 返回 `Repository not found`。manifest job 未运行，Release 未公开，旧版更新不可见。
 - Core 仓库仍列有旧只读 Deploy Key；组织策略禁用 Deploy Key 后它不能读取，创建新 Key 返回 HTTP 422。未注册的临时私钥已删除。不得把当前广权限个人 `gh` OAuth token 写入 Actions Secret。
 - 后续须使用组织允许的、仅 `Intellinfinity/edupi` Contents 只读的短期凭据（或等价的 GitHub App 授权）恢复 checkout；同一 draft 绑定原 merge SHA，凭据恢复后可重跑失败 job。三平台公证、11 项资产、7 平台 feed 和 0.3.29 原位升级仍分别待验收。
+- [Desktop #210](https://github.com/Intellinfinity/edupi-desktop/pull/210) 已提交凭据优先级与新仓库路径修正：29 项定向测试、release/preview actionlint 和 lint 通过；Windows debug 的完整 actionlint 仍报原有 ShellCheck `SC2012`，没有当作通过。该修复目前是另一 PR，不会改变已经失败 run 的代码；`gh auth` 已返回 401，需要恢复登录后才能继续远端操作。
 
 ## 2026-09-20 v0.3.29 执行记录
 

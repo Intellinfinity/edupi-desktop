@@ -80,6 +80,7 @@ test("macOS release verifies the staged Core, feedback, and model host before up
   const step = buildJob.slice(verifyAt, buildJob.indexOf("\n      - name:", verifyAt + 1));
   assert.match(step, /if: runner\.os == 'macOS'/);
   assert.match(step, /EDUPI_CORE_ROOT: \$\{\{ github\.workspace \}\}\/\.edupi-core-runtime/);
+  assert.match(step, /EDUPI_STAGED_RESOURCES: \$\{\{ github\.workspace \}\}\/src-tauri\/resources/);
   assert.match(step, /npm run test:staged-desktop-runtime/);
   assert.match(step, /npm run test:staged-feedback-runtime/);
   assert.match(step, /node --test scripts\/runtime-model-host-files\.test\.mjs/);
@@ -91,8 +92,10 @@ test("signed releases and updater metadata belong to the EduPi Desktop repositor
 
   assert.doesNotMatch(release, /EDUPI_RELEASE_TOKEN/);
   assert.match(release, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
-  assert.match(release, /owner:\s*PIGU-PPPgu/);
+  assert.match(release, /owner:\s*Intellinfinity/);
   assert.match(release, /repo:\s*edupi-desktop/);
+  assert.match(release, /RELEASE_REPOSITORY: Intellinfinity\/edupi-desktop/);
+  assert.match(release, /repository: Intellinfinity\/edupi/);
   assert.match(release, /--arg target "\$GITHUB_SHA"/);
   assert.match(release, /target_commitish: \$target/);
   assert.match(release, /releaseId: \$\{\{ needs\.release\.outputs\.release_id \}\}/);
@@ -408,7 +411,7 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
   ]);
   for (const workflow of workflows) {
     assert.match(workflow, /contracts\/edupi-core-compat\.json/);
-    assert.match(workflow, /repository: PIGU-PPPgu\/edupi/);
+    assert.match(workflow, /repository: (?:PIGU-PPPgu|Intellinfinity)\/edupi/);
     assert.match(workflow, /ref: \$\{\{ steps\.core\.outputs\.commit \}\}/);
     assert.match(workflow, /ssh-key: \$\{\{ secrets\.EDUPI_CORE_DEPLOY_KEY \}\}/);
     assert.match(

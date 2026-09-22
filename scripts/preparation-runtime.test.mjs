@@ -1,11 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, copyFile, rm } from "node:fs/promises";
+import { mkdtemp, copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { copyPreparationDependencies } from "./preparation-runtime.mjs";
+import { copyPackageClosure, copyPreparationDependencies } from "./preparation-runtime.mjs";
+
+test("package closure includes import-only scoped dependencies", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "edupi-esm-closure-"));
+  const destination = await mkdtemp(path.join(os.tmpdir(), "edupi-esm-output-"));
+  try {
+    await writeFile(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
+    for (const [name, dependencies] of [["parent", { "@example/child": "1" }], ["child", {}]]) {
+      const packageDir = path.join(root, "node_modules", "@example", name);
+      await mkdir(packageDir, { recursive: true });
+      await writeFile(path.join(packageDir, "package.json"), JSON.stringify({
+        name: `@example/${name}`, type: "module", exports: { ".": { import: "./index.js" } }, dependencies,
+      }));
+      await writeFile(path.join(packageDir, "index.js"), "export const ready = true;\n");
+    }
+    await copyPackageClosure(root, destination, "@example/parent");
+    const child = JSON.parse(await readFile(path.join(destination, "node_modules/@example/child/package.json"), "utf8"));
+    assert.equal(child.name, "@example/child");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(destination, { recursive: true, force: true });
+  }
+});
 
 test("preparation dependencies load outside the development node_modules", async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");

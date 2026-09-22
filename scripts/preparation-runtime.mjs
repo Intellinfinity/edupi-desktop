@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { copyFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const PREPARATION_PACKAGES = ["jszip", "@xmldom/xmldom", "mammoth"];
 
@@ -19,32 +19,16 @@ async function copyDirectory(source, destination) {
 }
 
 export async function copyPackageClosure(root, destination, packageName, seen = new Set()) {
-  const require = createRequire(join(root, "package.json"));
-  let manifestPath;
-  try {
-    manifestPath = require.resolve(`${packageName}/package.json`);
-  } catch {
+  let current = resolve(root);
+  let manifestPath = null;
+  while (true) {
+    const candidate = join(current, "node_modules", ...packageName.split("/"), "package.json");
     try {
-      const packageManifest = join(root, "node_modules", ...packageName.split("/"), "package.json");
-      try {
-        await stat(packageManifest);
-        manifestPath = packageManifest;
-      } catch {
-        let current = dirname(require.resolve(packageName, { paths: [root] }));
-        while (current !== dirname(current)) {
-          const candidate = join(current, "package.json");
-          try {
-            await stat(candidate);
-            manifestPath = candidate;
-            break;
-          } catch {
-            current = dirname(current);
-          }
-        }
-      }
-    } catch {
-      return;
-    }
+      if ((await stat(candidate)).isFile()) { manifestPath = candidate; break; }
+    } catch { /* Search the parent node_modules directory. */ }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
   if (!manifestPath) return;
   const packageRoot = dirname(manifestPath);

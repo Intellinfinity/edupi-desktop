@@ -4,7 +4,7 @@
 
 - Apple Developer ID Application 证书已创建、导入本机钥匙串并导出受限 `.p12`；p12 同时携带 Developer ID G2 中间证书，`security find-identity` 回读有效身份。
 - GitHub Actions 六个 Apple Secret 已配置；发布 workflow 的 macOS 资源签名修复已推送到远端 `783faf6`，对 packaged server/Core 的 Mach-O、dylib、node addon 和 helper app 加入 timestamped hardened-runtime 签名。
-- `npm test` 针对性签名/发布测试、TypeScript、lint 和 audit 已通过；Linux/Windows 远端构建通过。Apple notarization 提交 `5c9fa88f-91b1-4061-aca3-04efca7eec03` 仍处于外部 `In Progress` 后从查询中消失，run `35632713805` 因 runner 等待失效 submission 已取消；`v0.3.30` 未发布，待 Apple 后端恢复后从同一远端 commit 重试。
+- `npm test`、TypeScript、lint 和 audit 已通过；最终 run `35676436480` 三平台与 manifest 全绿。Apple submission `3e2d7f01-39bd-430f-8260-454d0df6bc28` 返回 `Accepted`，Tauri 完成 stapling，Latest `v0.3.30` 已发布并包含 11 个资产；公开 DMG 的 `codesign` 与 `spctl` 验收通过。
 
 ## 2026-09-21 对话输入、手机入口与 Core Runtime 修复补记
 

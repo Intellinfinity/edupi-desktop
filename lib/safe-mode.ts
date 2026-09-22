@@ -1,4 +1,6 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+import type { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
 
 export const SAFE_MODE_ENV = "EDUPI_SAFE_MODE";
 
@@ -10,7 +12,7 @@ export function isSafeModeEnabled(environment: NodeJS.ProcessEnv = process.env):
 export type SafeModeResourceRoots = {
   coreExtensionRoot?: string;
   coreSkillRoot?: string;
-  dataSkillRoot?: string;
+  builtinSkillPaths?: string[];
 };
 
 function isInside(root: string | undefined, candidate: string): boolean {
@@ -18,32 +20,30 @@ function isInside(root: string | undefined, candidate: string): boolean {
   const normalizedRoot = resolve(root);
   const normalizedCandidate = resolve(candidate);
   const remainder = relative(normalizedRoot, normalizedCandidate);
-  return remainder === "" || (!isAbsolute(remainder) && remainder !== ".." && !remainder.startsWith(`..${remainder.includes("\\") ? "\\" : "/"}`));
+  return remainder === "" || (!isAbsolute(remainder) && remainder !== ".." && !remainder.startsWith(`..${sep}`));
 }
 
-/**
- * Safe Mode keeps the built-in SDK and EduPi resources but excludes package,
- * user, and project extensions/skills before they are loaded. The runtime
- * uses the SDK's `noExtensions`/`noSkills` switches with the explicit Core
- * paths still supplied as additional resources.
- */
 export function isCoreResourcePath(path: string, roots: SafeModeResourceRoots): boolean {
   return isInside(roots.coreExtensionRoot, path)
-    || isInside(roots.coreSkillRoot, path)
-    || isInside(roots.dataSkillRoot, path);
+    || Boolean(roots.builtinSkillPaths?.some(builtin => resolve(builtin) === resolve(path)));
+}
+
+function canonical(path: string): string {
+  return existsSync(path) ? realpathSync(path) : resolve(path);
 }
 
 export function safeModeResourceOptions(
   enabled: boolean,
   roots: SafeModeResourceRoots = {},
-): {
-  noExtensions?: boolean;
-  noSkills?: boolean;
-} {
+): Partial<Pick<ConstructorParameters<typeof DefaultResourceLoader>[0], "noExtensions" | "noSkills" | "skillsOverride">> {
   if (!enabled) return {};
-  // Keep the roots in the helper's public contract so callers and tests can
-  // assert that Core paths remain explicitly owned even though the SDK's
-  // no* switches do the actual package/project filtering.
-  void roots;
-  return { noExtensions: true, noSkills: true };
+  const allowedSkills = new Set(roots.builtinSkillPaths?.map(canonical) ?? []);
+  return {
+    noExtensions: true,
+    noSkills: true,
+    skillsOverride: result => ({
+      ...result,
+      skills: result.skills.filter(skill => allowedSkills.has(canonical(skill.filePath))),
+    }),
+  };
 }

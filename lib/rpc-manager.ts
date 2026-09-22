@@ -16,7 +16,7 @@ import { PRODUCT_NAME } from "./branding";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "./pi-types";
 import type { ExtensionUiRequest, ExtensionUiResponse, ExtensionWidgetItem } from "./types";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "./custom-ui-terminal";
-import { EDUPI_CODE_ROOT, EDUPI_ROOT, extensionPaths, prepareEducationResources } from "./edupi-runtime";
+import { builtinEducationSkillPaths, EDUPI_CODE_ROOT, EDUPI_ROOT, extensionPaths, prepareEducationResources } from "./edupi-runtime";
 import { isSafeModeEnabled, safeModeResourceOptions } from "./safe-mode";
 import { recordStartupDiagnostic } from "./desktop-diagnostics";
 import { createEduPiAppControlTool } from "./edupi-desktop-tool";
@@ -1448,17 +1448,18 @@ export async function startRpcSession(
     } catch {
       console.warn("EduPi teacher context is unavailable for this session");
     }
-    const educationSkillPath = sessionIsEduPiDataRoot ? prepareEducationResources() : undefined;
+    const safeMode = isSafeModeEnabled();
+    const educationSkillPath = sessionIsEduPiDataRoot ? prepareEducationResources(EDUPI_ROOT, EDUPI_CODE_ROOT, { copySkills: !safeMode }) : undefined;
+    const builtinSkillPaths = safeMode && educationSkillPath ? builtinEducationSkillPaths() : [];
     const services = await createAgentSessionServices({
       cwd: sessionCwd,
       agentDir,
       resourceLoaderOptions: {
         additionalExtensionPaths: extensionPaths,
-        additionalSkillPaths: educationSkillPath ? [educationSkillPath] : [],
-        ...safeModeResourceOptions(isSafeModeEnabled(), {
+        additionalSkillPaths: safeMode ? builtinSkillPaths : educationSkillPath ? [educationSkillPath] : [],
+        ...safeModeResourceOptions(safeMode, {
           coreExtensionRoot: EDUPI_CODE_ROOT,
-          coreSkillRoot: EDUPI_CODE_ROOT,
-          dataSkillRoot: educationSkillPath,
+          builtinSkillPaths,
         }),
         ...(teacherContextAppendSystemPromptOverride
           ? { appendSystemPromptOverride: teacherContextAppendSystemPromptOverride }

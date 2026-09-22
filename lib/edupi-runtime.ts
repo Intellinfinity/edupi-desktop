@@ -1,5 +1,5 @@
 import { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
-import { relative, resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 
 const configuredDataRoot = resolve(process.env.EDUPI_DATA_ROOT || process.env.EDUPI_PROJECT_ROOT || "../edupi");
@@ -20,7 +20,21 @@ export function allowedEducationExtensions(codeRoot: string, names: string[]): s
   return names.filter(name => !allowed || allowed.has(`extensions/${name}`)).map(name => resolve(codeRoot, "extensions", name));
 }
 
-export function prepareEducationResources(dataRoot = EDUPI_ROOT, codeRoot = EDUPI_CODE_ROOT): string {
+export function builtinEducationSkillPaths(codeRoot = EDUPI_CODE_ROOT): string[] {
+  const allowed = resourceFiles(codeRoot);
+  if (!allowed) return [];
+  const skillRoot = resolve(codeRoot, "skills");
+  if (!existsSync(skillRoot)) return [];
+  const realSkillRoot = realpathSync(skillRoot);
+  return [...allowed].filter(path => /^skills\/[^/]+\/SKILL\.md$/.test(path)).sort().flatMap(path => {
+    const file = resolve(codeRoot, path);
+    if (!existsSync(file)) return [];
+    const realFile = realpathSync(file);
+    return realFile.startsWith(`${realSkillRoot}${sep}`) ? [file] : [];
+  });
+}
+
+export function prepareEducationResources(dataRoot = EDUPI_ROOT, codeRoot = EDUPI_CODE_ROOT, options: { copySkills?: boolean } = {}): string {
   process.env.EDUPI_PROJECT_ROOT = dataRoot;
   process.env.EDUPI_HOME = resolve(dataRoot, ".edupi");
   process.env.EDUPI_MEMORY_DIR = resolve(dataRoot, ".edupi/memory");
@@ -38,7 +52,7 @@ export function prepareEducationResources(dataRoot = EDUPI_ROOT, codeRoot = EDUP
       else if (entry.isFile() && !existsSync(to) && (!allowed || allowed.has(relative(codeRoot, from).replaceAll("\\", "/")))) copyFileSync(from, to);
     }
   };
-  if (existsSync(sourceDir) && resolve(sourceDir) !== resolve(skillsDir)) {
+  if (options.copySkills !== false && existsSync(sourceDir) && resolve(sourceDir) !== resolve(skillsDir)) {
     for (const name of readdirSync(sourceDir)) if (/^\d{2}-/.test(name)) copyMissing(resolve(sourceDir, name), resolve(skillsDir, name));
   }
   process.env.EDUPI_SKILLS_DIR ||= skillsDir;

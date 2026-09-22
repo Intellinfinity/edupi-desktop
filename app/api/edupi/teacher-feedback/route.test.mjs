@@ -4,7 +4,9 @@ import test from "node:test";
 import { createJiti } from "jiti";
 
 const source = await fs.readFile(new URL("./route.ts", import.meta.url), "utf8");
-const { GET, POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
+const { GET, POST } = await jiti.import("./route.ts");
+const { asRecord, bindFeedbackRecord } = await jiti.import("../../../../lib/edupi-teacher-feedback-binding.ts");
 
 test("feedback reads and writes require the desktop process token before Core access", async () => {
   const previousToken = process.env.PI_DESKTOP_API_TOKEN;
@@ -26,6 +28,17 @@ test("feedback reads and writes require the desktop process token before Core ac
   }
 });
 
+test("a prebound target survives an uncertain response and source revision change", async () => {
+  const target = { kind: "work_candidate", target_id: "candidate-1", expected_revision: 2, expected_fingerprint: `sha256:${"a".repeat(64)}` };
+  const input = { command_id: "feedback-1", signal: "surfaced", target, evidence_ids: ["evidence-1"] };
+  const host = { callOwnerControl: async () => { throw new Error("target must not be rebound on replay"); } };
+  const result = await bindFeedbackRecord(host, { ownerId: "owner-1", rootRef: `sha256:${"b".repeat(64)}` }, input);
+  assert.deepEqual(result.target, target);
+  assert.deepEqual(result.evidence_ids, ["evidence-1"]);
+  assert.equal(result.expected_owner_id, "owner-1");
+  await assert.rejects(() => bindFeedbackRecord(host, { ownerId: "owner-1", rootRef: `sha256:${"b".repeat(64)}` }, { ...input, target: { ...target, expected_fingerprint: "wrong" } }), (error) => error?.code === "invalid_feedback");
+});
+
 test("teacher feedback route keeps owner-control credentials server-side", () => {
   assert.match(source, /export async function GET\(request: Request\)/);
   assert.match(source, /if \(!isDesktopApiRequestAllowed\(request\)\)/);
@@ -34,14 +47,13 @@ test("teacher feedback route keeps owner-control credentials server-side", () =>
   assert.match(source, /teacher_feedback_target_read/);
   assert.match(source, /teacher_feedback_record/);
   assert.match(source, /bindFeedbackRecord/);
-  assert.match(source, /expected_revision: resolved\.revision/);
-  assert.match(source, /expected_fingerprint: resolved\.fingerprint/);
-  assert.match(source, /FEEDBACK_RECORD_KEYS/);
   assert.doesNotMatch(source, /ownerControlToken/);
   assert.match(source, /externalSend: false/);
 });
 
 test("teacher feedback route rejects non-object JSON before Core dispatch", () => {
-  assert.match(source, /function asRecord\(value: unknown\)/);
+  assert.equal(asRecord(null), null);
+  assert.equal(asRecord([]), null);
+  assert.equal(asRecord("string"), null);
   assert.match(source, /if \(!body\) return jsonError\("反馈操作无效", 400\)/);
 });

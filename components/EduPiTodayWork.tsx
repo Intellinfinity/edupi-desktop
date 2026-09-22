@@ -20,7 +20,7 @@ import {
 import { summarizeL4Preparation, type L4PreparationSummaryItem } from "@/lib/edupi-l4-preparation";
 import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups } from "@/lib/edupi-workbench";
 import { todayActiveTasks } from "@/lib/edupi-work-case";
-import { recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackDomain, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
+import { prepareTeacherFeedbackCapture, recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackDomain, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 
 type Props = {
@@ -95,6 +95,7 @@ export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: Teac
     domain,
     scope: { classId, subject: subject.trim() },
     target: { kind: "work_candidate", targetId: candidate.candidateId },
+    reviewedRevision: candidate.revision,
     decision: feedbackDecision(decision),
     usefulness,
     used: false,
@@ -293,8 +294,9 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       setEditor(null);
       setChangingDecisionId(null);
       const task = taskById.get(candidate.taskId);
-      setPendingFeedback(feedbackReady && task && feedbackCaptureFor(candidate, task, decision, "useful")
-        ? { candidate, task, decision, note } : null);
+      const reviewed = result.data.workCandidates.find((item) => item.candidateId === candidate.candidateId);
+      setPendingFeedback(feedbackReady && task && reviewed && feedbackCaptureFor(reviewed, task, decision, "useful")
+        ? { candidate: reviewed, task, decision, note } : null);
       setRatingOpen(false);
       setSelectedRating("");
       setFeedbackRetry(null);
@@ -321,7 +323,9 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     setFeedbackRetry(capture);
     setFeedbackBusy(true);
     try {
-      await recordTeacherFeedback(capture);
+      const bound = await prepareTeacherFeedbackCapture(capture);
+      setFeedbackRetry(bound);
+      await recordTeacherFeedback(bound);
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: "评价已记录。" });
     } catch {
@@ -335,7 +339,9 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
     if (!feedbackRetry || feedbackBusy) return;
     setFeedbackBusy(true);
     try {
-      await recordTeacherFeedback(feedbackRetry);
+      const bound = feedbackRetry.target.expectedRevision === undefined ? await prepareTeacherFeedbackCapture(feedbackRetry) : feedbackRetry;
+      setFeedbackRetry(bound);
+      await recordTeacherFeedback(bound);
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: "反馈已记录。" });
     } catch {

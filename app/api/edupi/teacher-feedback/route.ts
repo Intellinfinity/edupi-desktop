@@ -4,6 +4,7 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { hasJsonContentType } from "@/lib/request-security";
 import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
+import { asRecord, bindFeedbackRecord } from "@/lib/edupi-teacher-feedback-binding";
 import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 
 export const runtime = "nodejs";
@@ -12,22 +13,9 @@ export const dynamic = "force-dynamic";
 type FeedbackAction = "bootstrap" | "read" | "target_read" | "record";
 const ACTIONS = new Set<FeedbackAction>(["bootstrap", "read", "target_read", "record"]);
 const MAX_BODY_BYTES = 32 * 1024;
-const FEEDBACK_RECORD_KEYS = new Set([
-  "command_id", "session_id", "evidence_level", "domain", "scope", "signal", "target", "decision",
-  "usefulness", "used", "would_use_again", "baseline_minutes", "review_minutes", "issue_codes", "note",
-  "evidence_ids", "occurred_at", "supersedes_feedback_id",
-]);
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ ok: false, error: message, externalSend: false }, { status });
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function feedbackFailure(code: string, message: string): Error & { code: string } {
-  return Object.assign(new Error(message), { code });
 }
 
 async function runtimeContext() {
@@ -58,42 +46,6 @@ async function bootstrap() {
     action: "bootstrap",
   });
   return response;
-}
-
-async function bindFeedbackRecord(host: Awaited<ReturnType<typeof runtimeContext>>["host"], owner: { ownerId: string; rootRef: string }, value: Record<string, unknown>): Promise<Record<string, unknown>> {
-  if (Object.keys(value).some((key) => !FEEDBACK_RECORD_KEYS.has(key))) throw feedbackFailure("invalid_feedback", "反馈记录字段无效");
-  if (value.signal !== "surfaced" && value.signal !== "missed") throw feedbackFailure("invalid_feedback", "反馈信号无效");
-  const target = asRecord(value.target);
-  if (!target || typeof target.kind !== "string" || typeof target.target_id !== "string") throw feedbackFailure("invalid_feedback", "反馈目标无效");
-  if (value.signal === "missed") {
-    if (target.kind !== "missed_opportunity") throw feedbackFailure("invalid_feedback", "漏报反馈目标无效");
-    return { ...value, root_ref: owner.rootRef, expected_owner_id: owner.ownerId };
-  }
-  if (target.kind === "missed_opportunity") throw feedbackFailure("invalid_feedback", "已出现事项不能标记为漏报");
-  const resolvedResponse = await host.callOwnerControl("teacher_feedback_target_read", {
-    root_ref: owner.rootRef,
-    expected_owner_id: owner.ownerId,
-    target: { kind: target.kind, target_id: target.target_id },
-  });
-  if (resolvedResponse.ok !== true) throw feedbackFailure(String(resolvedResponse.error_code || "teacher_feedback_target_missing"), "反馈目标已失效，请刷新后重试");
-  const resolved = asRecord(resolvedResponse.result);
-  if (!resolved || typeof resolved.kind !== "string" || typeof resolved.target_id !== "string"
-    || !Number.isSafeInteger(resolved.revision) || typeof resolved.fingerprint !== "string"
-    || !Array.isArray(resolved.evidence_ids) || resolved.evidence_ids.length === 0) {
-    throw feedbackFailure("teacher_feedback_target_stale", "反馈目标无法重新核对");
-  }
-  const resolvedEvidence = resolved.evidence_ids.filter((item): item is string => typeof item === "string");
-  if (resolvedEvidence.length === 0) throw feedbackFailure("teacher_feedback_target_stale", "反馈目标缺少证据");
-  const suppliedEvidence = Array.isArray(value.evidence_ids) ? value.evidence_ids.filter((item): item is string => typeof item === "string") : [];
-  const evidenceIds = suppliedEvidence.length > 0 ? suppliedEvidence : resolvedEvidence;
-  if (!evidenceIds.some((item) => resolvedEvidence.includes(item))) throw feedbackFailure("teacher_feedback_target_stale", "反馈证据与当前目标不匹配");
-  return {
-    ...value,
-    target: { kind: resolved.kind, target_id: resolved.target_id, expected_revision: resolved.revision, expected_fingerprint: resolved.fingerprint },
-    evidence_ids: evidenceIds,
-    root_ref: owner.rootRef,
-    expected_owner_id: owner.ownerId,
-  };
 }
 
 export async function GET(request: Request) {

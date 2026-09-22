@@ -12,7 +12,8 @@ export type TeacherFeedbackCapture = {
   evidenceLevel?: "real_teacher" | "synthetic";
   domain: TeacherFeedbackDomain;
   scope: { classId: string; subject: string };
-  target: { kind: TeacherFeedbackTargetKind; targetId: string };
+  target: { kind: TeacherFeedbackTargetKind; targetId: string; expectedRevision?: number; expectedFingerprint?: string };
+  reviewedRevision?: number;
   decision: TeacherFeedbackDecision;
   usefulness: TeacherFeedbackUsefulness;
   used: boolean;
@@ -58,6 +59,10 @@ export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Recor
   }
   const evidenceIds = [...new Set(input.evidenceIds.map((value) => id(value, "evidenceId", 240)))].slice(0, 50);
   if (evidenceIds.length === 0) throw new TeacherFeedbackError("invalid_feedback", "evidenceIds is required");
+  if (!Number.isSafeInteger(input.target.expectedRevision) || (input.target.expectedRevision ?? -1) < 0
+    || typeof input.target.expectedFingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/.test(input.target.expectedFingerprint)) {
+    throw new TeacherFeedbackError("invalid_feedback", "target binding is required");
+  }
   const record: Record<string, unknown> = {
     command_id: id(input.commandId, "commandId"),
     session_id: id(input.sessionId, "sessionId"),
@@ -65,7 +70,7 @@ export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Recor
     domain: input.domain,
     scope: { class_id: id(input.scope.classId, "scope.classId"), subject: text(input.scope.subject, "scope.subject", 128) },
     signal: "surfaced",
-    target: { kind: input.target.kind, target_id: id(input.target.targetId, "target.targetId", 300) },
+    target: { kind: input.target.kind, target_id: id(input.target.targetId, "target.targetId", 300), expected_revision: input.target.expectedRevision, expected_fingerprint: input.target.expectedFingerprint },
     decision: input.decision,
     usefulness: input.usefulness,
     used: input.used,
@@ -88,6 +93,31 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
   } catch {
     return {};
   }
+}
+
+export async function prepareTeacherFeedbackCapture(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders): Promise<TeacherFeedbackCapture> {
+  const post = async (body: Record<string, unknown>) => fetcher("/api/edupi/teacher-feedback", { method: "POST", headers: await headersProvider({ "content-type": "application/json" }), body: JSON.stringify(body) });
+  const readTarget = () => post({ action: "target_read", target: { kind: input.target.kind, target_id: input.target.targetId } });
+  let response = await readTarget();
+  let value = await readResponse(response);
+  if (response.status === 409 && value.errorCode === "owner_uninitialized") {
+    const bootstrap = await post({ action: "bootstrap" });
+    const bootstrapValue = await readResponse(bootstrap);
+    if (!bootstrap.ok || bootstrapValue.ok === false) throw new TeacherFeedbackError(String(bootstrapValue.errorCode || "feedback_runtime_unavailable"), "教师反馈 Runtime 尚未就绪");
+    response = await readTarget();
+    value = await readResponse(response);
+  }
+  if (!response.ok || value.ok !== true) throw new TeacherFeedbackError(String(value.errorCode || "teacher_feedback_target_stale"), "反馈目标已失效");
+  const target = value.result && typeof value.result === "object" && !Array.isArray(value.result) ? value.result as Record<string, unknown> : null;
+  const targetEvidence = Array.isArray(target?.evidence_ids) ? target.evidence_ids : [];
+  if (!target || target.kind !== input.target.kind || target.target_id !== input.target.targetId
+    || !Number.isSafeInteger(target.revision) || Number(target.revision) < 0
+    || input.reviewedRevision !== undefined && target.revision !== input.reviewedRevision
+    || typeof target.fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/.test(target.fingerprint)
+    || !input.evidenceIds.some((item) => targetEvidence.includes(item))) {
+    throw new TeacherFeedbackError("teacher_feedback_target_stale", "反馈依据与当前目标不一致");
+  }
+  return { ...input, target: { ...input.target, expectedRevision: target.revision as number, expectedFingerprint: target.fingerprint } };
 }
 
 export async function recordTeacherFeedback(input: TeacherFeedbackCapture, fetcher: TeacherFeedbackFetcher = fetch, headersProvider: typeof desktopApiHeaders = desktopApiHeaders): Promise<TeacherFeedbackRecordResult> {

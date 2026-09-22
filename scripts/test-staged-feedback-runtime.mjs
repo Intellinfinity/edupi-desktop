@@ -114,17 +114,16 @@ try {
   const targetRead = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "target_read", target: { kind: "goal", target_id: "goal-staged-feedback" } }) });
   if (!targetRead.response.ok) console.error("target_read", JSON.stringify(targetRead.body));
   assert.equal(targetRead.response.status, 200, JSON.stringify(targetRead.body));
-  const record = await jsonFetch("/api/edupi/teacher-feedback", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action: "record", record: {
+  const target = targetRead.body.result;
+  assert.ok(Array.isArray(target.evidence_ids) && target.evidence_ids.length > 0);
+  const recordBody = JSON.stringify({ action: "record", record: {
       command_id: "staged-feedback-record-1",
       session_id: "staged-teacher-trial",
       evidence_level: "synthetic",
       domain: "teaching_preparation",
       scope: { class_id: "class-7b", subject: "math" },
       signal: "surfaced",
-      target: { kind: "goal", target_id: "goal-staged-feedback" },
+      target: { kind: target.kind, target_id: target.target_id, expected_revision: target.revision, expected_fingerprint: target.fingerprint },
       decision: "accept",
       usefulness: "useful",
       used: false,
@@ -133,20 +132,24 @@ try {
       review_minutes: null,
       issue_codes: [],
       note: "隔离运行时反馈回执测试",
+      evidence_ids: target.evidence_ids,
       occurred_at: new Date().toISOString(),
       supersedes_feedback_id: null,
-    } }),
-  });
+    } });
+  const record = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: recordBody });
   if (!record.response.ok) console.error(logs.slice(-6000));
   assert.equal(record.response.status, 200, JSON.stringify(record.body));
   assert.equal(record.body.ok, true);
+  const replay = await jsonFetch("/api/edupi/teacher-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: recordBody });
+  assert.equal(replay.response.status, 200, JSON.stringify(replay.body));
+  assert.equal(replay.body.result.replayed, true);
   const read = await jsonFetch("/api/edupi/teacher-feedback", { method: "GET" });
   assert.equal(read.response.status, 200, JSON.stringify(read.body));
   assert.equal(read.body.result.feedback.length, 1);
   assert.equal(read.body.result.summary.real_teacher_current, 0);
   assert.equal(read.body.result.summary.synthetic_excluded, 1);
   assert.equal(read.body.result.summary.time_saved_minutes, 0);
-  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, feedback_recorded: true, feedback_readback: true, synthetic_excluded: 1, external_send: false }, null, 2));
+  console.log(JSON.stringify({ status: "passed", owner_bootstrap: true, target_recheck: true, bound_replay: true, feedback_recorded: true, feedback_readback: true, synthetic_excluded: 1, external_send: false }, null, 2));
 } finally {
   await stop();
   fs.rmSync(dataRoot, { recursive: true, force: true });

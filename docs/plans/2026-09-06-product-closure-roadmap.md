@@ -6,6 +6,13 @@
 - R25 仍是部分验收：上述为隔离 SDK 进程，不等于在正式安装包中放入故障插件、`--safe-mode` 冷启动、点击恢复正常启动并核对用户数据。旧安装版的普通 Safe Mode 冷启动/恢复验收见下文；故障注入的安装版流程仍未执行。
 - R21 本机安装版 v0.3.36 的“测试通知跳转”返回“系统已接受通知”，设置显示系统通知已开启。该结果只证明提交到 macOS 通知中心；通知中心没有暴露可操作窗口，未观察到实际送达或点击回到提醒，真实通知点击与睡眠唤醒继续为未验收。
 
+## 2026-09-23 文本 PDF/DOCX 时间地点证据（工程验收通过）
+
+- 提交 `fe53b51` 为文本 PDF/DOCX 增加原子 typed time/location 合同：同一原文摘录必须证明名称、日期、完整时段、时区/offset 和地点；DST、UTC/GMT、Unicode minus、冲突 offset、跨日和缓存重放均 fail closed，详细证据见 [文本材料时间地点验收](../acceptance/2026-09-23-text-schedule-evidence.md)。
+- 真实 DOCX→提取→受控模型 JSON→Core v1.2 E2 通过；同字节改名不重复、typed cache 会重新提取原文重放验证、改源 hash 拒绝，最终事项保持 `inferred / hold / external_send=false`。release gate 与 symlink packaged server 闭包同步更新。
+- 全量 1520 tests，1494 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint 通过，独立终审无 P0/P1/P2。
+- 仍未完成：图片/扫描 PDF 的可信 OCR 证据、PDF/DOCX 跨修订 logical source 与 omission 撤回、真实 provider 质量、Windows 安装版、正式盲测和真实教师价值。公开 Latest 仍为 v0.3.36/Core `860594a…`，整体状态仍为“L4 功能收敛中”。
+
 ## 2026-09-23 PDF、图片与 Word 日程来源身份（部分实现已验收）
 
 - 非 ICS 材料的 schedule issuer 已从“文件名优先”改为“校验后的内容 SHA-256 优先”：同字节改名保持同一来源，同名不同字节严格分离；交付为 [Desktop #223](https://github.com/Intellinfinity/edupi-desktop/pull/223)，实现提交 `c8cb6f0`，证据见 [非 ICS 日程来源身份验收](../acceptance/2026-09-23-document-schedule-content-identity.md)。

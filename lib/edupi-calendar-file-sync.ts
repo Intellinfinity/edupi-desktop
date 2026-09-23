@@ -244,7 +244,7 @@ export async function syncCalendarFile(input: {
   let chainedSnapshot = sourceRead.snapshot;
   const issue = dependencies.issue || (async (command: EducationIntakeCommand) => {
     const response = await issueEducationIntake(command, { readSnapshot: async () => chainedSnapshot });
-    if (response.data) chainedSnapshot = { payload: response.data, roots: sourceRead.snapshot.roots };
+    if (response.data) chainedSnapshot = { ...chainedSnapshot, payload: response.data };
     return response;
   });
   const result = await intakeRecognizedMaterial({

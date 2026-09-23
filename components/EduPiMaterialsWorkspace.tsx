@@ -14,9 +14,9 @@ import { intakeOperationHistory } from "@/lib/edupi-operation-history";
 import { EduPiOperationHistory } from "./EduPiOperationHistory";
 import { EduPiMaterialMetadataEditor } from "./EduPiMaterialMetadataEditor";
 import { EduPiIconButton, EduPiPagination } from "./EduPiActionIcon";
+import { resolveScheduleSourceSelection, type ScheduleSourceOption } from "@/lib/edupi-schedule-source-selection";
 
 const PAGE_SIZE = 8;
-type ScheduleSourceOption = { sourceId: string; sourceKind: "calendar" | "document"; label: string; eventCount: number; fingerprint: string };
 
 function documentScheduleSource(item: MaterialStagingDescriptor): boolean {
   const path = item.staging_path.toLowerCase();
@@ -148,9 +148,14 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
     }
     setOperationError("");
     try {
-      const source = scheduleSources.find((candidate) => candidate.sourceId === intakeDraft.scheduleSourceId) || null;
+      const sourceSelection = resolveScheduleSourceSelection(intakeDraft.scheduleSourceId, scheduleSources);
+      if (sourceSelection.state === "stale") {
+        setOperationError("所选日程来源已变化，请重新选择");
+        void loadScheduleSources();
+        return;
+      }
       await onIntakeMaterial(item, { ...intakeDraft, title: intakeDraft.title.trim(), subject: intakeDraft.subject.trim(), classId: intakeDraft.classId.trim() },
-        item.kind === "calendar" || documentScheduleSource(item) ? source : null);
+        item.kind === "calendar" || documentScheduleSource(item) ? sourceSelection.source : null);
       setIntakeDraft(null);
     } catch {
       if (item.kind === "calendar" || documentScheduleSource(item)) void loadScheduleSources();

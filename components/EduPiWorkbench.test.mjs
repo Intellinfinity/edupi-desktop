@@ -322,7 +322,9 @@ test("routes education uploads through Desktop staging without Core paths or aut
   assert.match(materials, /更新可能撤回该来源的旧安排，请确认来源/);
   assert.match(materials, /作为新材料来源/);
   assert.match(materials, /未识别到的旧安排不会自动撤回/);
-  assert.match(materials, /candidate\.sourceId === intakeDraft\.scheduleSourceId/);
+  assert.match(materials, /resolveScheduleSourceSelection\(intakeDraft\.scheduleSourceId, scheduleSources\)/);
+  assert.match(materials, /sourceSelection\.state === "stale"/);
+  assert.match(materials, /所选日程来源已变化，请重新选择/);
   assert.match(materials, /source\.sourceKind === "calendar" \? "日历" : "材料"/);
   assert.match(materials, /calendarIntakeReady = materialIntakeReady && data\.capabilities\.calendar\.enabled && data\.capabilities\.entityDelete\.enabled/);
   assert.match(workspaceViews, /stagedMaterials/);

@@ -40,7 +40,12 @@ function sourceKind(value: string): CoreScheduleSourceKind | null {
 
 export type CoreCalendarSourceRead = {
   sources: CoreCalendarSource[];
-  snapshot: { payload: RawRecord & { education_workspace: RawRecord }; roots: EduPiBridgeRoots };
+  snapshot: {
+    envelope: RawRecord;
+    payload: RawRecord & { education_workspace: RawRecord };
+    roots: EduPiBridgeRoots;
+    occurrenceEvents: RawRecord[];
+  };
 };
 
 function record(value: unknown): RawRecord | null {
@@ -178,6 +183,11 @@ export async function readCoreCalendarSources(signal?: AbortSignal): Promise<Cor
   if (!snapshot.occurrenceProjection) throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源投影不可用。");
   return {
     sources: projectCoreCalendarSources(snapshot.occurrenceProjection.events),
-    snapshot: { payload: snapshot.payload, roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot } },
+    snapshot: {
+      envelope: snapshot.envelope,
+      payload: snapshot.payload,
+      roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot },
+      occurrenceEvents: snapshot.occurrenceProjection.events,
+    },
   };
 }

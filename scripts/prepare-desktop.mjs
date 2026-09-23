@@ -11,6 +11,7 @@ import { piPackageDirNames } from "./pi-packages.mjs";
 import { removeUnusedMuslSharp } from "./packaged-sharp.mjs";
 import { copyPackageClosure, copyPreparationDependencies } from "./preparation-runtime.mjs";
 import { copyRuntimeModelHostFiles } from "./runtime-model-host-files.mjs";
+import { cleanupStandaloneTraceLeak, planStandaloneTraceLeakCleanup } from "./desktop-trace-leak.mjs";
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const desktopBuildDir = join(rootDir, ".next-desktop");
@@ -304,7 +305,12 @@ async function bundleNodeRuntime() {
   return { binaryPath, triple };
 }
 
-await runNextBuild();
+const traceLeakCleanup = await planStandaloneTraceLeakCleanup({ rootDir, standaloneDir });
+try {
+  await runNextBuild();
+} finally {
+  await cleanupStandaloneTraceLeak(traceLeakCleanup);
+}
 await assembleServer();
 await removeUnusedMuslSharp(serverResourcesDir);
 

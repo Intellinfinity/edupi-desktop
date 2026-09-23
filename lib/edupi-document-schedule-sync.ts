@@ -8,10 +8,11 @@ import {
   type CoreCalendarSourceRead,
 } from "./edupi-calendar-sources";
 import { issueEducationIntake, type EducationIntakeCommand, type MaterialIntake } from "./edupi-education-intake";
+import { readEntityDeletionLedger, type EntityDeletionLedger } from "./edupi-entity-delete";
 import { intakeRecognizedMaterial } from "./edupi-material-intake-flow";
 import { MaterialRecognitionError, recognizeStagedMaterial, type MaterialRecognitionResult } from "./edupi-material-recognition";
 import type { MaterialStagingDescriptor } from "./edupi-material-staging";
-import { stableDocumentOccurrenceRef, stableDocumentScheduleSourceId, stableOccurrenceCalendarEventId } from "./edupi-schedule-upload";
+import { stableDocumentOccurrenceRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId } from "./edupi-schedule-upload";
 
 type IssueResult = { receipt: Record<string, unknown>; data: unknown };
 const CONFIDENCE = { inferred: 1, teacher_confirmed: 2, confirmed: 3 } as const;
@@ -26,6 +27,7 @@ type DocumentSyncDependencies = {
   recognize?: (descriptor: MaterialStagingDescriptor) => Promise<MaterialRecognitionResult>;
   issue?: (command: EducationIntakeCommand) => Promise<IssueResult>;
   readSources?: () => Promise<CoreCalendarSourceRead>;
+  readDeletions?: (sourceRead: CoreCalendarSourceRead) => Promise<EntityDeletionLedger>;
 };
 
 function supportsDocumentScheduleSource(descriptor: MaterialStagingDescriptor): boolean {
@@ -39,6 +41,100 @@ function documentSourceCandidates(sources: CoreCalendarSource[], events: Materia
   return sources.filter((source) => source.occurrences.some((occurrence) => (
     content.has(occurrence.contentFingerprint) || anchors.has(stableDocumentOccurrenceRef(occurrence.content))
   )));
+}
+
+function legacyDocumentEventBindings(
+  rows: Record<string, unknown>[],
+  descriptor: MaterialStagingDescriptor,
+  events: MaterialRecognitionResult["events"],
+  baseline: CoreCalendarSource | null,
+): Map<string, { eventId: string; confidence: "confirmed" | "teacher_confirmed" | "inferred" }> {
+  const legacySourceId = stableFileScheduleIssuer(descriptor.original_name, descriptor.source_hash);
+  const expectedEvidenceId = `schedule-evidence-${descriptor.source_hash.slice("sha256:".length, "sha256:".length + 32)}`;
+  const legacyRows = rows.flatMap((row) => {
+    if (Object.hasOwn(row, "source_occurrence_ref") || !Array.isArray(row.source_ids)
+      || typeof row.event_id !== "string" || !row.event_id || row.event_id.length > 160) return [];
+    const legacySourceIds = row.source_ids.filter((source): source is string =>
+      typeof source === "string" && /^desktop-file-schedule-[a-f0-9]{24}$/u.test(source));
+    if (legacySourceIds.length === 0) return [];
+    const evidenceIds = Array.isArray(row.evidence_ids)
+      ? row.evidence_ids.filter((evidence): evidence is string => typeof evidence === "string")
+      : [];
+    try {
+      return [{ row, anchor: stableDocumentOccurrenceRef(row),
+        owned: legacySourceIds.includes(legacySourceId) || evidenceIds.includes(expectedEvidenceId), legacySourceIds }];
+    } catch {
+      return [];
+    }
+  });
+  const owned = legacyRows.filter((item) => item.owned);
+  const currentAnchors = new Set((baseline?.occurrences || []).map((occurrence) => stableDocumentOccurrenceRef(occurrence.content)));
+  const unresolvedEvents = events.filter((event) => !currentAnchors.has(stableDocumentOccurrenceRef(event)));
+  if (owned.length > 0) {
+    const ownedAnchors = new Set(owned.map((item) => item.anchor));
+    const incomingAnchors = new Set(unresolvedEvents.map((event) => stableDocumentOccurrenceRef(event)));
+    if (ownedAnchors.size !== owned.length || ownedAnchors.size !== incomingAnchors.size
+      || [...ownedAnchors].some((anchor) => !incomingAnchors.has(anchor))) {
+      throw new MaterialRecognitionError("ambiguous_schedule", "首次接管旧版材料时必须完整识别全部既有安排。");
+    }
+  }
+  const bindings = new Map<string, { eventId: string; confidence: "confirmed" | "teacher_confirmed" | "inferred" }>();
+  for (const event of unresolvedEvents) {
+    const anchor = stableDocumentOccurrenceRef(event);
+    const matches = owned.filter((item) => item.anchor === anchor);
+    if (matches.length > 1) {
+      throw new MaterialRecognitionError("ambiguous_schedule", "旧版材料包含多个同名同类安排，无法自动接管。");
+    }
+    if (matches.length === 1) {
+      const match = matches[0];
+      if (match.legacySourceIds.length !== 1 || !Array.isArray(match.row.source_ids) || match.row.source_ids.length !== 1) {
+        throw new MaterialRecognitionError("ambiguous_schedule", "旧版事项绑定了多个材料来源，无法自动接管。");
+      }
+      const currentConfidence = match.row.confidence;
+      let confidence = event.confidence;
+      if (confidenceRank(currentConfidence) > confidenceRank(confidence)) {
+        if (!["confirmed", "teacher_confirmed", "inferred"].includes(String(currentConfidence))) {
+          throw new MaterialRecognitionError("ambiguous_schedule", "旧版事项置信状态无效，无法自动接管。");
+        }
+        const trusted = { ...event, confidence: currentConfidence as "confirmed" | "teacher_confirmed" | "inferred" };
+        if (calendarOccurrenceContentFingerprint(trusted as unknown as Record<string, unknown>)
+          !== calendarOccurrenceContentFingerprint(match.row)) {
+          throw new MaterialRecognitionError("ambiguous_schedule", "教师已确认的旧版事项与本次识别不一致，请先人工核对。");
+        }
+        confidence = trusted.confidence;
+      }
+      bindings.set(anchor, { eventId: match.row.event_id as string, confidence });
+      continue;
+    }
+    if (owned.length > 0) {
+      throw new MaterialRecognitionError("ambiguous_schedule", "同一旧版材料的识别结果已经变化，请先核对旧日程。");
+    }
+    if (legacyRows.some((item) => item.anchor === anchor)) {
+      throw new CalendarSourceError("calendar_source_selection_required", "检测到其他旧版材料中的同名安排，请先核对旧日程。");
+    }
+  }
+  return bindings;
+}
+
+function normalizedLabel(value: unknown): string {
+  return typeof value === "string" ? value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase() : "";
+}
+
+function assertNotDeletedDocumentEvents(
+  events: MaterialRecognitionResult["events"],
+  ledger: EntityDeletionLedger,
+  baseline: CoreCalendarSource | null,
+): void {
+  const deleted = ledger.deletions.filter((record) => record.kind === "calendar");
+  const ids = new Set(deleted.map((record) => record.id));
+  const labels = new Set(deleted.map((record) => normalizedLabel(record.label)).filter(Boolean));
+  const hasUnlabelledLegacyDeletion = deleted.some((record) => !normalizedLabel(record.label));
+  const currentAnchors = new Set((baseline?.occurrences || []).map((occurrence) => stableDocumentOccurrenceRef(occurrence.content)));
+  if (events.some((event) => ids.has(event.event_id)
+    || !currentAnchors.has(stableDocumentOccurrenceRef(event))
+      && (hasUnlabelledLegacyDeletion || labels.has(normalizedLabel(event.name))))) {
+    throw new MaterialRecognitionError("ambiguous_schedule", "该安排此前已删除，请先从删除记录明确恢复后再更新。");
+  }
 }
 
 function bindDocumentOccurrences(
@@ -68,9 +164,9 @@ function bindDocumentOccurrences(
       if (calendarOccurrenceContentFingerprint(trusted as unknown as Record<string, unknown>) !== match.contentFingerprint) {
         throw new MaterialRecognitionError("ambiguous_schedule", "材料内容与所选日历不一致，请通过日历更新或冲突审核处理。");
       }
-      return { event: trusted, ref: match.sourceOccurrenceRef };
+      return { event: trusted, ref: match.sourceOccurrenceRef, eventId: match.eventId };
     }
-    return { event, ref: match?.sourceOccurrenceRef || anchor };
+    return { event, ref: match?.sourceOccurrenceRef || anchor, eventId: match?.eventId || null };
   });
   const refs = bindings.map((binding) => binding.ref);
   if (new Set(refs).size !== refs.length) {
@@ -79,7 +175,7 @@ function bindDocumentOccurrences(
   return bindings.map((binding) => ({
     ...binding.event,
     source_occurrence_ref: binding.ref,
-    event_id: stableOccurrenceCalendarEventId(sourceId, binding.ref),
+    event_id: binding.eventId || stableOccurrenceCalendarEventId(sourceId, binding.ref),
   }));
 }
 
@@ -140,7 +236,20 @@ export async function syncDocumentScheduleFile(input: {
   const sourceId = requested?.sourceId || derivedSourceId;
   const derived = sourceRead.sources.find((source) => source.sourceId === derivedSourceId) || null;
   const candidates = documentSourceCandidates(sourceRead.sources, recognition.events);
-  const boundEvents = bindDocumentOccurrences(recognition.events, sourceId, requested || derived);
+  const legacyBaseline = requested?.sourceKind === "document" ? requested : requested ? null : derived;
+  const legacyBindings = !requested || requested.sourceKind === "document"
+    ? legacyDocumentEventBindings(sourceRead.snapshot.occurrenceEvents || [], input.descriptor, recognition.events, legacyBaseline)
+    : new Map<string, { eventId: string; confidence: "confirmed" | "teacher_confirmed" | "inferred" }>();
+  const boundEvents = bindDocumentOccurrences(recognition.events, sourceId, requested || derived).map((event) => {
+    const legacy = legacyBindings.get(stableDocumentOccurrenceRef(event));
+    return { ...event, event_id: legacy?.eventId || event.event_id, confidence: legacy?.confidence || event.confidence };
+  });
+  const deletionLedger = await (dependencies.readDeletions
+    || ((current) => readEntityDeletionLedger({ signal: input.signal }, { roots: current.snapshot.roots })))(sourceRead);
+  if (deletionLedger.snapshotId !== String(sourceRead.snapshot.payload.snapshot_id || "")) {
+    throw new CalendarSourceError("stale_calendar_source", "日程删除状态已变化，请刷新后重试。");
+  }
+  assertNotDeletedDocumentEvents(boundEvents, deletionLedger, requested || derived);
   const expectedOccurrences = boundEvents.map((event) => ({
     sourceOccurrenceRef: event.source_occurrence_ref as string,
     eventId: event.event_id,
@@ -177,12 +286,13 @@ export async function syncDocumentScheduleFile(input: {
   let chainedSnapshot = sourceRead.snapshot;
   const issue = dependencies.issue || (async (command: EducationIntakeCommand) => {
     const response = await issueEducationIntake(command, { readSnapshot: async () => chainedSnapshot });
-    if (response.data) chainedSnapshot = { payload: response.data, roots: sourceRead.snapshot.roots };
+    if (response.data) chainedSnapshot = { ...chainedSnapshot, payload: response.data };
     return response;
   });
   const result = await intakeRecognizedMaterial({
     descriptor: input.descriptor,
     scheduleSourceId: sourceId,
+    preserveOccurrenceEventIds: true,
     title: input.title,
     materialKind: input.materialKind,
     subject: input.subject,

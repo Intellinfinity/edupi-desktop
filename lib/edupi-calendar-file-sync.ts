@@ -6,6 +6,7 @@ import { runCoreProcess } from "./edupi-core-process-client";
 import {
   CalendarSourceError,
   calendarOccurrenceContentFingerprint,
+  calendarOccurrenceSeriesRef,
   calendarSourceFingerprintForOccurrences,
   calendarSourceSelectionCandidates,
   readCoreCalendarSources,
@@ -37,6 +38,10 @@ function includesImportedEvidence(
     && current.eventId === incoming.eventId
     && current.contentFingerprint === incoming.contentFingerprint
     && current.evidenceIds.includes(evidenceId)));
+}
+
+function calendarDeletionNote(sourceId: string, evidenceId: string): string {
+  return `ICS-SYNC:${crypto.createHash("sha256").update(`${sourceId}\0${evidenceId}`, "utf8").digest("hex")}`;
 }
 
 export async function deleteCalendarOccurrences(
@@ -80,7 +85,7 @@ export async function deleteCalendarOccurrences(
       expected_source_fingerprint: dependencies.expectedSourceFingerprint,
       snapshot_id: snapshotId,
       reviewer: "teacher",
-      note: `ICS 日历来源更新 ${dependencies.evidenceId}`,
+      note: calendarDeletionNote(dependencies.sourceId, dependencies.evidenceId),
   };
   const response = await (dependencies.callCore || ((nextRequest) => runCoreProcess<Record<string, unknown>>({
       runtime: roots.runtime,
@@ -127,7 +132,8 @@ export async function syncCalendarFile(input: {
 }> {
   if (input.descriptor.kind !== "calendar") throw new MaterialRecognitionError("invalid_output", "所选文件不是 ICS 日历。");
   const recognition = await (dependencies.recognize || recognizeStagedMaterial)(input.descriptor);
-  if (recognition.events.length === 0 && (recognition.cancelled_occurrence_refs || []).length === 0) {
+  if (recognition.events.length === 0 && (recognition.cancelled_occurrence_refs || []).length === 0
+    && (recognition.affected_series_refs || []).length === 0) {
     throw new MaterialRecognitionError("invalid_output", "ICS 日历没有可导入或撤回的事项。");
   }
   if (recognition.events.some((event) => !event.source_occurrence_ref)) {
@@ -137,6 +143,7 @@ export async function syncCalendarFile(input: {
     { calendar_mode: recognition.calendar_mode || "full_snapshot" },
     ...recognition.events as unknown as Record<string, unknown>[],
     ...(recognition.cancelled_occurrence_refs || []).map((source_occurrence_ref) => ({ cancelled_source_occurrence_ref: source_occurrence_ref })),
+    ...(recognition.affected_series_refs || []).map((source_series_ref) => ({ affected_source_series_ref: source_series_ref })),
   ]);
   const derivedSourceId = `calendar-source-${semanticHash.slice("sha256:".length, "sha256:".length + 32)}`;
   const materialEvidenceId = `calendar-evidence-${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 32)}`;
@@ -144,7 +151,9 @@ export async function syncCalendarFile(input: {
   const requested = input.requestedSourceId
     ? sourceRead.sources.find((source) => source.sourceId === input.requestedSourceId) || null
     : null;
-  const sourceId = requested?.sourceId || derivedSourceId;
+  const sourceId = requested?.sourceId || input.requestedSourceId || derivedSourceId;
+  const selectionCandidates = calendarSourceSelectionCandidates(sourceRead.sources,
+    recognition.events as Array<Record<string, unknown> & { source_occurrence_ref?: string }>, recognition.affected_series_refs || []);
   const expectedOccurrences = recognition.events.map((event) => ({
     sourceOccurrenceRef: event.source_occurrence_ref as string,
     eventId: stableOccurrenceCalendarEventId(sourceId, event.source_occurrence_ref),
@@ -163,14 +172,44 @@ export async function syncCalendarFile(input: {
   }));
   const incomingFingerprint = calendarSourceFingerprintForOccurrences(expectedOccurrences);
   const deletionLedger = await (dependencies.readDeletions || ((current) => readEntityDeletionLedger({ signal: input.signal }, { roots: current.snapshot.roots })))(sourceRead);
-  const deletedIds = new Set(deletionLedger.deletions.filter((record) => record.kind === "calendar").map((record) => record.id));
   const cancellationRefs = recognition.cancelled_occurrence_refs || [];
   const cancellationIds = cancellationRefs.map((ref) => stableOccurrenceCalendarEventId(sourceId, ref));
-  const recoveredMissingCancellation = Boolean(input.requestedSourceId && !requested && recognition.calendar_mode === "delta_cancel"
-    && cancellationIds.length > 0 && cancellationIds.every((id) => deletedIds.has(id)));
+  const affectedSeriesRefsList = recognition.affected_series_refs || [];
+  const cancellationReplayState = (currentSource: CoreCalendarSourceRead["sources"][number] | null, ledger: EntityDeletionLedger) => {
+    const currentDeletedIds = new Set(ledger.deletions.filter((record) => record.kind === "calendar").map((record) => record.id));
+    const occurrenceAlreadyApplied = cancellationIds.length > 0
+      && cancellationIds.every((id) => currentDeletedIds.has(id))
+      && (!currentSource || cancellationRefs.every((ref) => !currentSource.occurrences.some((occurrence) => occurrence.sourceOccurrenceRef === ref)));
+    const seriesDeleteHistory = ledger.history.filter((entry) => entry.action === "delete" && entry.kind === "calendar"
+      && /^calendar-batch-delete-[a-f0-9]{32}$/u.test(entry.requestId)
+      && entry.note === calendarDeletionNote(sourceId, materialEvidenceId));
+    const seriesAlreadyApplied = Boolean(recognition.calendar_mode === "delta_cancel"
+      && affectedSeriesRefsList.length > 0
+      && !ledger.historyTruncated
+      && seriesDeleteHistory.length > 0
+      && seriesDeleteHistory.every((entry) => currentDeletedIds.has(entry.targetId)));
+    const seriesNoopReplay = seriesAlreadyApplied
+      && (!currentSource || affectedSeriesRefsList.every((seriesRef) => !currentSource.occurrences.some((occurrence) =>
+        calendarOccurrenceSeriesRef(occurrence.sourceOccurrenceRef) === seriesRef)));
+    const noopReplay = recognition.calendar_mode === "delta_cancel"
+      && (cancellationRefs.length > 0 || affectedSeriesRefsList.length > 0)
+      && (cancellationRefs.length === 0 || occurrenceAlreadyApplied)
+      && (affectedSeriesRefsList.length === 0 || seriesNoopReplay);
+    return { deletedIds: currentDeletedIds, noopReplay, seriesAlreadyApplied };
+  };
+  const replayState = cancellationReplayState(requested, deletionLedger);
+  const deletedIds = replayState.deletedIds;
+  const seriesCancellationAlreadyApplied = replayState.seriesAlreadyApplied;
+  const cancellationNoopReplay = replayState.noopReplay;
+  const recoveredMissingCancellation = Boolean(input.requestedSourceId && !requested && cancellationNoopReplay);
   if (input.requestedSourceId) {
     if (!requested && !recoveredMissingCancellation) throw new CalendarSourceError("calendar_source_not_found", "所选日历来源已经不存在，请刷新后重试。");
-    if (requested && (!input.expectedSourceFingerprint || requested.fingerprint !== input.expectedSourceFingerprint)
+    if (selectionCandidates.length > 0
+      && (selectionCandidates.length !== 1 || selectionCandidates[0].sourceId !== requested?.sourceId)) {
+      throw new CalendarSourceError("calendar_source_selection_required", "文件事项属于另一个或多个日历来源，请重新选择。");
+    }
+    if (requested && !cancellationNoopReplay
+      && (!input.expectedSourceFingerprint || requested.fingerprint !== input.expectedSourceFingerprint)
       && requested.fingerprint !== incomingFingerprint) {
       throw new CalendarSourceError("stale_calendar_source", "日历来源已更新，请重新选择后再导入。");
     }
@@ -179,9 +218,8 @@ export async function syncCalendarFile(input: {
     if (derived && derived.fingerprint !== incomingFingerprint) {
       throw new CalendarSourceError("calendar_source_selection_required", "这份文件是既有日历的不同修订，请明确选择要更新的日历。");
     }
-    const candidates = derived ? [] : calendarSourceSelectionCandidates(sourceRead.sources,
-      recognition.events as Array<Record<string, unknown> & { source_occurrence_ref?: string }>);
-    if (candidates.length > 0) {
+    if (selectionCandidates.length > 0
+      && (!derived || selectionCandidates.length !== 1 || selectionCandidates[0].sourceId !== derived.sourceId)) {
       throw new CalendarSourceError("calendar_source_selection_required", "检测到与既有日历重复的事项，请选择要更新的日历后再导入。");
     }
   }
@@ -193,6 +231,12 @@ export async function syncCalendarFile(input: {
     && cancellationRefs.some((ref) => !baseline?.occurrences.some((occurrence) => occurrence.sourceOccurrenceRef === ref)
       && !deletedIds.has(stableOccurrenceCalendarEventId(sourceId, ref)))) {
     throw new MaterialRecognitionError("ambiguous_schedule", "取消事项不属于所选日历，请核对来源后重试。");
+  }
+  if (baseline && recognition.calendar_mode === "delta_cancel"
+    && (recognition.affected_series_refs || []).some((seriesRef) => !baseline.occurrences.some((occurrence) =>
+      calendarOccurrenceSeriesRef(occurrence.sourceOccurrenceRef) === seriesRef))
+    && !seriesCancellationAlreadyApplied) {
+    throw new MaterialRecognitionError("ambiguous_schedule", "取消系列不属于所选日历，请核对来源后重试。");
   }
   if (expectedOccurrences.some((occurrence) => deletedIds.has(occurrence.eventId))) {
     throw new MaterialRecognitionError("ambiguous_schedule", "此前撤回的日历事项重新出现，请先在回收记录中明确恢复。");
@@ -217,10 +261,24 @@ export async function syncCalendarFile(input: {
   if (!importAccepted || result.scheduleNeedsReview) {
     return { ...result, sourceId, committed: false, removedEventIds: [] };
   }
+  if (cancellationNoopReplay) {
+    const verificationRead = await (dependencies.readSourcesAfter || dependencies.readSources
+      || (() => readCoreCalendarSources(input.signal)))();
+    const verificationSource = verificationRead.sources.find((source) => source.sourceId === sourceId) || null;
+    const verificationLedger = await (dependencies.readDeletions
+      || ((current) => readEntityDeletionLedger({ signal: input.signal }, { roots: current.snapshot.roots })))(verificationRead);
+    if (!cancellationReplayState(verificationSource, verificationLedger).noopReplay) {
+      throw new CalendarSourceError("stale_calendar_source", "日历取消状态在确认期间发生变化，请刷新后重试。");
+    }
+    return { ...result, sourceId, committed: true, removedEventIds: [] };
+  }
   const activeRefs = new Set(result.calendarOccurrences.map((occurrence) => occurrence.sourceOccurrenceRef));
   const cancelledRefs = new Set(result.cancelledOccurrenceRefs);
+  const affectedSeriesRefs = new Set(recognition.affected_series_refs || []);
   const withdrawn = (baseline?.occurrences || []).filter((occurrence) => recognition.calendar_mode === "delta_cancel" || recognition.calendar_mode === "delta_upsert"
     ? cancelledRefs.has(occurrence.sourceOccurrenceRef)
+      || affectedSeriesRefs.has(calendarOccurrenceSeriesRef(occurrence.sourceOccurrenceRef) || "")
+        && (recognition.calendar_mode === "delta_cancel" || !activeRefs.has(occurrence.sourceOccurrenceRef))
     : !activeRefs.has(occurrence.sourceOccurrenceRef) || cancelledRefs.has(occurrence.sourceOccurrenceRef));
   if (input.signal?.aborted) throw new DOMException("Aborted", "AbortError");
   const removedEventIds = withdrawn.map((item) => item.eventId);

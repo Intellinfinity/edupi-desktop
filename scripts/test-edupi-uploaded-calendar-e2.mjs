@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -105,6 +106,9 @@ function timed(uid, date, hour, title, location) {
   return ["BEGIN:VEVENT", `UID:${uid}`, "DTSTAMP:20260923T000000Z", `DTSTART;TZID=Asia/Shanghai:${date}T${hour}0000`,
     `DTEND;TZID=Asia/Shanghai:${date}T${end}0000`, `SUMMARY:${title}`, `LOCATION:${location}`, "STATUS:CONFIRMED", "END:VEVENT"];
 }
+
+const seriesFamily = (uid) => `ics-series:${crypto.createHash("sha256").update(uid, "utf8").digest("hex")}`;
+const deletionNote = (sourceId, evidenceId) => `ICS-SYNC:${crypto.createHash("sha256").update(`${sourceId}\0${evidenceId}`, "utf8").digest("hex")}`;
 
 try {
   const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
@@ -244,24 +248,26 @@ try {
     "RRULE:FREQ=WEEKLY;COUNT=3", ...(withExdate ? ["EXDATE;TZID=Asia/Shanghai:20261027T090000"] : []),
     "SUMMARY:循环教研会", "STATUS:CONFIRMED", "END:VEVENT",
   ];
-  stagedFile = await stage(calendar([recurringEvent(false)]), "循环教研日历.ics");
+  const recurringFamily = seriesFamily("upload-recurring");
+  const recurringUnrelated = timed("upload-recurring-keep", "20261022", "12", "同来源保留事项", "教研室");
+  stagedFile = await stage(calendar([recurringEvent(false), recurringUnrelated]), "循环教研日历.ics");
   const recurringInitial = await intake(stagedFile.staging_id);
   assert.equal(recurringInitial.response.status, 200, JSON.stringify(recurringInitial.body));
   assert.equal(recurringInitial.body.calendarCommitted, true);
-  assert.equal(recurringInitial.body.recognition.eventCount, 3);
+  assert.equal(recurringInitial.body.recognition.eventCount, 4);
   const recurringSourceId = recurringInitial.body.calendarSourceId;
   sourceList = await listSources();
   const recurringSource = sourceList.body.sources.find((source) => source.sourceId === recurringSourceId);
-  assert.equal(recurringSource.eventCount, 3);
+  assert.equal(recurringSource.eventCount, 4);
   stagedFile = await stage(calendar([recurringEvent(true)], "REQUEST"), "循环教研日历-排除一次.ics");
   const recurringUpdated = await intake(stagedFile.staging_id, recurringSourceId, recurringSource.fingerprint);
   assert.equal(recurringUpdated.response.status, 200, JSON.stringify(recurringUpdated.body));
   assert.equal(recurringUpdated.body.calendarCommitted, true);
   assert.equal(recurringUpdated.body.removedEventCount, 1);
   read = await education();
-  const recurringCurrent = read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-recurring#"));
+  const recurringCurrent = read.body.calendar.filter((item) => item.occurrenceRef?.startsWith(`${recurringFamily}#`));
   assert.equal(recurringCurrent.length, 2);
-  assert.equal(recurringCurrent.some((item) => item.occurrenceRef === "upload-recurring#2026-10-27T01:00:00.000Z"), false);
+  assert.equal(recurringCurrent.some((item) => item.occurrenceRef === `${recurringFamily}#2026-10-27T01:00:00.000Z`), false);
 
   sourceList = await listSources();
   const recurrenceAfterExdate = sourceList.body.sources.find((source) => source.sourceId === recurringSourceId);
@@ -274,6 +280,56 @@ try {
   assert.equal(recurrenceCancelled.response.status, 200, JSON.stringify(recurrenceCancelled.body));
   assert.equal(recurrenceCancelled.body.calendarCommitted, true);
   assert.equal(recurrenceCancelled.body.removedEventCount, 1);
+
+  sourceList = await listSources();
+  const recurrenceAfterCancel = sourceList.body.sources.find((source) => source.sourceId === recurringSourceId);
+  const shiftedSeries = [
+    "BEGIN:VEVENT", "UID:upload-recurring", "DTSTAMP:20260923T000000Z",
+    "DTSTART;TZID=Asia/Shanghai:20261020T100000", "DTEND;TZID=Asia/Shanghai:20261020T110000",
+    "RRULE:FREQ=WEEKLY;COUNT=3", "SUMMARY:循环教研会改时", "STATUS:CONFIRMED", "END:VEVENT",
+  ];
+  stagedFile = await stage(calendar([shiftedSeries], "REQUEST"), "循环教研日历-改时.ics");
+  const implicitShift = await intake(stagedFile.staging_id);
+  assert.equal(implicitShift.response.status, 409, JSON.stringify(implicitShift.body));
+  assert.equal(implicitShift.body.code, "calendar_source_selection_required");
+  const shifted = await intake(stagedFile.staging_id, recurringSourceId, recurrenceAfterCancel.fingerprint);
+  assert.equal(shifted.response.status, 200, JSON.stringify(shifted.body));
+  assert.equal(shifted.body.calendarCommitted, true);
+  assert.equal(shifted.body.recognition.eventCount, 3);
+  assert.equal(shifted.body.removedEventCount, 1);
+  read = await education();
+  const shiftedCurrent = read.body.calendar.filter((item) => item.occurrenceRef?.startsWith(`${recurringFamily}#`));
+  assert.equal(shiftedCurrent.length, 3);
+  assert.equal(shiftedCurrent.every((item) => item.startsAt?.includes("T10:00+08:00")), true);
+  assert.equal(shiftedCurrent.some((item) => item.occurrenceRef === `${recurringFamily}#2026-10-20T01:00:00.000Z`), false);
+
+  sourceList = await listSources();
+  const recurrenceAfterShift = sourceList.body.sources.find((source) => source.sourceId === recurringSourceId);
+  const seriesCancellation = [
+    "BEGIN:VEVENT", "UID:upload-recurring", "DTSTAMP:20260923T000000Z",
+    "STATUS:CANCELLED", "END:VEVENT",
+  ];
+  stagedFile = await stage(calendar([seriesCancellation], "CANCEL"), "循环教研日历-全部取消.ics");
+  const seriesCancellationEvidenceId = `calendar-evidence-${stagedFile.source_hash.slice("sha256:".length, "sha256:".length + 32)}`;
+  const seriesCancelled = await intake(stagedFile.staging_id, recurringSourceId, recurrenceAfterShift.fingerprint);
+  assert.equal(seriesCancelled.response.status, 200, JSON.stringify(seriesCancelled.body));
+  assert.equal(seriesCancelled.body.calendarCommitted, true);
+  assert.equal(seriesCancelled.body.calendarSourceId, recurringSourceId);
+  assert.equal(seriesCancelled.body.removedEventCount, 3);
+  const afterSeriesCancellationState = JSON.parse(fs.readFileSync(path.join(home, "output", "entity_delete_state.json"), "utf8"));
+  const seriesCancellationHistory = afterSeriesCancellationState.history.filter((item) => item.action === "delete"
+    && item.note === deletionNote(recurringSourceId, seriesCancellationEvidenceId));
+  assert.equal(seriesCancellationHistory.length, 3, JSON.stringify(afterSeriesCancellationState.history));
+  assert.equal(seriesCancellationHistory.every((item) => /^calendar-batch-delete-[a-f0-9]{32}$/u.test(item.request_id)), true,
+    JSON.stringify(seriesCancellationHistory));
+  assert.equal(seriesCancellationHistory.every((item) => afterSeriesCancellationState.records.some((record) =>
+    record.target_kind === "calendar" && record.target_id === item.target_id)), true);
+  stagedFile = await stage(calendar([seriesCancellation], "CANCEL"), "循环教研日历-全部取消-重放.ics");
+  const seriesCancelReplay = await intake(stagedFile.staging_id, recurringSourceId, recurrenceAfterShift.fingerprint);
+  assert.equal(seriesCancelReplay.response.status, 200, JSON.stringify(seriesCancelReplay.body));
+  assert.equal(seriesCancelReplay.body.calendarCommitted, true);
+  assert.equal(seriesCancelReplay.body.calendarSourceId, recurringSourceId);
+  assert.equal(seriesCancelReplay.body.removedEventCount, 0);
 
   const firstImportExdate = [
     "BEGIN:VEVENT", "UID:upload-first-exdate", "DTSTAMP:20260923T000000Z",
@@ -298,17 +354,24 @@ try {
   read = await education();
   assert.equal(read.body.calendar.some((item) => ["upload-a", "upload-b"].includes(item.occurrenceRef)), false);
   assert.equal(read.body.calendar.filter((item) => ["upload-c", "upload-d"].includes(item.occurrenceRef)).length, 2);
-  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-recurring#")).length, 1);
-  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-first-exdate#")).length, 2);
+  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith(`${recurringFamily}#`)).length, 0);
+  assert.equal(read.body.calendar.some((item) => item.occurrenceRef === "upload-recurring-keep"), true,
+    "whole-series cancellation must preserve another UID from the same uploaded source");
+  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith(`${seriesFamily("upload-first-exdate")}#`)).length, 2);
   const deletionState = JSON.parse(fs.readFileSync(path.join(home, "output", "entity_delete_state.json"), "utf8"));
-  assert.equal(deletionState.records.filter((item) => item.target_kind === "calendar").length, 4);
-  assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === `ICS 日历来源更新 ${updateEvidenceId}`), true,
+  assert.equal(deletionState.records.filter((item) => item.target_kind === "calendar").length, 8);
+  assert.equal(deletionState.history.filter((item) => item.action === "delete"
+    && item.note === deletionNote(recurringSourceId, seriesCancellationEvidenceId)).length, 3,
+  "an exact series cancellation replay must not create new delete history");
+  assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === deletionNote(sourceId, updateEvidenceId)), true,
     "the batch tombstone history must identify the ICS revision that caused the withdrawal");
-  assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === `ICS 日历来源更新 ${secondUpdateEvidenceId}`), true,
+  assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === deletionNote(sourceId, secondUpdateEvidenceId)), true,
     "a later revision must preserve its own withdrawal evidence after earlier tombstones");
   console.log(JSON.stringify({ status: "passed", staged_server: staged, deterministic_ics: true, exact_replay: true,
     explicit_update: true, consecutive_update: true, exdate_delta: true, exdate_first_import: true,
-    recurrence_cancel: true, manual_occurrence_coexistence: true, deletion_propagation: true, restart_readback: true,
+    recurrence_cancel: true, recurrence_series_replace: true, recurrence_series_cancel: true,
+    recurrence_series_cancel_replay: true, implicit_series_update_held: true,
+    manual_occurrence_coexistence: true, deletion_propagation: true, restart_readback: true,
     external_send: false }));
 } finally {
   await stagedServer?.stop();

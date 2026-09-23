@@ -70,6 +70,14 @@ export function calendarOccurrenceContentFingerprint(value: RawRecord): string {
   return hash(eventContent(value));
 }
 
+export function calendarOccurrenceSeriesRef(value: unknown): string | null {
+  if (typeof value !== "string" || !value || value.length > 160 || /[\u0000-\u001f\u007f]/u.test(value)) return null;
+  const recurring = /^(ics-series:[a-f0-9]{64})#\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.exec(value)?.[1];
+  if (recurring) return recurring;
+  const hashed = /^ics:([a-f0-9]{64})$/u.exec(value)?.[1];
+  return hashed ? `ics-series:${hashed}` : `ics-series:${crypto.createHash("sha256").update(value, "utf8").digest("hex")}`;
+}
+
 export function calendarSourceFingerprintForOccurrences(
   occurrences: Array<{ sourceOccurrenceRef: string; eventId: string; content: RawRecord }>,
 ): string {
@@ -134,10 +142,13 @@ export function projectCoreCalendarSources(events: unknown[]): CoreCalendarSourc
 export function calendarSourceSelectionCandidates(
   sources: CoreCalendarSource[],
   events: Array<RawRecord & { source_occurrence_ref?: string }>,
+  affectedSeriesRefs: string[] = [],
 ): CoreCalendarSource[] {
   const refs = new Set(events.flatMap((event) => typeof event.source_occurrence_ref === "string" ? [event.source_occurrence_ref] : []));
   const content = new Set(events.map(calendarOccurrenceContentFingerprint));
-  return sources.filter((source) => source.occurrences.some((occurrence) => refs.has(occurrence.sourceOccurrenceRef) || content.has(occurrence.contentFingerprint)));
+  const series = new Set(affectedSeriesRefs);
+  return sources.filter((source) => source.occurrences.some((occurrence) => refs.has(occurrence.sourceOccurrenceRef)
+    || content.has(occurrence.contentFingerprint) || series.has(calendarOccurrenceSeriesRef(occurrence.sourceOccurrenceRef) || "")));
 }
 
 export async function readCoreCalendarSources(signal?: AbortSignal): Promise<CoreCalendarSourceRead> {

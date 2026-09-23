@@ -60,6 +60,7 @@ export type EntityDeletionLedger = {
   snapshotId: string;
   deletions: EntityDeletionRecord[];
   history: EntityDeletionHistory[];
+  historyTruncated: boolean;
 };
 
 export type EntityDeletionSummary = { activeCount: number; historyCount: number };
@@ -82,6 +83,7 @@ type DeleteListCoreResponse = {
   external_send?: boolean;
   deletions?: unknown[];
   history?: unknown[];
+  history_truncated?: boolean;
 };
 
 export class EntityDeleteError extends Error {
@@ -183,7 +185,7 @@ function parseDeletionHistory(value: unknown): EntityDeletionHistory | null {
 export function parseEntityDeletionProjection(value: unknown): Pick<EntityDeletionLedger, "deletions" | "history"> {
   const source = record(value);
   if (!source || !Array.isArray(source.entityDeletions) || source.entityDeletions.length > 500
-    || !Array.isArray(source.entityDeletionHistory) || source.entityDeletionHistory.length > 500) {
+    || !Array.isArray(source.entityDeletionHistory) || source.entityDeletionHistory.length > 50) {
     throw new EntityDeleteError("invalid_response", "Core 删除记录无效。");
   }
   const deletions = source.entityDeletions.map(parseDeletion);
@@ -209,12 +211,13 @@ export function parseEntityDeletionSummary(value: unknown): EntityDeletionSummar
 function parseDeletionLedger(response: DeleteListCoreResponse, requestId: string): EntityDeletionLedger {
   if (response.ok !== true || response.operation !== "delete" || response.action !== "list"
     || response.request_id !== requestId || response.external_send !== false || !validText(response.snapshot_id, 160)
+    || typeof response.history_truncated !== "boolean"
     || !Array.isArray(response.deletions) || response.deletions.length > 500
-    || !Array.isArray(response.history) || response.history.length > 500) {
+    || !Array.isArray(response.history) || response.history.length > 50) {
     throw new EntityDeleteError(response.code || "invalid_response", "Core 删除记录无效。");
   }
   const projection = parseEntityDeletionProjection({ entityDeletions: response.deletions, entityDeletionHistory: response.history });
-  return { snapshotId: response.snapshot_id, ...projection };
+  return { snapshotId: response.snapshot_id, ...projection, historyTruncated: response.history_truncated };
 }
 
 export function buildEntityDeletionListRequest(requestId: string) {

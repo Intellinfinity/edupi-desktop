@@ -57,6 +57,7 @@ export type MaterialRecognitionResult = {
   events: CalendarImportEvent[];
   slots: TimetableImportSlot[];
   cancelled_occurrence_refs?: string[];
+  affected_series_refs?: string[];
   calendar_mode?: "full_snapshot" | "delta_upsert" | "delta_cancel";
 };
 type VerifiedStagedMaterial = { bytes: Buffer; extension: string };
@@ -390,7 +391,7 @@ function recognitionCachePath(descriptor: MaterialStagingDescriptor): string {
 
 function validateCachedRecognitionResult(value: unknown): MaterialRecognitionResult {
   const result = record(value);
-  if (!result || !exactKeysWithOptional(result, ["events", "slots"], ["cancelled_occurrence_refs", "calendar_mode"])
+  if (!result || !exactKeysWithOptional(result, ["events", "slots"], ["cancelled_occurrence_refs", "affected_series_refs", "calendar_mode"])
     || !Array.isArray(result.events) || !Array.isArray(result.slots)
     || result.events.length > MAX_RESULT_ITEMS || result.slots.length > MAX_RESULT_ITEMS) throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
   for (const eventValue of result.events) {
@@ -430,6 +431,12 @@ function validateCachedRecognitionResult(value: unknown): MaterialRecognitionRes
   if (result.cancelled_occurrence_refs !== undefined
     && (!Array.isArray(result.cancelled_occurrence_refs) || result.cancelled_occurrence_refs.length > MAX_RESULT_ITEMS
       || result.cancelled_occurrence_refs.some((item) => typeof item !== "string" || !item || item.length > 160 || /[\u0000-\u001f\u007f]/u.test(item)))) {
+    throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+  }
+  if (result.affected_series_refs !== undefined
+    && (!Array.isArray(result.affected_series_refs) || result.affected_series_refs.length > MAX_RESULT_ITEMS
+      || new Set(result.affected_series_refs).size !== result.affected_series_refs.length
+      || result.affected_series_refs.some((item) => typeof item !== "string" || !/^ics-series:[a-f0-9]{64}$/u.test(item)))) {
     throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
   }
   if (result.calendar_mode !== undefined && result.calendar_mode !== "full_snapshot" && result.calendar_mode !== "delta_upsert" && result.calendar_mode !== "delta_cancel") {

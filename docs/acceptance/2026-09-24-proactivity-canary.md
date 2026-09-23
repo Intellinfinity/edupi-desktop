@@ -19,8 +19,9 @@
 
 ## 证据
 
-- Core：全量 `npm test`、runtime protocol、component manifest、writer matrix、daemon、`npm audit --audit-level=high` 通过；三轮独立风险复审最终无 P0/P1/P2。
-- Desktop 全量：1575 tests，1549 passed / 26 skipped / 0 failed；配置、控制、owner/grant、普通消息、canonical binding、API 鉴权、UI、反馈和 release workflow 定向测试、TypeScript 与 lint 通过。
+- Core：最终 merge `0f67548` 的全量 `npm test`、runtime protocol、component manifest、writer matrix、daemon、`npm audit --audit-level=high` 与 `core-quality` run `35910317508` 通过。
+- Desktop 全量：1671 tests，1645 passed / 26 skipped / 0 failed；配置、控制、owner/grant、普通消息、两阶段无正文账本、session 删除、canonical binding、API 鉴权、UI、反馈和 release workflow 定向测试、TypeScript、lint、actionlint 与 `npm audit --audit-level=high` 通过。
+- Packaged staged：`desktop:prepare` 精确内嵌 Core `0f67548`；Desktop、feedback、occurrence、conflict、uploaded ICS、offline OCR、DOCX、Core closure 3/3 和 isolated model host 2/2 均通过，staged 状态 `proactivity=disabled`、`external_send=false`。
 - 真实合并 Core E2：并发显式开启（一个成功、一个 stale CAS）→ 普通对话 Goal → 精确重放 → synthetic 反馈写入/回读且排除 → 自然修订/重放 → 自然取消/重复无新增控制事件 → Runtime 重启保持 → 显式停止 → ambient 关闭状态删除会话并撤回三条来源及一条模拟 capture-crash pending。
 - E2 结果：`explicit_opt_in=true`、`scope_bound=true`、`concurrent_activation_cas=true`、`ordinary_message_goal=true`、`natural_correction=true`、`natural_cancellation=true`、`feedback_channel=true`、`synthetic_feedback_excluded=true`、`replay_no_duplicate=true`、`restart_persistent=true`、`explicit_stop=true`、`session_delete_withdrawal=true`、`capture_crash_recovery=true`、`model_provider_calls=0`、`external_send=false`。
 

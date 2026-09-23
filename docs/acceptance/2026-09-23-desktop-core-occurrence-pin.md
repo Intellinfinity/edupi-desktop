@@ -26,7 +26,8 @@
 
 - 审计发现所有 review/task/memory/delete/restore mutation 的即时响应最初只投影 v1.1 workspace，会暂时丢失 occurrence v1.2 字段。现在统一先验证 Core mutation payload，再从同一 Core/data roots 请求当前 occurrence v1.2 快照并投影；删除/恢复继续传播原请求的取消信号。
 - 审计发现 v0.3.33 之前曾启用 ambient 的用户可能已有旧 owner state，但没有持久 Desktop key。当前实现不自动重绑或删除历史授权：默认模式降级为 owner-control unavailable，普通 Core 与教育工作区继续启动；owner 操作 fail closed；ambient 明确开启仍要求有效持久 key。
-- 补强后 `npm test` 为 1450 项、1424 passed / 26 skipped / 0 failed；TypeScript、lint、audit、release verify、actionlint、Cargo metadata 与 28 项 Rust tests 通过。source occurrence E2 输出 `mutation_overlay_retained=true`；独立 Core `860594a` checkout 的 conflicts/occurrence/ambient/C2/C3/bundle 均通过。
+- 首次 v0.3.34 run `35804036187` 在 source conflict E2 的旧凭据路径暴露错误映射：降级 Runtime 的 `owner_read` 被误报为 `owner_uninitialized` 409。冲突与教师反馈的 owner read 现在也必须走 Desktop `callOwnerControl` 边界；缺 key 统一返回 503 `owner_control_credential_unavailable`。该 run 在上传前取消，空 draft `394218266` 已删除。
+- 最终补强后 `npm test` 为 1451 项、1425 passed / 26 skipped / 0 failed；TypeScript、lint、audit、release verify、actionlint、Cargo metadata 与 28 项 Rust tests 通过。source occurrence E2 输出 `mutation_overlay_retained=true`，conflict E2 输出 `lost_credential_rejected=true`；独立 Core `860594a` checkout 的 conflicts/occurrence/ambient/C2/C3/bundle 均通过。
 
 ## 状态边界
 

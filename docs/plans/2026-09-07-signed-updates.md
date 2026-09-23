@@ -17,7 +17,7 @@
 - 启动回归：Linux `35783207989` 和 Windows `35783220232` 均从已安装 v0.3.32 的 `server.log` 读到 `Cannot find module 'next'`。原因是普通 standalone `node_modules` 被排除，而 staged 测试从源码上级依赖形成假通过。v0.3.31/v0.3.32 已退回 draft，v0.3.30 已恢复 Latest；feed commit `446a73a` 为 v0.3.30、7 个签名键，三条 endpoint 与本机更新接口均已回读。
 - v0.3.33 增加普通目录复制、symlink/NFT 兼容、最终产物零 symlink/realpath containment 和三平台隔离 staged server 启动门禁；正式 run `35789747783` 三平台/manifest 全绿，Release `394151776` 有 11 项资产与 7 个签名键。Linux public install `35792864973` 和 Windows `35792875124` 均成功；DMG 公证与本机 Gatekeeper 通过。完整证据见 [v0.3.33 packaged server 恢复验收](../acceptance/2026-09-23-v0.3.33-packaged-server-recovery.md)。
 - macOS 应用内升级仍待解锁；v0.3.33 发布后合并的 Core occurrence 配对不在该包内，已推进 v0.3.34 版本元数据，须重新走同一三平台门禁。
-- v0.3.34 发布候选同时修复 occurrence mutation 即时投影回退和旧 owner key 升级阻断；全量 1424 passed / 26 skipped / 0 failed，真实 source occurrence mutation 与旧 owner state 升级演练通过。三平台签名、公证、Linux/Windows 公共安装和 macOS 应用内升级仍分别待验收。
+- v0.3.34 发布候选同时修复 occurrence mutation 即时投影回退和旧 owner key 升级阻断；全量 1425 passed / 26 skipped / 0 failed，真实 source occurrence mutation、lost credential conflict 和旧 owner state 升级演练通过。首次 run `35804036187` 在上传前发现 owner read 的错误状态映射并取消，空 draft `394218266` 已删除；修复后仍须从新 merge SHA 全平台重建。三平台签名、公证、Linux/Windows 公共安装和 macOS 应用内升级仍分别待验收。
 
 ## 2026-09-22 v0.3.31 发布阻塞（历史，已解除）
 

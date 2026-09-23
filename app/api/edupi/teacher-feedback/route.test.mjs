@@ -43,6 +43,8 @@ test("teacher feedback route keeps owner-control credentials server-side", () =>
   assert.match(source, /export async function GET\(request: Request\)/);
   assert.match(source, /if \(!isDesktopApiRequestAllowed\(request\)\)/);
   assert.match(source, /callOwnerControl/);
+  assert.match(source, /callOwnerControl\("owner_read", \{\}\)/);
+  assert.doesNotMatch(source, /\.call\("owner_read", \{\}\)/);
   assert.match(source, /owner_control/);
   assert.match(source, /teacher_feedback_target_read/);
   assert.match(source, /teacher_feedback_record/);

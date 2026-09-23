@@ -3,7 +3,15 @@
 ## 2026-09-24 课表来源别名与 Core `68004b2` staged 验收（未发布）
 
 - Core [#182](https://github.com/Intellinfinity/edupi/pull/182) / [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并，Desktop `0f2c75d` 固定 `68004b2` 并通过真实隔离 Core 的纯课表、跨文件别名、教师选源增量、重复回放、旧材料删除和并发删除 CAS 流程。macOS staged bundle 的 Core/投影/Kernel ready，新课表来源 API 为 200/no-store，离线 OCR 与 DOCX smoke 均通过；详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。
+- Release 的非 Windows 配对运行时步骤和 preview 打包前检查现都运行 `test:edupi-slot-alias-e2`；Windows 保留精确 bundle/manifest 门禁，安装版启动仍需 Windows 实机验收。`release-workflows.test.mjs` 与 `actionlint` 均核对新增步骤。
 - 本批尚未生成签名/公证安装包，也未执行旧版应用内升级。公开 Latest 仍是 v0.3.36/Core `860594a…`；源码与 staged 结果不等于正式三平台安装验收。
+
+## 2026-09-24 G1 主动运行与删除传播配对（开发验收，未发布）
+
+- Desktop [#233](https://github.com/Intellinfinity/edupi-desktop/pull/233) 已合并为 `a3def0aa3a8f4b2655d04e50007ef4fe0c62b2cf`，[#235](https://github.com/Intellinfinity/edupi-desktop/pull/235) 的未授权领域即时 tombstone 已合并为 `e47bcca6cb18fa8feeb403dd2520a7d1a4515a6b`。此 G1 checkpoint 当时固定 Core [#183](https://github.com/Intellinfinity/edupi/pull/183) merge `26fc91ef656877b15ca3e60f14093cf52ea7b736`、Desktop/Runtime manifest `sha256:9c019d02…` / `sha256:85c6a8da…`；当前唯一配对 pin 已由上方 `68004b2` 取代。默认仍关闭；单班单科显式 canary 的期限、预算和 `external_send=false` 不变。
+- Core/ Desktop 已覆盖串行启停与 stale CAS、停止失败栅栏、grant 到期、未授权领域即时 tombstone、多个普通课次共享材料、自然请求/修订/取消、反馈回读及 synthetic 排除、两阶段无正文 message ledger、会话删除前来源撤回、停止后撤回、active Goal/队列/草稿级联失效和 capture-crash pending 恢复。真实 merge Core E2 与 staged runtime 通过。
+- Desktop 全量为 1673 tests，1647 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint、staged Desktop/feedback/occurrence/conflict/ICS/OCR/DOCX、Core closure 3/3 和 model host 2/2 通过。
+- 本批未生成或安装正式 Release，公开 Latest 仍为 v0.3.36。macOS 锁屏阻止本轮原生 UI 操作；Windows、睡眠、通知点击、旧版升级、真实模型内容、正式盲测和教师试用保持 Unverified，整体仍为“L4 功能收敛中”。
 
 ## 2026-09-24 同名多项逐项配对 staged 验收（未发布）
 

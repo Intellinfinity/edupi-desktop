@@ -5,6 +5,15 @@
 - Core [#182](https://github.com/Intellinfinity/edupi/pull/182) 与 [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并；Desktop `0f2c75d` 固定 Core `68004b2`，将权威课表来源/证据用于 PDF/DOCX 的纯课表与混合材料保守别名。重复导入、增量新增、旧材料删除和快照竞争均由隔离 Core 真写入回读；缺失、歧义、已删除或被教师更正的证据不自动绑来源。教师可显式选当前课表来源，选项及提交均按指纹与独占锚点核对。详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。
 - staged bundle 的 Core/投影/Kernel ready、来源只读 API、DOCX/OCR smoke 与隔离浏览器 800×900 通过；课表来源 503 或悬挂时 PDF 禁提交且可重试，日历来源独立可用。正式签名安装包、真实材料与真实模型语义未验；整体 L4 仍未完成。本节取代下方历史记录中“slot alias 未实现”的状态，OCR 与多项日程配对的旧证据继续有效。
 
+## 2026-09-24 L4 G1 主动运行风险收敛（源码与 staged 验收，未发布）
+
+- Core [#178](https://github.com/Intellinfinity/edupi/pull/178)–[#183](https://github.com/Intellinfinity/edupi/pull/183) 已依次合并。此 G1 checkpoint 当时固定 merge `26fc91ef656877b15ca3e60f14093cf52ea7b736`，Desktop/Runtime manifest 为 `sha256:9c019d02…` / `sha256:85c6a8da…`；当前唯一配对 pin 已由上方 `68004b2` 取代。Core 提供当前 canonical Goal/work-case/task 绑定、同 scope 单领域反馈目标、时钟/到期重查、owner-message 撤回到 Goal/队列/G2–G5 草稿的级联失效，以及多普通课次共享同一材料时的 intent-scoped planning source；旧 direct-source 历史仍可精确重放。Runtime schema 保持 `sha256:815f827e…`。
+- Desktop [#233](https://github.com/Intellinfinity/edupi-desktop/pull/233) 已合并为 `a3def0aa3a8f4b2655d04e50007ef4fe0c62b2cf`，[#235](https://github.com/Intellinfinity/edupi-desktop/pull/235) 的未授权领域即时 tombstone 已合并为 `e47bcca6cb18fa8feeb403dd2520a7d1a4515a6b`；默认关闭的单班单科 G1 canary 为 7 天、最多 12 次模型调用、不外发。启停按数据根串行并使用 `updatedAt` CAS；停止不确定时保留 scope/grant 栅栏，只能重试停止。普通聊天仅在主 prompt 接受后、无正文 GET 证明 capability 和未过期 grant 后镜像；自然请求、修订、取消与重放由 Core 控制，多目标保持询问态。
+- 会话删除传播已收敛：capture 前先持久化可预测 `message_ref` 的私有无正文 pending，Core 回执后确认；capture 与 DELETE 共享 session 锁。删除先撤回所有 pending/captured 来源，失败返回 503 且保留会话；capture 前后进程崩溃、删除并发、停止后删除和精确重放均有恢复路径。取消重放不会误伤后来新建的 Goal。
+- 工程证据：Core 全量、audit 与 `core-quality` run `35916645318` 通过；Desktop 1673 tests 中 1647 passed / 26 skipped / 0 failed，TypeScript、lint、actionlint、audit 通过。真实 merge Core E2 覆盖并发启用 CAS、未授权领域即时 tombstone、多个普通课次共享材料、请求/修订/取消、synthetic 反馈排除、重启、停止、active Goal 会话删除撤回和 capture-crash pending 恢复；staged Desktop/feedback/occurrence/conflict/ICS/OCR/DOCX、Core closure 3/3、model host 2/2 通过，全部 `external_send=false`。完整记录见 [G1 主动运行试用验收](../acceptance/2026-09-24-proactivity-canary.md)。
+- Risk：已关闭双 grant、换 scope 越权、过期仍捕获、取消 replay 错目标、会话删除未撤回、删除/capture 竞态和 capture 回执崩溃窗口；配置、账本或回执不能验证时 fail closed，并保留可重试对象。
+- Unverified：macOS 当前锁屏，未完成原生窗口启用—运行—停止视觉操作；本批未生成、签名、安装或发布。Windows、真实睡眠、通知点击、旧版升级与数据保持仍需正式安装验收。真实 provider 内容质量、60 故事/360 时间点正式盲测和真实教师连续试用未开始；G2–G5 普通聊天 ambient wiring、课表别名的正式安装/真实材料验收和六领域逐域内容核对仍未完成。整体状态仍为“L4 功能收敛中”，不能写 `L4 established`。
+
 ## 2026-09-24 L4 同名多项日程逐项配对（源码与 staged 验收，未发布）
 
 - Desktop `b029a45` 在 PDF/DOCX 来源修订中加入教师逐项配对：Core 来源指纹在模型识别前验证，预览不写入；提交重新校验候选指纹、来源 CAS、同名锚点、旧事项唯一性，保留原 Core ID，改期继续 `held`。同日同名而仅备注、结束日期或时区不同的项目可视且可访问地逐项区分。完整证据见 [逐项配对验收](../acceptance/2026-09-24-l4-document-pairing.md)。

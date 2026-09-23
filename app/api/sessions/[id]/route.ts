@@ -14,6 +14,8 @@ import {
 import { sessionPathKey } from "@/lib/session-path";
 import { openSessionManagerForRead } from "@/lib/session-manager-access";
 import { getRpcSession } from "@/lib/rpc-manager";
+import { EduPiAmbientMessageWithdrawalError, withdrawEduPiAmbientMessagesForSession } from "@/lib/edupi-ambient-message-withdrawal";
+import { withEduPiAmbientSessionLock } from "@/lib/edupi-ambient-session-lock";
 
 // BranchNavigator still traverses recursively, so keep the response tree shallow.
 const MAX_PROJECTED_TREE_DEPTH = 200;
@@ -218,11 +220,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  try {
+  return withEduPiAmbientSessionLock(id, async () => {
+    try {
     const filePath = await resolveSessionPath(id);
     if (!filePath) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
+
+    // Core-owned work derived from this conversation must be withdrawn before
+    // any local session data or child linkage is changed. A failed withdrawal
+    // leaves the session intact so the operation can be retried exactly.
+    await withdrawEduPiAmbientMessagesForSession(id);
 
     // Not flushed yet: the session only exists in memory, so discarding the
     // runtime is the whole deletion — there is no file to unlink and no child
@@ -276,7 +284,11 @@ export async function DELETE(
     invalidateSessionPathCache(id);
     invalidateSessionListCache();
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
-  }
+    } catch (error) {
+      if (error instanceof EduPiAmbientMessageWithdrawalError) {
+        return NextResponse.json({ error: "Conversation-owned work could not be withdrawn" }, { status: 503 });
+      }
+      return NextResponse.json({ error: String(error) }, { status: 500 });
+    }
+  });
 }

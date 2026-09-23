@@ -45,6 +45,7 @@
     "test:edupi-status": "node --experimental-strip-types scripts/test-edupi-status.mjs",
     "test:edupi-c1-e2": "node scripts/test-edupi-c1-e2.mjs",
     "test:edupi-ambient-today-runtime": "node scripts/test-edupi-ambient-today-runtime.mjs",
+    "test:edupi-proactivity-canary-e2": "node scripts/test-edupi-proactivity-canary-e2.mjs",
     "test:edupi-chat-capture-e2": "node scripts/test-edupi-chat-capture-e2.mjs",
     "test:edupi-c2-e2": "node scripts/test-edupi-c2-e2.mjs",
     "test:edupi-c3-e2": "node scripts/test-edupi-c3-e2.mjs",

@@ -2,19 +2,19 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "0f675489c5f1b8a35c5f32a0b74e6fc51f942758",
+    "core_commit": "26fc91ef656877b15ca3e60f14093cf52ea7b736",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:de5414533590986f9ad3cd51e9b1d193c21e44021e47f3195a6443c16544a388",
-    "runtime_component_manifest_hash": "sha256:c6cc01f7871696b46380d67525d3bf1efb61d61b81249c9337ec9dcc4cb92aa3",
+    "component_manifest_hash": "sha256:9c019d029d26987e71d6c7cb6ebe7f33d13434a3cc93b3e582dee40b7532adc8",
+    "runtime_component_manifest_hash": "sha256:85c6a8da654ff521fd930b57f057cb7cecf1459cf10fa585af5818259d7a2d18",
     "runtime_schema_hash": "sha256:815f827e4a1d87c3e42c5a301b34c5eda5520b8bfbf79686f4c910f0a8dae700"
   },
   "contract_identities": [
     {
       "contract_id": "edupi-bridge-v1.1",
       "contract_version": "1.1",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "fixture_manifest_path": "fixtures/bridge/v1.1/fixture-manifest.json",
-      "fixture_manifest_hash": "sha256:18bc0a493e0f414c2726965d38fb56be6723b840a1483c1ad55adff114b01555",
+      "fixture_manifest_hash": "sha256:7e32693b41dbcaa724f62b97babdd2c015b2f4b2afcb0027f933ba6489ee4f18",
       "supported_commands": [
         "review_observation",
         "review_memory_candidate",
@@ -151,7 +151,9 @@
     "https://github.com/Intellinfinity/edupi/pull/178",
     "https://github.com/Intellinfinity/edupi/pull/179",
     "https://github.com/Intellinfinity/edupi/pull/180",
-    "https://github.com/Intellinfinity/edupi/pull/181"
+    "https://github.com/Intellinfinity/edupi/pull/181",
+    "https://github.com/Intellinfinity/edupi/pull/182",
+    "https://github.com/Intellinfinity/edupi/pull/183"
   ],
-  "change_note": "Desktop pin to merged Core 0f67548: preserves the frozen v1.1 bridge and opt-in v1.2 occurrence contract; keeps authenticated canonical owner Goal/work-case/task bindings and clock-fenced feedback targets; and now reconciles an owner-message withdrawal through derived Goals and queued work even after ambient scheduling is stopped. New capture remains disabled while stopped and external_send=false is unchanged."
+  "change_note": "Desktop pin to merged Core 26fc91e: updates the v1.1 timetable projection with bounded source/evidence IDs, preserves the opt-in v1.2 occurrence contract and owner-message withdrawal reconciliation, and isolates ordinary owner-intent planning sources so independent lesson Goals can share accepted material without rewriting each other. external_send=false is unchanged."
 }

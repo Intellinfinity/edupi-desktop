@@ -515,6 +515,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const toolPresetRef = useRef(toolPreset);
   const permissionModeRef = useRef(permissionMode);
   const promptRunIdRef = useRef(0);
+  const proactivityNoticeAtRef = useRef(0);
   const optimisticUserMessageKeyRef = useRef<string | null>(null);
 
   const setToolPresetState = opts.setToolPreset ?? setToolPreset;
@@ -1623,8 +1624,16 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         });
       }
       if (!isSlashCommandPrompt && trimmedMessage && sentSessionId) {
+        const reportCaptureFailure = () => {
+          const now = Date.now();
+          if (now - proactivityNoticeAtRef.current < 60_000) return;
+          proactivityNoticeAtRef.current = now;
+          addNotice({ type: "warning", message: "主动备课未记录，请到管理中心检查运行状态" });
+        };
         void captureEduPiAmbientMessage({ sessionId: sentSessionId, messageId: `prompt-${globalThis.crypto.randomUUID()}`, text: trimmedMessage,
-          occurredAt: new Date(occurredAtMs).toISOString() }).catch(() => {});
+          occurredAt: new Date(occurredAtMs).toISOString() }).then((result) => {
+          if (result.status === "unavailable") reportCaptureFailure();
+        }, reportCaptureFailure);
       }
       if (isSlashCommandPrompt && sentSessionId) {
         void waitForPromptSettlement(sentSessionId, promptRunId);

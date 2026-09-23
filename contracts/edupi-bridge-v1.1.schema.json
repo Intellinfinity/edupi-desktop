@@ -4473,6 +4473,15 @@
                         "minimum": 1,
                         "type": "integer"
                       },
+                      "evidence_ids": {
+                        "items": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 50,
+                        "type": "array"
+                      },
                       "kind": {
                         "anyOf": [
                           {
@@ -4505,6 +4514,15 @@
                         "maxLength": 160,
                         "minLength": 1,
                         "type": "string"
+                      },
+                      "source_ids": {
+                        "items": {
+                          "maxLength": 160,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 50,
+                        "type": "array"
                       },
                       "start_time": {
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",

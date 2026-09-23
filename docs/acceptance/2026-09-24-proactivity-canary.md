@@ -5,7 +5,7 @@
 - 结论：开发态工程闭环通过，整体仍为“L4 功能收敛中”。
 - 范围：单教师、单班级、单学科、教学准备，默认关闭；显式开启后运行 7 天，最多 12 次模型调用，始终 `external_send=false`。
 - 不计入本结论：正式安装版、真实模型内容质量、正式盲测和真实教师价值。
-- Core 配对：[Core #178](https://github.com/Intellinfinity/edupi/pull/178)、[#179](https://github.com/Intellinfinity/edupi/pull/179)、[#180](https://github.com/Intellinfinity/edupi/pull/180)、[#181](https://github.com/Intellinfinity/edupi/pull/181)，最终 merge `0f675489c5f1b8a35c5f32a0b74e6fc51f942758`；Runtime manifest `sha256:c6cc01f7…`，schema `sha256:815f827e…`。
+- Core 配对：[Core #178](https://github.com/Intellinfinity/edupi/pull/178)–[#183](https://github.com/Intellinfinity/edupi/pull/183)，最终 merge `26fc91ef656877b15ca3e60f14093cf52ea7b736`；Desktop/Runtime manifest 分别为 `sha256:9c019d02…` / `sha256:85c6a8da…`，Runtime schema `sha256:815f827e…`。
 
 ## 已实现
 
@@ -19,11 +19,11 @@
 
 ## 证据
 
-- Core：最终 merge `0f67548` 的全量 `npm test`、runtime protocol、component manifest、writer matrix、daemon、`npm audit --audit-level=high` 与 `core-quality` run `35910317508` 通过。
+- Core：最终 merge `26fc91e` 的全量 `npm test`、runtime protocol、component manifest、writer matrix、daemon、`npm audit --audit-level=high` 与 `core-quality` run `35916645318` 通过；同一材料支撑多个普通课次 Goal 与旧 direct-source 精确重放回归通过。
 - Desktop 全量：1672 tests，1646 passed / 26 skipped / 0 failed；配置、控制、owner/grant、普通消息、两阶段无正文账本、session 删除、canonical binding、API 鉴权、UI、反馈和 release workflow 定向测试、TypeScript、lint、actionlint 与 `npm audit --audit-level=high` 通过。
-- Packaged staged：`desktop:prepare` 精确内嵌 Core `0f67548`；Desktop、feedback、occurrence、conflict、uploaded ICS、offline OCR、DOCX、Core closure 3/3 和 isolated model host 2/2 均通过，staged 状态 `proactivity=disabled`、`external_send=false`。
-- 真实合并 Core E2：并发显式开启（一个成功、一个 stale CAS）→ 普通对话 Goal → 精确重放 → synthetic 反馈写入/回读且排除 → 自然修订/重放 → 自然取消/重复无新增控制事件 → Runtime 重启保持 → 显式停止 → ambient 关闭状态删除会话并撤回三条来源及一条模拟 capture-crash pending。
-- E2 结果：`explicit_opt_in=true`、`scope_bound=true`、`concurrent_activation_cas=true`、`ordinary_message_goal=true`、`natural_correction=true`、`natural_cancellation=true`、`feedback_channel=true`、`synthetic_feedback_excluded=true`、`replay_no_duplicate=true`、`restart_persistent=true`、`explicit_stop=true`、`session_delete_withdrawal=true`、`capture_crash_recovery=true`、`model_provider_calls=0`、`external_send=false`。
+- Packaged staged：`desktop:prepare` 精确内嵌 Core `26fc91e`；Desktop、feedback、occurrence、conflict、uploaded ICS、offline OCR、DOCX、Core closure 3/3 和 isolated model host 2/2 均通过，staged 状态 `proactivity=disabled`、`external_send=false`。
+- 真实合并 Core E2：并发显式开启（一个成功、一个 stale CAS）→ 普通对话 Goal → 精确重放 → synthetic 反馈写入/回读且排除 → 自然修订/重放 → 自然取消/重复无新增控制事件 → 再创建一个共享材料的独立课次 Goal → Runtime 重启保持 → 显式停止 → ambient 关闭状态删除会话并撤回四条来源、撤销仍存活的 Goal，并安全终结一条模拟 capture-crash pending。
+- E2 结果：`explicit_opt_in=true`、`scope_bound=true`、`concurrent_activation_cas=true`、`ordinary_message_goal=true`、`natural_correction=true`、`natural_cancellation=true`、`feedback_channel=true`、`synthetic_feedback_excluded=true`、`replay_no_duplicate=true`、`restart_persistent=true`、`explicit_stop=true`、`session_delete_withdrawal=true`、`active_goal_delete_propagation=true`、`capture_crash_recovery=true`、`model_provider_calls=0`、`external_send=false`。
 
 ## 主动程度与用户投入
 
@@ -38,7 +38,7 @@
 
 ## Risk
 
-- 已关闭：机会列表交叉积导致错目标、跨班领域错绑、多 marker 错绑、grant/Goal 到期漂移、时钟回退、重复修订/取消写入、修订或取消重放误伤后建 Goal、并发双 grant、停止失败后换 scope、会话删除与捕获竞态、capture 硬崩丢失撤回身份、来源删除未级联、synthetic 冒充真人指标。
+- 已关闭：机会列表交叉积导致错目标、跨班领域错绑、多 marker 错绑、共享材料的普通课次 source-binding 冲突、grant/Goal 到期漂移、时钟回退、重复修订/取消写入、修订或取消重放误伤后建 Goal、并发双 grant、停止失败后换 scope、会话删除与捕获竞态、capture 硬崩丢失撤回身份、来源删除未级联、synthetic 冒充真人指标。
 - 当前代码风险边界：配置、账本或 Core 回执无法验证时均 fail closed；停止/删除可能暂时返回“需要恢复”或 503 并保留原对象供精确重试，不静默继续执行。
 
 ## Unverified

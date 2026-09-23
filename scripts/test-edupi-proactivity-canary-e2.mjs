@@ -81,6 +81,7 @@ try {
 
   const tomorrow = localFuture(1);
   const correctedDay = localFuture(2);
+  const deletionDay = localFuture(3);
   const source = (id) => ({ source_id: id, source_kind: "teacher_file", source_hash: `sha256:${id.at(-1).repeat(64)}`, evidence_ids: [`evidence-${id}`] });
   const timetable = await intake.issueEducationIntake({
     command_type: "import_timetable",
@@ -90,6 +91,8 @@ try {
         class_id: "class-7-1", start_time: "09:00", time_zone: "Asia/Shanghai" },
       { slot_id: "canary-slot-2", day_of_week: correctedDay.day, period: 2, subject: "数学", class_name: "七一班", kind: "class", notes: null,
         class_id: "class-7-1", start_time: "10:00", time_zone: "Asia/Shanghai" },
+      { slot_id: "canary-slot-3", day_of_week: deletionDay.day, period: 3, subject: "数学", class_name: "七一班", kind: "class", notes: null,
+        class_id: "class-7-1", start_time: "11:00", time_zone: "Asia/Shanghai" },
     ],
   });
   assert.equal(timetable.receipt.status, "accepted");
@@ -188,6 +191,12 @@ try {
   assert.ok(["cancelled", "captured"].includes(cancellationReplayResult.status));
   const controlEventsAfterReplay = JSON.parse(fs.readFileSync(planningFile, "utf8")).state.events.filter((item) => item.kind === "goal_control").length;
   assert.equal(controlEventsAfterReplay, controlEventsBeforeReplay);
+  const deletionSource = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
+    sessionId, messageId: "canary-message-4", text: `帮我准备${deletionDay.date}的数学教案`, occurredAt: new Date().toISOString(),
+  }));
+  const deletionSourceResult = await deletionSource.json();
+  assert.equal(deletionSource.status, 200, JSON.stringify(deletionSourceResult));
+  assert.equal(deletionSourceResult.status, "applied");
 
   await supervisor.closeAllEduPiRuntimes();
   const restarted = await statusRoute.GET(new Request("http://localhost/api/edupi/status?summary=1", { headers: { host: "localhost" } }));
@@ -209,7 +218,7 @@ try {
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });
-  assert.equal(capturedBindings.length, 3);
+  assert.equal(capturedBindings.length, 4);
   ambientLedger.prepareEduPiAmbientMessageBinding({ sessionId, messageId: "canary-crash-before-capture",
     messageRef: `owner_message:${"f".repeat(64)}`, ownerId: capturedBindings[0].ownerId,
     grantId: capturedBindings[0].grantId, captureGrantVersion: capturedBindings[0].captureGrantVersion,
@@ -219,10 +228,12 @@ try {
   assert.equal(deleted.status, 200, JSON.stringify(await deleted.clone().json()));
   assert.equal(fs.existsSync(sessionFile), false);
   assert.deepEqual(ambientLedger.readCapturedEduPiAmbientMessages(sessionId, { stateDir, dataRoot }), []);
+  const afterDeletePlanning = JSON.parse(fs.readFileSync(planningFile, "utf8")).state;
+  assert.equal(afterDeletePlanning.goals.find((item) => item.id === deletionSourceResult.goalId).status, "revoked");
   console.log(JSON.stringify({ status: "passed", explicit_opt_in: true, scope_bound: true, ordinary_message_goal: true,
     concurrent_activation_cas: true, natural_correction: true, natural_cancellation: true, replay_no_duplicate: true, restart_persistent: true,
     feedback_channel: true, synthetic_feedback_excluded: true, explicit_stop: true, session_delete_withdrawal: true,
-    capture_crash_recovery: true, model_provider_calls: 0, external_send: false }));
+    active_goal_delete_propagation: true, capture_crash_recovery: true, model_provider_calls: 0, external_send: false }));
 } finally {
   try {
     const jiti = createJiti(import.meta.url, { tsconfigPaths: true });

@@ -3,29 +3,29 @@
   "files": [
     {
       "path": "command-unsupported.json",
-      "sha256": "sha256:f2d781c544331bfca8dd4dc4a750371286554057dbabeac1a30f2239f2cd9035",
+      "sha256": "sha256:b5750a9fa6c20c534381f494305ed8c0930ae8957c9f77bb5573dce4976b8300",
       "size": 1276
     },
     {
       "path": "context-review.json",
-      "sha256": "sha256:8bd248f18c6ff073bdffa438f83a2adb59deeff9f7cf37cf7a16757740447cfa",
+      "sha256": "sha256:2c3f83806aea05aab907cc6fe6d053f68b039731305efaee5871f6449e3de5e0",
       "size": 22210
     },
     {
       "path": "receipt-unsupported.json",
-      "sha256": "sha256:0ed7987f55482e53944cf232adb9c53080259687cd16d3f1cfac27e816737c1d",
+      "sha256": "sha256:38a9b09015adeb3443151b60a77d96e77518ba5ccad6d35e92228793b86872d9",
       "size": 1774
     },
     {
       "path": "snapshot-education-workspace.json",
-      "sha256": "sha256:a35ed1d2fb41c38a78ad488dc2dbf38d1d69452a4f873d100d44cc474d9a1f77",
+      "sha256": "sha256:2546824e80f152fbc7bea4e3718b8318cc794690aa3cfaa6deaee31c69e98d08",
       "size": 5308
     },
     {
       "path": "work-candidate-review.json",
-      "sha256": "sha256:b623efce9506eccbef120c4d2373454c65744a999544698ccd124aebef7862fc",
+      "sha256": "sha256:24251ba6a12e1f1ae0c46643d64db861a4e68717c9274c3a8fa9271fbe07fb4c",
       "size": 59796
     }
   ],
-  "fixture_manifest_hash": "sha256:18bc0a493e0f414c2726965d38fb56be6723b840a1483c1ad55adff114b01555"
+  "fixture_manifest_hash": "sha256:7e32693b41dbcaa724f62b97babdd2c015b2f4b2afcb0027f933ba6489ee4f18"
 }

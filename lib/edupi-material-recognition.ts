@@ -3,7 +3,6 @@ import fs from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 import {
@@ -45,13 +44,6 @@ const CALENDAR_TYPE_ALIASES: Record<string, CalendarImportEvent["type"]> = {
 };
 const WEEKDAY_ALIASES: Record<string, number> = { 周一: 1, 星期一: 1, 周二: 2, 星期二: 2, 周三: 3, 星期三: 3, 周四: 4, 星期四: 4, 周五: 5, 星期五: 5, 周六: 6, 星期六: 6, 周日: 7, 星期日: 7, 星期天: 7 };
 const STAGING_ID = /^stg_[a-f0-9]{32}$/;
-function resolveMammothEntry(): string {
-  // Keep the dynamic package root out of webpack's createRequire parser. The
-  // DOCX worker is resolved only when a staged DOCX is actually recognized.
-  const nodeRequire = createRequire;
-  return nodeRequire(path.join(process.cwd(), "package.json")).resolve("mammoth");
-}
-
 export type RecognitionImage = { data: string; mimeType: string };
 export type ExtractedMaterial = { text: string; images: RecognitionImage[]; ocrEvidence?: OcrPageEvidence[]; ocrStatus?: "trusted" | "unavailable"; textLayout?: "coordinate_rows" };
 export type RecognitionModelInput = { originalName: string; text: string; images: RecognitionImage[]; sourceTextKind?: "trusted_ocr" };
@@ -542,23 +534,24 @@ function imageFromBytes(bytes: Buffer, mimeType: string): RecognitionImage {
 }
 
 async function extractDocxText(filePath: string): Promise<string> {
-  const workerSource = `
-    const mammoth = require(process.argv[2]);
-    mammoth.extractRawText({ path: process.argv[1] }).then(
-      (result) => process.stdout.write(String(result.value || "").slice(0, ${MAX_TEXT_CHARS + 1})),
-      () => { process.exitCode = 2; }
-    );
-  `;
   try {
+    const workerPath = [path.join(process.cwd(), "docx-text-worker.cjs"), path.join(process.cwd(), "desktop", "docx-text-worker.cjs")]
+      .find(candidate => fs.existsSync(candidate));
+    if (!workerPath) throw new Error("DOCX worker is missing");
     const { stdout } = await execFileAsync(process.execPath, [
       `--max-old-space-size=${DOCX_WORKER_HEAP_MB}`,
-      "-e",
-      workerSource,
+      workerPath,
       filePath,
-      resolveMammothEntry(),
-    ], { encoding: "utf8", maxBuffer: 128 * 1024, timeout: DOCX_WORKER_TIMEOUT_MS, windowsHide: true });
+    ], { encoding: "utf8", maxBuffer: 128 * 1024, timeout: DOCX_WORKER_TIMEOUT_MS, windowsHide: true,
+      env: { NODE_ENV: process.env.NODE_ENV ?? "production", LANG: "C.UTF-8", TMPDIR: path.dirname(filePath) } });
     return stdout;
-  } catch {
+  } catch (error) {
+    const failure = error && typeof error === "object" ? error as NodeJS.ErrnoException & { killed?: boolean; signal?: string } : null;
+    console.error("EduPi DOCX extraction worker failed", {
+      code: typeof failure?.code === "string" ? failure.code : typeof failure?.code === "number" ? `exit_${failure.code}` : "process_error",
+      killed: failure?.killed === true,
+      signal: typeof failure?.signal === "string" ? failure.signal : null,
+    });
     throw new MaterialRecognitionError("extract_unavailable", "DOCX 文字提取失败。");
   }
 }

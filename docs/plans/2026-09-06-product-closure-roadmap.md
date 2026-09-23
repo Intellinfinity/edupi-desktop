@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-24 L4 同名多项日程逐项配对（源码与 staged 验收，未发布）
+
+- Desktop `b029a45` 在 PDF/DOCX 来源修订中加入教师逐项配对：Core 来源指纹在模型识别前验证，预览不写入；提交重新校验候选指纹、来源 CAS、同名锚点、旧事项唯一性，保留原 Core ID，改期继续 `held`。同日同名而仅备注、结束日期或时区不同的项目可视且可访问地逐项区分。完整证据见 [逐项配对验收](../acceptance/2026-09-24-l4-document-pairing.md)。
+- 隔离 Core 真实 DOCX E2、打包 Node/Mammoth 和页面点击链路通过；800×900 视口无整页横向溢出。`npm test` 1601 passed / 26 skipped / 0 failed，TypeScript、lint、actionlint 通过。公开 Latest 仍为 v0.3.36，本批未安装或发布。
+- L4 的“同名多项同时变化”达到源码/staged 验收，正式安装版、真实老师材料和日历冲突最终决议仍待验；slot alias、六领域逐域内容核对仍未完成。下方 OCR 阶段记录仍有效，但本节取代旧表中“多项同时变化完全未实现”的状态。
+
 ## 2026-09-24 L4 扫描材料可信 OCR（源码与 staged 验收，未发布）
 
 - Desktop `77e88f8` 为图片/三页内扫描 PDF 加入离线打包 OCR 来源，词级高置信与坐标校验、材料/页面哈希、单行完整日期/名称引文；不可信或无年份时 fail closed，不向模型发送扫描原图，不导入 OCR 时段、地点或课表。Core 仍固定 `c1edefd…` 且唯一拥有日程状态。准确证据和未验证条件见 [L4 扫描材料 OCR 验收](../acceptance/2026-09-24-l4-scanned-material-ocr.md)。
@@ -16,7 +22,7 @@
 
 | 顺序 | 原任务 | 尚未完成的交付 | 状态 |
 | --- | --- | --- | --- |
-| 近期 | L4 | 扫描 PDF/图片 OCR 的正式安装及真实材料验收；同名组多项同时变化的逐项配对、slot alias；六领域内容逐域核对 | OCR 源码/staged 已由上方 `77e88f8` 验收，未正式安装；Core #177 与 Desktop #228/#229 已完成来源别名、删除传播和同名 occurrence 单项变化；文档遗漏不自动撤回 |
+| 近期 | L4 | 扫描 PDF/图片 OCR 与同名多项配对的正式安装/真实材料验收；slot alias；六领域内容逐域核对 | OCR `77e88f8`、多项配对 `b029a45` 已源码/staged 验收，均未正式安装；Core #177 与 Desktop #228/#229 已完成来源别名、删除传播和同名 occurrence 单项变化；文档遗漏不自动撤回 |
 | 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 安装版 runtime；Core WorkCase capability 与 Receipt 落账 | Adapter 和 JEV 独立设置已实现，实服/安装版/权威落账未完成；JEV 不用于对话 |
 | 随下一正式包 | R22 / R15 | 将 Core `c1edefd`、ICS 与文本材料新能力发布到正式安装版，再核对升级和数据保持 | 源码已合并，公开 Latest 仍为 v0.3.36/Core `860594a`；Apple 签名、公证与本机旧包升级链路已验收 |
 | 验收批 | R21 / R22 / R25 | 通知点击回到事项、真实睡眠补跑、安装版故障插件 Safe Mode 恢复；Windows/Linux 旧版应用内升级 | 功能或源码回归已有，所列真实流程未验收 |

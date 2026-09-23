@@ -258,6 +258,11 @@ jobs:
           EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
         run: npm run test:staged-ocr
 
+      - name: Verify bundled DOCX extraction
+        env:
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
+        run: npm run test:staged-docx
+
       - name: Verify staged macOS integrations
         if: runner.os == 'macOS'
         env:
@@ -332,6 +337,7 @@ jobs:
           test "$("$helper" -e 'process.stdout.write("EDUPI_NODE_JIT_READY")')" = EDUPI_NODE_JIT_READY
           npm run test:staged-desktop-runtime
           npm run test:staged-ocr
+          npm run test:staged-docx
 
       - name: Verify packaged macOS updater key
         if: runner.os == 'macOS'

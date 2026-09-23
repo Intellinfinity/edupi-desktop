@@ -16,6 +16,7 @@ import { parseCalendarIntakeCommand } from "@/lib/edupi-calendar-intake-request"
 import { syncCalendarFile } from "@/lib/edupi-calendar-file-sync";
 import { CalendarSourceError } from "@/lib/edupi-calendar-sources";
 import { syncDocumentScheduleFile } from "@/lib/edupi-document-schedule-sync";
+import type { DocumentPairingChoice } from "@/lib/edupi-document-pairing-contract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,8 +78,8 @@ function timetableCommand(body: RawRecord): EducationIntakeCommand {
   return { command_type: "import_timetable", source: sourceFor("timetable", slots as unknown as RawRecord[]), slots };
 }
 
-function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean; calendarSourceId: string | null; calendarSourceFingerprint: string | null; documentSourceId: string | null; documentSourceFingerprint: string | null } {
-  if (!exactKeys(body, ["kind", "stagingId", "title", "materialKind", "subject", "classId", "recognize", "calendarSourceId", "calendarSourceFingerprint", "documentSourceId", "documentSourceFingerprint"])) throw new EducationIntakeError("invalid_envelope", "材料接入字段无效。");
+function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean; calendarSourceId: string | null; calendarSourceFingerprint: string | null; documentSourceId: string | null; documentSourceFingerprint: string | null; documentPairingFingerprint: string | null; documentPairings: DocumentPairingChoice[] | null } {
+  if (!exactKeys(body, ["kind", "stagingId", "title", "materialKind", "subject", "classId", "recognize", "calendarSourceId", "calendarSourceFingerprint", "documentSourceId", "documentSourceFingerprint", "documentPairingFingerprint", "documentPairings"])) throw new EducationIntakeError("invalid_envelope", "材料接入字段无效。");
   const stagingId = requiredText(body.stagingId, 160);
   const descriptor = listStagedMaterials().find((item) => item.staging_id === stagingId);
   if (!descriptor) throw new EducationIntakeError("staging_missing", "暂存材料不存在或已经处理。");
@@ -90,23 +91,41 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
   const calendarSourceFingerprint = optionalText(body.calendarSourceFingerprint, 160) ?? null;
   const documentSourceId = optionalText(body.documentSourceId, 160) ?? null;
   const documentSourceFingerprint = optionalText(body.documentSourceFingerprint, 160) ?? null;
+  const documentPairingFingerprint = optionalText(body.documentPairingFingerprint, 160) ?? null;
+  const documentPairings = body.documentPairings === undefined || body.documentPairings === null ? null : body.documentPairings;
+  if (documentPairings !== null && (!Array.isArray(documentPairings) || documentPairings.length > 200
+    || documentPairings.some((value) => {
+      const choice = record(value);
+      return !choice || !exactKeys(choice, ["incomingVariantRef", "currentSourceOccurrenceRef"])
+        || Object.keys(choice).length !== 2
+        || typeof choice.incomingVariantRef !== "string" || !/^document-occurrence-[a-f0-9]{32}-[a-f0-9]{32}$/u.test(choice.incomingVariantRef)
+        || choice.currentSourceOccurrenceRef !== null && (typeof choice.currentSourceOccurrenceRef !== "string"
+          || !choice.currentSourceOccurrenceRef || choice.currentSourceOccurrenceRef.length > 160
+          || /[\u0000-\u001f\u007f]/u.test(choice.currentSourceOccurrenceRef));
+    }))) throw new EducationIntakeError("invalid_envelope", "逐项配对字段无效。");
+  if ((documentPairings === null) !== (documentPairingFingerprint === null)
+    || documentPairingFingerprint !== null && !/^sha256:[a-f0-9]{64}$/u.test(documentPairingFingerprint)) {
+    throw new EducationIntakeError("invalid_envelope", "逐项配对字段无效。");
+  }
   const documentSchedule = descriptor.kind === "pdf" && descriptor.staging_path.toLowerCase().endsWith(".pdf")
     || descriptor.kind === "word" && descriptor.staging_path.toLowerCase().endsWith(".docx");
   if (descriptor.kind === "calendar") {
     if (body.recognize === false || calendarSourceId !== null && !/^(?:calendar|document)-source-[a-f0-9]{32}$/u.test(calendarSourceId)
       || calendarSourceFingerprint !== null && !/^sha256:[a-f0-9]{64}$/u.test(calendarSourceFingerprint)
       || (calendarSourceId === null) !== (calendarSourceFingerprint === null)
-      || documentSourceId !== null || documentSourceFingerprint !== null) {
+      || documentSourceId !== null || documentSourceFingerprint !== null
+      || documentPairings !== null) {
       throw new EducationIntakeError("invalid_envelope", "日历来源字段无效。");
     }
   } else if (documentSchedule) {
     if (body.recognize === false || documentSourceId !== null && !/^(?:document|calendar)-source-[a-f0-9]{32}$/u.test(documentSourceId)
       || documentSourceFingerprint !== null && !/^sha256:[a-f0-9]{64}$/u.test(documentSourceFingerprint)
       || (documentSourceId === null) !== (documentSourceFingerprint === null)
+      || documentPairings !== null && documentSourceId === null
       || calendarSourceId !== null || calendarSourceFingerprint !== null) {
       throw new EducationIntakeError("invalid_envelope", "材料日程来源字段无效。");
     }
-  } else if (calendarSourceId !== null || calendarSourceFingerprint !== null || documentSourceId !== null || documentSourceFingerprint !== null) {
+  } else if (calendarSourceId !== null || calendarSourceFingerprint !== null || documentSourceId !== null || documentSourceFingerprint !== null || documentPairings !== null) {
     throw new EducationIntakeError("invalid_envelope", "这种材料不能指定日程来源。");
   }
   return {
@@ -120,6 +139,8 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
     calendarSourceFingerprint,
     documentSourceId,
     documentSourceFingerprint,
+    documentPairingFingerprint,
+    documentPairings: documentPairings as DocumentPairingChoice[] | null,
   };
 }
 
@@ -161,6 +182,8 @@ export async function POST(request: Request) {
           classId: material.classId,
           requestedSourceId: material.documentSourceId,
           expectedSourceFingerprint: material.documentSourceFingerprint,
+          pairingFingerprint: material.documentPairingFingerprint,
+          pairings: material.documentPairings,
           signal: request.signal,
         }));
         const receipt = result.receipts[0] ?? null;

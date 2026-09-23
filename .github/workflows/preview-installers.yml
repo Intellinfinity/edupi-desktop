@@ -89,6 +89,10 @@ jobs:
         env:
           EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
         run: npm run test:staged-ocr
+      - name: Verify bundled DOCX extraction
+        env:
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
+        run: npm run test:staged-docx
       - name: Build unsigned preview installer
         shell: bash
         env:

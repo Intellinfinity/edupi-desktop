@@ -12,7 +12,9 @@ if (typeof configuredCoreRoot !== "string" || !path.isAbsolute(configuredCoreRoo
   throw new Error("EDUPI_CORE_ROOT must be an absolute Core checkout");
 }
 const coreRoot = fs.realpathSync(configuredCoreRoot);
-const keepArtifacts = process.env.EDUPI_E2_KEEP === "1";
+const uiFixture = process.env.EDUPI_E2_UI_FIXTURE === "1";
+const duplicateLabelFixture = uiFixture && process.env.EDUPI_E2_UI_DUPLICATE_LABELS === "1";
+const keepArtifacts = process.env.EDUPI_E2_KEEP === "1" || uiFixture;
 const desktopRoot = path.resolve(new URL("..", import.meta.url).pathname);
 const compat = JSON.parse(fs.readFileSync(path.join(desktopRoot, "contracts", "edupi-core-compat.json"), "utf8"));
 const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "edupi-document-revision-e2-")));
@@ -85,6 +87,7 @@ try {
   const upload = await jiti.import("../lib/edupi-schedule-upload.ts");
   const entityDelete = await jiti.import("../lib/edupi-entity-delete.ts");
   const intakeRoute = await jiti.import("../app/api/edupi/intake/route.ts");
+  const pairingRoute = await jiti.import("../app/api/edupi/document-pairings/route.ts");
 
   async function stageAndRecognize(name, text, events, exactBytes = null, cache = false) {
     const bytes = exactBytes || await docx(text);
@@ -299,7 +302,7 @@ try {
   assert.equal(read.sources.find((source) => source.sourceId === duplicateFactImport.sourceId).eventCount, 1,
     "an exact duplicate row inside one document is imported once");
 
-  async function postDocument(descriptor, source = null) {
+  async function postDocument(descriptor, source = null, pairing = null) {
     const response = await intakeRoute.POST(new Request("http://localhost/api/edupi/intake", {
       method: "POST",
       headers: { host: "localhost", "content-type": "application/json" },
@@ -315,6 +318,8 @@ try {
         calendarSourceFingerprint: null,
         documentSourceId: source?.sourceId ?? null,
         documentSourceFingerprint: source?.fingerprint ?? null,
+        documentPairingFingerprint: pairing?.recognitionFingerprint ?? null,
+        documentPairings: pairing?.pairings ?? null,
       }),
     }));
     return { response, body: await response.json() };
@@ -410,13 +415,86 @@ try {
   assert.equal(read.snapshot.payload.education_workspace.calendar.every((event) => event.external_send === false), true);
   assert.equal(fs.existsSync(path.join(stateDir, "calendar-sources.json")), false);
 
-  console.log(JSON.stringify({ status: "passed", source_id: first.sourceId, exact_replay: true, additive_omission: true,
+  const pairOldQuotes = duplicateLabelFixture ? [
+    "通知：2026年11月10日 09:00-10:00（北京时间）在东楼 301 举行同名配对会（一年级）。",
+    "通知：2026年11月10日 09:00-10:00（北京时间）在东楼 301 举行同名配对会（二年级）。",
+  ] : [
+    "通知：2026年11月10日 09:00-10:00（北京时间）在东楼 301 举行同名配对会。",
+    "通知：2026年11月11日 14:00-15:00（北京时间）在西楼 302 举行同名配对会。",
+  ];
+  const pairOldEvents = duplicateLabelFixture ? [
+    modelEvent({ date: "2026-11-10", name: "同名配对会", start: "09:00", end: "10:00", location: "东楼 301", quote: pairOldQuotes[0], notes: "一年级" }),
+    modelEvent({ date: "2026-11-10", name: "同名配对会", start: "09:00", end: "10:00", location: "东楼 301", quote: pairOldQuotes[1], notes: "二年级" }),
+  ] : [
+    modelEvent({ date: "2026-11-10", name: "同名配对会", start: "09:00", end: "10:00", location: "东楼 301", quote: pairOldQuotes[0], notes: null }),
+    modelEvent({ date: "2026-11-11", name: "同名配对会", start: "14:00", end: "15:00", location: "西楼 302", quote: pairOldQuotes[1], notes: null }),
+  ];
+  const pairOld = await stageAndRecognize("同名配对会.docx", pairOldQuotes.join("\n"), pairOldEvents, null, true);
+  const pairFirst = await postDocument(pairOld.descriptor);
+  assert.equal(pairFirst.response.status, 200, JSON.stringify(pairFirst.body));
+  assert.equal(pairFirst.body.documentCommitted, true);
+  read = await sourceProjection.readCoreCalendarSources();
+  const pairSource = read.sources.find(source => source.sourceId === pairFirst.body.documentSourceId);
+  assert.equal(pairSource.eventCount, 2);
+  const pairOriginalIds = pairSource.occurrences.map(occurrence => occurrence.eventId).sort();
+  const pairNewQuotes = duplicateLabelFixture ? [
+    "通知：2026年11月12日 10:00-11:00（北京时间）在东楼 303 举行同名配对会（一年级修订）。",
+    "通知：2026年11月12日 10:00-11:00（北京时间）在东楼 303 举行同名配对会（二年级修订）。",
+  ] : [
+    "通知：2026年11月12日 10:00-11:00（北京时间）在东楼 303 举行同名配对会。",
+    "通知：2026年11月13日 15:00-16:00（北京时间）在西楼 304 举行同名配对会。",
+  ];
+  const pairNewEvents = duplicateLabelFixture ? [
+    modelEvent({ date: "2026-11-12", name: "同名配对会", start: "10:00", end: "11:00", location: "东楼 303", quote: pairNewQuotes[0], notes: "一年级修订" }),
+    modelEvent({ date: "2026-11-12", name: "同名配对会", start: "10:00", end: "11:00", location: "东楼 303", quote: pairNewQuotes[1], notes: "二年级修订" }),
+  ] : [
+    modelEvent({ date: "2026-11-12", name: "同名配对会", start: "10:00", end: "11:00", location: "东楼 303", quote: pairNewQuotes[0], notes: null }),
+    modelEvent({ date: "2026-11-13", name: "同名配对会", start: "15:00", end: "16:00", location: "西楼 304", quote: pairNewQuotes[1], notes: null }),
+  ];
+  const pairRevised = await stageAndRecognize("同名配对会-修订.docx", pairNewQuotes.join("\n"), pairNewEvents, null, true);
+  const noChoice = await postDocument(pairRevised.descriptor, pairSource);
+  assert.equal(noChoice.response.status, 409);
+  assert.equal(noChoice.body.code, "ambiguous_schedule");
+  const previewResponse = await pairingRoute.POST(new Request("http://localhost/api/edupi/document-pairings", {
+    method: "POST", headers: { host: "localhost", "content-type": "application/json" },
+    body: JSON.stringify({ stagingId: pairRevised.descriptor.staging_id,
+      sourceId: pairSource.sourceId, sourceFingerprint: pairSource.fingerprint }),
+  }));
+  assert.equal(previewResponse.status, 200);
+  const preview = await previewResponse.json();
+  assert.equal(preview.groups.length, 1);
+  assert.equal(preview.groups[0].incoming.length, 2);
+  assert.equal(preview.groups[0].current.length, 2);
+  const pairings = preview.groups[0].incoming.map((incoming, index) => ({
+    incomingVariantRef: incoming.variantRef,
+    currentSourceOccurrenceRef: preview.groups[0].current[1 - index].sourceOccurrenceRef,
+  }));
+  const stalePairing = await postDocument(pairRevised.descriptor, pairSource,
+    { recognitionFingerprint: `sha256:${"f".repeat(64)}`, pairings });
+  assert.equal(stalePairing.response.status, 409);
+  assert.equal(stalePairing.body.code, "stale_calendar_source");
+  if (uiFixture) {
+    console.log(JSON.stringify({ status: "ui_fixture", temporary_root: temporaryRoot, data_root: dataRoot,
+      state_dir: stateDir, source_id: pairSource.sourceId, staging_id: pairRevised.descriptor.staging_id,
+      duplicate_labels: duplicateLabelFixture }));
+  } else {
+    const pairUpdated = await postDocument(pairRevised.descriptor, pairSource,
+      { recognitionFingerprint: preview.recognitionFingerprint, pairings });
+    assert.equal(pairUpdated.response.status, 200, JSON.stringify(pairUpdated.body));
+    assert.equal(pairUpdated.body.documentCommitted, false, "changed dates still require Core conflict review");
+    read = await sourceProjection.readCoreCalendarSources();
+    const pairedSource = read.sources.find(source => source.sourceId === pairSource.sourceId);
+    assert.equal(pairedSource.eventCount, 2, "teacher pairing must not create duplicate schedule rows");
+    assert.deepEqual(pairedSource.occurrences.map(occurrence => occurrence.eventId).sort(), pairOriginalIds);
+
+    console.log(JSON.stringify({ status: "passed", source_id: first.sourceId, exact_replay: true, additive_omission: true,
     stale_cas_rejected: true, moved_candidate_held: true, cross_format_dedupe: true, legacy_adoption_held: true,
     filename_issuer_adoption: true,
     repeated_name_occurrences: true, exact_in_document_dedupe: true,
     route_post: true, route_source_update: true, evidence_alias_replay: true, material_delete_restore_propagation: true,
-    deletion_reupload_blocked: true, explicit_restore: true,
-    current_occurrences: documentSource.eventCount, external_send: false }));
+    deletion_reupload_blocked: true, explicit_restore: true, multi_item_pairing_preview: true,
+      current_occurrences: documentSource.eventCount, external_send: false }));
+  }
 } finally {
   if (keepArtifacts) console.log(JSON.stringify({ status: "retained", temporary_root: temporaryRoot, data_root: dataRoot, state_dir: stateDir }));
   else fs.rmSync(temporaryRoot, { recursive: true, force: true });

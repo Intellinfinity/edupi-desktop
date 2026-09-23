@@ -58,6 +58,7 @@
     "test:staged-uploaded-calendar-runtime": "EDUPI_UPLOADED_CALENDAR_E2_STAGED=1 node scripts/test-edupi-uploaded-calendar-e2.mjs",
     "test:staged-desktop-runtime": "node scripts/test-staged-desktop-runtime.mjs",
     "test:staged-ocr": "node scripts/test-staged-ocr.mjs",
+    "test:staged-docx": "node scripts/test-staged-docx.mjs",
     "test:staged-feedback-runtime": "node scripts/test-staged-feedback-runtime.mjs",
     "test:edupi-c6-e2": "node scripts/test-edupi-c6-e2.mjs",
     "test:edupi-c6-recognition-e2": "node scripts/test-edupi-c6-recognition-e2.mjs",

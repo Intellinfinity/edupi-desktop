@@ -132,7 +132,13 @@ async function assembleServer() {
   await copyFile(join(rootDir, "desktop", "preparation-skills.mjs"), join(serverResourcesDir, "preparation-skills.mjs"));
   await copyFile(join(rootDir, "desktop", "preparation-source-text.mjs"), join(serverResourcesDir, "preparation-source-text.mjs"));
   await copyFile(join(rootDir, "desktop", "office-archive.mjs"), join(serverResourcesDir, "office-archive.mjs"));
+  await copyFile(join(rootDir, "desktop", "ocr-worker.cjs"), join(serverResourcesDir, "ocr-worker.cjs"));
+  await copyFile(join(rootDir, "desktop", "pdf-page-extract.mjs"), join(serverResourcesDir, "pdf-page-extract.mjs"));
   await copyPreparationDependencies(rootDir, serverResourcesDir);
+  const ocrPackages = new Set();
+  for (const packageName of ["tesseract.js", "@tesseract.js-data/chi_sim", "@tesseract.js-data/eng", "pdfjs-dist", "@napi-rs/canvas"]) {
+    await copyPackageClosure(rootDir, serverResourcesDir, packageName, ocrPackages);
+  }
 
   const staticSource = join(desktopBuildDir, "static");
   const staticDestination = join(serverResourcesDir, ".next-desktop", "static");

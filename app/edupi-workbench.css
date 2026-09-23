@@ -909,7 +909,8 @@ html.dark .edupi-teacher-shell {
 .edupi-material-intake-form select { min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--ep-border); border-radius: 5px; background: var(--ep-surface); color: var(--ep-text); font: inherit; }
 .edupi-material-intake-form button.is-primary { border-color: var(--ep-blue); background: var(--ep-blue); color: white; }
 @media (max-width: 900px) { .edupi-material-intake-form { grid-template-columns: 1fr 1fr; } }
-.edupi-material-message { margin: 10px 0 0; color: var(--ep-muted); font-size: 10px; }
+.edupi-material-message { margin: 10px 0 0; color: var(--ep-muted); font-size: 12px; line-height: 1.5; }
+.edupi-material-message.is-error { padding: 8px 10px; border-left: 2px solid var(--ep-orange); background: var(--ep-orange-soft); color: var(--ep-text); }
 .edupi-material-drawer { position: fixed; z-index: 110; top: 0; right: 0; bottom: 0; display: grid; width: min(400px, 94vw); grid-template-rows: auto minmax(0, 1fr) auto; border-left: 1px solid var(--ep-border); background: var(--ep-surface); box-shadow: -14px 0 34px rgba(18, 24, 32, .16); animation: edupiCalendarDetailIn .16s ease-out; }
 .edupi-material-drawer > header { display: flex; min-height: 88px; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px; border-bottom: 1px solid var(--ep-border); }
 .edupi-material-drawer > header span { color: var(--ep-blue); font-size: 9px; font-weight: 700; }

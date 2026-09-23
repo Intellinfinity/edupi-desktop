@@ -41,7 +41,7 @@ type FlowDependencies = {
 export async function intakeRecognizedMaterial(input: FlowInput, dependencies: FlowDependencies = {}): Promise<{
   receipts: RawRecord[];
   data: unknown;
-  recognition: { eventCount: number; slotCount: number };
+  recognition: { eventCount: number; slotCount: number; ocrStatus?: "trusted" | "unavailable" };
   scheduleNeedsReview: boolean;
   calendarOccurrences: Array<{ sourceOccurrenceRef: string; eventId: string }>;
   cancelledOccurrenceRefs: string[];
@@ -63,7 +63,8 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
           notes: event.notes, timeInterval: event.time_interval, location: event.location })
         : stableCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type }),
   })), (event) => event.event_id);
-  const events = baseEvents.map((event) => event.source_occurrence_ref ? event : ({ ...event,
+  const events = baseEvents.map((event) => event.source_occurrence_ref
+    || recognized.ocrStatus === "trusted" && !event.time_interval && !event.location ? event : ({ ...event,
     event_id: stableRecognizedCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type,
       notes: event.notes, timeInterval: event.time_interval, location: event.location }),
   }));
@@ -126,7 +127,8 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   return {
     receipts,
     data,
-    recognition: { eventCount: events.length, slotCount: slots.length },
+    recognition: { eventCount: events.length, slotCount: slots.length,
+      ...(recognized.ocrStatus ? { ocrStatus: recognized.ocrStatus } : {}) },
     scheduleNeedsReview: receipts.slice(1).some((receipt) => !["accepted", "modified"].includes(String(receipt.status))
       || Array.isArray(receipt.rejected_ids) && receipt.rejected_ids.length > 0),
     calendarOccurrences: events.flatMap((event) => event.source_occurrence_ref

@@ -48,6 +48,7 @@ import { isTaskReviewable, workCaseForTask } from "@/lib/edupi-work-case";
 import { studentRecordKey } from "@/lib/edupi-student-roster-model";
 import { materialItemRoute, objectItemForView, reviewTargetObjectId, reviewTargetRoute, viewKeepsObjectItem, type ReviewTargetRoute } from "@/lib/edupi-domain-navigation";
 import { APP_PREF_KEYS } from "@/lib/app-prefs";
+import { materialRecognitionSummary } from "@/lib/edupi-material-recognition-status";
 import { preserveUnavailableWorkspaceResources, readEduPiWorkspace } from "@/lib/edupi-education-client";
 import { EduPiPreparationArtifactEditor } from "./EduPiPreparationArtifactEditor";
 import { deleteEducationEntity } from "@/lib/edupi-entity-delete-client";
@@ -106,7 +107,7 @@ type AgentPromptMode = "insert" | "replace" | "teacher" | "teacher-main";
 type EducationIntakeApiResult = {
   error?: string;
   staged?: MaterialStagingDescriptor[];
-  recognition?: { eventCount?: number; slotCount?: number };
+  recognition?: { eventCount?: number; slotCount?: number; ocrStatus?: "trusted" | "unavailable" };
   scheduleNeedsReview?: boolean;
   receipt?: { status?: string };
   calendarSourceId?: string;
@@ -389,7 +390,11 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       setMaterialStagingMessage({ tone: "error", sticky: true, text: `${item.original_name} 的材料已接入，识别出的时间安排尚未全部生效；请核对文件或在日程手动更正。` });
       return result;
     }
-    const recognized = eventCount + slotCount > 0 ? `，识别到 ${eventCount} 条日程、${slotCount} 条课表` : "，未发现日程或课表";
+    if (result.recognition?.ocrStatus === "unavailable") {
+      setMaterialStagingMessage({ tone: "error", sticky: true, text: `${item.original_name} 已接入；文字识别未完成，日程和课表未导入。请核对原文件。` });
+      return result;
+    }
+    const recognized = materialRecognitionSummary({ eventCount, slotCount, ocrStatus: result.recognition?.ocrStatus });
     setMaterialStagingMessage({ tone: "success", text: `${item.original_name} 已接入 EduPi${recognized}。` });
     return result;
   }, [submitEducationIntake]);
@@ -1205,7 +1210,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
             </div> : null}
             {activeView === "tasks" && activeTask ? <EduPiTaskWorkspace workReview={activeWorkReview} files={education.generatedArtifacts} task={activeTask} workCase={workCaseForTask(education, activeTask.id)} stage={taskStage} workspace={education.workspace} context={context} reviewEnabled={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).enabled} reviewReason={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).reason} reviewBusy={reviewBusy} reviewMessage={reviewMessage} agentSession={activeTask.id ? education.taskSessions[activeTask.id] ?? null : null} taskSessionBusy={taskSessionBusy} taskSessionError={taskSessionError} onStage={selectStage} onReview={reviewTask} onOpenAgent={openAgent} onOpenFile={openFile} /> : null}
             {activeView === "tasks" && !activeTask ? <main className="edupi-module-workspace"><header className="edupi-module-heading"><div><h1>暂无任务</h1></div><button type="button" onClick={openUpload}>上传材料</button></header></main> : null}
-            {activeView !== "chat" && activeView !== "tasks" && activeView !== "review" ? <EduPiWorkspaceViews view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} kernelState={kernelState} query={query} selectedStudentId={selectedStudentId} selectedObjectId={selectedObjectId} runningAgentCount={runningAgentCount} stagedMaterials={stagedMaterials} stagingBusy={materialStagingBusy || educationIntakeBusy} intakeBusy={educationIntakeBusy} stagingMessage={materialStagingMessage?.text ?? null} calendarSelection={calendarSelection} onCalendarSelection={selectCalendarItem} onTask={selectTask} onTaskDetail={openTaskDetail} onEducation={commitEducationSnapshot} onStudent={selectStudent} onObject={selectObject} onNavigate={selectView} onUpload={openUpload} onIntakeMaterial={intakeStagedMaterial} onRemoveStagedMaterial={removeStagedMaterialEntry} onImportCalendar={importCalendarEvent} onImportTimetable={importTimetableSlot} onOpenContext={() => setContextOpen(true)} onOpenAdmin={onOpenAdmin} onOpenFile={openFile} onStartAgent={(prompt, mode) => startAgent(prompt, mode)} onTeachingSkills={setTeachingSkills} onCreateTask={createBoardTask} onMoveTask={moveBoardTask} onDeleteEntity={deleteEntity} onReviewTarget={focusC1Review} /> : null}
+            {activeView !== "chat" && activeView !== "tasks" && activeView !== "review" ? <EduPiWorkspaceViews view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} kernelState={kernelState} query={query} selectedStudentId={selectedStudentId} selectedObjectId={selectedObjectId} runningAgentCount={runningAgentCount} stagedMaterials={stagedMaterials} stagingBusy={materialStagingBusy || educationIntakeBusy} intakeBusy={educationIntakeBusy} stagingMessage={materialStagingMessage ? { text: materialStagingMessage.text, tone: materialStagingMessage.tone } : null} calendarSelection={calendarSelection} onCalendarSelection={selectCalendarItem} onTask={selectTask} onTaskDetail={openTaskDetail} onEducation={commitEducationSnapshot} onStudent={selectStudent} onObject={selectObject} onNavigate={selectView} onUpload={openUpload} onIntakeMaterial={intakeStagedMaterial} onRemoveStagedMaterial={removeStagedMaterialEntry} onImportCalendar={importCalendarEvent} onImportTimetable={importTimetableSlot} onOpenContext={() => setContextOpen(true)} onOpenAdmin={onOpenAdmin} onOpenFile={openFile} onStartAgent={(prompt, mode) => startAgent(prompt, mode)} onTeachingSkills={setTeachingSkills} onCreateTask={createBoardTask} onMoveTask={moveBoardTask} onDeleteEntity={deleteEntity} onReviewTarget={focusC1Review} /> : null}
           </div>
           {inspectorAvailable ? <EduPiInspector open={inspectorOpen} data={education} task={activeTask} onClose={toggleInspector} onOpenAgent={openAgent} onStage={selectStage} /> : null}
         </div>

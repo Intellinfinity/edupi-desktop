@@ -44,7 +44,7 @@ async function runtimeContext() {
 }
 
 async function ownerContext(context: Awaited<ReturnType<typeof runtimeContext>>) {
-  const response = await context.host.call("owner_read", {});
+  const response = await context.host.callOwnerControl("owner_read", {});
   const result = record(response.result);
   const ownerId = record(result?.owner)?.id;
   return typeof ownerId === "string" && result?.root_ref === context.rootRef ? ownerId : null;

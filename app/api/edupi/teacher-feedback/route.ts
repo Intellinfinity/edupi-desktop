@@ -29,7 +29,7 @@ async function runtimeContext() {
 }
 
 async function ownerSnapshot(host: Awaited<ReturnType<typeof runtimeContext>>["host"]) {
-  const response = await host.call("owner_read", {});
+  const response = await host.callOwnerControl("owner_read", {});
   const result = response.result && typeof response.result === "object" && !Array.isArray(response.result) ? response.result as Record<string, unknown> : null;
   const owner = result?.owner && typeof result.owner === "object" && !Array.isArray(result.owner) ? result.owner as Record<string, unknown> : null;
   const ownerId = typeof owner?.id === "string" ? owner.id : null;

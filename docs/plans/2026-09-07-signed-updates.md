@@ -15,7 +15,9 @@
 - 本地最终门禁：`npm test` 1373 passed / 25 skipped / 0 failed，TypeScript、ESLint、npm audit（0 vulnerabilities）、release verify、目标仓库校验、actionlint、Cargo metadata 和 28 项 Rust library tests 通过；发布事务 41 项定向测试及独立复审无 P1/P2。
 - DMG 验收：全平台 run `35771039553` 完成 Linux/Windows 构建，macOS 的一次 G6 临时根失败保持 draft；同提交 macOS retry `35772209888` 完成 manifest。Release ID `394034871` 固定 `9f33463`，Apple submission `500735b4-4a03-4b0b-8376-c6cf3270c48c` Accepted；runner 的 DMG staple/validate、Gatekeeper 和重新下载 SHA-256 `3ee2667b…` 全部通过。公开 DMG 本机 Gatekeeper 为 `Notarized Developer ID`，本机 `stapler validate` 仍受 Apple CloudKit TLS `-1200` 阻断，未记为通过。
 - 启动回归：Linux `35783207989` 和 Windows `35783220232` 均从已安装 v0.3.32 的 `server.log` 读到 `Cannot find module 'next'`。原因是普通 standalone `node_modules` 被排除，而 staged 测试从源码上级依赖形成假通过。v0.3.31/v0.3.32 已退回 draft，v0.3.30 已恢复 Latest；feed commit `446a73a` 为 v0.3.30、7 个签名键，三条 endpoint 与本机更新接口均已回读。
-- v0.3.33 已增加普通目录复制、symlink/NFT 兼容、最终产物零 symlink/realpath containment 和三平台隔离 staged server 启动门禁；本地全量 1380 passed / 25 skipped / 0 failed，TypeScript、lint、audit、release verify、actionlint、Cargo metadata 和 28 项 Rust tests 通过。新三平台 Release、Linux/Windows 公共安装与 macOS 应用内升级仍待验收。
+- v0.3.33 增加普通目录复制、symlink/NFT 兼容、最终产物零 symlink/realpath containment 和三平台隔离 staged server 启动门禁；正式 run `35789747783` 三平台/manifest 全绿，Release `394151776` 有 11 项资产与 7 个签名键。Linux public install `35792864973` 和 Windows `35792875124` 均成功；DMG 公证与本机 Gatekeeper 通过。完整证据见 [v0.3.33 packaged server 恢复验收](../acceptance/2026-09-23-v0.3.33-packaged-server-recovery.md)。
+- macOS 应用内升级仍待解锁；v0.3.33 发布后合并的 Core occurrence 配对不在该包内，已推进 v0.3.34 版本元数据，须重新走同一三平台门禁。
+- v0.3.34 发布候选同时修复 occurrence mutation 即时投影回退和旧 owner key 升级阻断；全量 1424 passed / 26 skipped / 0 failed，真实 source occurrence mutation 与旧 owner state 升级演练通过。三平台签名、公证、Linux/Windows 公共安装和 macOS 应用内升级仍分别待验收。
 
 ## 2026-09-22 v0.3.31 发布阻塞（历史，已解除）
 

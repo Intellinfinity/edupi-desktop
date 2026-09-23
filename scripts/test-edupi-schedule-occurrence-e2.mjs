@@ -77,6 +77,7 @@ try {
   const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
   const intakeRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/intake/route.ts"));
   const educationRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/education/route.ts"));
+  const onboardingRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/onboarding/route.ts"));
   const conflictRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/schedule-conflicts/route.ts"));
   const snapshot = staged ? null : await jiti.import(path.join(desktopRoot, "lib/edupi-core-snapshot.ts"));
   runtimeSupervisor = staged ? null : await jiti.import(path.join(desktopRoot, "lib/edupi-runtime-supervisor.ts"));
@@ -99,6 +100,17 @@ try {
     const response = stagedServer
       ? await fetch(`${baseUrl()}/api/edupi/schedule-conflicts?limit=50`, { headers: desktopHeaders(), signal: AbortSignal.timeout(15000) })
       : await conflictRoute.GET(new Request(`${baseUrl()}/api/edupi/schedule-conflicts?limit=50`, { headers: desktopHeaders() }));
+    return { response, body: await response.json() };
+  };
+  const saveTeacherContext = async (body) => {
+    const request = new Request(`${baseUrl()}/api/edupi/onboarding`, {
+      method: "POST",
+      headers: { ...desktopHeaders(), "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const response = stagedServer
+      ? await fetch(request, { signal: AbortSignal.timeout(15000) })
+      : await onboardingRoute.POST(request);
     return { response, body: await response.json() };
   };
   const decide = async (body) => {
@@ -126,6 +138,15 @@ try {
   assert.equal(projected.startsAt, original.timeInterval.start);
   assert.equal(projected.timeZone, original.timeInterval.timeZone);
   assert.equal(projected.location, original.location);
+
+  const unrelatedMutation = await saveTeacherContext({ name: "Occurrence E2 教师" });
+  assert.equal(unrelatedMutation.response.status, 200, JSON.stringify(unrelatedMutation.body));
+  const occurrenceAfterMutation = unrelatedMutation.body.data.calendar.find((item) => item.occurrenceRef === occurrenceRef);
+  assert.ok(occurrenceAfterMutation, JSON.stringify(unrelatedMutation.body.data.calendar));
+  assert.equal(occurrenceAfterMutation.startsAt, original.timeInterval.start);
+  assert.equal(occurrenceAfterMutation.endsAt, original.timeInterval.end);
+  assert.equal(occurrenceAfterMutation.timeZone, original.timeInterval.timeZone);
+  assert.equal(occurrenceAfterMutation.location, original.location);
 
   const moved = { ...original, eventId: projected.id, date: "2026-11-06",
     timeInterval: { start: "2026-11-06T11:00+08:00", end: "2026-11-06T12:00+08:00", timeZone: "Asia/Shanghai" }, location: "西楼 401" };
@@ -170,7 +191,8 @@ try {
   assert.equal(state.calendar_events.filter((item) => item.source_occurrence_ref === occurrenceRef).length, 1);
   assert.equal(state.schedule_resolutions.length, 1);
   console.log(JSON.stringify({ status: "passed", desktop_intake: true, exact_dedupe: true, typed_projection: true,
-    move_held: true, keep_both_rejected: true, replace: true, restart_readback: true, staged_server: staged, external_send: false }));
+    mutation_overlay_retained: true, move_held: true, keep_both_rejected: true, replace: true, restart_readback: true,
+    staged_server: staged, external_send: false }));
 } finally {
   await stagedServer?.stop();
   await runtimeSupervisor?.closeAllEduPiRuntimes();

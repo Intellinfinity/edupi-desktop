@@ -19,9 +19,17 @@
 | staged risk workflows | `npm run test:staged-schedule-conflicts-runtime`、`npm run test:staged-feedback-runtime`、`npm run test:staged-schedule-occurrence-runtime` | owner/CAS/重放/错误范围拒绝/反馈回读/occurrence 全流程通过 |
 | bundle closure | `EDUPI_CORE_ROOT=<Core 860594a> node --test scripts/packaged-core-bundle.test.mjs` | 3/3 通过；无 `.git`，缺失或篡改依赖拒绝 |
 | isolated model host | `EDUPI_CORE_ROOT=<Core 860594a> EDUPI_STAGED_RESOURCES=<resources> node --test scripts/runtime-model-host-files.test.mjs` | 2/2 通过；复制文件均为普通文件，localhost 模型调用成功 |
+| mutation overlay continuity | occurrence intake 后执行无关教师资料保存/审核，再检查 mutation 响应 | `occurrenceRef`、`startsAt`、`endsAt`、`timeZone`、`location` 全部保持；随后改期冲突、replace 与重启回读继续通过 |
+| 旧 owner key 升级 | 用旧随机 token 创建有效 authorization state，丢弃 token，再启动当前 Desktop Runtime | 默认模式 health ready；owner 调用返回 `owner_control_credential_unavailable`；ambient 显式开启时阻止启动；旧状态字节不变且没有生成替代 key |
+
+## 发布前补强
+
+- 审计发现所有 review/task/memory/delete/restore mutation 的即时响应最初只投影 v1.1 workspace，会暂时丢失 occurrence v1.2 字段。现在统一先验证 Core mutation payload，再从同一 Core/data roots 请求当前 occurrence v1.2 快照并投影；删除/恢复继续传播原请求的取消信号。
+- 审计发现 v0.3.33 之前曾启用 ambient 的用户可能已有旧 owner state，但没有持久 Desktop key。当前实现不自动重绑或删除历史授权：默认模式降级为 owner-control unavailable，普通 Core 与教育工作区继续启动；owner 操作 fail closed；ambient 明确开启仍要求有效持久 key。
+- 补强后 `npm test` 为 1450 项、1424 passed / 26 skipped / 0 failed；TypeScript、lint、audit、release verify、actionlint、Cargo metadata 与 28 项 Rust tests 通过。source occurrence E2 输出 `mutation_overlay_retained=true`；独立 Core `860594a` checkout 的 conflicts/occurrence/ambient/C2/C3/bundle 均通过。
 
 ## 状态边界
 
-- 已实现待远端验收：Desktop 分支推送、PR CI 和合并。
+- 已实现待远端验收：v0.3.34 版本、occurrence mutation continuity 与旧 owner state 安全降级尚待 Desktop PR、三平台 Release 和安装验收。
 - 未验证：PDF/image/ICS 的可信 occurrence 提取；macOS/Windows 安装版通知点击、睡眠恢复、升级与数据保持；六领域真实内容人工核对；正式盲测；真实教师价值。
 - 判定：`L4 功能收敛中`，不能写 `L4 established`。

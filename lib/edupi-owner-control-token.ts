@@ -90,3 +90,19 @@ export function loadOwnerControlToken(stateDir: string | undefined, dataRoot: st
     return readToken(file);
   } catch { throw unavailable(); }
 }
+
+export function loadRuntimeOwnerControlToken(
+  stateDir: string | undefined,
+  dataRoot: string,
+  { required }: { required: boolean },
+): string | null {
+  try {
+    return loadOwnerControlToken(stateDir, dataRoot);
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error
+      ? (error as { code?: unknown }).code
+      : null;
+    if (!required && code === "owner_control_credential_unavailable") return null;
+    throw error;
+  }
+}

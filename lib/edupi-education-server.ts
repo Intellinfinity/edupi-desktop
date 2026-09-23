@@ -123,6 +123,35 @@ export async function readEducationWorkspaceBundle(): Promise<{ context: Teacher
   return { context, data };
 }
 
+type EducationMutationRefreshDependencies = {
+  readSnapshot?: typeof readEduPiEducationSnapshot;
+  projectContract?: typeof projectEducationContract;
+  signal?: AbortSignal;
+};
+
+export async function refreshEducationContractAfterMutation(
+  snapshot: Pick<EducationSnapshot, "runtime" | "dataRoot">,
+  refreshedPayloadValue: unknown,
+  dependencies: EducationMutationRefreshDependencies = {},
+): Promise<EducationContract> {
+  if (!refreshedPayloadValue || typeof refreshedPayloadValue !== "object" || Array.isArray(refreshedPayloadValue)) {
+    throw new Error("Core education snapshot refresh is unavailable");
+  }
+  const refreshedWorkspace = (refreshedPayloadValue as Record<string, unknown>).education_workspace;
+  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) {
+    throw new Error("Core education workspace refresh is unavailable");
+  }
+  const readSnapshot = dependencies.readSnapshot || readEduPiEducationSnapshot;
+  const projectContract = dependencies.projectContract || projectEducationContract;
+  const current = await readSnapshot({
+    requestId: `desktop-education-mutation-refresh-${Date.now().toString(36)}`,
+    roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot },
+    scheduleOccurrenceVersion: "1.2",
+    ...(dependencies.signal ? { signal: dependencies.signal } : {}),
+  });
+  return projectContract(current);
+}
+
 export type EducationReviewInput = {
   targetKind: C1ReviewTargetKind;
   targetId: string;
@@ -136,7 +165,7 @@ export type EducationReviewInput = {
 
 /**
  * Execute a C1 observation/memory-candidate review through Core and project
- * the receipt-bound snapshot using the existing task-session overlay.
+ * the current occurrence-aware snapshot using the existing task-session overlay.
  */
 export async function reviewEducationCandidate(
   input: EducationReviewInput,
@@ -144,21 +173,7 @@ export async function reviewEducationCandidate(
 ): Promise<{ receipt: Record<string, unknown>; data: EducationContract }> {
   const snapshot = await readEduPiEducationSnapshot();
   const result = await issueC1Review({ ...input, snapshot: snapshot.envelope }, deps);
-  const refreshedPayloadValue = result.data.payload;
-  if (!refreshedPayloadValue || typeof refreshedPayloadValue !== "object" || Array.isArray(refreshedPayloadValue)) {
-    throw new Error("Core education snapshot refresh is unavailable");
-  }
-  const refreshedPayload = refreshedPayloadValue as Record<string, unknown>;
-  const refreshedWorkspace = refreshedPayload.education_workspace;
-  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) {
-    throw new Error("Core education workspace refresh is unavailable");
-  }
-  const data = await projectEducationContract({
-    ...snapshot,
-    envelope: result.data,
-    payload: refreshedPayload as EducationSnapshot["payload"],
-    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
-  });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data.payload);
   return { receipt: result.receipt, data };
 }
 
@@ -169,21 +184,7 @@ export async function reviewTeacherContextCandidate(
 ): Promise<{ receipt: Record<string, unknown>; data: EducationContract }> {
   const snapshot = await readEduPiEducationSnapshot();
   const result = await issueTeacherContextReview({ ...input, snapshot: snapshot.envelope }, deps);
-  const refreshedPayloadValue = result.data.payload;
-  if (!refreshedPayloadValue || typeof refreshedPayloadValue !== "object" || Array.isArray(refreshedPayloadValue)) {
-    throw new Error("Core education snapshot refresh is unavailable");
-  }
-  const refreshedPayload = refreshedPayloadValue as Record<string, unknown>;
-  const refreshedWorkspace = refreshedPayload.education_workspace;
-  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) {
-    throw new Error("Core education workspace refresh is unavailable");
-  }
-  const data = await projectEducationContract({
-    ...snapshot,
-    envelope: result.data,
-    payload: refreshedPayload as EducationSnapshot["payload"],
-    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
-  });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data.payload);
   return { receipt: result.receipt, data };
 }
 
@@ -194,21 +195,7 @@ export async function reviewWorkCandidate(
 ): Promise<{ receipt: Record<string, unknown>; data: EducationContract }> {
   const snapshot = await readEduPiEducationSnapshot();
   const result = await issueWorkCandidateReview({ ...input, snapshot: snapshot.envelope }, deps);
-  const refreshedPayloadValue = result.data.payload;
-  if (!refreshedPayloadValue || typeof refreshedPayloadValue !== "object" || Array.isArray(refreshedPayloadValue)) {
-    throw new Error("Core education snapshot refresh is unavailable");
-  }
-  const refreshedPayload = refreshedPayloadValue as Record<string, unknown>;
-  const refreshedWorkspace = refreshedPayload.education_workspace;
-  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) {
-    throw new Error("Core education workspace refresh is unavailable");
-  }
-  const data = await projectEducationContract({
-    ...snapshot,
-    envelope: result.data,
-    payload: refreshedPayload as EducationSnapshot["payload"],
-    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
-  });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data.payload);
   return { receipt: result.receipt, data };
 }
 
@@ -219,21 +206,7 @@ export async function reviewFollowUpCandidate(
 ): Promise<{ receipt: Record<string, unknown>; data: EducationContract }> {
   const snapshot = await readEduPiEducationSnapshot();
   const result = await issueFollowUpReview({ ...input, snapshot: snapshot.envelope }, deps);
-  const refreshedPayloadValue = result.data.payload;
-  if (!refreshedPayloadValue || typeof refreshedPayloadValue !== "object" || Array.isArray(refreshedPayloadValue)) {
-    throw new Error("Core education snapshot refresh is unavailable");
-  }
-  const refreshedPayload = refreshedPayloadValue as Record<string, unknown>;
-  const refreshedWorkspace = refreshedPayload.education_workspace;
-  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) {
-    throw new Error("Core education workspace refresh is unavailable");
-  }
-  const data = await projectEducationContract({
-    ...snapshot,
-    envelope: result.data,
-    payload: refreshedPayload as EducationSnapshot["payload"],
-    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
-  });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data.payload);
   return { receipt: result.receipt, data };
 }
 
@@ -250,19 +223,11 @@ export async function reviewEducationTask(
       roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot },
     })),
   });
-  const refreshedWorkspace = result.data.education_workspace;
-  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) {
-    throw new Error("Core education workspace refresh is unavailable");
-  }
-  const data = await projectEducationContract({
-    ...snapshot,
-    payload: result.data,
-    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
-  });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data);
   return { receipt: result.receipt, data };
 }
 
-/** Update one active memory through Core and project the receipt-bound snapshot. */
+/** Update one active memory through Core and project the current occurrence-aware snapshot. */
 export async function updateEducationMemory(
   input: MemoryUpdateInput,
   deps?: MemoryUpdateDependencies,
@@ -272,9 +237,7 @@ export async function updateEducationMemory(
     ...deps,
     readSnapshot: deps?.readSnapshot || (async () => ({ payload: snapshot.payload, roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot } })),
   });
-  const refreshedWorkspace = result.data.education_workspace;
-  if (!refreshedWorkspace || typeof refreshedWorkspace !== "object" || Array.isArray(refreshedWorkspace)) throw new Error("Core education workspace refresh is unavailable");
-  const data = await projectEducationContract({ ...snapshot, payload: result.data, workspace: refreshedWorkspace as EducationSnapshot["workspace"] });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data);
   return { receipt: result.receipt, data };
 }
 
@@ -283,12 +246,7 @@ export async function deleteEducationEntity(input: { kind: EntityDeleteKind; id:
   const result = await issueEntityDelete(input, {
     readSnapshot: async () => ({ ...snapshot, roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot } }),
   });
-  const refreshedWorkspace = result.data.education_workspace;
-  const data = await projectEducationContract({
-    ...snapshot,
-    payload: result.data as EducationSnapshot["payload"],
-    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
-  });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data, { signal: input.signal });
   if (input.kind === "material" && data.teacherMaterials?.some((item) => item.material_id === result.target.id)) {
     throw new EntityDeleteError("invalid_response", "Core 删除结果无效。");
   }
@@ -298,12 +256,7 @@ export async function deleteEducationEntity(input: { kind: EntityDeleteKind; id:
 export async function restoreEducationEntity(input: { kind: EntityDeleteKind; id: string; note: string | null; restoreRequestId: string; signal?: AbortSignal }): Promise<{ target: { kind: EntityDeleteKind; id: string }; restoredAt: string | null; data: EducationContract }> {
   const snapshot = await readEduPiEducationSnapshot({ signal: input.signal });
   const result = await issueEntityRestore(input, { roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot } });
-  const refreshedWorkspace = result.data.education_workspace;
-  const data = await projectEducationContract({
-    ...snapshot,
-    payload: result.data as EducationSnapshot["payload"],
-    workspace: refreshedWorkspace as EducationSnapshot["workspace"],
-  });
+  const data = await refreshEducationContractAfterMutation(snapshot, result.data, { signal: input.signal });
   if (!restoredEntityProjectionIsValid(input.kind, result.target.id, data)) {
     throw new EntityDeleteError("invalid_response", "Core 恢复结果无效。");
   }

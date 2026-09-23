@@ -293,6 +293,40 @@ try {
   assert.equal(routeUpdated.response.status, 200, JSON.stringify(routeUpdated.body));
   assert.equal(routeUpdated.body.documentCommitted, true);
   assert.equal(routeUpdated.body.documentSourceId, routeSource.sourceId);
+  const routeRevisionReplay = await stageAndRecognize("改名后的路由合同会议-修订.docx", routeRevisionQuote, [
+    modelEvent({ date: "2026-10-28", name: "路由合同会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
+  ], routeRevision.bytes, true);
+  const routeReplayed = await postDocument(routeRevisionReplay.descriptor);
+  assert.equal(routeReplayed.response.status, 200, JSON.stringify(routeReplayed.body));
+  assert.equal(routeReplayed.body.documentCommitted, true);
+  assert.equal(routeReplayed.body.documentSourceId, routeSource.sourceId,
+    "Core schedule evidence must recover the explicit H2-to-H source binding without another selection");
+  const routeRevisionMaterialId = `material-${routeRevision.descriptor.staging_id.slice("stg_".length)}`;
+  const routeReplayMaterialId = `material-${routeRevisionReplay.descriptor.staging_id.slice("stg_".length)}`;
+  await entityDelete.issueEntityDelete({ kind: "material", id: routeRevisionMaterialId, note: "同字节副本删除测试" });
+  read = await sourceProjection.readCoreCalendarSources();
+  assert.equal(read.sources.some((source) => source.sourceId === routeSource.sourceId), true,
+    "one live material copy must keep its document schedule source visible");
+  await entityDelete.issueEntityDelete({ kind: "material", id: routeReplayMaterialId, note: "全部同字节副本删除测试" });
+  read = await sourceProjection.readCoreCalendarSources();
+  assert.equal(read.sources.some((source) => source.sourceId === routeSource.sourceId), false,
+    "deleting every material copy must hide its document schedule source");
+  const routeDeletionLedger = await entityDelete.readEntityDeletionLedger();
+  const routeRevisionDeletion = routeDeletionLedger.deletions.find((record) => record.kind === "material" && record.id === routeRevisionMaterialId);
+  assert.ok(routeRevisionDeletion);
+  await entityDelete.issueEntityRestore({ kind: "material", id: routeRevisionMaterialId, note: "恢复一份同字节材料",
+    restoreRequestId: entityDelete.entityRestoreRequestId(routeRevisionDeletion) });
+  read = await sourceProjection.readCoreCalendarSources();
+  assert.equal(read.sources.some((source) => source.sourceId === routeSource.sourceId), true,
+    "restoring any exact material copy must restore its document schedule source");
+  const routeAfterRestoreReplay = await stageAndRecognize("恢复后的路由合同会议-修订.docx", routeRevisionQuote, [
+    modelEvent({ date: "2026-10-28", name: "路由合同会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
+  ], routeRevision.bytes, true);
+  const routeAfterRestore = await postDocument(routeAfterRestoreReplay.descriptor);
+  assert.equal(routeAfterRestore.response.status, 200, JSON.stringify(routeAfterRestore.body));
+  assert.equal(routeAfterRestore.body.documentCommitted, true);
+  assert.equal(routeAfterRestore.body.documentSourceId, routeSource.sourceId,
+    "restored active material evidence must recover the prior source alias");
 
   const deletionQuote = "通知：2026年10月30日 16:00-17:00（北京时间）在二号会议室举行删除传播会议。";
   const deletionKeepQuote = "通知：2026年10月31日 09:00-10:00（北京时间）在三号会议室举行保留会议。";
@@ -333,7 +367,7 @@ try {
   console.log(JSON.stringify({ status: "passed", source_id: first.sourceId, exact_replay: true, additive_omission: true,
     stale_cas_rejected: true, moved_candidate_held: true, cross_format_dedupe: true, legacy_adoption_held: true,
     filename_issuer_adoption: true,
-    route_post: true, route_source_update: true,
+    route_post: true, route_source_update: true, evidence_alias_replay: true, material_delete_restore_propagation: true,
     deletion_reupload_blocked: true, explicit_restore: true,
     current_occurrences: documentSource.eventCount, external_send: false }));
 } finally {

@@ -1,12 +1,19 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-23 文档来源别名与材料删除传播（工程验收通过，尚未发布）
+
+- [Core #177](https://github.com/Intellinfinity/edupi/pull/177) 合并为 `c1edefd2a2b77e3d10dfc9f0a47eceb7b5f7b1de`，将 PDF/DOCX `source_hash` 映射到 `schedule-evidence-*`，统一同哈希多副本、calendar/document 混合 evidence、calendar/timetable、准备/能力与反馈 lineage 的删除和恢复语义；Core 全量、CI 与独立复审通过。
+- [Desktop #228](https://github.com/Intellinfinity/edupi-desktop/pull/228) 的提交 `3b7f1e5` 从 Core 当前 evidence 恢复 H2→H logical source alias，同时要求当前 accepted material target 证明同一 hash。删除材料或只有残留跨格式 evidence 时不自动绑定；slot、内容漂移、多 alias 和 direct/foreign 冲突继续 fail closed。
+- 真实 route E2 覆盖 H2 精确重放、同哈希两份材料逐份删除、全部来源隐藏、恢复任一副本和恢复后无感重放。全量 1545 tests，1519 passed / 26 skipped / 0 failed；TypeScript、lint、audit、`desktop:prepare`、四项 staged runtime 与 bundle/model-host 8/8 通过，全部 `external_send=false`。
+- Unverified：同一文档重复 `name + type` 仍整份 fail closed；自动 alias 尚不覆盖 slot；图片/扫描 PDF 的可信 OCR、正式安装版、真实 provider、正式盲测和真实教师价值仍未验证。staged runtime 的 `proactivity` 仍为默认关闭，因此整体状态仍是“L4 功能收敛中”。
+
 ## 2026-09-23 PDF/DOCX 跨修订来源与删除传播（工程验收通过，尚未发布）
 
 - [Desktop #226](https://github.com/Intellinfinity/edupi-desktop/pull/226) 以 `0f9ec30`、`f255674`、`bd10438` 完成 PDF/DOCX logical source、Core-owned CAS、稳定 occurrence、跨格式显式去重、旧状态接管、教师确认防降级、omission 保留和 tombstone 恢复防护；证据见 [PDF/DOCX 日程修订来源验收](../acceptance/2026-09-23-document-schedule-revision-source.md)。
 - 真实 DOCX E2 已覆盖 route POST、新建/更新、同字节重放、不同字节显式绑定、stale CAS、改期 held、legacy/filename issuer、PDF/DOCX↔ICS、删 A 而 B 保持来源可见、H2 重传拒绝及明确 restore；全部 `external_send=false`。隔离浏览器来源选择与 omission 文案可见，console error/warn 为 0。
 - 文档修订只增量 upsert，不因模型漏识别自动撤回。旧格式首次接管必须完整覆盖旧 issuer，并通过 held conflict 等待教师决定；Desktop 不保存第二份来源 baseline。
 - packaged symlink worktree 的 trace leak 已用 exclusive owner directory、inode 与私有 marker 收敛；真实 `desktop:prepare` 后不再污染仓库根。
-- Unverified：同一文档重复 `name + type` 仍整份 fail closed；H2→H alias 未持久化，H2 exact replay 仍需再选来源；图片/扫描 PDF 的可信 OCR、正式安装版、provider 质量、盲测和真实教师价值仍未验证。公开 Latest 仍为 v0.3.36/Core `860594a…`，整体状态仍是“L4 功能收敛中”。
+- 后续状态以上方 Core #177 / Desktop #228 为准：H2→H exact replay alias 和材料删除传播已完成。同一文档重复 `name + type`、slot 自动 alias、图片/扫描 PDF、正式安装版、provider 质量、盲测和真实教师价值仍未验证。公开 Latest 仍为 v0.3.36/Core `860594a…`，整体状态仍是“L4 功能收敛中”。
 
 ## 2026-09-23 R25 故障扩展恢复与 R21 通知补验
 

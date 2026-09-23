@@ -423,6 +423,7 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("test:edupi-text-schedule-evidence-e2"));
   assert.ok(buildJob.includes("test:edupi-ocr-schedule-e2"));
   assert.ok(buildJob.includes("test:edupi-document-revision-e2"));
+  assert.ok(buildJob.includes("test:edupi-slot-alias-e2"));
   assert.ok(buildJob.includes("scripts/test-edupi-c2-e2.mjs"));
   assert.ok(buildJob.includes("scripts/test-edupi-c3-e2.mjs"));
   assert.ok(buildJob.includes("scripts/packaged-core-bundle.test.mjs"));
@@ -439,6 +440,15 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("if: runner.os == 'Windows'"));
   assert.ok(buildJob.includes("--test-name-pattern"));
   assert.ok(buildJob.includes("bundled validation rejects|external mode still requires"));
+});
+
+test("preview verifies slot alias after Desktop dependencies and before bundling on supported hosts", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
+  const install = workflow.indexOf("- run: npm ci");
+  const slotAlias = workflow.indexOf("name: Verify paired timetable source alias");
+  const prepare = workflow.indexOf("name: Prepare packaged Desktop runtime");
+  assert.ok(install >= 0 && slotAlias > install && prepare > slotAlias);
+  assert.match(workflow.slice(slotAlias, prepare), /if: runner\.os != 'Windows'[\s\S]*?EDUPI_CORE_ROOT:[\s\S]*?test:edupi-slot-alias-e2/u);
 });
 
 test("every packaged workflow checks out the exact pinned Core runtime", async () => {

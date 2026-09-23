@@ -139,6 +139,7 @@ test("routes PDF and DOCX schedule revisions through a distinct bounded source c
   assert.match(source, /syncDocumentScheduleFile/);
   assert.match(source, /documentSourceId/);
   assert.match(source, /documentSourceFingerprint/);
-  assert.match(source, /\^\(\?:document\|calendar\)-source-\[a-f0-9\]\{32\}\$/);
+  assert.match(source, /\(\?:document\|calendar\)-source-\[a-f0-9\]\{32\}/);
+  assert.match(source, /desktop-file-schedule-\[a-f0-9\]\{24\}/);
   assert.doesNotMatch(source, /deleteDocument|removedDocumentEvent/);
 });

@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "26fc91ef656877b15ca3e60f14093cf52ea7b736",
+    "core_commit": "68004b2c0294159eef4f88bcbf4a921ef6978037",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:9c019d029d26987e71d6c7cb6ebe7f33d13434a3cc93b3e582dee40b7532adc8",
-    "runtime_component_manifest_hash": "sha256:85c6a8da654ff521fd930b57f057cb7cecf1459cf10fa585af5818259d7a2d18",
+    "component_manifest_hash": "sha256:d878f2fb5127f0874636975172ae0630b67b6b42957e7718b1983309e3e9632f",
+    "runtime_component_manifest_hash": "sha256:87d742475908524522328869f7c4d402e06b6fc61f4f196989d7b174a13b1183",
     "runtime_schema_hash": "sha256:815f827e4a1d87c3e42c5a301b34c5eda5520b8bfbf79686f4c910f0a8dae700"
   },
   "contract_identities": [
@@ -153,7 +153,8 @@
     "https://github.com/Intellinfinity/edupi/pull/180",
     "https://github.com/Intellinfinity/edupi/pull/181",
     "https://github.com/Intellinfinity/edupi/pull/182",
-    "https://github.com/Intellinfinity/edupi/pull/183"
+    "https://github.com/Intellinfinity/edupi/pull/183",
+    "https://github.com/Intellinfinity/edupi/pull/184"
   ],
-  "change_note": "Desktop pin to merged Core 26fc91e: updates the v1.1 timetable projection with bounded source/evidence IDs, preserves the opt-in v1.2 occurrence contract and owner-message withdrawal reconciliation, and isolates ordinary owner-intent planning sources so independent lesson Goals can share accepted material without rewriting each other. external_send=false is unchanged."
+  "change_note": "Desktop pin to merged Core 68004b2: projects canonical timetable provenance, preserves owner-message withdrawal and intent-scoped planning isolation, fences partially deleted shared sources, and replays exact all-duplicate or mixed duplicate/new timetable imports. The v1.2 occurrence contract and external_send=false remain unchanged."
 }

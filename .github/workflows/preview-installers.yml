@@ -81,6 +81,11 @@ jobs:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run test:edupi-ambient-today-runtime
       - run: npm ci
+      - name: Verify paired timetable source alias
+        if: runner.os != 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: npm run test:edupi-slot-alias-e2
       - name: Prepare packaged Desktop runtime
         env:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime

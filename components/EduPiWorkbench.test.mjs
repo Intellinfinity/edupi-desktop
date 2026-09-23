@@ -318,7 +318,10 @@ test("routes education uploads through Desktop staging without Core paths or aut
   assert.match(panel, /calendarSourceFingerprint/);
   assert.match(panel, /documentSourceFingerprint/);
   assert.match(materials, /作为新日历/);
-  assert.match(materials, /更新 \{source\.sourceKind === "calendar" \? "日历" : "材料"\}：\{source\.label\}/);
+  assert.match(materials, /更新\{source\.sourceKind === "calendar" \? "日历" : "材料"\}：\{source\.label\}/);
+  assert.match(materials, /日程或课表来源/);
+  assert.match(materials, /source\.sourceKind === "timetable" \? "课表"/);
+  assert.match(materials, /sourceUnavailable\.calendar \|\| sourceUnavailable\.timetable/);
   assert.match(materials, /更新可能撤回该来源的旧安排，请确认来源/);
   assert.match(materials, /作为新材料来源/);
   assert.match(materials, /未识别到的旧安排不会自动撤回/);

@@ -125,6 +125,10 @@ try {
     assert.equal(status.core.status, "ready");
     assert.equal(status.projection.status, "ready");
     assert.equal(status.externalSend, false);
+    const timetableSources = await fetch(`${baseUrl}/api/edupi/timetable-sources`, { signal: AbortSignal.timeout(10_000) });
+    assert.equal(timetableSources.status, 200);
+    assert.equal(timetableSources.headers.get("cache-control"), "no-store");
+    assert.deepEqual((await timetableSources.json()).sources, []);
     console.log(JSON.stringify({ status: "passed", coreCommit: status.compatibility.actual.coreCommit, coreStatus: status.core.status,
       projectionStatus: status.projection.status, occurrenceContract: occurrenceIdentity.contract_version,
       proactivity: status.proactivity.status, externalSend: status.externalSend }, null, 2));

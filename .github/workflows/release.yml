@@ -196,6 +196,7 @@ jobs:
           npm run test:edupi-text-schedule-evidence-e2
           npm run test:edupi-ocr-schedule-e2
           npm run test:edupi-document-revision-e2
+          npm run test:edupi-slot-alias-e2
           node scripts/test-edupi-c2-e2.mjs
           node scripts/test-edupi-c3-e2.mjs
           node --test scripts/packaged-core-bundle.test.mjs

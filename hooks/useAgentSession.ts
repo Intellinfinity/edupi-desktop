@@ -20,6 +20,7 @@ import { rememberScrollPosition, sessionScrollTops } from "@/lib/scroll-memory";
 import { applyAssistantMessageEvent, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { EDUPI_STUDENT_RECORDS_UPDATED_EVENT } from "@/lib/edupi-ui-events";
+import { captureEduPiAmbientMessage } from "@/lib/edupi-ambient-message";
 import { acknowledgeLocalQueueRecovery, completeStagedQueueRecovery, getDraft, markQueueRecoveryUncertain, restoreFailedMessageDraft } from "@/lib/draft-store";
 import { recallQueueWithBackup } from "@/lib/queue-recovery";
 
@@ -514,6 +515,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const toolPresetRef = useRef(toolPreset);
   const permissionModeRef = useRef(permissionMode);
   const promptRunIdRef = useRef(0);
+  const proactivityNoticeAtRef = useRef(0);
   const optimisticUserMessageKeyRef = useRef<string | null>(null);
 
   const setToolPresetState = opts.setToolPreset ?? setToolPreset;
@@ -1564,13 +1566,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     cancelEventStreamGrace();
     rpcPromptPendingRef.current = true;
 
+    const occurredAtMs = Date.now();
     const imageBlocks = images?.map((img) => ({ type: "image" as const, source: { type: "base64" as const, media_type: img.mimeType, data: img.data } }));
     const userMsg: UserMessage = {
       role: "user",
       content: imageBlocks?.length
         ? [...(message.trim() ? [{ type: "text" as const, text: message }] : []), ...imageBlocks]
         : message,
-      timestamp: Date.now(),
+      timestamp: occurredAtMs,
     };
     setMessages((prev) => [...prev, userMsg]);
     optimisticUserMessageKeyRef.current = userMessageKey(userMsg);
@@ -1619,6 +1622,18 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           message,
           ...(piImages?.length ? { images: piImages } : {}),
         });
+      }
+      if (!isSlashCommandPrompt && trimmedMessage && sentSessionId) {
+        const reportCaptureFailure = () => {
+          const now = Date.now();
+          if (now - proactivityNoticeAtRef.current < 60_000) return;
+          proactivityNoticeAtRef.current = now;
+          addNotice({ type: "warning", message: "主动备课未记录，请到管理中心检查运行状态" });
+        };
+        void captureEduPiAmbientMessage({ sessionId: sentSessionId, messageId: `prompt-${globalThis.crypto.randomUUID()}`, text: trimmedMessage,
+          occurredAt: new Date(occurredAtMs).toISOString() }).then((result) => {
+          if (result.status === "unavailable") reportCaptureFailure();
+        }, reportCaptureFailure);
       }
       if (isSlashCommandPrompt && sentSessionId) {
         void waitForPromptSettlement(sentSessionId, promptRunId);

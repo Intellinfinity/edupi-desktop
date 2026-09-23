@@ -248,6 +248,22 @@
 .edupi-admin-list em { color: var(--text-muted); font-size: 11px; font-style: normal; white-space: nowrap; }
 .edupi-admin-list em.is-ready { color: #18805a; }
 
+.edupi-proactivity-canary { display: grid; margin-top: 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); }
+.edupi-proactivity-canary > div,
+.edupi-proactivity-canary > label { display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 18px; border-bottom: 1px solid var(--border); }
+.edupi-proactivity-canary > div > span { display: grid; gap: 4px; }
+.edupi-proactivity-canary strong { font-size: 13px; font-weight: 600; }
+.edupi-proactivity-canary small,
+.edupi-proactivity-canary label > span,
+.edupi-proactivity-canary em { color: var(--text-muted); font-size: 11px; font-style: normal; }
+.edupi-proactivity-canary em.is-ready { color: #18805a; }
+.edupi-proactivity-canary select { min-width: min(320px, 60%); padding: 7px 30px 7px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text); font: inherit; }
+.edupi-proactivity-canary > button { min-height: 40px; margin: 12px 18px; padding: 7px 12px; justify-self: end; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-panel); color: var(--accent); cursor: pointer; }
+.edupi-proactivity-canary > button.edupi-admin-primary { margin-top: 12px; }
+.edupi-proactivity-canary > button:disabled { cursor: not-allowed; opacity: .5; }
+.edupi-proactivity-canary > p,
+.edupi-proactivity-canary__loading { margin: 0; padding: 0 18px 12px; color: var(--text-muted); font-size: 11px; }
+
 .edupi-admin-recycle {
   overflow: hidden;
   margin-top: 14px;
@@ -429,6 +445,9 @@
   .edupi-admin-metrics > div:last-child { border-bottom: 0; }
   .edupi-admin-runtime > div { grid-template-columns: 8px minmax(0, 1fr) auto; }
   .edupi-admin-runtime time { display: none; }
+  .edupi-proactivity-canary > label { align-items: stretch; flex-direction: column; }
+  .edupi-proactivity-canary select { width: 100%; min-width: 0; max-width: none; }
+  .edupi-proactivity-canary > button { justify-self: stretch; }
   .edupi-background-job-row > span,
   .edupi-background-job-actions { width: 100%; max-width: none; }
   .edupi-core-compatibility__identity { grid-template-columns: 1fr; }

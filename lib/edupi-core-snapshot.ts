@@ -10,6 +10,7 @@ import type { BridgeErrorCode } from "./edupi-bridge-contract";
 import type { EducationMemoryScopeProjection } from "./edupi-memory-scopes";
 import { resolveEduPiCoreRoot, resolveEduPiDataRoot, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
 import { ensureEduPiRuntime } from "./edupi-runtime-supervisor";
+import { readEduPiProactivityActivation } from "./edupi-proactivity-config";
 
 export type CoreEducationWorkspace = Record<string, unknown>;
 export type CoreEducationSnapshotPayload = Record<string, unknown> & {
@@ -151,7 +152,7 @@ export async function readEduPiEducationSnapshot({
   dataRoot: ResolvedEduPiDataRoot;
 }> {
   const resolved = roots || resolveEduPiBridgeRoots();
-  if (!roots && process.env.EDUPI_AMBIENT_PLANNING === "1") await ensureEduPiRuntime(resolved);
+  if (!roots && readEduPiProactivityActivation({ dataRoot: resolved.dataRoot.root }).enabled) await ensureEduPiRuntime(resolved);
   let response: Record<string, unknown>;
   try {
     response = await callEduPiCore<Record<string, unknown>>({

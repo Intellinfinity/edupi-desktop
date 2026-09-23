@@ -416,6 +416,7 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("name: Verify paired Core runtime"));
   assert.ok(buildJob.includes("if: runner.os != 'Windows'"));
   assert.ok(buildJob.includes("test:edupi-ambient-today-runtime"));
+  assert.ok(buildJob.includes("test:edupi-proactivity-canary-e2"));
   assert.ok(buildJob.includes("test:edupi-schedule-conflicts-e2"));
   assert.ok(buildJob.includes("test:edupi-schedule-occurrence-e2"));
   assert.ok(buildJob.includes("test:edupi-uploaded-calendar-e2"));

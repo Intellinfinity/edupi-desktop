@@ -4,6 +4,7 @@ import { EduPiSnapshotError, readEduPiCoreHealth, readEduPiEducationSnapshot, re
 import { loadEduPiCompatManifest } from "@/lib/edupi-bridge-manifest";
 import { describeEduPiRuntimeStartupFailure, ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { projectCoreRuntimeHealth, type ProjectedCoreRuntimeHealth } from "@/lib/edupi-runtime-health";
+import { readEduPiProactivityActivation } from "@/lib/edupi-proactivity-config";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,8 @@ export async function GET(request: Request) {
   let runtime: ProjectedCoreRuntimeHealth | null = null;
   let runtimeReason = "Core Runtime 不可用";
   let runtimeCapabilities: Record<string, unknown> | null = null;
-  const ambientPlanning = process.env.EDUPI_AMBIENT_PLANNING === "1";
+  const activation = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root });
+  const ambientPlanning = activation.enabled;
   try {
     const host = await ensureEduPiRuntime(roots);
     const runtimeHealth = await host.call("health", null);
@@ -141,6 +143,9 @@ export async function GET(request: Request) {
     proactivity: {
       status: !runtime ? "unavailable" : ambientPlanning ? "active" : "disabled",
       ambientPlanning,
+      activationSource: activation.source,
+      configurationStatus: activation.configurationStatus,
+      scope: activation.scope,
       attentionDelivery: runtimeCapabilities?.attention_delivery === "active",
       teacherFeedback: runtimeCapabilities?.teacher_feedback === "active",
       attentionIntents: attentionIntents.length,

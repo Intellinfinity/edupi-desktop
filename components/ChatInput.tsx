@@ -4,8 +4,8 @@ import React, { useRef, useState, useCallback, useEffect, useImperativeHandle, f
 import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
-import { clearDraft, getDraft, setDraft, type ChatDraftImage } from "@/lib/draft-store";
-import { composeTeacherMessage, contextHandoffMode, parseTeacherMessage, prepareQueueRecall, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
+import { clearDraft, flushDraftNow, getDraft, markQueueRecoveryUncertain, setDraft, subscribeDraftPersistence, type ChatDraft, type ChatDraftImage, type FailedDraftMessage } from "@/lib/draft-store";
+import { composeComposerMessage, contextHandoffMode, parseTeacherMessage, prepareQueueRecall, readableQueueBackup, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import {
   MAX_ATTACHED_IMAGE_BYTES,
   MAX_ATTACHED_IMAGES,
@@ -43,9 +43,9 @@ interface ModelOption {
 interface Props {
   onSend: (message: string, images?: AttachedImage[]) => void;
   onAbort: () => void;
-  onSteer?: (message: string, images?: AttachedImage[]) => void;
-  onFollowUp?: (message: string, images?: AttachedImage[]) => void;
-  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => void;
+  onSteer?: (message: string, images?: AttachedImage[]) => void | Promise<void>;
+  onFollowUp?: (message: string, images?: AttachedImage[]) => void | Promise<void>;
+  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => void | Promise<void>;
   isStreaming: boolean;
   model?: { provider: string; modelId: string } | null;
   isAutoModelSelection?: boolean;
@@ -72,6 +72,10 @@ interface Props {
   queuedMessages?: QueuedMessages | null;
   inputHistory?: string[];
   onRecallQueue?: () => void;
+  onResumeQueueRecovery?: (recoveryId: string) => void | Promise<void>;
+  onAbandonPreparedQueueRecovery?: (recoveryId: string) => void | Promise<void>;
+  queueRecallBusy?: boolean;
+  queueRecoveryRequiresReview?: boolean;
   slashCommands?: SlashCommandInfo[];
   slashCommandsLoading?: boolean;
   onLoadSlashCommands?: () => Promise<SlashCommandInfo[]> | SlashCommandInfo[];
@@ -93,11 +97,16 @@ interface Props {
 export interface ChatInputHandle {
   offerContext: (context: EduPiComposerContext) => void;
   offerTeacherDraft: (text: string) => void;
+  preserveContextForSession: (sessionId: string) => void;
   insertText: (text: string) => void;
   insertIfEmpty: (text: string) => void;
   replaceText: (text: string) => void;
-  restoreQueuedMessages: (messages: string[]) => void;
-  replaceMessage: (message: UserMessage) => void;
+  stageQueuedMessages: (sessionId: string, messages: string[], recoveryId: string) => string[] | null;
+  finalizeQueuedMessages: (sessionId: string, previous: string[], messages: string[], recoveryId: string) => boolean;
+  refreshQueueRecoveryStatus: (draftKey: string) => void;
+  markQueueRecoveryUncertain: (sessionId: string, recoveryId: string) => boolean;
+  refreshPendingFailedMessages: (draftKey: string) => void;
+  replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => void;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
   focus: () => void;
@@ -383,7 +392,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange,
   onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange, permissionMode = "workspace", onPermissionModeChange,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
-  retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
+  retryInfo, queuedMessages, inputHistory = [], onRecallQueue, onResumeQueueRecovery, onAbandonPreparedQueueRecovery, queueRecallBusy = false, queueRecoveryRequiresReview = false,
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
   onBuiltinCommand,
   soundEnabled, onSoundToggle, onAudioUnlock, onAttachFiles,
@@ -397,8 +406,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const isMobile = useIsMobile();
   const [value, setValue] = useState(() => (draftKey ? getDraft(draftKey)?.value ?? "" : ""));
   const [context, setContext] = useState<EduPiComposerContext | null>(() => (draftKey ? getDraft(draftKey)?.context ?? null : null));
-  const [offeredContext, setOfferedContext] = useState<EduPiComposerContext | null>(null);
+  const [offeredContext, setOfferedContext] = useState<EduPiComposerContext | null>(() => (draftKey ? getDraft(draftKey)?.offeredContext ?? null : null));
   const [pendingTeacherText, setPendingTeacherText] = useState(() => (draftKey ? getDraft(draftKey)?.pendingTeacherText ?? "" : ""));
+  const [pendingQueueMessages, setPendingQueueMessages] = useState<string[]>(() => (draftKey ? getDraft(draftKey)?.pendingQueueMessages ?? [] : []));
+  const [queueRecoveryId, setQueueRecoveryId] = useState<string | null>(() => (draftKey ? getDraft(draftKey)?.pendingQueueRecoveryId ?? null : null));
+  const [queueRecoveryPrevious, setQueueRecoveryPrevious] = useState<string[]>(() => (draftKey ? getDraft(draftKey)?.pendingQueuePrevious ?? [] : []));
+  const [queueReadyToAck, setQueueReadyToAck] = useState(() => (draftKey ? getDraft(draftKey)?.pendingQueueReadyToAck ?? false : false));
+  const [queueUncertain, setQueueUncertain] = useState(() => (draftKey ? getDraft(draftKey)?.pendingQueueUncertain ?? false : false));
+  const [pendingFailedMessages, setPendingFailedMessages] = useState<FailedDraftMessage[]>(() => (draftKey ? getDraft(draftKey)?.pendingFailedMessages ?? [] : []));
+  const [draftSaveFailed, setDraftSaveFailed] = useState(false);
+  const [queueCopyStatus, setQueueCopyStatus] = useState("");
+  const [failedCopyStatus, setFailedCopyStatus] = useState("");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const [modelFilter, setModelFilter] = useState("");
@@ -407,6 +425,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [thinkingDropdownOpen, setThinkingDropdownOpen] = useState(false);
   const [controlsMenuOpen, setControlsMenuOpen] = useState(false);
   const [queueMenuOpen, setQueueMenuOpen] = useState(false);
+  const [queueSubmitting, setQueueSubmitting] = useState(false);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>(() => (
     draftKey ? draftImagesToAttachedImages(getDraft(draftKey)?.images) : []
@@ -456,12 +475,27 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const draftKeyRef = useRef(draftKey);
   const valueRef = useRef(value);
   const contextRef = useRef(context);
+  const offeredContextRef = useRef(offeredContext);
   const pendingTeacherTextRef = useRef(pendingTeacherText);
+  const pendingQueueMessagesRef = useRef(pendingQueueMessages);
+  const queueRecoveryIdRef = useRef(queueRecoveryId);
+  const queueRecoveryPreviousRef = useRef(queueRecoveryPrevious);
+  const queueReadyToAckRef = useRef(queueReadyToAck);
+  const queueUncertainRef = useRef(queueUncertain);
+  const pendingFailedMessagesRef = useRef(pendingFailedMessages);
   const attachedImagesRef = useRef(attachedImages);
   const pendingImageCountRef = useRef(0);
+  const queueSubmittingRef = useRef(false);
   valueRef.current = value;
   contextRef.current = context;
+  offeredContextRef.current = offeredContext;
   pendingTeacherTextRef.current = pendingTeacherText;
+  pendingQueueMessagesRef.current = pendingQueueMessages;
+  queueRecoveryIdRef.current = queueRecoveryId;
+  queueRecoveryPreviousRef.current = queueRecoveryPrevious;
+  queueReadyToAckRef.current = queueReadyToAck;
+  queueUncertainRef.current = queueUncertain;
+  pendingFailedMessagesRef.current = pendingFailedMessages;
   attachedImagesRef.current = attachedImages;
 
   const appendDictationTranscript = useCallback((transcript: string) => {
@@ -485,7 +519,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   useImperativeHandle(ref, () => ({
     offerContext(next: EduPiComposerContext) {
       const current = (textareaRef.current?.value ?? valueRef.current).trim();
-      if (pendingTeacherTextRef.current) {
+      if (pendingTeacherTextRef.current || pendingQueueMessagesRef.current.length || pendingFailedMessagesRef.current.length) {
         setOfferedContext(next);
         requestAnimationFrame(() => textareaRef.current?.focus());
         return;
@@ -504,7 +538,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       const next = text.trim();
       if (!next) return;
       const current = (textareaRef.current?.value ?? valueRef.current).trim();
-      if (current || contextRef.current || attachedImagesRef.current.length || pendingImageCountRef.current || pendingTeacherTextRef.current) {
+      if (current || contextRef.current || attachedImagesRef.current.length || pendingImageCountRef.current || pendingTeacherTextRef.current || pendingQueueMessagesRef.current.length || pendingFailedMessagesRef.current.length) {
         setPendingTeacherText((previous) => [previous, next].filter(Boolean).join("\n\n"));
       } else {
         setValue(next);
@@ -512,6 +546,18 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         setPendingTeacherText("");
       }
       requestAnimationFrame(() => textareaRef.current?.focus());
+    },
+    preserveContextForSession(sessionId: string) {
+      if (!contextRef.current && !offeredContextRef.current && !pendingTeacherTextRef.current && !pendingQueueMessagesRef.current.length && !pendingFailedMessagesRef.current.length) return;
+      setDraft(sessionId, {
+        value: "",
+        images: [],
+        ...(contextRef.current ? { context: contextRef.current } : {}),
+        ...(offeredContextRef.current ? { offeredContext: offeredContextRef.current } : {}),
+        ...(pendingTeacherTextRef.current ? { pendingTeacherText: pendingTeacherTextRef.current } : {}),
+        ...(pendingQueueMessagesRef.current.length ? { pendingQueueMessages: pendingQueueMessagesRef.current } : {}),
+        ...(pendingFailedMessagesRef.current.length ? { pendingFailedMessages: pendingFailedMessagesRef.current } : {}),
+      });
     },
     insertIfEmpty(text: string) {
       const ta = textareaRef.current;
@@ -539,25 +585,108 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
       });
     },
-    restoreQueuedMessages(messages: string[]) {
-      const restored = prepareQueueRecall(messages, textareaRef.current?.value ?? valueRef.current, contextRef.current, attachedImagesRef.current.length > 0);
-      setValue(restored.text);
-      setContext(restored.context);
-      setOfferedContext(null);
-      setAtQuery(null);
-      requestAnimationFrame(() => {
-        const ta = textareaRef.current;
-        if (!ta) return;
-        ta.focus();
-        ta.setSelectionRange(restored.text.length, restored.text.length);
-        ta.style.height = "auto";
-        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-      });
+    stageQueuedMessages(sessionId: string, messages: string[], recoveryId: string) {
+      if (draftKeyRef.current !== sessionId || messages.length === 0 || queueRecoveryIdRef.current || queueUncertainRef.current) return null;
+      const previous = [...pendingQueueMessagesRef.current];
+      const current = textareaRef.current?.value ?? valueRef.current;
+      const original: ChatDraft = {
+        value: current,
+        images: attachedImagesRef.current.map(imageToDraftImage),
+        ...(contextRef.current ? { context: contextRef.current } : {}),
+        ...(offeredContextRef.current ? { offeredContext: offeredContextRef.current } : {}),
+        ...(pendingTeacherTextRef.current ? { pendingTeacherText: pendingTeacherTextRef.current } : {}),
+        ...(previous.length ? { pendingQueueMessages: previous } : {}),
+        ...(pendingFailedMessagesRef.current.length ? { pendingFailedMessages: pendingFailedMessagesRef.current } : {}),
+      };
+      const staged = [...previous, ...messages];
+      setDraft(sessionId, { ...original, pendingQueueMessages: staged, pendingQueueRecoveryId: recoveryId, pendingQueuePrevious: previous });
+      if (!flushDraftNow(sessionId)) {
+        setDraft(sessionId, original);
+        flushDraftNow(sessionId);
+        return null;
+      }
+      pendingQueueMessagesRef.current = staged;
+      setPendingQueueMessages(staged);
+      queueRecoveryIdRef.current = recoveryId;
+      setQueueRecoveryId(recoveryId);
+      queueRecoveryPreviousRef.current = previous;
+      setQueueRecoveryPrevious(previous);
+      queueReadyToAckRef.current = false;
+      setQueueReadyToAck(false);
+      return previous;
     },
-    replaceMessage(message: UserMessage) {
+    finalizeQueuedMessages(sessionId: string, previous: string[], messages: string[], recoveryId: string) {
+      if (draftKeyRef.current !== sessionId) return false;
+      const current = textareaRef.current?.value ?? valueRef.current;
+      const canRestore = !current.trim() && !contextRef.current && !offeredContextRef.current
+        && !pendingTeacherTextRef.current && !pendingFailedMessagesRef.current.length
+        && !attachedImagesRef.current.length && !pendingImageCountRef.current && previous.length === 0;
+      const restored = canRestore ? prepareQueueRecall(messages, "", null) : null;
+      const nextQueue = restored ? [] : [...previous, ...messages];
+      const nextContext = restored?.context ?? contextRef.current;
+      const stagedDraft = getDraft(sessionId);
+      if (!stagedDraft || stagedDraft.pendingQueueRecoveryId !== recoveryId) return false;
+      setDraft(sessionId, {
+        value: restored?.text ?? current,
+        images: attachedImagesRef.current.map(imageToDraftImage),
+        ...(nextContext ? { context: nextContext } : {}),
+        ...(offeredContextRef.current ? { offeredContext: offeredContextRef.current } : {}),
+        ...(pendingTeacherTextRef.current ? { pendingTeacherText: pendingTeacherTextRef.current } : {}),
+        ...(nextQueue.length ? { pendingQueueMessages: nextQueue } : {}),
+        pendingQueueRecoveryId: recoveryId,
+        pendingQueuePrevious: previous,
+        pendingQueueReadyToAck: true,
+        ...(pendingFailedMessagesRef.current.length ? { pendingFailedMessages: pendingFailedMessagesRef.current } : {}),
+      });
+      if (!flushDraftNow(sessionId)) {
+        setDraft(sessionId, stagedDraft);
+        flushDraftNow(sessionId);
+        return false;
+      }
+      pendingQueueMessagesRef.current = nextQueue;
+      setPendingQueueMessages(nextQueue);
+      if (restored) {
+        valueRef.current = restored.text;
+        contextRef.current = restored.context;
+        setValue(restored.text);
+        setContext(restored.context);
+      }
+      queueReadyToAckRef.current = true;
+      setQueueReadyToAck(true);
+      return true;
+    },
+    refreshQueueRecoveryStatus(key: string) {
+      if (draftKeyRef.current !== key) return;
+      const draft = getDraft(key);
+      queueRecoveryIdRef.current = draft?.pendingQueueRecoveryId ?? null;
+      queueRecoveryPreviousRef.current = draft?.pendingQueuePrevious ?? [];
+      queueReadyToAckRef.current = draft?.pendingQueueReadyToAck ?? false;
+      setQueueRecoveryId(draft?.pendingQueueRecoveryId ?? null);
+      setQueueRecoveryPrevious(draft?.pendingQueuePrevious ?? []);
+      setQueueReadyToAck(draft?.pendingQueueReadyToAck ?? false);
+      queueUncertainRef.current = draft?.pendingQueueUncertain ?? false;
+      setQueueUncertain(draft?.pendingQueueUncertain ?? false);
+    },
+    markQueueRecoveryUncertain(sessionId: string, recoveryId: string) {
+      if (draftKeyRef.current !== sessionId || !markQueueRecoveryUncertain(sessionId, recoveryId)) return false;
+      queueRecoveryIdRef.current = null;
+      queueReadyToAckRef.current = false;
+      queueUncertainRef.current = true;
+      setQueueRecoveryId(null);
+      setQueueReadyToAck(false);
+      setQueueUncertain(true);
+      return true;
+    },
+    refreshPendingFailedMessages(key: string) {
+      if (draftKeyRef.current !== key) return;
+      const pending = getDraft(key)?.pendingFailedMessages ?? [];
+      pendingFailedMessagesRef.current = pending;
+      setPendingFailedMessages(pending);
+    },
+    replaceMessage(message: UserMessage, allowPendingRecovery = false) {
       const ta = textareaRef.current;
       const current = ta ? ta.value : value;
-      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current, Boolean(contextRef.current || offeredContext || pendingTeacherTextRef.current))) return;
+      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current, Boolean(contextRef.current || offeredContextRef.current || pendingTeacherTextRef.current || (!allowPendingRecovery && (pendingFailedMessagesRef.current.length || pendingQueueMessagesRef.current.length))))) return;
 
       const restored = getUserMessageText(message);
       const contextual = parseTeacherMessage(restored);
@@ -736,16 +865,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     });
   }, []);
 
-  const clearInput = useCallback(() => {
+  const clearInput = useCallback((keepContext = false) => {
     abortDictation();
     setValue("");
-    setContext(null);
+    if (!keepContext) setContext(null);
     setOfferedContext(null);
     setPendingTeacherText("");
     setAtQuery(null);
     setHistoryMenuOpen(false);
-    if (draftKey) clearDraft(draftKey);
-    if (draftKeyRef.current && draftKeyRef.current !== draftKey) clearDraft(draftKeyRef.current);
+    if (!keepContext && !pendingQueueMessagesRef.current.length && !pendingFailedMessagesRef.current.length && !queueRecoveryIdRef.current && draftKey) clearDraft(draftKey);
+    if (!keepContext && !pendingQueueMessagesRef.current.length && !pendingFailedMessagesRef.current.length && !queueRecoveryIdRef.current && draftKeyRef.current && draftKeyRef.current !== draftKey) clearDraft(draftKeyRef.current);
     clearImages();
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -753,14 +882,29 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, [abortDictation, clearImages, draftKey]);
 
   useEffect(() => {
+    setDraftSaveFailed(false);
+    if (!draftKey) return;
+    return subscribeDraftPersistence(draftKey, (saved) => setDraftSaveFailed(!saved));
+  }, [draftKey]);
+
+  useEffect(() => { setQueueCopyStatus(""); }, [draftKey, pendingQueueMessages]);
+  useEffect(() => { setFailedCopyStatus(""); }, [draftKey, pendingFailedMessages]);
+
+  useEffect(() => {
     if (!draftKey || draftKeyRef.current !== draftKey) return;
     setDraft(draftKey, {
       value,
       images: attachedImages.map(imageToDraftImage),
       ...(context ? { context } : {}),
+      ...(offeredContext ? { offeredContext } : {}),
       ...(pendingTeacherText ? { pendingTeacherText } : {}),
+      ...(pendingQueueMessages.length ? { pendingQueueMessages } : {}),
+      ...(queueRecoveryId ? { pendingQueueRecoveryId: queueRecoveryId, pendingQueuePrevious: queueRecoveryPrevious } : {}),
+      ...(queueRecoveryId && queueReadyToAck ? { pendingQueueReadyToAck: true } : {}),
+      ...(queueUncertain ? { pendingQueueUncertain: true } : {}),
+      ...(pendingFailedMessages.length ? { pendingFailedMessages } : {}),
     });
-  }, [attachedImages, context, draftKey, pendingTeacherText, value]);
+  }, [attachedImages, context, draftKey, offeredContext, pendingFailedMessages, pendingQueueMessages, pendingTeacherText, queueReadyToAck, queueRecoveryId, queueRecoveryPrevious, queueUncertain, value]);
 
   useEffect(() => {
     const previousDraftKey = draftKeyRef.current;
@@ -771,25 +915,43 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         value: valueRef.current,
         images: attachedImagesRef.current.map(imageToDraftImage),
         ...(contextRef.current ? { context: contextRef.current } : {}),
+        ...(offeredContextRef.current ? { offeredContext: offeredContextRef.current } : {}),
         ...(pendingTeacherTextRef.current ? { pendingTeacherText: pendingTeacherTextRef.current } : {}),
+        ...(pendingQueueMessagesRef.current.length ? { pendingQueueMessages: pendingQueueMessagesRef.current } : {}),
+        ...(queueRecoveryIdRef.current ? { pendingQueueRecoveryId: queueRecoveryIdRef.current, pendingQueuePrevious: queueRecoveryPreviousRef.current } : {}),
+        ...(queueRecoveryIdRef.current && queueReadyToAckRef.current ? { pendingQueueReadyToAck: true } : {}),
+        ...(queueUncertainRef.current ? { pendingQueueUncertain: true } : {}),
+        ...(pendingFailedMessagesRef.current.length ? { pendingFailedMessages: pendingFailedMessagesRef.current } : {}),
       });
     }
 
     let draft = draftKey ? getDraft(draftKey) : null;
-    if (!previousDraftKey && draftKey && !draft && (valueRef.current || attachedImagesRef.current.length || contextRef.current || pendingTeacherTextRef.current)) {
+    if (!previousDraftKey && draftKey && !draft && (valueRef.current || attachedImagesRef.current.length || contextRef.current || offeredContextRef.current || pendingTeacherTextRef.current || pendingQueueMessagesRef.current.length || queueRecoveryIdRef.current || pendingFailedMessagesRef.current.length)) {
       draft = {
         value: valueRef.current,
         images: attachedImagesRef.current.map(imageToDraftImage),
         ...(contextRef.current ? { context: contextRef.current } : {}),
+        ...(offeredContextRef.current ? { offeredContext: offeredContextRef.current } : {}),
         ...(pendingTeacherTextRef.current ? { pendingTeacherText: pendingTeacherTextRef.current } : {}),
+        ...(pendingQueueMessagesRef.current.length ? { pendingQueueMessages: pendingQueueMessagesRef.current } : {}),
+        ...(queueRecoveryIdRef.current ? { pendingQueueRecoveryId: queueRecoveryIdRef.current, pendingQueuePrevious: queueRecoveryPreviousRef.current } : {}),
+        ...(queueRecoveryIdRef.current && queueReadyToAckRef.current ? { pendingQueueReadyToAck: true } : {}),
+        ...(queueUncertainRef.current ? { pendingQueueUncertain: true } : {}),
+        ...(pendingFailedMessagesRef.current.length ? { pendingFailedMessages: pendingFailedMessagesRef.current } : {}),
       };
       setDraft(draftKey, draft);
     }
     draftKeyRef.current = draftKey;
     setValue(draft?.value ?? "");
     setContext(draft?.context ?? null);
-    setOfferedContext(null);
+    setOfferedContext(draft?.offeredContext ?? null);
     setPendingTeacherText(draft?.pendingTeacherText ?? "");
+    setPendingQueueMessages(draft?.pendingQueueMessages ?? []);
+    setQueueRecoveryId(draft?.pendingQueueRecoveryId ?? null);
+    setQueueRecoveryPrevious(draft?.pendingQueuePrevious ?? []);
+    setQueueReadyToAck(draft?.pendingQueueReadyToAck ?? false);
+    setQueueUncertain(draft?.pendingQueueUncertain ?? false);
+    setPendingFailedMessages(draft?.pendingFailedMessages ?? []);
     setAtQuery(null);
     setHistoryMenuOpen(false);
     setAttachedImages((prev) => {
@@ -816,18 +978,19 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
     if (pendingTeacherText) return;
+    if (queueRecoveryId) return;
     if (isStreaming) return;
     onAudioUnlock?.();
     if (!attachedImages.length && msg.startsWith("/") && onBuiltinCommand) {
       const result = await onBuiltinCommand(msg);
       if (result.handled) {
-        if (!result.error) clearInput();
+        if (!result.error) clearInput(true);
         return;
       }
     }
-    onSend(context && !msg.startsWith("/") ? composeTeacherMessage(context, msg) : msg, attachedImages.length ? attachedImages : undefined);
-    clearInput();
-  }, [value, context, pendingTeacherText, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
+    onSend(composeComposerMessage(context, msg, attachedImages.length > 0), attachedImages.length ? attachedImages : undefined);
+    clearInput((msg.startsWith("!") || msg.startsWith("/")) && attachedImages.length === 0);
+  }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
 
   const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1))
     ? value.slice(1).toLowerCase()
@@ -859,8 +1022,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     ? t(slashQuery ? "chat.match" : "chat.command")
     : t(slashQuery ? "chat.matches" : "chat.commands", { count: filteredSlashCommands.length });
   const hasInputText = Boolean(value.trim());
-  const canQueueStreamingMessage = hasInputText && attachedImages.length === 0;
-  const canSendMessage = Boolean(hasInputText || attachedImages.length) && (!context || hasInputText) && !pendingTeacherText;
+  const canQueueStreamingMessage = hasInputText && attachedImages.length === 0 && !pendingTeacherText && !bashMode && !queueSubmitting && !queueRecoveryId && !queueUncertain;
+  const canSendMessage = Boolean(hasInputText || attachedImages.length) && (!context || hasInputText) && !pendingTeacherText && !queueRecoveryId;
 
   // ── @ file autocomplete ──────────────────────────────────────────────────
   // Recomputed from the text before the caret on every change/caret move.
@@ -1044,27 +1207,115 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     });
   }, []);
 
-  const sendQueued = useCallback((mode: "steer" | "followup") => {
+  const sendQueued = useCallback(async (mode: "steer" | "followup") => {
+    if (queueSubmittingRef.current) return;
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
     if (pendingTeacherText) return;
+    if (queueRecoveryId) return;
+    if (msg.startsWith("!")) return;
     if (attachedImages.length) return;
     onAudioUnlock?.();
+    queueSubmittingRef.current = true;
+    setQueueSubmitting(true);
+    const originKey = draftKeyRef.current;
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
-    if (msg.startsWith("/") && onPromptWithStreamingBehavior) {
-      onPromptWithStreamingBehavior(msg, streamingBehavior, attachedImages.length ? attachedImages : undefined);
-      clearInput();
-      return;
+    try {
+      if (msg.startsWith("/") && onPromptWithStreamingBehavior) {
+        await onPromptWithStreamingBehavior(msg, streamingBehavior);
+      } else {
+        const message = composeComposerMessage(context, msg);
+        if (mode === "steer" && onSteer) await onSteer(message);
+        else if (mode === "followup" && onFollowUp) await onFollowUp(message);
+        else return;
+      }
+      if (draftKeyRef.current === originKey && valueRef.current.trim() === msg) clearInput(msg.startsWith("/"));
+      else if (originKey) {
+        const original = getDraft(originKey);
+        if (original?.value.trim() === msg) {
+          setDraft(originKey, { ...original, value: "", context: msg.startsWith("/") ? original.context : undefined });
+          flushDraftNow(originKey);
+        }
+      }
+    } catch (error) {
+      if (draftKeyRef.current === originKey) setAttachError("后续消息未入队，草稿已保留。");
+      console.error("Failed to queue message:", error);
+    } finally {
+      queueSubmittingRef.current = false;
+      setQueueSubmitting(false);
     }
-    const message = context && !msg.startsWith("/") ? composeTeacherMessage(context, msg) : msg;
-    if (mode === "steer" && onSteer) {
-      onSteer(message, attachedImages.length ? attachedImages : undefined);
-    } else if (mode === "followup" && onFollowUp) {
-      onFollowUp(message, attachedImages.length ? attachedImages : undefined);
+  }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
+
+  const applyPendingQueue = useCallback((replace: boolean) => {
+    if (!pendingQueueMessages.length || pendingFailedMessages.length || queueRecoveryId) return;
+    const restored = prepareQueueRecall(
+      pendingQueueMessages,
+      replace ? "" : (textareaRef.current?.value ?? valueRef.current),
+      replace ? null : contextRef.current,
+    );
+    if (replace) clearImages();
+    valueRef.current = restored.text;
+    contextRef.current = restored.context;
+    pendingQueueMessagesRef.current = [];
+    setValue(restored.text);
+    setContext(restored.context);
+    setOfferedContext(null);
+    setPendingTeacherText("");
+    setPendingQueueMessages([]);
+    queueUncertainRef.current = false;
+    setQueueUncertain(false);
+    queueRecoveryPreviousRef.current = [];
+    setQueueRecoveryPrevious([]);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [pendingQueueMessages, pendingFailedMessages, queueRecoveryId, clearImages]);
+
+  const dismissUncertainQueue = useCallback(() => {
+    if (!queueUncertain) return;
+    const preserved = [...queueRecoveryPrevious];
+    pendingQueueMessagesRef.current = preserved;
+    queueUncertainRef.current = false;
+    queueRecoveryPreviousRef.current = [];
+    setPendingQueueMessages(preserved);
+    setQueueUncertain(false);
+    setQueueRecoveryPrevious([]);
+    const key = draftKeyRef.current;
+    const current = key ? getDraft(key) : null;
+    if (key && current) {
+      const next = { ...current, pendingQueueMessages: preserved };
+      delete next.pendingQueueUncertain;
+      delete next.pendingQueuePrevious;
+      setDraft(key, next);
+      flushDraftNow(key);
     }
-    clearInput();
-  }, [value, context, pendingTeacherText, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
+  }, [queueUncertain, queueRecoveryPrevious]);
+
+  const restorePendingFailedMessage = useCallback(() => {
+    const [first, ...remaining] = pendingFailedMessages;
+    if (!first || pendingTeacherText || offeredContext) return;
+    valueRef.current = first.value;
+    contextRef.current = first.context ?? null;
+    pendingFailedMessagesRef.current = remaining;
+    setValue(first.value);
+    setContext(first.context ?? null);
+    setPendingFailedMessages(remaining);
+    setAttachedImages((previous) => {
+      previous.forEach(revokeImagePreview);
+      return draftImagesToAttachedImages(first.images);
+    });
+    const key = draftKeyRef.current;
+    if (key) {
+      setDraft(key, {
+        value: first.value,
+        images: first.images,
+        ...(first.context ? { context: first.context } : {}),
+        ...(pendingQueueMessagesRef.current.length ? { pendingQueueMessages: pendingQueueMessagesRef.current } : {}),
+        ...(remaining.length ? { pendingFailedMessages: remaining } : {}),
+      });
+      flushDraftNow(key);
+    }
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [pendingFailedMessages, pendingTeacherText, offeredContext]);
 
   const getNextSlashIndex = useCallback((direction: "up" | "down" | "left" | "right") => {
     const lastIndex = displayedSlashCommands.length - 1;
@@ -1513,7 +1764,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               {onRecallQueue && (
                 <button
                   onClick={onRecallQueue}
-                   title={t("chat.recallTitle")}
+                  disabled={queueRecallBusy || Boolean(queueRecoveryId)}
+                  aria-busy={queueRecallBusy}
+                  title={queueRecoveryId ? "先核对服务端副本" : t("chat.recallTitle")}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -1964,6 +2217,30 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             );
           })()}
           <div className="chat-composer">
+          {draftSaveFailed ? <div className="chat-composer-save-error" role="alert">草稿暂未保存到本机，刷新前请复制内容。</div> : null}
+          {pendingFailedMessages.length ? <div className="chat-composer-teacher-offer" role="status">
+            <span>发送未完成 · {pendingFailedMessages.length} 条待恢复</span>
+            <details><summary>查看消息</summary><ol>{pendingFailedMessages.map((message, index) => <li key={index}>{message.sourceLabel ? `${message.sourceLabel} · ` : ""}{message.value}{message.context ? ` · ${message.context.title}` : ""}{message.images.length ? ` · ${message.images.length} 张图片` : ""}</li>)}</ol></details>
+            <div>
+              <button type="button" disabled={Boolean(pendingTeacherText || offeredContext)} onClick={restorePendingFailedMessage}>改用未发送内容</button>
+              <button type="button" onClick={() => { const text = pendingFailedMessages.map((message, index) => `消息 ${index + 1}\n${message.context ? `事项：${message.context.title}\n参考：${message.context.reference}\n` : ""}老师要求：${message.value}${message.images.length ? `\n图片：${message.images.length} 张，需在应用内恢复` : ""}`).join("\n\n"); void import("@/lib/clipboard").then(({ copyText }) => copyText(text)).then(() => setFailedCopyStatus("已复制文字与参考"), () => setFailedCopyStatus("复制失败")); }}>复制文字与参考</button>
+            </div>
+            {failedCopyStatus ? <span role="status">{failedCopyStatus}</span> : null}
+          </div> : null}
+          {pendingQueueMessages.length ? <div className="chat-composer-teacher-offer" role="status">
+            <span>{queueUncertain ? "待核对" : "已收回"} {pendingQueueMessages.length} 条后续消息，当前草稿未改</span>
+            {queueUncertain ? <span>请先查看会话是否已收到，避免重复发送。</span> : null}
+            <details><summary>查看消息</summary><ol>{pendingQueueMessages.map((message, index) => <li key={index}>{visibleTeacherMessageText(message)}</li>)}</ol></details>
+            <div>
+              <button type="button" disabled={Boolean(pendingTeacherText || offeredContext || pendingFailedMessages.length || queueRecoveryId)} onClick={() => applyPendingQueue(true)}>{queueUncertain ? "确认未送达，改用消息" : "改用后续消息"}</button>
+              <button type="button" disabled={Boolean(pendingTeacherText || offeredContext || pendingFailedMessages.length || queueRecoveryId)} onClick={() => applyPendingQueue(false)}>{queueUncertain ? "确认未送达，追加消息" : "追加到当前草稿"}</button>
+              {queueUncertain ? <button type="button" onClick={dismissUncertainQueue}>已送达，移除副本</button> : null}
+              {queueRecoveryId && onResumeQueueRecovery ? <button type="button" disabled={queueRecallBusy} onClick={() => { void onResumeQueueRecovery(queueRecoveryId); }}>{queueReadyToAck ? "完成副本清理" : "核对服务端副本"}</button> : null}
+              {queueRecoveryId && queueRecoveryRequiresReview && onAbandonPreparedQueueRecovery ? <button type="button" disabled={queueRecallBusy} onClick={() => { void onAbandonPreparedQueueRecovery(queueRecoveryId); }}>保留副本，转人工核对</button> : null}
+              <button type="button" onClick={() => { void import("@/lib/clipboard").then(({ copyText }) => copyText(readableQueueBackup(pendingQueueMessages))).then(() => setQueueCopyStatus("已复制待恢复内容"), () => setQueueCopyStatus("复制失败")); }}>复制待恢复内容</button>
+            </div>
+            {queueCopyStatus ? <span role="status">{queueCopyStatus}</span> : null}
+          </div> : null}
           {pendingTeacherText ? <div className="chat-composer-teacher-offer" role="status">
             <span>当前草稿未改</span>
             <strong title={pendingTeacherText}>新要求：{pendingTeacherText}</strong>

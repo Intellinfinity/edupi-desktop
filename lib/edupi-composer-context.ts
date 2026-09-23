@@ -65,6 +65,11 @@ export function composeTeacherMessage(context: EduPiComposerContext, teacherText
   return `[EduPi 页面参考 v1 · ${body.length} 字]\n${body}${REQUEST_SEPARATOR}${request}`;
 }
 
+export function composeComposerMessage(context: EduPiComposerContext | null, text: string, hasImages = false): string {
+  if (!context || (!hasImages && (text.startsWith("/") || text.startsWith("!")))) return text;
+  return composeTeacherMessage(context, text);
+}
+
 export function parseTeacherMessage(message: string): { context: EduPiComposerContext; teacherText: string } | null {
   const header = HEADER.exec(message);
   if (!header) return null;
@@ -94,29 +99,42 @@ export function visibleTeacherMessageText(message: string): string {
     ?? (message.startsWith("[EduPi 页面参考 v1") ? "AI 协作" : message);
 }
 
-function editableTeacherMessage(message: string): string {
-  const parsed = parseTeacherMessage(message);
-  return parsed
-    ? `事项：${parsed.context.title}\n参考：${parsed.context.reference}\n老师要求：${parsed.teacherText}`
-    : message;
+export function readableQueueBackup(messages: string[]): string {
+  return messages.map((message, index) => {
+    const parsed = parseTeacherMessage(message);
+    return parsed
+      ? `消息 ${index + 1}\n事项：${parsed.context.title}\n参考：${parsed.context.reference}\n老师要求：${parsed.teacherText}`
+      : `消息 ${index + 1}\n${message}`;
+  }).join("\n\n");
 }
 
 export function prepareQueueRecall(
   messages: string[],
   existingText: string,
   existingContext: EduPiComposerContext | null,
-  hasImages = false,
 ): { text: string; context: EduPiComposerContext | null } {
   const queued = messages.map(message => message.trim()).filter(Boolean);
   if (queued.length === 0) return { text: existingText, context: existingContext };
   const parsed = queued.map(parseTeacherMessage);
-  const sameContext = parsed[0] && parsed.every(item => item?.context.reference === parsed[0]?.context.reference);
-  if (sameContext && !existingText.trim() && !hasImages
-    && (!existingContext || existingContext.reference === parsed[0]!.context.reference)) {
-    return { text: parsed.map(item => item!.teacherText).join("\n\n"), context: parsed[0]!.context };
-  }
-  const existing = existingContext
-    ? [`事项：${existingContext.title}`, `参考：${existingContext.reference}`, existingText.trim() ? `老师要求：${existingText.trim()}` : ""].filter(Boolean).join("\n")
-    : existingText.trim();
-  return { text: [...queued.map(editableTeacherMessage), existing].filter(Boolean).join("\n\n"), context: null };
+  const contexts = [existingContext, ...parsed.map(item => item?.context).filter((item): item is EduPiComposerContext => Boolean(item))]
+    .filter((item): item is EduPiComposerContext => Boolean(item));
+  const unique = [...new Map(contexts.map(item => [item.reference, item])).values()];
+  const contextNumber = new Map(unique.map((item, index) => [item.reference, index + 1]));
+  const context = unique.length === 1 ? unique[0]
+    : unique.length > 1 ? {
+      title: `${unique.length} 项参考`,
+      reference: unique.map((item, index) => `${index + 1}. ${item.title}\n${item.reference}`).join("\n\n"),
+    } : null;
+  const hasIndependentRequest = parsed.some(item => !item) || Boolean(existingText.trim() && !existingContext);
+  const prefix = (value: string, source: EduPiComposerContext | null) => source && unique.length > 1
+    ? `${contextNumber.get(source.reference)}. ${value}`
+    : source && hasIndependentRequest ? `关联${source.title}：${value}` : value;
+  const text = [...queued.map((message, index) => parsed[index]
+    ? prefix(parsed[index]!.teacherText, parsed[index]!.context)
+    : unique.length ? `独立要求：${message}` : message),
+  existingText.trim() ? existingContext
+    ? prefix(existingText.trim(), existingContext)
+    : unique.length ? `独立要求：${existingText.trim()}` : existingText.trim() : ""]
+    .filter(Boolean).join("\n\n");
+  return { text, context };
 }

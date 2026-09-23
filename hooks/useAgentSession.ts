@@ -14,12 +14,14 @@ import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-computer-use";
 import { normalizeToolCalls } from "@/lib/normalize";
 import { sendAgentCommand } from "@/lib/agent-client";
-import { fetchWithRetry } from "@/lib/fetch-timeout";
+import { fetchJsonWithDeadline, fetchWithRetry } from "@/lib/fetch-timeout";
 import { getPermissionModeForToolPreset, getToolNamesForPreset, getToolPresetForPermissionMode, type PermissionMode, type ToolEntry } from "@/lib/tool-presets";
 import { rememberScrollPosition, sessionScrollTops } from "@/lib/scroll-memory";
 import { applyAssistantMessageEvent, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { EDUPI_STUDENT_RECORDS_UPDATED_EVENT } from "@/lib/edupi-ui-events";
+import { acknowledgeLocalQueueRecovery, completeStagedQueueRecovery, getDraft, markQueueRecoveryUncertain, restoreFailedMessageDraft } from "@/lib/draft-store";
+import { recallQueueWithBackup } from "@/lib/queue-recovery";
 
 export interface SessionData {
   sessionId: string;
@@ -323,9 +325,14 @@ function readCompactResult(result: unknown, reason: string): CompactResultInfo |
 
 export interface ChatInputHandle {
   insertText: (text: string) => void;
-  restoreQueuedMessages: (messages: string[]) => void;
+  preserveContextForSession: (sessionId: string) => void;
+  stageQueuedMessages: (sessionId: string, messages: string[], recoveryId: string) => string[] | null;
+  finalizeQueuedMessages: (sessionId: string, previous: string[], messages: string[], recoveryId: string) => boolean;
+  refreshQueueRecoveryStatus: (draftKey: string) => void;
+  markQueueRecoveryUncertain: (sessionId: string, recoveryId: string) => boolean;
+  refreshPendingFailedMessages: (draftKey: string) => void;
   insertIfEmpty: (content: string) => void;
-  replaceMessage: (message: UserMessage) => void;
+  replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => void;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
   focus: () => void;
@@ -463,6 +470,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [extensionStatuses, setExtensionStatuses] = useState<ExtensionStatusItem[]>([]);
   const [extensionWidgets, setExtensionWidgets] = useState<ExtensionWidgetItem[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessages>({ steering: [], followUp: [] });
+  const [queueRecallBusy, setQueueRecallBusy] = useState(false);
+  const [queueRecoveryRequiresReview, setQueueRecoveryRequiresReview] = useState(false);
+  const queueRecallInFlightRef = useRef(new Set<string>());
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const eventSourceSessionIdRef = useRef<string | null>(null);
@@ -552,6 +562,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       toolsLoadIdRef.current += 1;
       sessionGenerationRef.current += 1;
       agentRunningRef.current = false;
+      rpcPromptPendingRef.current = false;
       bashRunningRef.current = false;
       initialScrollDoneRef.current = false;
       pendingScrollToUserRef.current = false;
@@ -581,6 +592,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setExtensionStatuses([]);
       setExtensionWidgets([]);
       setQueuedMessages({ steering: [], followUp: [] });
+      setQueueRecallBusy(false);
+      setQueueRecoveryRequiresReview(false);
       setSessionStatsOverride(null);
       setSlashCommands([]);
       setLoading(Boolean(session?.id));
@@ -757,10 +770,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [setToolPresetState]);
 
-  const promoteNewSession = useCallback((messageCount = 0, firstMessage = "(no messages)") => {
+  const promoteNewSession = useCallback((messageCount = 0, firstMessage = "(no messages)", preserveContext = false) => {
     const sid = sessionIdRef.current;
     if (!isNew || !newSessionCwd || !sid || newSessionPromotedRef.current) return;
     newSessionPromotedRef.current = true;
+    if (preserveContext) chatInputRef?.current?.preserveContextForSession(sid);
     onSessionCreated?.({
       id: sid,
       path: "",
@@ -771,7 +785,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       messageCount,
       firstMessage,
     });
-  }, [isNew, newSessionCwd, onSessionCreated]);
+  }, [isNew, newSessionCwd, onSessionCreated, chatInputRef]);
 
   const ensureNewSession = useCallback(async () => {
     if (sessionIdRef.current) return sessionIdRef.current;
@@ -1533,6 +1547,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const trimmedMessage = message.trim();
     if (!trimmedMessage && !images?.length) return;
     if (agentRunningRef.current || bashRunningRef.current) return;
+    const sendGeneration = sessionGenerationRef.current;
+    const originDraftKey = sessionIdentity;
     const isSlashCommandPrompt = !images?.length && trimmedMessage.startsWith("/");
 
     const isBashCommand = !images?.length && trimmedMessage.startsWith("!");
@@ -1592,7 +1608,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             message,
             ...(piImages?.length ? { images: piImages } : {}),
           });
-          promoteNewSession(1, message);
+          promoteNewSession(1, message, message.startsWith("/"));
         }
       } else if (session) {
         sentSessionId = session.id;
@@ -1609,6 +1625,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       }
     } catch (e) {
       console.error("Failed to send message:", e);
+      if (sendGeneration !== sessionGenerationRef.current) {
+        if (!promptRequestStarted && originDraftKey) {
+          const saved = restoreFailedMessageDraft(originDraftKey, userMsg, {
+            forcePending: true,
+            ...(originDraftKey.startsWith("new:") ? { sourceLabel: "先前新对话" } : {}),
+          });
+          chatInputRef?.current?.refreshPendingFailedMessages(originDraftKey);
+          if (!saved) addNotice({ type: "error", message: "原会话的未发送内容未能保存，请返回核对" });
+        }
+        return;
+      }
       // A failed prompt POST is ambiguous: the server may have accepted it
       // before the response connection was lost. Keep SSE alive until the
       // server confirms idle so a real run cannot continue unseen.
@@ -1635,7 +1662,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       // No prompt request started, so the complete optimistic message is safe
       // to restore. replaceMessage preserves image attachments and refuses to
       // overwrite anything the user typed while startup was failing.
-      chatInputRef?.current?.replaceMessage(userMsg);
+      chatInputRef?.current?.replaceMessage(userMsg, true);
       optimisticUserMessageKeyRef.current = null;
       setAgentRunning(false);
       setAgentPhase(null);
@@ -1643,7 +1670,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setPromptAnchorActive(false);
       dispatch({ type: "end" });
     }
-  }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, dispatch, chatInputRef]);
+  }, [isNew, newSessionCwd, newSessionModel, session, sessionIdentity, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, dispatch, chatInputRef]);
 
   const executeBash = useCallback(async (command: string, excludeFromContext: boolean) => {
     if (agentRunningRef.current || bashRunningRef.current) return;
@@ -1660,7 +1687,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         excludeFromContext,
       });
       await loadSession(sid);
-      promoteNewSession(1, inputText);
+      promoteNewSession(1, inputText, true);
     } catch (e) {
       console.error("Failed to execute shell command:", e);
       addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
@@ -1833,7 +1860,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             ...(args ? { customInstructions: args } : {}),
           });
           setCompactResult(readCompactResult(result, "manual"));
-          if (await loadSession(sid, true)) promoteNewSession();
+          if (await loadSession(sid, true)) promoteNewSession(0, "(no messages)", true);
           return complete({ handled: true, message: "Compacted context" });
         }
 
@@ -1853,7 +1880,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (!sid) return complete({ handled: true, error: "No active session to name" });
           if (!args) return complete({ handled: true, error: "Usage: /name <name>" });
           await sendAgentCommand(sid, { type: "set_session_name", name: args });
-          if (await loadSession(sid)) promoteNewSession();
+          if (await loadSession(sid)) promoteNewSession(0, "(no messages)", true);
           return complete({ handled: true, message: `Session renamed to ${args}` });
         }
 
@@ -1893,7 +1920,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // a ghost message if the queue is recalled.
   const handleSteer = useCallback(async (message: string, images?: AttachedImage[]) => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) throw new Error("会话尚未就绪");
     const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
     try {
       await sendAgentCommand(sid, {
@@ -1903,6 +1930,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       });
     } catch (e) {
       console.error("Failed to steer:", e);
+      throw e;
     }
   }, []);
 
@@ -1912,7 +1940,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     images?: AttachedImage[],
   ) => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) throw new Error("会话尚未就绪");
     const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
     try {
       await sendAgentCommand(sid, {
@@ -1923,12 +1951,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       });
     } catch (e) {
       console.error("Failed to queue prompt:", e);
+      throw e;
     }
   }, []);
 
   const handleFollowUp = useCallback(async (message: string, images?: AttachedImage[]) => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) throw new Error("会话尚未就绪");
     const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
     try {
       await sendAgentCommand(sid, {
@@ -1938,6 +1967,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       });
     } catch (e) {
       console.error("Failed to follow up:", e);
+      throw e;
     }
   }, []);
 
@@ -1951,21 +1981,117 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, []);
 
+  const acknowledgeRecoveredQueue = useCallback(async (sid: string, recoveryId: string) => {
+    await sendAgentCommand(sid, { type: "ack_queue_recovery", recoveryId });
+    if (!acknowledgeLocalQueueRecovery(sid, recoveryId)) throw new Error("Local queue recovery acknowledgment failed");
+    chatInputRef?.current?.refreshQueueRecoveryStatus(sid);
+  }, [chatInputRef]);
+
   const handleRecallQueue = useCallback(async () => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid || queueRecallInFlightRef.current.has(sid)) return;
+    queueRecallInFlightRef.current.add(sid);
+    setQueueRecallBusy(true);
     try {
-      const result = await sendAgentCommand<{ steering?: string[]; followUp?: string[] }>(sid, { type: "clear_queue" });
-      // clearQueue also emits an empty queue_update, but that only reaches us
-      // while SSE is connected — clear locally so idle recalls update the UI.
-      setQueuedMessages({ steering: [], followUp: [] });
-      const texts = [...(result?.steering ?? []), ...(result?.followUp ?? [])];
-      if (texts.length > 0) {
-        chatInputRef?.current?.restoreQueuedMessages(texts);
+      const result = await recallQueueWithBackup({
+      recoveryId: crypto.randomUUID(),
+      read: async () => {
+        const { response, body } = await fetchJsonWithDeadline<{ state?: AgentStateResponse }>(
+          `/api/agent/${encodeURIComponent(sid)}`, 6_000, { cache: "no-store" },
+        );
+        if (!response.ok || !body.state?.queuedMessages) throw new Error("Queue state unavailable");
+        return normalizeQueuedMessages(body.state.queuedMessages);
+      },
+      stage: (messages, recoveryId) => chatInputRef?.current?.stageQueuedMessages(sid, messages, recoveryId) ?? null,
+      clear: async recoveryId => {
+        const cleared = await sendAgentCommand<{ steering?: string[]; followUp?: string[]; recoveryId?: string }>(sid, { type: "clear_queue", recoveryId });
+        return { ...normalizeQueuedMessages(cleared), recoveryId: cleared?.recoveryId };
+      },
+      isCurrent: () => sessionIdRef.current === sid,
+      clearVisible: () => setQueuedMessages({ steering: [], followUp: [] }),
+      finalizeCurrent: (previous, messages, recoveryId) => chatInputRef?.current?.finalizeQueuedMessages(sid, previous, messages, recoveryId) ?? false,
+      persistInactive: (previous, messages, recoveryId) => completeStagedQueueRecovery(sid, previous, messages, recoveryId),
+      markUncertain: recoveryId => chatInputRef?.current?.markQueueRecoveryUncertain(sid, recoveryId)
+        || markQueueRecoveryUncertain(sid, recoveryId),
+      acknowledge: recoveryId => acknowledgeRecoveredQueue(sid, recoveryId),
+    });
+      if (result === "read_failed") addNotice({ type: "error", message: "无法读取队列，后续消息未移除" });
+      else if (result === "storage_failed") addNotice({ type: "error", message: "本地草稿无法保存，后续消息仍在队列中" });
+      else if (result === "uncertain") addNotice({ type: "error", message: "队列状态未确认；待恢复副本已保留，请核对后再发送" });
+      else if (result === "restore_failed") addNotice({ type: "error", message: "待恢复消息未能完整保存，请返回原会话核对" });
+      else if (result === "ack_pending") addNotice({ type: "error", message: "消息已保留，服务端副本清理待重试" });
+      else if (result === "uncertain_empty") addNotice({ type: "error", message: "队列已空但投递未确认；请核对会话后处理本地副本" });
+      else if (result === "manual_review") {
+        setQueueRecoveryRequiresReview(true);
+        addNotice({ type: "error", message: "队列清除状态不确定，请核对会话与排队列表" });
       }
-    } catch (e) {
-      console.error("Failed to recall queued messages:", e);
-      addNotice({ type: "error", message: "Failed to recall queued messages" });
+    } finally {
+      queueRecallInFlightRef.current.delete(sid);
+      if (sessionIdRef.current === sid) setQueueRecallBusy(false);
+    }
+  }, [chatInputRef, addNotice, acknowledgeRecoveredQueue]);
+
+  const handleResumeQueueRecovery = useCallback(async (recoveryId: string) => {
+    const sid = sessionIdRef.current;
+    if (!sid || queueRecallInFlightRef.current.has(sid)) return;
+    const draft = getDraft(sid);
+    if (draft?.pendingQueueRecoveryId !== recoveryId) return;
+    queueRecallInFlightRef.current.add(sid);
+    setQueueRecallBusy(true);
+    try {
+      if (draft.pendingQueueReadyToAck) {
+        await acknowledgeRecoveredQueue(sid, recoveryId);
+        return;
+      }
+      const record = await sendAgentCommand<{ steering?: string[]; followUp?: string[]; recoveryId?: string }>(sid, { type: "clear_queue", recoveryId });
+      if (record?.recoveryId !== recoveryId) throw new Error("Queue recovery id mismatch");
+      const previous = draft.pendingQueuePrevious ?? [];
+      const messages = [...(record.steering ?? []), ...(record.followUp ?? [])];
+      if (messages.length === 0 && (draft.pendingQueueMessages?.length ?? 0) > previous.length) {
+        const preserved = chatInputRef?.current?.markQueueRecoveryUncertain(sid, recoveryId)
+          || markQueueRecoveryUncertain(sid, recoveryId);
+        if (!preserved) throw new Error("Unable to preserve uncertain queue recovery");
+        addNotice({ type: "error", message: "队列已空但投递未确认；请核对会话后处理本地副本" });
+        return;
+      }
+      const saved = chatInputRef?.current?.finalizeQueuedMessages(sid, previous, messages, recoveryId)
+        || completeStagedQueueRecovery(sid, previous, messages, recoveryId);
+      if (!saved) {
+        addNotice({ type: "error", message: "服务端副本仍在，请释放本地空间后重试" });
+        return;
+      }
+      if (sessionIdRef.current === sid) setQueuedMessages({ steering: [], followUp: [] });
+      await acknowledgeRecoveredQueue(sid, recoveryId);
+    } catch (error) {
+      console.error("Failed to resume queue recovery:", error);
+      if (error instanceof Error && error.message.includes("QUEUE_RECOVERY_MANUAL_REVIEW")) {
+        setQueueRecoveryRequiresReview(true);
+        addNotice({ type: "error", message: "队列清除状态不确定，请核对会话与排队列表" });
+      } else addNotice({ type: "error", message: "暂无法核对服务端副本，消息仍保留" });
+    } finally {
+      queueRecallInFlightRef.current.delete(sid);
+      if (sessionIdRef.current === sid) setQueueRecallBusy(false);
+    }
+  }, [chatInputRef, addNotice, acknowledgeRecoveredQueue]);
+
+  const handleAbandonPreparedQueueRecovery = useCallback(async (recoveryId: string) => {
+    const sid = sessionIdRef.current;
+    if (!sid || queueRecallInFlightRef.current.has(sid) || getDraft(sid)?.pendingQueueRecoveryId !== recoveryId) return;
+    queueRecallInFlightRef.current.add(sid);
+    setQueueRecallBusy(true);
+    try {
+      await sendAgentCommand(sid, { type: "abandon_prepared_queue_recovery", recoveryId });
+      const preserved = chatInputRef?.current?.markQueueRecoveryUncertain(sid, recoveryId)
+        || markQueueRecoveryUncertain(sid, recoveryId);
+      if (!preserved) throw new Error("Unable to preserve manual-review draft");
+      setQueueRecoveryRequiresReview(false);
+      addNotice({ type: "error", message: "本地副本已保留；确认是否送达后再使用" });
+    } catch (error) {
+      console.error("Failed to abandon prepared queue recovery:", error);
+      addNotice({ type: "error", message: "本地副本仍在，暂无法解除等待" });
+    } finally {
+      queueRecallInFlightRef.current.delete(sid);
+      if (sessionIdRef.current === sid) setQueueRecallBusy(false);
     }
   }, [chatInputRef, addNotice]);
 
@@ -2268,7 +2394,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     agentRunning, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, permissionMode, thinkingLevel,
     retryInfo, contextUsage, systemPrompt, forkingEntryId,
     isCompacting, compactError, compactResult, currentModel, displayModel, sessionStats,
-    slashCommands, slashCommandsLoading, queuedMessages,
+    slashCommands, slashCommandsLoading, queuedMessages, queueRecallBusy, queueRecoveryRequiresReview,
     notices: noticeState.visible, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection: isNew && newSessionModel === null,
     agentPhase,
@@ -2281,7 +2407,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // Actions
     handleSend, handleAbort, handleFork, handleNavigate, handleModelChange,
     handleCompact, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
-    handleRecallQueue,
+    handleRecallQueue, handleResumeQueueRecovery, handleAbandonPreparedQueueRecovery,
     handleBuiltinSlashCommand, retryLoad,
     handleToolPresetChange, handlePermissionModeChange, handleThinkingLevelChange, loadTools, loadSlashCommands, setActiveLeafId, setData, setMessages,
     scrollToBottom, scrollUserMsgToTop,

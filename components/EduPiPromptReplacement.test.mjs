@@ -9,7 +9,7 @@ test("ChatInput exposes replacement without touching attached images", async () 
 
   assert.match(source, /replaceText: \(text: string\) => void/);
   assert.match(source, /replaceText\(text: string\) \{[\s\S]*?setValue\(text\);[\s\S]*?setSelectionRange\(text\.length, text\.length\)/);
-  assert.doesNotMatch(source.slice(source.indexOf("replaceText(text: string) {"), source.indexOf("replaceMessage(message: UserMessage)")), /setAttachedImages/);
+  assert.doesNotMatch(source.slice(source.indexOf("replaceText(text: string) {"), source.indexOf("replaceMessage(message: UserMessage,")), /setAttachedImages/);
 });
 
 test("EduPi handoffs offer a page reference without replacing teacher text", async () => {
@@ -23,6 +23,8 @@ test("EduPi handoffs offer a page reference without replacing teacher text", asy
   assert.match(chat, /!\(session\?\.id \|\| newSessionCwd\)/);
   assert.match(chat, /offerContext\(educationContext\)/);
   assert.match(chat, /offerTeacherDraft\(teacherDraftText\)/);
+  const session = await read("../hooks/useAgentSession.ts");
+  assert.match(session, /replaceMessage\(userMsg, true\)/);
   const selectSession = appShell.slice(appShell.indexOf("const handleEducationSelectSession"), appShell.indexOf("const handleNewSession"));
   assert.match(selectSession, /setPendingEduPiContext\(null\)/);
   assert.match(selectSession, /setPendingTeacherDraft\(null\)/);

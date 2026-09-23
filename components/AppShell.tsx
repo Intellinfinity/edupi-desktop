@@ -23,7 +23,7 @@ import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-comp
 import type { KernelRunAction } from "@/lib/edupi-kernel-display";
 import { runComputerUseFromAgent, setComputerUseEnabledNative } from "@/lib/desktop-computer-use";
 import { ChatWindow } from "./ChatWindow";
-import { clearDraft, getDraft, setDraft } from "@/lib/draft-store";
+import { getDraft, resetNewSessionDraft, setDraft } from "@/lib/draft-store";
 import { TabBar, type Tab } from "./TabBar";
 import { SafeModeBanner } from "./SafeModeBanner";
 
@@ -648,7 +648,7 @@ export function AppShell() {
     setPendingTeacherDraft(null);
     // "New task" is an explicit reset. A cwd-based blank-task draft would
     // otherwise be reloaded immediately when the composer remounts.
-    clearDraft(`new:${cwd}`);
+    resetNewSessionDraft(`new:${cwd}`);
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setEduPiEducationModule(null);
@@ -669,7 +669,7 @@ export function AppShell() {
   const handleEducationNewSession = useCallback((_sessionId: string, cwd: string) => {
     setPendingEduPiContext(null);
     setPendingTeacherDraft(null);
-    clearDraft(`new:${cwd}`);
+    resetNewSessionDraft(`new:${cwd}`);
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setSessionKey((key) => key + 1);
@@ -790,7 +790,7 @@ export function AppShell() {
     }
 
     throwIfStale();
-    clearDraft(`new:${cwd}`);
+    resetNewSessionDraft(`new:${cwd}`);
     throwIfStale();
     setSelectedSession(null);
     setNewSessionCwd(cwd);

@@ -70,8 +70,20 @@ test("keeps the session event stream open through the idle grace window", () => 
   assert.match(promptDoneSource, /scheduleEventStreamClose\(sid\)/);
   assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?waitForPromptSettlement/);
   assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?return;[\s\S]*?\}[\s\S]*?closeEvents\(\)/);
-  assert.match(sendSource, /chatInputRef\?\.current\?\.replaceMessage\(userMsg\)/);
+  assert.match(sendSource, /chatInputRef\?\.current\?\.replaceMessage\(userMsg, true\)/);
+  assert.match(sendSource, /sendGeneration !== sessionGenerationRef\.current[\s\S]*restoreFailedMessageDraft\(originDraftKey, userMsg, \{/);
   assert.doesNotMatch(sendSource, /if \(e instanceof EventStreamConnectionError\)/);
+});
+
+test("queue recall stages a durable backup before clearing and never writes into another session", () => {
+  const recallSource = source.slice(source.indexOf("const handleRecallQueue"), source.indexOf("const handleThinkingLevelChange"));
+  assert.match(recallSource, /recallQueueWithBackup\(/);
+  assert.match(recallSource, /queueRecallInFlightRef\.current\.has\(sid\)/);
+  assert.match(recallSource, /stage: \(messages, recoveryId\) => chatInputRef\?\.current\?\.stageQueuedMessages\(sid, messages, recoveryId\)/);
+  assert.match(recallSource, /isCurrent: \(\) => sessionIdRef\.current === sid/);
+  assert.match(recallSource, /finalizeCurrent: \(previous, messages, recoveryId\) => chatInputRef\?\.current\?\.finalizeQueuedMessages\(sid, previous, messages, recoveryId\)/);
+  assert.match(recallSource, /completeStagedQueueRecovery\(sid, previous, messages, recoveryId\)/);
+  assert.match(source, /const acknowledgeRecoveredQueue[\s\S]*ack_queue_recovery/);
 });
 
 test("reuses an open event stream and hides an empty agent phase", () => {

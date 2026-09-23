@@ -19,6 +19,7 @@ import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "./custom-u
 import { builtinEducationSkillPaths, EDUPI_CODE_ROOT, EDUPI_ROOT, extensionPaths, prepareEducationResources } from "./edupi-runtime";
 import { isSafeModeEnabled, safeModeResourceOptions } from "./safe-mode";
 import { recordStartupDiagnostic } from "./desktop-diagnostics";
+import { abandonPreparedQueueRecovery, acknowledgeQueueRecovery, clearQueueRecoverably } from "./queue-recovery-server";
 import { createEduPiAppControlTool } from "./edupi-desktop-tool";
 import { createEduPiTaskTool } from "./edupi-task-tool";
 import { createEduPiUpdateTaskTool } from "./edupi-update-task-tool";
@@ -714,9 +715,18 @@ export class AgentSessionWrapper {
       }
 
       case "clear_queue": {
-        // Full clear only: pi has no single-item dequeue, and clear+requeue
-        // races against the agent loop pulling messages mid-flight.
-        return this.inner.clearQueue();
+        // Older clients have no ACK contract; preserve their old behavior
+        // instead of leaving sensitive recovery files indefinitely.
+        if (typeof command.recoveryId !== "string") return this.inner.clearQueue();
+        return clearQueueRecoverably(this.inner.sessionId, command.recoveryId, this.inner);
+      }
+
+      case "ack_queue_recovery": {
+        return acknowledgeQueueRecovery(this.inner.sessionId, command.recoveryId as string);
+      }
+
+      case "abandon_prepared_queue_recovery": {
+        return abandonPreparedQueueRecovery(this.inner.sessionId, command.recoveryId as string);
       }
 
       case "steer": {

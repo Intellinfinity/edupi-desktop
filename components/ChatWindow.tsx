@@ -298,7 +298,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     agentRunning, bashRunning, pendingBash, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, toolPreset, permissionMode, thinkingLevel,
     retryInfo, contextUsage, forkingEntryId,
     isCompacting, compactError, compactResult, displayModel: displayModelValue, sessionStats,
-    slashCommands, slashCommandsLoading, queuedMessages,
+    slashCommands, slashCommandsLoading, queuedMessages, queueRecallBusy, queueRecoveryRequiresReview,
     notices, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection,
     agentPhase,
@@ -308,7 +308,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     lastUserMsgRef, promptAnchorActive,
     handleSend, handleAbort, handleFork, handleNavigate, handleModelChange,
     handleCompact, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
-    handleRecallQueue,
+    handleRecallQueue, handleResumeQueueRecovery, handleAbandonPreparedQueueRecovery,
     handleBuiltinSlashCommand, retryLoad,
     handleToolPresetChange, handlePermissionModeChange, handleThinkingLevelChange, loadSlashCommands, scrollToBottom, scrollUserMsgToTop,
   } = useAgentSession({
@@ -881,8 +881,12 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       thinkingLevelMap={currentThinkingLevelMap}
       retryInfo={retryInfo}
       queuedMessages={queuedMessages}
+      queueRecallBusy={queueRecallBusy}
+      queueRecoveryRequiresReview={queueRecoveryRequiresReview}
       inputHistory={inputHistory}
       onRecallQueue={handleRecallQueue}
+      onResumeQueueRecovery={handleResumeQueueRecovery}
+      onAbandonPreparedQueueRecovery={handleAbandonPreparedQueueRecovery}
       slashCommands={slashCommands}
       slashCommandsLoading={slashCommandsLoading}
       onLoadSlashCommands={loadSlashCommands}

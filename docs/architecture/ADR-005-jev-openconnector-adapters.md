@@ -40,7 +40,9 @@ EduPi 需要两类新能力：浏览器操作前的快速结构化决策，以�
 
 OpenConnector 负责 Provider/Action 目录、OAuth/API Key、凭据存储、连接、执行和脱敏运行日志。Agent 只得到 `search`、`inspect`、`execute`、`receipt` 四个动作，不得到连接或凭据管理能力。连接管理方法留在服务端 Provider 接口，要求管理员 token。
 
-Action 必须同时通过 capability 白名单与 runtime token 自身策略。当前 capability 标签由 Agent 工具参数选择，但只能命中管理员配置的 Action 子集；把该标签绑定到 Core WorkCase 的权威 capability grant 仍需配对 Core 合同。搜索结果在 capability 过滤后最多返回 50 项。只有 runtime metadata 明确给出 `operationType=read` 的 Action 才自动执行；`write`、`destructive`、未知或缺少该字段的 Action 均为高风险。发布包 `1.6.1` 尚未暴露 GitHub `main` 已有的 `operationType`，因此该版本的所有 Action 默认要求确认。高风险执行使用现有可见确认界面，并把 action id、输入哈希、连接名、确认标识和十分钟时限绑定在一起。无 UI、拒绝确认或确认内容变化均不执行。
+Action 必须同时通过 capability 白名单与 runtime token 自身策略。当前 capability 标签由 Agent 工具参数选择，但只能命中管理员配置的 Action 子集；把该标签绑定到 Core WorkCase 的权威 capability grant 仍需配对 Core 合同。搜索结果在 capability 过滤后最多返回 50 项。`search` 与 `inspect` 不执行 Action；当前每次 `execute` 均视为高风险并要求教师可见确认。runtime `operationType` 只作描述，不能授权自动执行：metadata GET 与执行 POST 分离，运行时字段可能改变，且没有原子版本约束。未知字段值不展示为已识别类型。确认绑定 action id、不可变输入快照的哈希、连接名、幂等键、确认标识和十分钟时限；超过 16 KiB、含敏感字段或无法完整预览的输入拒绝执行。无 UI、拒绝确认或确认内容变化均不执行。只有受管 runtime 与 Core grant 提供原子策略证据后，才能重新评估只读 Action 的免确认路径。
+
+Agent 与显式用户 bash 的子进程环境会移除 OpenConnector runtime/admin token 和 JEV API Key，但这只是紧急防泄露措施，不是同用户进程/文件访问的完整隔离。同一用户的无限制 shell 仍可能从父进程或本地凭据取得令牌，再直连 runtime 绕过工具确认。因此当前 Agent 工具不能视为具备强制外部执行授权边界；R23 的发布收口需要把模型可调用的本地执行环境与 runtime 凭据隔离，并在受管 sidecar/Core 权威 grant 处验证一次性确认。
 
 每次执行使用 runtime 级幂等键。成功和已开始执行的失败都转换为 `ExternalExecutionReceipt`；回执保留 `executionId`、Action、连接、风险、状态、审计持久化结果和脱敏输出/错误。审计回读再次应用 capability 白名单，不能用已知 execution id 跨任务读取其他 Action。当前回执保存在 Pi 会话工具结果与 OpenConnector 审计中；写入 Core WorkCase/Evidence/Receipt 仍需配对 Core 合同后再启用。
 

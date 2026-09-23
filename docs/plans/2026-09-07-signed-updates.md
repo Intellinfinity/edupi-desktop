@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-24 v0.3.37 发布准备（未构建、未发布）
+
+- Desktop 已将版本元数据、组件清单、Cargo 锁文件和 Release 说明同步为 `0.3.37`；目标 Core 固定 `68004b2`，包含 AI 协作自由输入、OCR、逐项日程/课表来源配对与默认关闭的 G1 试用。`release:verify`、Cargo metadata 和 40 项发布合同测试通过；三平台签名构建、公证、公开资产及应用内升级尚未执行。
+- R23 OpenConnector 本次只合入授权止血，受管 runtime、Core grant/Receipt 与同用户 shell 隔离仍未完成；不能把这个包称为 R23 交付。下方 v0.3.36 是当前公开 Latest，待新版发布与安装验收后才改变该状态。
+
 ## 2026-09-24 课表来源别名与 Core `68004b2` staged 验收（未发布）
 
 - Core [#182](https://github.com/Intellinfinity/edupi/pull/182) / [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并，Desktop `0f2c75d` 固定 `68004b2` 并通过真实隔离 Core 的纯课表、跨文件别名、教师选源增量、重复回放、旧材料删除和并发删除 CAS 流程。macOS staged bundle 的 Core/投影/Kernel ready，新课表来源 API 为 200/no-store，离线 OCR 与 DOCX smoke 均通过；详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。

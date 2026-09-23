@@ -1,9 +1,11 @@
 # 自动下载安装
 
-## 2026-09-24 v0.3.37 发布准备（未构建、未发布）
+## 2026-09-24 v0.3.37 首轮 Linux 构建失败（未发布）
 
-- Desktop 已将版本元数据、组件清单、Cargo 锁文件和 Release 说明同步为 `0.3.37`；目标 Core 固定 `68004b2`，包含 AI 协作自由输入、OCR、逐项日程/课表来源配对与默认关闭的 G1 试用。`release:verify`、Cargo metadata 和 40 项发布合同测试通过；三平台签名构建、公证、公开资产及应用内升级尚未执行。
+- Desktop 已将版本元数据、组件清单、Cargo 锁文件和 Release 说明同步为 `0.3.37`；目标 Core 固定 `68004b2`，包含 AI 协作自由输入、OCR、逐项日程/课表来源配对与默认关闭的 G1 试用。`release:verify`、Cargo metadata 和 40 项发布合同测试通过；首轮三平台构建未全绿，公证、公开资产及应用内升级不能记为通过。
 - R23 OpenConnector 本次只合入授权止血，受管 runtime、Core grant/Receipt 与同用户 shell 隔离仍未完成；不能把这个包称为 R23 交付。下方 v0.3.36 是当前公开 Latest，待新版发布与安装验收后才改变该状态。
+
+首轮正式 run [`35928743275`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35928743275) 已建立绑定 `973babc` 的 v0.3.37 草稿；Linux 在 `linuxdeploy` 扫描 staged server 的 `@napi-rs/canvas-linux-x64-musl` 时因 glibc runner 上 `ldd` 返回 1 而失败，manifest 不会发布。原来只移除 musl Sharp；现将同平台的 musl Canvas 一并从 glibc 安装包剔除，保留 gnu 版本，定向测试和本地全量门禁通过。macOS/Windows 构建仍在进行；草稿与公开 feed 未当作已发布。修复版须在新的精确提交上重跑三平台，不能混用旧草稿资产。
 
 ## 2026-09-24 课表来源别名与 Core `68004b2` staged 验收（未发布）
 

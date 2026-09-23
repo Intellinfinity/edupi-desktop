@@ -27,5 +27,6 @@
 ## 检查与边界
 
 - `npm test`：1586 tests，1560 passed / 26 skipped / 0 failed；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`git diff --check`、`npm audit --audit-level=high`、`npm run release:verify` 与 `cargo metadata --locked --no-deps` 通过。
+- 2026-09-24 合入 Core `c1edefd` 对应的 Desktop #228–#230 后复跑：1590 tests，1564 passed / 26 skipped / 0 failed，TypeScript 与 lint 通过；本记录中的实际对话页面仍使用隔离 Core `b2c2bb8`，新 pin 的安装版和真实模型流程没有借此勾选。
 - 针对性回归覆盖参考封装及旧版读取、教师草稿保留、旧模板迁移、消息展示、提醒会话路由、图片草稿保护、历史编辑保护、不同参考/无参考队列配对、失败回填、同步队列备份、延迟清队列切会话、多字节容量、ACK/tombstone、配额回滚和人工核对。浏览器现场观察到完整点击、发送、本地模型响应、重进、冲突选择、真实运行期排队/收回和 Core 回读；页面在默认宽度和浏览器 800×900 视口检查，输入区仍可见。正常清理后的恢复文件为 0600、`acknowledged`、正文数组为空。存储失败时清队列动作不执行；已清队列但丢响应的副本需要老师核对后再发送，不能冒充自动成功。
 - 未验证：签名安装版、800×900 原生窗口、Windows/Linux、真实模型的语义质量，以及系统通知点击。切会话清队列的延迟、进程崩溃、ACK 丢失路径由隔离注入测试覆盖，尚未在真实 WebView 用网络故障/重启复现。macOS/Linux 对恢复文件的父目录 fsync 有代码与本机正常链路证据；Windows 的掉电级目录持久性尚无同等证据，文件 flush、私有权限与失败时保守保留队列不等于断电验收。以上不因开发版测试通过而勾选完成。

@@ -1,9 +1,21 @@
 # 自动下载安装
 
+## 2026-09-23 文档同名 occurrence 配对（开发验收，未发布）
+
+- [Desktop #229](https://github.com/Intellinfinity/edupi-desktop/pull/229) 的提交 `082648e` 支持同一 PDF/DOCX 的多条同名同类事项：完整语义 variant ref、exact duplicate 折叠、旧 singleton 保持、精确优先与剩余 1:1 配对。单项变化沿用原 ID，由 Core 按 revision/conflict 规则处理；日期或时段变化进入 held/conflict，多项变化不猜测。
+- pre-typed inferred legacy 可在同字节证明下升级为 typed held；foreign legacy 同 anchor、deleted sibling 复活和确认内容漂移继续 fail closed。真实 DOCX E2、1521 passed / 26 skipped / 0 failed、TypeScript、lint、audit、packaged build、staged runtime 与独立复审通过。
+- 本节未生成或安装正式 Release；公开 Latest 仍为 v0.3.36/Core `860594a…`。多项同时变化的逐项 UI、slot alias、可信 OCR、安装版、盲测和真人价值继续留在 Unverified。
+
+## 2026-09-23 文档 evidence alias 与删除传播配对（开发验收，未发布）
+
+- [Core #177](https://github.com/Intellinfinity/edupi/pull/177) 合并为 `c1edefd2a2b77e3d10dfc9f0a47eceb7b5f7b1de`；[Desktop #228](https://github.com/Intellinfinity/edupi-desktop/pull/228) 的提交 `3b7f1e5` 固定该 Core，并为 H2→H 精确重放恢复 Core-owned alias。自动恢复要求当前 accepted material hash 证明；删除状态、残留混合 evidence、slot 和歧义来源不会静默绑定。
+- 真实 DOCX route E2 完成同哈希双副本删除、全部隐藏、明确恢复和恢复后 alias；全量 1519 passed / 26 skipped / 0 failed，staged Desktop/ICS/occurrence/feedback 与 bundle/model-host 8/8 通过。`proactivity=disabled`、`external_send=false`。
+- 本节没有生成正式安装包；公开 Latest 仍为 v0.3.36/Core `860594a…`。重复同名同类事项的单项变化已由上方 #229 收敛；多项同时变化、slot alias、可信 OCR、正式安装、盲测和真实教师价值继续留在 Unverified。
+
 ## 2026-09-23 文档日程跨修订来源配对（开发验收，未发布）
 
 - [Desktop #226](https://github.com/Intellinfinity/edupi-desktop/pull/226) 的提交 `0f9ec30`、`f255674`、`bd10438` 把 PDF/DOCX 修订绑定 Core logical source 和 occurrence，补跨格式去重、legacy/filename issuer 接管、教师确认防降级、omission 保留、tombstone 恢复与真实 route POST；详细边界和证据见 [验收记录](../acceptance/2026-09-23-document-schedule-revision-source.md)。
-- 本节没有生成正式安装包；公开 Latest 仍为 v0.3.36/Core `860594a…`。重复同名同类事项、source-hash alias、图片/扫描 PDF、正式三平台安装及应用内升级仍需后续交付。
+- 本节没有生成正式安装包；公开 Latest 仍为 v0.3.36/Core `860594a…`。source-hash alias 已由上方 #177/#228 收敛；重复同名同类事项、slot alias、图片/扫描 PDF、正式三平台安装及应用内升级仍需后续交付。
 
 ## 2026-09-23 文本日程证据配对（开发验收，未发布）
 

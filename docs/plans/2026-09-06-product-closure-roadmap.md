@@ -1,18 +1,18 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-23 R18/R20 AI 协作输入与提醒续聊（开发态验收通过）
+## 2026-09-24 R18/R20 AI 协作输入与提醒续聊（开发态验收通过）
 
 - Desktop `3c146fe` 及 PR #227 后续修正将“找 AI 继续聊 / AI 协作”的固定长模板改为可移除的事项参考；老师输入框留空且自由编辑，原草稿不被入口覆盖。页面参考与教师本次要求分开传给模型，历史消息默认显示老师原话，参考按需展开；工作台新要求遇旧草稿时必须明确选择。各模块改为传入对象事实，删除旧的“在这里输入”模板。
-- 隔离 Core `b2c2bb8` 与本地合成模型的实际页面完成教学、成长、工作台和真实到期任务提醒续聊：异步项目就绪、切换事项、草稿恢复、发送、会话绑定、离开再进入及普通会话不串任务均回读通过；运行期排队/收回保留老师原话与参考，遇旧草稿先等待明确选择。清远端队列前同步保存本地副本，服务端精确快照后以私有恢复记录和请求 ID 处理并发/丢响应，完整落盘后 ACK 并清除明文。全量 1586 tests 中 1560 passed / 26 skipped / 0 failed，TypeScript、lint、audit 与 release verify 通过。完整证据见 [AI 协作输入验收](../acceptance/2026-09-23-ai-collaboration-composer.md)。
+- 隔离 Core `b2c2bb8` 与本地合成模型的实际页面完成教学、成长、工作台和真实到期任务提醒续聊：异步项目就绪、切换事项、草稿恢复、发送、会话绑定、离开再进入及普通会话不串任务均回读通过；运行期排队/收回保留老师原话与参考，遇旧草稿先等待明确选择。清远端队列前同步保存本地副本，服务端精确快照后以私有恢复记录和请求 ID 处理并发/丢响应，完整落盘后 ACK 并清除明文。合入 Core `c1edefd` 对应的 Desktop 主线 #228–#230 后，全量 1590 tests 中 1564 passed / 26 skipped / 0 failed，TypeScript 与 lint 通过；AI 对话的页面 E2 仍是旧隔离 Core pin，不能替代新 pin 安装版验收。完整证据见 [AI 协作输入验收](../acceptance/2026-09-23-ai-collaboration-composer.md)。
 - 状态仅为源码与隔离开发版验收；公开 Latest 仍是 v0.3.36，签名安装版、窄原生窗口、Windows/Linux、真实模型语义和系统通知点击另行验收，不能把提醒续聊局部通过等同 R21 全部完成。
 
 ## 2026-09-23 未完成计划与手机端目标（当前优先级）
 
 | 顺序 | 原任务 | 尚未完成的交付 | 状态 |
 | --- | --- | --- | --- |
-| 近期 | L4 | 扫描 PDF 与图片的可信 OCR 来源、重复同名同类事项消歧、source-hash alias；六领域内容逐域核对 | 文本 PDF/DOCX 时间地点证据、跨修订来源与 ICS 来源同步已在开发态验收；文档遗漏不自动撤回 |
+| 近期 | L4 | 扫描 PDF 与图片的可信 OCR 来源、同名组多项同时变化的逐项配对、slot alias；六领域内容逐域核对 | Core #177 与 Desktop #228/#229 已完成来源别名、删除传播和同名 occurrence 单项变化；文档遗漏不自动撤回 |
 | 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 安装版 runtime；Core WorkCase capability 与 Receipt 落账 | Adapter 和 JEV 独立设置已实现，实服/安装版/权威落账未完成；JEV 不用于对话 |
-| 随下一正式包 | R22 / R15 | 将 Core `b2c2bb8`、ICS 与文本材料新能力发布到正式安装版，再核对升级和数据保持 | 源码已合并，公开 Latest 仍为 v0.3.36/Core `860594a`；Apple 签名、公证与本机旧包升级链路已验收 |
+| 随下一正式包 | R22 / R15 | 将 Core `c1edefd`、ICS 与文本材料新能力发布到正式安装版，再核对升级和数据保持 | 源码已合并，公开 Latest 仍为 v0.3.36/Core `860594a`；Apple 签名、公证与本机旧包升级链路已验收 |
 | 验收批 | R21 / R22 / R25 | 通知点击回到事项、真实睡眠补跑、安装版故障插件 Safe Mode 恢复；Windows/Linux 旧版应用内升级 | 功能或源码回归已有，所列真实流程未验收 |
 | 部署批 | R16 / L4 | 真实外部账号、学校隔离与备份恢复、正式盲测和教师连续试用 | 依赖目标环境、账号与真人参与，不计入本地工程通过 |
 | 最后 | R26 | 手机离开局域网，经服务器安全访问同一教师会话与提醒 | 局域网桥接只是原型，远程服务尚未设计和实现 |
@@ -20,13 +20,27 @@
 - R26 产品目标由用户确认：局域网同网段配对不是手机端的最终交付条件，后续不再把第二台手机的同 Wi-Fi 测试排在桌面/Core 收口之前。最终验收需在异地网络通过受认证的 HTTPS 服务完成会话续接、撤销和对象回读，Core 继续拥有状态与权限；具体托管、同步和身份合同须在实施前设计，不把当前本地 HTTP 网关直接暴露公网。
 - R01/R02/R03/R04/R05/R06/R13/R14 的旧任务表仍有原生文件操作、首配、OCR、课堂内容与性能实机等逐项验收空缺；它们是已实现功能的验收/关账工作，不能与上表的待实现能力混为一谈。下方历史记录保留原始证据，以上方较新的发布与配对状态为准。
 
+## 2026-09-23 文档同名 occurrence 消歧（工程验收通过，尚未发布）
+
+- [Desktop #229](https://github.com/Intellinfinity/edupi-desktop/pull/229) 的提交 `082648e` 让同一 PDF/DOCX 内多条 `name + type` 相同的事项使用完整语义 variant ref；完全重复行折叠，改名重放稳定，旧 singleton ID 保持。
+- 修订配对按“variant 精确匹配 → 剩余仅 1:1”执行。一项变化复用原 occurrence，并由 Core 按 revision/conflict 规则处理；日期或时段变化进入 held/conflict。多项同时变化、foreign legacy、删除 sibling 复活和教师已确认内容差异均在写入前拒绝。pre-typed inferred legacy 的同字节 typed 升级保留 canonical ID。
+- 固定 Core `c1edefd…` 的真实 DOCX E2 覆盖两场同名会议、新旧 ID、一次改期无第三条重复和文档内 exact duplicate。全量 1547 tests，1521 passed / 26 skipped / 0 failed；TypeScript、lint、audit、`desktop:prepare`、staged runtime 和独立复审通过，`external_send=false`。
+- Unverified：同名组两项以上同时变化仍缺教师逐项配对 UI；slot alias、图片/扫描 PDF 的可信 OCR、正式安装版、真实 provider、正式盲测和真实教师价值仍未验证。`proactivity` 仍默认关闭，整体状态仍是“L4 功能收敛中”。
+
+## 2026-09-23 文档来源别名与材料删除传播（工程验收通过，尚未发布）
+
+- [Core #177](https://github.com/Intellinfinity/edupi/pull/177) 合并为 `c1edefd2a2b77e3d10dfc9f0a47eceb7b5f7b1de`，将 PDF/DOCX `source_hash` 映射到 `schedule-evidence-*`，统一同哈希多副本、calendar/document 混合 evidence、calendar/timetable、准备/能力与反馈 lineage 的删除和恢复语义；Core 全量、CI 与独立复审通过。
+- [Desktop #228](https://github.com/Intellinfinity/edupi-desktop/pull/228) 的提交 `3b7f1e5` 从 Core 当前 evidence 恢复 H2→H logical source alias，同时要求当前 accepted material target 证明同一 hash。删除材料或只有残留跨格式 evidence 时不自动绑定；slot、内容漂移、多 alias 和 direct/foreign 冲突继续 fail closed。
+- 真实 route E2 覆盖 H2 精确重放、同哈希两份材料逐份删除、全部来源隐藏、恢复任一副本和恢复后无感重放。全量 1545 tests，1519 passed / 26 skipped / 0 failed；TypeScript、lint、audit、`desktop:prepare`、四项 staged runtime 与 bundle/model-host 8/8 通过，全部 `external_send=false`。
+- 后续状态以上方 Desktop #229 为准：同一文档重复 `name + type` 已支持稳定多 occurrence 和单项变化；多项同时变化仍 fail closed。自动 alias 尚不覆盖 slot；图片/扫描 PDF 的可信 OCR、正式安装版、真实 provider、正式盲测和真实教师价值仍未验证。staged runtime 的 `proactivity` 仍为默认关闭，因此整体状态仍是“L4 功能收敛中”。
+
 ## 2026-09-23 PDF/DOCX 跨修订来源与删除传播（工程验收通过，尚未发布）
 
 - [Desktop #226](https://github.com/Intellinfinity/edupi-desktop/pull/226) 以 `0f9ec30`、`f255674`、`bd10438` 完成 PDF/DOCX logical source、Core-owned CAS、稳定 occurrence、跨格式显式去重、旧状态接管、教师确认防降级、omission 保留和 tombstone 恢复防护；证据见 [PDF/DOCX 日程修订来源验收](../acceptance/2026-09-23-document-schedule-revision-source.md)。
 - 真实 DOCX E2 已覆盖 route POST、新建/更新、同字节重放、不同字节显式绑定、stale CAS、改期 held、legacy/filename issuer、PDF/DOCX↔ICS、删 A 而 B 保持来源可见、H2 重传拒绝及明确 restore；全部 `external_send=false`。隔离浏览器来源选择与 omission 文案可见，console error/warn 为 0。
 - 文档修订只增量 upsert，不因模型漏识别自动撤回。旧格式首次接管必须完整覆盖旧 issuer，并通过 held conflict 等待教师决定；Desktop 不保存第二份来源 baseline。
 - packaged symlink worktree 的 trace leak 已用 exclusive owner directory、inode 与私有 marker 收敛；真实 `desktop:prepare` 后不再污染仓库根。
-- Unverified：同一文档重复 `name + type` 仍整份 fail closed；H2→H alias 未持久化，H2 exact replay 仍需再选来源；图片/扫描 PDF 的可信 OCR、正式安装版、provider 质量、盲测和真实教师价值仍未验证。公开 Latest 仍为 v0.3.36/Core `860594a…`，整体状态仍是“L4 功能收敛中”。
+- 后续状态以上方 Core #177 / Desktop #228/#229 为准：H2→H exact replay alias、材料删除传播和同名 occurrence 单项变化已完成。多项同时变化、slot 自动 alias、图片/扫描 PDF、正式安装版、provider 质量、盲测和真实教师价值仍未验证。公开 Latest 仍为 v0.3.36/Core `860594a…`，整体状态仍是“L4 功能收敛中”。
 
 ## 2026-09-23 R25 故障扩展恢复与 R21 通知补验
 

@@ -178,6 +178,16 @@ export function calendarSourceSelectionCandidates(
   )));
 }
 
+export function documentSourceEvidenceAliasCandidates(
+  sources: CoreCalendarSource[],
+  derivedSourceId: string,
+): CoreCalendarSource[] {
+  const match = /^document-source-([a-f0-9]{32})$/u.exec(derivedSourceId);
+  if (!match) return [];
+  const evidenceId = `schedule-evidence-${match[1]}`;
+  return sources.filter((source) => source.occurrences.some((occurrence) => occurrence.evidenceIds.includes(evidenceId)));
+}
+
 export async function readCoreCalendarSources(signal?: AbortSignal): Promise<CoreCalendarSourceRead> {
   const snapshot = await readEduPiEducationSnapshot({ scheduleOccurrenceVersion: "1.2", signal });
   if (!snapshot.occurrenceProjection) throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源投影不可用。");

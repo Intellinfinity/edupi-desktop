@@ -5,7 +5,7 @@ import { createJiti } from "jiti";
 
 const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
 const { parseCalendarIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-calendar-intake-request.ts");
-const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableDocumentOccurrenceRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
+const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableDocumentOccurrenceRef, stableDocumentOccurrenceVariantRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
 
 function request(body, headers = {}) {
   return new Request("http://localhost/api/edupi/intake", {
@@ -89,6 +89,10 @@ test("derives stable semantic IDs for schedule uploads without caller IDs", () =
     stableDocumentOccurrenceRef({ name: "教研 会", type: "meeting" }));
   assert.notEqual(stableDocumentOccurrenceRef({ name: "教研会", type: "meeting" }),
     stableDocumentOccurrenceRef({ name: "教研会", type: "activity" }));
+  assert.notEqual(stableDocumentOccurrenceVariantRef({ date: "2026-10-20", name: "教研会", type: "meeting" }),
+    stableDocumentOccurrenceVariantRef({ date: "2026-10-21", name: "教研会", type: "meeting" }));
+  assert.equal(stableDocumentOccurrenceVariantRef({ date: "2026-10-20", name: " 教研 会 ", type: "MEETING", notes: null }),
+    stableDocumentOccurrenceVariantRef({ date: "2026-10-20", name: "教研 会", type: "meeting", notes: null }));
 });
 
 test("routes PDF and DOCX schedule revisions through a distinct bounded source contract", async () => {

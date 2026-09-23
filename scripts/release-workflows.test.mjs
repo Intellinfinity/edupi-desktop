@@ -419,6 +419,7 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("test:edupi-schedule-conflicts-e2"));
   assert.ok(buildJob.includes("test:edupi-schedule-occurrence-e2"));
   assert.ok(buildJob.includes("test:edupi-uploaded-calendar-e2"));
+  assert.ok(buildJob.includes("test:edupi-text-schedule-evidence-e2"));
   assert.ok(buildJob.includes("scripts/test-edupi-c2-e2.mjs"));
   assert.ok(buildJob.includes("scripts/test-edupi-c3-e2.mjs"));
   assert.ok(buildJob.includes("scripts/packaged-core-bundle.test.mjs"));

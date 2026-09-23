@@ -63,6 +63,12 @@ test("derives stable semantic IDs for schedule uploads without caller IDs", () =
   assert.notEqual(stableCalendarEventId(calendar), stableCalendarEventId({ ...calendar, type: "meeting" }));
   assert.equal(stableRecognizedCalendarEventId({ ...calendar, notes: " 09:00 教学楼 " }), stableRecognizedCalendarEventId({ ...calendar, notes: "09:00  教学楼" }));
   assert.notEqual(stableRecognizedCalendarEventId({ ...calendar, notes: "09:00 教学楼" }), stableRecognizedCalendarEventId({ ...calendar, notes: "14:00 教学楼" }));
+  const morning = { start: "2026-10-01T09:00+08:00", end: "2026-10-01T10:00+08:00", time_zone: "Asia/Shanghai" };
+  const afternoon = { start: "2026-10-01T14:00+08:00", end: "2026-10-01T15:00+08:00", time_zone: "Asia/Shanghai" };
+  assert.notEqual(stableRecognizedCalendarEventId({ ...calendar, notes: null, timeInterval: morning, location: "东楼" }),
+    stableRecognizedCalendarEventId({ ...calendar, notes: null, timeInterval: afternoon, location: "东楼" }));
+  assert.equal(stableRecognizedCalendarEventId({ ...calendar, notes: null, timeInterval: morning, location: " 东楼 " }),
+    stableRecognizedCalendarEventId({ ...calendar, notes: null, timeInterval: { ...morning }, location: "东楼" }));
   const slot = { dayOfWeek: 1, period: 2, subject: " 数学 ", className: "七年级二班", kind: "class" };
   assert.equal(stableTimetableSlotId(slot), stableTimetableSlotId({ ...slot, subject: "数学" }));
   assert.notEqual(stableTimetableSlotId(slot), stableTimetableSlotId({ ...slot, period: 3 }));

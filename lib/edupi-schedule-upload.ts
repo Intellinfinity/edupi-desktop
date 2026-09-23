@@ -46,8 +46,15 @@ export function stableFileScheduleIssuer(originalName: unknown, sourceHash?: unk
   return `desktop-file-schedule-${stableScheduleToken(identity).slice(0, 24)}`;
 }
 
-export function stableRecognizedCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown; notes?: unknown }): string {
-  return `${stableCalendarEventId(value)}-${stableScheduleToken({ notes: normalizedScheduleText(value.notes) }).slice(0, 16)}`;
+export function stableRecognizedCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown; notes?: unknown; timeInterval?: unknown; location?: unknown }): string {
+  const timeInterval = value.timeInterval && typeof value.timeInterval === "object" && !Array.isArray(value.timeInterval)
+    ? canonicalScheduleValue(value.timeInterval)
+    : null;
+  const location = normalizedScheduleText(value.location);
+  const details = timeInterval || location
+    ? { notes: normalizedScheduleText(value.notes), time_interval: timeInterval, location }
+    : { notes: normalizedScheduleText(value.notes) };
+  return `${stableCalendarEventId(value)}-${stableScheduleToken(details).slice(0, 16)}`;
 }
 
 export function stableTimetableSlotId(value: { dayOfWeek?: unknown; period?: unknown; subject?: unknown; className?: unknown; kind?: unknown }): string {

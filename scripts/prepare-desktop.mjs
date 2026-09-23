@@ -68,7 +68,7 @@ async function copySymlinkedStandaloneDependencies(standaloneRoot, destinationRo
   }
   const packageFilesBefore = copied.size;
   const packageSeen = new Set();
-  for (const packageName of ["next", "react", "react-dom"]) {
+  for (const packageName of ["next", "react", "react-dom", "undici"]) {
     await copyPackageClosure(rootDir, destinationRoot, packageName, packageSeen);
   }
   for (const packageName of await piPackageDirNames()) {

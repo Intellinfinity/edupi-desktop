@@ -3,7 +3,7 @@
 ## 范围
 
 - Core merge：`860594a05c5d32617fffdbdf03d56e6ade6dc211`，PR #173；其父级 #172 为 ambient snapshot hotfix。
-- Desktop 基线：`9f33463fc5298ea54a361e809419f8d315c19b22`；交付分支与远端审查为 Desktop PR #212。
+- Desktop 基线：PR #212 合并 occurrence 配对，PR #215/#216 完成发布前风险修复；最终发布 merge 为 `c492aea8e50b3aadd207be9bae40a34e0412dedc`。
 - 环境：macOS arm64，Node.js 22.23.1，隔离临时数据根；未读取或修改真实教师数据，`external_send=false`。
 
 ## 结果
@@ -11,7 +11,7 @@
 | 验收项 | 操作 | 实际结果 |
 | --- | --- | --- |
 | Core 质量 | `npm test`、`npm run typecheck`、定向 ambient/schedule/bridge 测试、远端 `core-quality` | #172/#173 均通过；runs `35782721446`、`35788428478` |
-| Desktop 静态与单元回归 | `npm test`、`node_modules/.bin/tsc --noEmit`、`npm run lint` | 1447 tests，1421 passed / 26 skipped / 0 failed；类型和 lint 通过 |
+| Desktop 静态与单元回归 | `npm test`、`node_modules/.bin/tsc --noEmit`、`npm run lint` | 1451 tests，1425 passed / 26 skipped / 0 failed；类型和 lint 通过 |
 | source occurrence | `EDUPI_CORE_ROOT=<Core 860594a> npm run test:edupi-schedule-occurrence-e2` | 首次启动即启用 ambient；导入、精确重放、typed projection、改期 hold、same-ref keep-both 拒绝、replace、重启回读通过 |
 | source 默认审核 | `EDUPI_CORE_ROOT=<Core 860594a> npm run test:edupi-schedule-conflicts-e2` | ambient 未设置；owner bootstrap、冲突读取、决定、重放、过期拒绝、重启回读与丢失凭据 fail closed 通过 |
 | packaged resources | `EDUPI_CORE_ROOT=<Core 860594a> npm run desktop:prepare` | Next standalone、Node runtime 与 2165 个 Core 文件生成成功，Core commit 精确为 `860594a…` |
@@ -31,6 +31,6 @@
 
 ## 状态边界
 
-- 已实现待远端验收：v0.3.34 版本、occurrence mutation continuity 与旧 owner state 安全降级尚待 Desktop PR、三平台 Release 和安装验收。
-- 未验证：PDF/image/ICS 的可信 occurrence 提取；macOS/Windows 安装版通知点击、睡眠恢复、升级与数据保持；六领域真实内容人工核对；正式盲测；真实教师价值。
+- 已发布并完成 Linux/Windows 公共安装：v0.3.34 固定 merge `c492aea`，11 项资产、7 个签名 updater 键、DMG 公证/装订和 Linux/Windows 安装启动通过；完整证据见 [v0.3.34 发布验收](2026-09-23-v0.3.34-core-occurrence-release.md)。
+- 未验证：PDF/image/ICS 的可信 occurrence 提取；macOS 本机应用内升级、通知点击、睡眠恢复与数据保持；Windows/Linux 旧版应用内升级；六领域真实内容人工核对；正式盲测；真实教师价值。
 - 判定：`L4 功能收敛中`，不能写 `L4 established`。

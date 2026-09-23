@@ -1,10 +1,12 @@
 # 自动下载安装
 
-## 2026-09-23 L4 Core 配对开发状态（未发布）
+## 2026-09-23 v0.3.34 Core occurrence 配对发布（Linux/Windows 安装通过，macOS 原位升级待验收）
 
-- 当前开发分支已合并 Desktop `main` `384e952` 的 v0.3.33 standalone 依赖与跨平台启动修复，并固定 Core merge `860594a05c5d32617fffdbdf03d56e6ade6dc211`。occurrence E2 已加入 macOS release 的源码与 staged server 门禁；`desktop:prepare` 实际写入 2165 个 Core 文件，staged status 回读 Core/projection ready、occurrence contract 1.2、proactivity disabled、`externalSend=false`。
-- staged desktop、ambient 默认关闭的 schedule conflict、teacher feedback 和 ambient occurrence 全部通过；packaged Core closure 3/3、隔离 model host 2/2 通过。该证据证明待发布资源可以启动并完成隔离工作流，不代表 v0.3.33 已构建、签名、公证、公开或安装。
-- v0.3.32 的实际公证、公开安装失败和回滚见下节；v0.3.33 三平台 Release、旧客户端应用内升级、macOS/Windows 通知点击和睡眠恢复仍未验收。本节不改变公开 Latest 或本机已安装版本。
+- Desktop PR #212/#215/#216 最终发布 merge 为 `c492aea8e50b3aadd207be9bae40a34e0412dedc`，固定 Core `860594a05c5d32617fffdbdf03d56e6ade6dc211`；occurrence mutation 连续性、旧 owner key 安全降级和 owner read 503 映射均已进入公开包。
+- 全平台 run `35805159993` 完成 Linux/Windows 构建；macOS 的已知 hosted runner 临时根 writer admission 波动没有生成资产。同 SHA 的一次 macOS 补跑 `35808315316` 完成构建、公证和 manifest。Release `394223451` 为公开 v0.3.34，11 项资产、7 个签名键，feed commit `9e70f0e`。
+- Apple submission `192c6e32-de59-47d3-9f12-4e5b54702eb4` Accepted，runner 的 DMG staple/validate、Gatekeeper 与 Release ID 替换事务通过；公开 DMG SHA-256 为 `a40b23b9…`。三条迁移期 endpoint 返回同一份 v0.3.34 manifest `539bffd4…`。
+- 公开 updater tar 在仓库外启动后 Core/投影/Kernel ready，Core 精确为 `860594a…`，proactivity 与 external send 关闭。Linux `35811719843` 与 Windows `35811727023` 公共安装启动均通过。完整证据见 [v0.3.34 Core occurrence 与签名发布验收](../acceptance/2026-09-23-v0.3.34-core-occurrence-release.md)。
+- 本机唯一安装副本仍为 v0.3.29；Mac 锁屏使应用内下载、验签、替换、重启和教师数据/模型配置复核尚未执行。通知点击、睡眠恢复与 Windows/Linux 旧版应用内升级也未由公共干净安装替代。
 
 ## 2026-09-23 v0.3.31-v0.3.32 启动回滚与 v0.3.33 修复
 
@@ -16,8 +18,8 @@
 - DMG 验收：全平台 run `35771039553` 完成 Linux/Windows 构建，macOS 的一次 G6 临时根失败保持 draft；同提交 macOS retry `35772209888` 完成 manifest。Release ID `394034871` 固定 `9f33463`，Apple submission `500735b4-4a03-4b0b-8376-c6cf3270c48c` Accepted；runner 的 DMG staple/validate、Gatekeeper 和重新下载 SHA-256 `3ee2667b…` 全部通过。公开 DMG 本机 Gatekeeper 为 `Notarized Developer ID`，本机 `stapler validate` 仍受 Apple CloudKit TLS `-1200` 阻断，未记为通过。
 - 启动回归：Linux `35783207989` 和 Windows `35783220232` 均从已安装 v0.3.32 的 `server.log` 读到 `Cannot find module 'next'`。原因是普通 standalone `node_modules` 被排除，而 staged 测试从源码上级依赖形成假通过。v0.3.31/v0.3.32 已退回 draft，v0.3.30 已恢复 Latest；feed commit `446a73a` 为 v0.3.30、7 个签名键，三条 endpoint 与本机更新接口均已回读。
 - v0.3.33 增加普通目录复制、symlink/NFT 兼容、最终产物零 symlink/realpath containment 和三平台隔离 staged server 启动门禁；正式 run `35789747783` 三平台/manifest 全绿，Release `394151776` 有 11 项资产与 7 个签名键。Linux public install `35792864973` 和 Windows `35792875124` 均成功；DMG 公证与本机 Gatekeeper 通过。完整证据见 [v0.3.33 packaged server 恢复验收](../acceptance/2026-09-23-v0.3.33-packaged-server-recovery.md)。
-- macOS 应用内升级仍待解锁；v0.3.33 发布后合并的 Core occurrence 配对不在该包内，已推进 v0.3.34 版本元数据，须重新走同一三平台门禁。
-- v0.3.34 发布候选同时修复 occurrence mutation 即时投影回退和旧 owner key 升级阻断；全量 1425 passed / 26 skipped / 0 failed，真实 source occurrence mutation、lost credential conflict 和旧 owner state 升级演练通过。首次 run `35804036187` 在上传前发现 owner read 的错误状态映射并取消，空 draft `394218266` 已删除；修复后仍须从新 merge SHA 全平台重建。三平台签名、公证、Linux/Windows 公共安装和 macOS 应用内升级仍分别待验收。
+- v0.3.33 发布后合并的 Core occurrence 配对不在旧包内；现已由 v0.3.34 独立构建、签名、公证并完成 Linux/Windows 公共安装。macOS 应用内原位升级仍待本机解锁。
+- v0.3.34 同时修复 occurrence mutation 即时投影回退和旧 owner key 升级阻断；全量 1425 passed / 26 skipped / 0 failed，真实 source occurrence mutation、lost credential conflict 和旧 owner state 升级演练通过。首次 run `35804036187` 在上传前发现 owner read 的错误状态映射并取消，空 draft `394218266` 已删除；最终 Release 不复用该 run 的任何资产。
 
 ## 2026-09-22 v0.3.31 发布阻塞（历史，已解除）
 

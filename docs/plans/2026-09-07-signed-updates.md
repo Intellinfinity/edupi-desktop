@@ -4,7 +4,7 @@
 
 - 当前开发分支固定 Core [#181](https://github.com/Intellinfinity/edupi/pull/181) merge `0f675489c5f1b8a35c5f32a0b74e6fc51f942758`、Runtime manifest `sha256:c6cc01f7…`。默认仍关闭；单班单科显式 canary 的期限、预算和 `external_send=false` 不变。
 - Core/ Desktop 已覆盖串行启停与 stale CAS、停止失败栅栏、grant 到期、自然请求/修订/取消、反馈回读及 synthetic 排除、两阶段无正文 message ledger、会话删除前来源撤回、停止后撤回、Goal/队列/草稿级联失效和 capture-crash pending 恢复。真实 merge Core E2 与 staged runtime 通过。
-- Desktop 全量为 1671 tests，1645 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint、staged Desktop/feedback/occurrence/conflict/ICS/OCR/DOCX、Core closure 3/3 和 model host 2/2 通过。
+- Desktop 全量为 1672 tests，1646 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint、staged Desktop/feedback/occurrence/conflict/ICS/OCR/DOCX、Core closure 3/3 和 model host 2/2 通过。
 - 本批未生成或安装正式 Release，公开 Latest 仍为 v0.3.36。macOS 锁屏阻止本轮原生 UI 操作；Windows、睡眠、通知点击、旧版升级、真实模型内容、正式盲测和教师试用保持 Unverified，整体仍为“L4 功能收敛中”。
 
 ## 2026-09-24 同名多项逐项配对 staged 验收（未发布）

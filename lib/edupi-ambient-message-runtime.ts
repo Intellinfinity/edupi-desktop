@@ -207,14 +207,16 @@ export async function captureAndApplyAmbientMessage(
   if (candidate?.interpretation === "correction") {
     const projected = await bindings();
     const currentOld = projected.filter((item) => item.status !== "revoked" && item.workCaseId !== workCaseId);
-    let oldBinding: ControlBinding | null = currentOld.length === 1 ? currentOld[0] : null;
+    let oldBinding: ControlBinding | null = captured.replayed === true ? null : currentOld.length === 1 ? currentOld[0] : null;
     let expectedNewGoalVersion = 0;
-    if (!oldBinding && captured.replayed === true) {
+    if (captured.replayed === true) {
       const newBindings = projected.filter((item) => item.status !== "revoked" && item.workCaseId === workCaseId && item.goalVersion > 0);
       const oldBindings = projected.filter((item) => item.status === "revoked" && item.workCaseId !== workCaseId && item.goalVersion > 1);
       if (newBindings.length === 1 && oldBindings.length === 1) {
         oldBinding = { ...oldBindings[0], goalVersion: oldBindings[0].goalVersion - 1 };
         expectedNewGoalVersion = newBindings[0].goalVersion - 1;
+      } else if (oldBindings.length === 0 && newBindings.length === 0 && currentOld.length === 1) {
+        oldBinding = currentOld[0];
       }
     }
     if (!oldBinding) return { status: "captured", resolutionStatus: "ask", reason: "correction_target_required", goalId: null, workCaseId: null, externalSend: false };

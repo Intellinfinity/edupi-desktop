@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     const body = record(await parseJsonWithinLimit(request, MAX_BODY_BYTES));
     if (!body || Object.keys(body).length !== 4 || !Object.hasOwn(body, "sessionId") || !Object.hasOwn(body, "messageId") || !Object.hasOwn(body, "text") || !Object.hasOwn(body, "occurredAt")
       || typeof body.sessionId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u.test(body.sessionId)
-      || typeof body.messageId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(body.messageId)
+      || typeof body.messageId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,127}$/u.test(body.messageId)
       || typeof body.text !== "string" || !body.text.trim() || body.text.length > 4000
       || typeof body.occurredAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(body.occurredAt)) {
       return NextResponse.json({ status: "invalid", externalSend: false }, { status: 400 });

@@ -1,5 +1,12 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-23 PDF、图片与 Word 日程来源身份（部分实现已验收）
+
+- 非 ICS 材料的 schedule issuer 已从“文件名优先”改为“校验后的内容 SHA-256 优先”：同字节改名保持同一来源，同名不同字节严格分离；交付为 [Desktop #223](https://github.com/Intellinfinity/edupi-desktop/pull/223)，实现提交 `c8cb6f0`，证据见 [非 ICS 日程来源身份验收](../acceptance/2026-09-23-document-schedule-content-identity.md)。
+- 全量 1509 tests，1483 passed / 26 skipped / 0 failed，TypeScript 与 lint 通过。该切片不改真实数据、不外发，也不生成正式安装包。
+- 下一项仍为 Unverified：把模型识别结果绑定可验证 source evidence，并为文本 PDF/DOCX 建立 occurrence/time/location 合同；图片与扫描 PDF 在没有可信 OCR/坐标证据前继续 hold，不自动做同来源遗漏撤回。
+- 发布边界：公开 Latest 仍为 v0.3.36/Core `860594a…`；本批未发布或安装，交付与合并状态以 Desktop #223 为准。整体状态仍为“L4 功能收敛中”。
+
 ## 2026-09-23 上传 ICS 来源与循环日程收敛（开发验收通过，尚未发布）
 
 - Core [#174](https://github.com/Intellinfinity/edupi/pull/174)、[#175](https://github.com/Intellinfinity/edupi/pull/175)、[#176](https://github.com/Intellinfinity/edupi/pull/176) 已依次合并，最终 pin 为 `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`；Desktop 交付为 [#222](https://github.com/Intellinfinity/edupi-desktop/pull/222)，实现提交为 `e097865`、`1e4c2c8`、`1402691`、`ee71640`。完整证据见 [上传 ICS 日历来源收敛验收](../acceptance/2026-09-23-uploaded-calendar-source-sync.md)。

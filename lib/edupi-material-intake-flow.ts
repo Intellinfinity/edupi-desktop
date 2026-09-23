@@ -51,8 +51,7 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   });
   const issue = dependencies.issue || issueEducationIntake;
   const recognized = input.recognize === false ? { events: [], slots: [] } : await recognize(input.descriptor);
-  const scheduleSourceId = input.scheduleSourceId || stableFileScheduleIssuer(input.descriptor.original_name,
-    input.descriptor.kind === "calendar" ? input.descriptor.source_hash : undefined);
+  const scheduleSourceId = input.scheduleSourceId || stableFileScheduleIssuer(input.descriptor.original_name, input.descriptor.source_hash);
   const baseEvents = distinctRecognized(recognized.events.map((event) => ({ ...event,
     event_id: event.source_occurrence_ref
       ? stableOccurrenceCalendarEventId(scheduleSourceId, event.source_occurrence_ref)

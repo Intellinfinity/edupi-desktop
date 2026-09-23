@@ -42,7 +42,7 @@ export function stableFileScheduleIssuer(originalName: unknown, sourceHash?: unk
   const normalizedName = normalizedScheduleText(originalName);
   if (!normalizedName) throw new Error("Schedule file identity is unavailable");
   const normalizedHash = typeof sourceHash === "string" && /^sha256:[a-f0-9]{64}$/u.test(sourceHash) ? sourceHash : null;
-  const identity = normalizedHash ? { original_name: normalizedName, source_hash: normalizedHash } : { original_name: normalizedName };
+  const identity = normalizedHash ? { source_hash: normalizedHash } : { original_name: normalizedName };
   return `desktop-file-schedule-${stableScheduleToken(identity).slice(0, 24)}`;
 }
 

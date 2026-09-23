@@ -110,7 +110,9 @@ type EducationIntakeApiResult = {
   scheduleNeedsReview?: boolean;
   receipt?: { status?: string };
   calendarSourceId?: string;
+  documentSourceId?: string | null;
   calendarCommitted?: boolean;
+  documentCommitted?: boolean;
   removedEventCount?: number;
 };
 
@@ -356,7 +358,9 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [educationIntakeBusy, loadWorkspace]);
 
-  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, calendarSourceId: string | null, calendarSourceFingerprint: string | null) => {
+  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" } | null) => {
+    const calendarSource = item.kind === "calendar" ? scheduleSource : null;
+    const documentSource = item.kind !== "calendar" ? scheduleSource : null;
     const result = await submitEducationIntake({
       kind: "material",
       stagingId: item.staging_id,
@@ -365,8 +369,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       subject: metadata.subject,
       classId: metadata.classId,
       recognize: true,
-      calendarSourceId,
-      calendarSourceFingerprint,
+      calendarSourceId: calendarSource?.sourceId ?? null,
+      calendarSourceFingerprint: calendarSource?.fingerprint ?? null,
+      documentSourceId: documentSource?.sourceId ?? null,
+      documentSourceFingerprint: documentSource?.fingerprint ?? null,
     });
     const eventCount = result.recognition?.eventCount || 0;
     const slotCount = result.recognition?.slotCount || 0;

@@ -64,7 +64,7 @@ export async function deleteCalendarOccurrences(
   const roots = dependencies.roots || resolveEduPiBridgeRoots();
   const snapshotId = dependencies.expectedSnapshotId;
   if (typeof snapshotId !== "string" || !snapshotId || snapshotId.length > 160
-    || !dependencies.sourceId || !/^calendar-source-[a-f0-9]{32}$/u.test(dependencies.sourceId)
+    || !dependencies.sourceId || !/^(?:calendar|document)-source-[a-f0-9]{32}$/u.test(dependencies.sourceId)
     || !dependencies.expectedSourceFingerprint || !/^sha256:[a-f0-9]{64}$/u.test(dependencies.expectedSourceFingerprint)
     || !dependencies.evidenceId || !/^calendar-evidence-[a-f0-9]{32}$/u.test(dependencies.evidenceId)) {
     throw new CalendarSourceError("invalid_calendar_source_projection", "日历来源批量撤回绑定无效。");
@@ -153,7 +153,7 @@ export async function syncCalendarFile(input: {
     : null;
   const sourceId = requested?.sourceId || input.requestedSourceId || derivedSourceId;
   const selectionCandidates = calendarSourceSelectionCandidates(sourceRead.sources,
-    recognition.events as Array<Record<string, unknown> & { source_occurrence_ref?: string }>, recognition.affected_series_refs || []);
+    recognition.events as Array<Record<string, unknown> & { source_occurrence_ref?: string }>, recognition.affected_series_refs || [], null);
   const expectedOccurrences = recognition.events.map((event) => ({
     sourceOccurrenceRef: event.source_occurrence_ref as string,
     eventId: stableOccurrenceCalendarEventId(sourceId, event.source_occurrence_ref),
@@ -244,7 +244,7 @@ export async function syncCalendarFile(input: {
   let chainedSnapshot = sourceRead.snapshot;
   const issue = dependencies.issue || (async (command: EducationIntakeCommand) => {
     const response = await issueEducationIntake(command, { readSnapshot: async () => chainedSnapshot });
-    if (response.data) chainedSnapshot = { payload: response.data, roots: sourceRead.snapshot.roots };
+    if (response.data) chainedSnapshot = { ...chainedSnapshot, payload: response.data };
     return response;
   });
   const result = await intakeRecognizedMaterial({

@@ -61,6 +61,7 @@
     "test:edupi-c6-e2": "node scripts/test-edupi-c6-e2.mjs",
     "test:edupi-c6-recognition-e2": "node scripts/test-edupi-c6-recognition-e2.mjs",
     "test:edupi-text-schedule-evidence-e2": "node scripts/test-edupi-text-schedule-evidence-e2.mjs",
+    "test:edupi-document-revision-e2": "node scripts/test-edupi-document-revision-e2.mjs",
     "test:edupi-task-board-write-e2": "node scripts/test-edupi-task-board-write-e2.mjs",
     "test:edupi-memory-update-e2": "node scripts/test-edupi-memory-update-e2.mjs",
     "test:edupi-student-profile-update-e2": "node scripts/test-edupi-student-profile-update-e2.mjs",

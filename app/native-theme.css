@@ -1838,6 +1838,13 @@ html.dark .sidebar-view-switcher-thumb {
 .chat-composer-context-offer { justify-content: flex-end; }
 .chat-composer-context-offer span { flex: 1; min-width: 0; }
 .chat-composer-context-offer button:first-of-type { max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent); }
+.chat-composer-teacher-offer { display: grid; gap: 5px; margin-bottom: 5px; padding: 3px 5px 8px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.chat-composer-teacher-offer span { color: var(--text-muted); }
+.chat-composer-teacher-offer strong { overflow: hidden; color: var(--text); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.chat-composer-teacher-offer > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.chat-composer-teacher-offer button { padding: 0; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; }
+.chat-composer-teacher-offer button:first-child { color: var(--accent); }
+.chat-composer-teacher-offer button:hover { color: var(--text); }
 
 .message-user-context { margin-top: 7px; color: var(--text-muted); font-size: 12px; }
 .message-user-context summary { cursor: pointer; }

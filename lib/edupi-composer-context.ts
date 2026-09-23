@@ -42,16 +42,18 @@ export function createComposerContext(prompt: string, title?: string): EduPiComp
 
 export function isGeneratedContextDraft(value: string, context: EduPiComposerContext): boolean {
   const draft = value.trim();
-  return Boolean(draft) && createComposerContext(draft).reference === context.reference;
+  const hasLegacySlot = draft.includes(INPUT_SLOT.trim()) || /\n\n我想补充：\s*$/u.test(draft);
+  return Boolean(draft && hasLegacySlot) && createComposerContext(draft).reference === context.reference;
 }
 
 export function contextHandoffMode(
   draftText: string,
   activeContext: EduPiComposerContext | null,
   nextContext: EduPiComposerContext,
+  hasImages = false,
 ): "migrate" | "offer" | "attach" {
-  if (isGeneratedContextDraft(draftText, nextContext)) return "migrate";
-  if (draftText.trim() && activeContext?.reference !== nextContext.reference) return "offer";
+  if (!hasImages && isGeneratedContextDraft(draftText, nextContext)) return "migrate";
+  if ((draftText.trim() || hasImages) && activeContext?.reference !== nextContext.reference) return "offer";
   return "attach";
 }
 
@@ -90,4 +92,31 @@ export function parseTeacherMessage(message: string): { context: EduPiComposerCo
 export function visibleTeacherMessageText(message: string): string {
   return parseTeacherMessage(message)?.teacherText
     ?? (message.startsWith("[EduPi 页面参考 v1") ? "AI 协作" : message);
+}
+
+function editableTeacherMessage(message: string): string {
+  const parsed = parseTeacherMessage(message);
+  return parsed
+    ? `事项：${parsed.context.title}\n参考：${parsed.context.reference}\n老师要求：${parsed.teacherText}`
+    : message;
+}
+
+export function prepareQueueRecall(
+  messages: string[],
+  existingText: string,
+  existingContext: EduPiComposerContext | null,
+  hasImages = false,
+): { text: string; context: EduPiComposerContext | null } {
+  const queued = messages.map(message => message.trim()).filter(Boolean);
+  if (queued.length === 0) return { text: existingText, context: existingContext };
+  const parsed = queued.map(parseTeacherMessage);
+  const sameContext = parsed[0] && parsed.every(item => item?.context.reference === parsed[0]?.context.reference);
+  if (sameContext && !existingText.trim() && !hasImages
+    && (!existingContext || existingContext.reference === parsed[0]!.context.reference)) {
+    return { text: parsed.map(item => item!.teacherText).join("\n\n"), context: parsed[0]!.context };
+  }
+  const existing = existingContext
+    ? [`事项：${existingContext.title}`, `参考：${existingContext.reference}`, existingText.trim() ? `老师要求：${existingText.trim()}` : ""].filter(Boolean).join("\n")
+    : existingText.trim();
+  return { text: [...queued.map(editableTeacherMessage), existing].filter(Boolean).join("\n\n"), context: null };
 }

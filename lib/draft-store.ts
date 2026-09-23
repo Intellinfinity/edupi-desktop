@@ -10,6 +10,7 @@ export interface ChatDraft {
   value: string;
   images: ChatDraftImage[];
   context?: EduPiComposerContext;
+  pendingTeacherText?: string;
 }
 
 const drafts = new Map<string, ChatDraft>();
@@ -24,11 +25,12 @@ function cloneDraft(draft: ChatDraft): ChatDraft {
     value: draft.value,
     images: draft.images.map((image) => ({ ...image })),
     ...(draft.context ? { context: { ...draft.context } } : {}),
+    ...(draft.pendingTeacherText ? { pendingTeacherText: draft.pendingTeacherText } : {}),
   };
 }
 
 function isEmptyDraft(draft: ChatDraft): boolean {
-  return !draft.value && draft.images.length === 0 && !draft.context;
+  return !draft.value && draft.images.length === 0 && !draft.context && !draft.pendingTeacherText;
 }
 
 function validContext(value: unknown): value is EduPiComposerContext {
@@ -57,6 +59,8 @@ function hydrateFromStorage(): void {
         .filter(imagePersistable)
         .map((image) => ({ data: image.data, mimeType: image.mimeType })),
       ...(validContext(draft.context) ? { context: { ...draft.context } } : {}),
+      ...(typeof draft.pendingTeacherText === "string" && draft.pendingTeacherText.length > 0 && draft.pendingTeacherText.length <= 500_000
+        ? { pendingTeacherText: draft.pendingTeacherText } : {}),
     };
     if (!isEmptyDraft(normalized)) drafts.set(key, normalized);
   }
@@ -75,6 +79,7 @@ function schedulePersist(): void {
           value: draft.value,
           images: draft.images.filter(imagePersistable),
           ...(draft.context ? { context: draft.context } : {}),
+          ...(draft.pendingTeacherText ? { pendingTeacherText: draft.pendingTeacherText } : {}),
         },
       ] as const);
     setPrefJson(APP_PREF_KEYS.chatDrafts, Object.fromEntries(entries));

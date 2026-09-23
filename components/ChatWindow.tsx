@@ -261,7 +261,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   const appliedTeacherDraftOpenId = useRef<string | null>(null);
   useEffect(() => {
     if (!teacherDraftText || !teacherDraftOpenId || !(session?.id || newSessionCwd) || !chatInputRef?.current || appliedTeacherDraftOpenId.current === teacherDraftOpenId) return;
-    chatInputRef.current.insertText(`${teacherDraftText}\n`);
+    chatInputRef.current.offerTeacherDraft(teacherDraftText);
     appliedTeacherDraftOpenId.current = teacherDraftOpenId;
     onTeacherDraftApplied?.(teacherDraftOpenId);
   }, [teacherDraftText, teacherDraftOpenId, onTeacherDraftApplied, chatInputRef, newSessionCwd, session?.id]);

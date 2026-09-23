@@ -323,6 +323,7 @@ function readCompactResult(result: unknown, reason: string): CompactResultInfo |
 
 export interface ChatInputHandle {
   insertText: (text: string) => void;
+  restoreQueuedMessages: (messages: string[]) => void;
   insertIfEmpty: (content: string) => void;
   replaceMessage: (message: UserMessage) => void;
   prependText: (text: string) => void;
@@ -1960,7 +1961,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setQueuedMessages({ steering: [], followUp: [] });
       const texts = [...(result?.steering ?? []), ...(result?.followUp ?? [])];
       if (texts.length > 0) {
-        chatInputRef?.current?.prependText(texts.join("\n\n"));
+        chatInputRef?.current?.restoreQueuedMessages(texts);
       }
     } catch (e) {
       console.error("Failed to recall queued messages:", e);

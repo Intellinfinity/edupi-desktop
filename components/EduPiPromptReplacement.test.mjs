@@ -22,7 +22,12 @@ test("EduPi handoffs offer a page reference without replacing teacher text", asy
   assert.doesNotMatch(appShell, /onReplaceAgentPrompt=\{\(prompt\) => chatInputRef\.current\?\.replaceText/);
   assert.match(chat, /!\(session\?\.id \|\| newSessionCwd\)/);
   assert.match(chat, /offerContext\(educationContext\)/);
-  assert.match(chat, /insertText\(`\$\{teacherDraftText\}\\n`\)/);
+  assert.match(chat, /offerTeacherDraft\(teacherDraftText\)/);
+  const selectSession = appShell.slice(appShell.indexOf("const handleEducationSelectSession"), appShell.indexOf("const handleNewSession"));
+  assert.match(selectSession, /setPendingEduPiContext\(null\)/);
+  assert.match(selectSession, /setPendingTeacherDraft\(null\)/);
+  const changeCwd = appShell.slice(appShell.indexOf("const handleCwdChange"), appShell.indexOf("const handleSelectSession"));
+  assert.match(changeCwd, /previousCwd !== cwd[\s\S]*setPendingEduPiContext\(null\)/);
   assert.match(panel, /onReplaceAgentPrompt: \(prompt: string\) => void/);
   assert.match(panel, /type AgentPromptMode = "insert" \| "replace" \| "teacher" \| "teacher-main"/);
   assert.match(panel, /onStartAgent=\{\(prompt, mode\) => startAgent\(prompt, mode\)\}/);

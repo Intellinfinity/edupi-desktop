@@ -10,6 +10,7 @@ const jiti = createJiti(import.meta.url, {
 });
 const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, canRestoreUserMessage, filterModelOptions, getUserMessageText, getUserMessageDraftImages } = await jiti.import("./ChatInput.tsx");
 const { setDraft, clearDraft } = await jiti.import("../lib/draft-store.ts");
+const { createComposerContext, composeTeacherMessage } = await jiti.import("../lib/edupi-composer-context.ts");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 /** The banner reads its title through useI18n, so it needs the provider. */
@@ -94,6 +95,22 @@ test("shows a compact removable page reference while leaving the teacher input e
   }
 });
 
+test("a new teacher request waits for an explicit choice when a draft already exists", () => {
+  const draftKey = "edupi-teacher-offer-test";
+  setDraft(draftKey, { value: "原草稿", images: [], context: { title: "教学重点", reference: "教学重点" }, pendingTeacherText: "新要求" });
+  try {
+    const html = renderWithI18n(React.createElement(ChatInput, { onSend() {}, onAbort() {}, isStreaming: false, draftKey }));
+    assert.match(html, /当前草稿未改/);
+    assert.match(html, /新要求：新要求/);
+    assert.match(html, /改用新要求/);
+    assert.match(html, /追加到原草稿/);
+    assert.match(html, /不带入/);
+    assert.match(html, /composer-send-button[^>]+disabled/);
+  } finally {
+    clearDraft(draftKey);
+  }
+});
+
 test("filters model options by name and id", () => {
   const options = [
     { provider: "ollama", modelId: "qwen3:latest", name: "Qwen 3" },
@@ -142,6 +159,7 @@ test("does not restore a historical message over a pending image attachment", ()
   assert.equal(canRestoreUserMessage("", 1, 0), false);
   assert.equal(canRestoreUserMessage("", 0, 1), false);
   assert.equal(canRestoreUserMessage("draft", 0, 0), false);
+  assert.equal(canRestoreUserMessage("", 0, 0, true), false);
 });
 
 test("renders compact errors above the input as a wrapping alert", () => {
@@ -185,6 +203,16 @@ test("keeps streaming actions behind an accessible more menu", async () => {
   assert.match(withActions, /aria-label="Stop agent"/);
   assert.doesNotMatch(withoutActions, /aria-label="More message actions"/);
   assert.match(source, /setQueueMenuOpen\(false\)[\s\S]*setAttachmentMenuOpen\(false\)[\s\S]*\}, \[isStreaming\]\)/);
+});
+
+test("queued contextual follow-ups show teacher wording instead of the wire wrapper", () => {
+  const queued = composeTeacherMessage(createComposerContext("教学任务：第一课备课"), "先核对材料");
+  const html = renderWithI18n(React.createElement(ChatInput, {
+    onSend() {}, onAbort() {}, onRecallQueue() {}, isStreaming: true,
+    queuedMessages: { steering: [], followUp: [queued] },
+  }));
+  assert.match(html, /先核对材料/);
+  assert.doesNotMatch(html, /EduPi 页面参考 v1/);
 });
 
 test("exposes plus attachment actions and a phone control affordance", async () => {

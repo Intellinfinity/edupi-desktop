@@ -107,6 +107,8 @@ export function AppShell() {
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
   const [newSessionCwd, setNewSessionCwd] = useState<string | null>(null);
+  const [pendingEduPiContext, setPendingEduPiContext] = useState<{ context: EduPiComposerContext; openId: string } | null>(null);
+  const [pendingTeacherDraft, setPendingTeacherDraft] = useState<{ text: string; openId: string } | null>(null);
   const [initialCwdStatus, setInitialCwdStatus] = useState<"idle" | "validating" | "ready" | "error">(
     () => initialNavigation.requestedCwd ? "validating" : "idle",
   );
@@ -497,6 +499,7 @@ export function AppShell() {
 
   const initialSessionId = initialNavigation.sessionId;
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const activeCwdRef = useRef<string | null>(null);
   const activeProjectRootRef = useRef<string | null>(null);
   // True once the initial ?session= URL param has been resolved (or confirmed absent)
   const [initialSessionRestored, setInitialSessionRestored] = useState<boolean>(() => !initialSessionId);
@@ -539,7 +542,10 @@ export function AppShell() {
   }, [initialNavigation]);
 
   const handleCwdChange = useCallback((cwd: string | null, projectRoot?: string | null) => {
+    const previousCwd = activeCwdRef.current;
+    activeCwdRef.current = cwd;
     setActiveCwd(cwd);
+    if (previousCwd && cwd && previousCwd !== cwd) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     // Skip if cwd is null (initial mount).
     if (!cwd) return;
     const newProject = projectRoot ?? cwd;
@@ -559,6 +565,7 @@ export function AppShell() {
     if (currentProject === newProject) {
       return;
     }
+    if (currentProject) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     // Close any session that belongs to a different project — it no longer
     // matches the selected project directory.
     setSelectedSession(null);
@@ -582,6 +589,7 @@ export function AppShell() {
   }, [edupiEducationModule, router, selectedSession]);
 
   const handleSelectSession = useCallback((session: SessionInfo, isRestore = false) => {
+    if (!isRestore) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     setNewSessionCwd(null);
     setSelectedSession(session);
     // Do not bump sessionKey here — ChatWindow stays mounted and swaps
@@ -610,6 +618,7 @@ export function AppShell() {
   }, [router, isMobile]);
 
   const handleEducationSelectSession = useCallback((session: SessionInfo, isRestore = false) => {
+    if (!isRestore) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     setNewSessionCwd(null);
     setSelectedSession(session);
     setBranchTree([]);
@@ -635,6 +644,8 @@ export function AppShell() {
   }, [router, searchParams]);
 
   const handleNewSession = useCallback((_sessionId: string, cwd: string) => {
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
     // "New task" is an explicit reset. A cwd-based blank-task draft would
     // otherwise be reloaded immediately when the composer remounts.
     clearDraft(`new:${cwd}`);
@@ -656,6 +667,8 @@ export function AppShell() {
   }, [router, isMobile]);
 
   const handleEducationNewSession = useCallback((_sessionId: string, cwd: string) => {
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
     clearDraft(`new:${cwd}`);
     setSelectedSession(null);
     setNewSessionCwd(cwd);
@@ -868,8 +881,6 @@ export function AppShell() {
   }, [router, searchParams]);
 
   const [reminderDraft, setReminderDraft] = useState<{ taskId: string; title: string; context?: EduPiComposerContext; openId?: string } | null>(null);
-  const [pendingEduPiContext, setPendingEduPiContext] = useState<{ context: EduPiComposerContext; openId: string } | null>(null);
-  const [pendingTeacherDraft, setPendingTeacherDraft] = useState<{ text: string; openId: string } | null>(null);
   const continueReminder = useCallback(async (taskId: string) => {
     const response = await fetch("/api/edupi/workspace", { cache: "no-store" });
     if (!response.ok) throw new Error("事项读取失败");
@@ -992,6 +1003,8 @@ export function AppShell() {
   }, [selectedSession?.id]);
 
   const handleSessionForked = useCallback((newSessionId: string) => {
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
     setRefreshKey((k) => k + 1);
     setNewSessionCwd(null);
     setSelectedSession((prev) => ({
@@ -1003,6 +1016,8 @@ export function AppShell() {
   }, [router, hydrateSelectedSession]);
 
   const handleEducationSessionForked = useCallback((newSessionId: string) => {
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
     setRefreshKey((key) => key + 1);
     setNewSessionCwd(null);
     setSelectedSession((previous) => ({

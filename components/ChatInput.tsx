@@ -5,7 +5,7 @@ import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, Slas
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
 import { clearDraft, getDraft, setDraft, type ChatDraftImage } from "@/lib/draft-store";
-import { composeTeacherMessage, contextHandoffMode, parseTeacherMessage, type EduPiComposerContext } from "@/lib/edupi-composer-context";
+import { composeTeacherMessage, contextHandoffMode, parseTeacherMessage, prepareQueueRecall, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import {
   MAX_ATTACHED_IMAGE_BYTES,
   MAX_ATTACHED_IMAGES,
@@ -92,9 +92,11 @@ interface Props {
 
 export interface ChatInputHandle {
   offerContext: (context: EduPiComposerContext) => void;
+  offerTeacherDraft: (text: string) => void;
   insertText: (text: string) => void;
   insertIfEmpty: (text: string) => void;
   replaceText: (text: string) => void;
+  restoreQueuedMessages: (messages: string[]) => void;
   replaceMessage: (message: UserMessage) => void;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
@@ -246,8 +248,9 @@ export function canRestoreUserMessage(
   value: string,
   attachedImageCount: number,
   pendingImageCount: number,
+  hasContext = false,
 ): boolean {
-  return !value.trim() && attachedImageCount === 0 && pendingImageCount === 0;
+  return !value.trim() && attachedImageCount === 0 && pendingImageCount === 0 && !hasContext;
 }
 
 export function getUserMessageText(message: UserMessage): string {
@@ -281,9 +284,10 @@ function revokeImagePreview(image: AttachedImage): void {
 }
 
 function QueuedMessageRow({ kind, label, text }: { kind: "steer" | "follow-up"; label: string; text: string }) {
+  const visible = visibleTeacherMessageText(text);
   return (
     <div
-      title={text}
+      title={visible}
       style={{
         display: "flex",
         alignItems: "center",
@@ -307,7 +311,7 @@ function QueuedMessageRow({ kind, label, text }: { kind: "steer" | "follow-up"; 
       >
         {label}
       </span>
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text}</span>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{visible}</span>
     </div>
   );
 }
@@ -394,6 +398,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [value, setValue] = useState(() => (draftKey ? getDraft(draftKey)?.value ?? "" : ""));
   const [context, setContext] = useState<EduPiComposerContext | null>(() => (draftKey ? getDraft(draftKey)?.context ?? null : null));
   const [offeredContext, setOfferedContext] = useState<EduPiComposerContext | null>(null);
+  const [pendingTeacherText, setPendingTeacherText] = useState(() => (draftKey ? getDraft(draftKey)?.pendingTeacherText ?? "" : ""));
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const [modelFilter, setModelFilter] = useState("");
@@ -451,10 +456,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const draftKeyRef = useRef(draftKey);
   const valueRef = useRef(value);
   const contextRef = useRef(context);
+  const pendingTeacherTextRef = useRef(pendingTeacherText);
   const attachedImagesRef = useRef(attachedImages);
   const pendingImageCountRef = useRef(0);
   valueRef.current = value;
   contextRef.current = context;
+  pendingTeacherTextRef.current = pendingTeacherText;
   attachedImagesRef.current = attachedImages;
 
   const appendDictationTranscript = useCallback((transcript: string) => {
@@ -478,13 +485,31 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   useImperativeHandle(ref, () => ({
     offerContext(next: EduPiComposerContext) {
       const current = (textareaRef.current?.value ?? valueRef.current).trim();
-      const handoff = contextHandoffMode(current, contextRef.current, next);
+      if (pendingTeacherTextRef.current) {
+        setOfferedContext(next);
+        requestAnimationFrame(() => textareaRef.current?.focus());
+        return;
+      }
+      const handoff = contextHandoffMode(current, contextRef.current, next, attachedImagesRef.current.length > 0 || pendingImageCountRef.current > 0);
       if (handoff === "offer") {
         setOfferedContext(next);
       } else {
         if (handoff === "migrate") setValue("");
         setContext(next);
         setOfferedContext(null);
+      }
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    },
+    offerTeacherDraft(text: string) {
+      const next = text.trim();
+      if (!next) return;
+      const current = (textareaRef.current?.value ?? valueRef.current).trim();
+      if (current || contextRef.current || attachedImagesRef.current.length || pendingImageCountRef.current || pendingTeacherTextRef.current) {
+        setPendingTeacherText((previous) => [previous, next].filter(Boolean).join("\n\n"));
+      } else {
+        setValue(next);
+        setContext(null);
+        setPendingTeacherText("");
       }
       requestAnimationFrame(() => textareaRef.current?.focus());
     },
@@ -514,10 +539,25 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
       });
     },
+    restoreQueuedMessages(messages: string[]) {
+      const restored = prepareQueueRecall(messages, textareaRef.current?.value ?? valueRef.current, contextRef.current, attachedImagesRef.current.length > 0);
+      setValue(restored.text);
+      setContext(restored.context);
+      setOfferedContext(null);
+      setAtQuery(null);
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        ta.focus();
+        ta.setSelectionRange(restored.text.length, restored.text.length);
+        ta.style.height = "auto";
+        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+      });
+    },
     replaceMessage(message: UserMessage) {
       const ta = textareaRef.current;
       const current = ta ? ta.value : value;
-      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current)) return;
+      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current, Boolean(contextRef.current || offeredContext || pendingTeacherTextRef.current))) return;
 
       const restored = getUserMessageText(message);
       const contextual = parseTeacherMessage(restored);
@@ -701,6 +741,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     setValue("");
     setContext(null);
     setOfferedContext(null);
+    setPendingTeacherText("");
     setAtQuery(null);
     setHistoryMenuOpen(false);
     if (draftKey) clearDraft(draftKey);
@@ -717,8 +758,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       value,
       images: attachedImages.map(imageToDraftImage),
       ...(context ? { context } : {}),
+      ...(pendingTeacherText ? { pendingTeacherText } : {}),
     });
-  }, [attachedImages, context, draftKey, value]);
+  }, [attachedImages, context, draftKey, pendingTeacherText, value]);
 
   useEffect(() => {
     const previousDraftKey = draftKeyRef.current;
@@ -729,15 +771,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         value: valueRef.current,
         images: attachedImagesRef.current.map(imageToDraftImage),
         ...(contextRef.current ? { context: contextRef.current } : {}),
+        ...(pendingTeacherTextRef.current ? { pendingTeacherText: pendingTeacherTextRef.current } : {}),
       });
     }
 
     let draft = draftKey ? getDraft(draftKey) : null;
-    if (!previousDraftKey && draftKey && !draft && (valueRef.current || attachedImagesRef.current.length || contextRef.current)) {
+    if (!previousDraftKey && draftKey && !draft && (valueRef.current || attachedImagesRef.current.length || contextRef.current || pendingTeacherTextRef.current)) {
       draft = {
         value: valueRef.current,
         images: attachedImagesRef.current.map(imageToDraftImage),
         ...(contextRef.current ? { context: contextRef.current } : {}),
+        ...(pendingTeacherTextRef.current ? { pendingTeacherText: pendingTeacherTextRef.current } : {}),
       };
       setDraft(draftKey, draft);
     }
@@ -745,6 +789,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     setValue(draft?.value ?? "");
     setContext(draft?.context ?? null);
     setOfferedContext(null);
+    setPendingTeacherText(draft?.pendingTeacherText ?? "");
     setAtQuery(null);
     setHistoryMenuOpen(false);
     setAttachedImages((prev) => {
@@ -770,6 +815,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
+    if (pendingTeacherText) return;
     if (isStreaming) return;
     onAudioUnlock?.();
     if (!attachedImages.length && msg.startsWith("/") && onBuiltinCommand) {
@@ -781,7 +827,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     }
     onSend(context && !msg.startsWith("/") ? composeTeacherMessage(context, msg) : msg, attachedImages.length ? attachedImages : undefined);
     clearInput();
-  }, [value, context, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
+  }, [value, context, pendingTeacherText, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
 
   const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1))
     ? value.slice(1).toLowerCase()
@@ -814,7 +860,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     : t(slashQuery ? "chat.matches" : "chat.commands", { count: filteredSlashCommands.length });
   const hasInputText = Boolean(value.trim());
   const canQueueStreamingMessage = hasInputText && attachedImages.length === 0;
-  const canSendMessage = Boolean(hasInputText || attachedImages.length) && (!context || hasInputText);
+  const canSendMessage = Boolean(hasInputText || attachedImages.length) && (!context || hasInputText) && !pendingTeacherText;
 
   // ── @ file autocomplete ──────────────────────────────────────────────────
   // Recomputed from the text before the caret on every change/caret move.
@@ -1002,6 +1048,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
+    if (pendingTeacherText) return;
     if (attachedImages.length) return;
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
@@ -1017,7 +1064,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       onFollowUp(message, attachedImages.length ? attachedImages : undefined);
     }
     clearInput();
-  }, [value, context, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
+  }, [value, context, pendingTeacherText, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
 
   const getNextSlashIndex = useCallback((direction: "up" | "down" | "left" | "right") => {
     const lastIndex = displayedSlashCommands.length - 1;
@@ -1917,7 +1964,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             );
           })()}
           <div className="chat-composer">
-          {offeredContext ? <div className="chat-composer-context-offer" role="status">
+          {pendingTeacherText ? <div className="chat-composer-teacher-offer" role="status">
+            <span>当前草稿未改</span>
+            <strong title={pendingTeacherText}>新要求：{pendingTeacherText}</strong>
+            <div>
+              <button type="button" title="用新要求替换当前草稿和附件" onClick={() => { setValue(pendingTeacherText); setContext(null); clearImages(); setPendingTeacherText(""); setOfferedContext(null); textareaRef.current?.focus(); }}>改用新要求</button>
+              <button type="button" onClick={() => { const current = textareaRef.current?.value ?? valueRef.current; setValue([current.trim(), pendingTeacherText].filter(Boolean).join("\n\n")); setPendingTeacherText(""); textareaRef.current?.focus(); }}>追加到原草稿</button>
+              <button type="button" onClick={() => setPendingTeacherText("")}>不带入</button>
+            </div>
+          </div> : null}
+          {offeredContext && !pendingTeacherText ? <div className="chat-composer-context-offer" role="status">
             <span>当前草稿未改</span>
             <button type="button" onClick={() => { setContext(offeredContext); setOfferedContext(null); textareaRef.current?.focus(); }}>带入{offeredContext.title}</button>
             <button type="button" onClick={() => setOfferedContext(null)}>不带入</button>

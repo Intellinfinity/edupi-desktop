@@ -253,6 +253,52 @@ try {
   assert.equal(crossAfter.occurrences[0].eventId, crossEvent.event_id);
   assert.equal(crossAfter.occurrences[0].content.confidence, "teacher_confirmed");
 
+  const repeatedFirstQuote = "通知：2026年11月2日 09:00-10:00（北京时间）在东楼 201 举行同主题研修会。";
+  const repeatedSecondQuote = "通知：2026年11月3日 14:00-15:00（北京时间）在西楼 101 举行同主题研修会。";
+  const repeatedText = `${repeatedFirstQuote}\n${repeatedSecondQuote}`;
+  const repeatedEvents = [
+    modelEvent({ date: "2026-11-02", name: "同主题研修会", start: "09:00", end: "10:00", location: "东楼 201", quote: repeatedFirstQuote, notes: null }),
+    modelEvent({ date: "2026-11-03", name: "同主题研修会", start: "14:00", end: "15:00", location: "西楼 101", quote: repeatedSecondQuote, notes: null }),
+  ];
+  const repeatedDocument = await stageAndRecognize("两场教研会.docx", repeatedText, repeatedEvents);
+  const repeatedImport = await importDocument(repeatedDocument.descriptor, repeatedDocument.result);
+  assert.equal(repeatedImport.committed, true);
+  read = await sourceProjection.readCoreCalendarSources();
+  let repeatedSource = read.sources.find((source) => source.sourceId === repeatedImport.sourceId);
+  assert.equal(repeatedSource.eventCount, 2);
+  assert.equal(new Set(repeatedSource.occurrences.map((occurrence) => occurrence.sourceOccurrenceRef)).size, 2);
+  const repeatedIds = repeatedSource.occurrences.map((occurrence) => occurrence.eventId).sort();
+  const repeatedReplay = await stageAndRecognize("改名后的两场教研会.docx", repeatedText, repeatedEvents, repeatedDocument.bytes);
+  const repeatedReplayResult = await importDocument(repeatedReplay.descriptor, repeatedReplay.result);
+  assert.equal(repeatedReplayResult.committed, true);
+  assert.equal(repeatedReplayResult.sourceId, repeatedSource.sourceId);
+  read = await sourceProjection.readCoreCalendarSources();
+  repeatedSource = read.sources.find((source) => source.sourceId === repeatedImport.sourceId);
+  assert.deepEqual(repeatedSource.occurrences.map((occurrence) => occurrence.eventId).sort(), repeatedIds);
+
+  const repeatedMovedQuote = "通知：2026年11月4日 15:00-16:00（北京时间）在西楼 102 举行同主题研修会。";
+  const repeatedRevision = await stageAndRecognize("两场教研会-修订.docx", `${repeatedFirstQuote}\n${repeatedMovedQuote}`, [
+    repeatedEvents[0],
+    modelEvent({ date: "2026-11-04", name: "同主题研修会", start: "15:00", end: "16:00", location: "西楼 102", quote: repeatedMovedQuote, notes: null }),
+  ]);
+  const repeatedHeld = await importDocument(repeatedRevision.descriptor, repeatedRevision.result, repeatedSource);
+  assert.equal(repeatedHeld.committed, false);
+  assert.equal(repeatedHeld.scheduleNeedsReview, true);
+  read = await sourceProjection.readCoreCalendarSources();
+  repeatedSource = read.sources.find((source) => source.sourceId === repeatedImport.sourceId);
+  assert.equal(repeatedSource.eventCount, 2, "one moved same-name occurrence is held without creating a third event");
+  assert.deepEqual(repeatedSource.occurrences.map((occurrence) => occurrence.eventId).sort(), repeatedIds);
+
+  const duplicateFactQuote = "通知：2026年11月5日 10:00-11:00（北京时间）在行政楼 202 举行重复校务会。";
+  const duplicateFact = modelEvent({ date: "2026-11-05", name: "重复校务会", start: "10:00", end: "11:00", location: "行政楼 202", quote: duplicateFactQuote, notes: null });
+  const duplicateFactDocument = await stageAndRecognize("重复校务会.docx", duplicateFactQuote,
+    [duplicateFact, structuredClone(duplicateFact)]);
+  const duplicateFactImport = await importDocument(duplicateFactDocument.descriptor, duplicateFactDocument.result);
+  assert.equal(duplicateFactImport.committed, true);
+  read = await sourceProjection.readCoreCalendarSources();
+  assert.equal(read.sources.find((source) => source.sourceId === duplicateFactImport.sourceId).eventCount, 1,
+    "an exact duplicate row inside one document is imported once");
+
   async function postDocument(descriptor, source = null) {
     const response = await intakeRoute.POST(new Request("http://localhost/api/edupi/intake", {
       method: "POST",
@@ -367,6 +413,7 @@ try {
   console.log(JSON.stringify({ status: "passed", source_id: first.sourceId, exact_replay: true, additive_omission: true,
     stale_cas_rejected: true, moved_candidate_held: true, cross_format_dedupe: true, legacy_adoption_held: true,
     filename_issuer_adoption: true,
+    repeated_name_occurrences: true, exact_in_document_dedupe: true,
     route_post: true, route_source_update: true, evidence_alias_replay: true, material_delete_restore_propagation: true,
     deletion_reupload_blocked: true, explicit_restore: true,
     current_occurrences: documentSource.eventCount, external_send: false }));

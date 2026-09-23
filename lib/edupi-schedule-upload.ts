@@ -60,6 +60,31 @@ export function stableDocumentOccurrenceRef(value: { name?: unknown; type?: unkn
   return `document-occurrence-${stableScheduleToken({ name, type })}`;
 }
 
+export function stableDocumentOccurrenceVariantRef(value: {
+  date?: unknown;
+  end_date?: unknown;
+  name?: unknown;
+  type?: unknown;
+  notes?: unknown;
+  time_interval?: unknown;
+  location?: unknown;
+}): string {
+  const anchor = stableDocumentOccurrenceRef(value);
+  const timeInterval = value.time_interval && typeof value.time_interval === "object" && !Array.isArray(value.time_interval)
+    ? canonicalScheduleValue(value.time_interval)
+    : null;
+  const content = {
+    date: normalizedScheduleText(value.date) || null,
+    end_date: normalizedScheduleText(value.end_date) || null,
+    name: normalizedScheduleText(value.name),
+    type: normalizedScheduleText(value.type),
+    notes: normalizedScheduleText(value.notes) || null,
+    time_interval: timeInterval,
+    location: normalizedScheduleText(value.location) || null,
+  };
+  return `${anchor}-${stableScheduleToken(content)}`;
+}
+
 export function stableRecognizedCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown; notes?: unknown; timeInterval?: unknown; location?: unknown }): string {
   const timeInterval = value.timeInterval && typeof value.timeInterval === "object" && !Array.isArray(value.timeInterval)
     ? canonicalScheduleValue(value.timeInterval)

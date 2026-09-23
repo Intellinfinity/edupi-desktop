@@ -1,10 +1,11 @@
 # 自动下载安装
 
-## 2026-09-23 macOS 安装回滚与 v0.3.35 修复（当前）
+## 2026-09-23 v0.3.35 签名启动恢复（发布与本机安装通过）
 
 - v0.3.29 应用内更新在清单检查阶段返回 `UPD-227408f2`，解码为 `plugin updater not found`；旧二进制未内嵌 updater 公钥。手动 bootstrap 的 v0.3.34 通过 Gatekeeper 后，在内置签名 Node 的 V8 初始化处 SIGTRAP；v0.3.30/v0.3.33 的同类 helper 也重现。根因是发布脚本以 Hardened Runtime 二次签名 helper 时丢失 `allow-jit` entitlement。
-- 本机恢复 v0.3.29 并回读 Core/投影/Kernel ready，51/240/43/9 数据和三份配置摘要不变。v0.3.30/v0.3.33/v0.3.34 已调回 draft；公开 Latest 与三个 updater endpoint 均回到 v0.3.29，feed commit `18d87dba`，清单 SHA-256 `2b0e934a…`。完整证据见 [v0.3.34 安装回滚](../acceptance/2026-09-23-v0.3.34-core-occurrence-release.md)。
-- v0.3.35 候选为 Node helper 仅加入 `allow-jit`，发布脚本签名后执行 V8 命令，Tauri 打包后从最终 `.app` 启动隔离 Core。隔离 Developer ID 签名副本执行 `node -e` 通过；以同一签名 helper 和公开包的 server/Core 在隔离根运行 `test:staged-desktop-runtime`，回读 Core/投影 ready、occurrence 1.2、外部发送关闭。本机完整脚本的时间戳服务不可用，正式签名/公证和安装仍以新 Release 为准。v0.3.29 到修复版需一次手动 bootstrap，不能继续宣称旧客户端可应用内升级。
+- v0.3.30/v0.3.33/v0.3.34 已调回 draft；中途公开 Latest/三条 feed 曾回到 v0.3.29，feed commit `18d87dba`，清单 SHA-256 `2b0e934a…`。该回滚和 v0.3.34 本机失败见 [安装回滚证据](../acceptance/2026-09-23-v0.3.34-core-occurrence-release.md)。
+- v0.3.35 只给 Node helper 加 `allow-jit`，签名后执行 V8 命令，Tauri 最终 `.app` 再启动隔离 Core。正式 run `35815288358` 三平台、DMG 公证与 manifest 全绿；Release `394282553` 为公开 Latest，11 项资产、7 个签名 updater 键。Apple submission `f9b1d9ff-93cc-4374-a36f-77061c6e7653` Accepted，公开 DMG SHA-256 `b766f9be…`；canonical Raw、旧 Raw 和旧 Latest 均返回同一份 v0.3.35 manifest `d306677b…`。
+- Linux `35817527851` 和 Windows `35817533119` 公共安装通过。本机从 v0.3.29 保留备份手动安装 v0.3.35 后，应用窗口与 Core `860594a…` 就绪；51/240/43/9 数据和模型/认证/设置摘要保持，手机仍关闭、JEV 设置保留、唯一 `/Applications/EduPi.app`。完整证据见 [v0.3.35 签名启动恢复与安装验收](../acceptance/2026-09-23-v0.3.35-signed-macos-recovery.md)。v0.3.29 没有 updater 插件，故本次手动 bootstrap 不等于 Tauri 应用内下载/验签；v0.3.35 到后续版本的自动升级仍待实测。
 
 ## 2026-09-23 v0.3.34 Core occurrence 配对发布（历史，macOS 启动失败后撤回）
 
@@ -12,7 +13,7 @@
 - 全平台 run `35805159993` 完成 Linux/Windows 构建；macOS 的已知 hosted runner 临时根 writer admission 波动没有生成资产。同 SHA 的一次 macOS 补跑 `35808315316` 完成构建、公证和 manifest。Release `394223451` 为公开 v0.3.34，11 项资产、7 个签名键，feed commit `9e70f0e`。
 - Apple submission `192c6e32-de59-47d3-9f12-4e5b54702eb4` Accepted，runner 的 DMG staple/validate、Gatekeeper 与 Release ID 替换事务通过；公开 DMG SHA-256 为 `a40b23b9…`。三条迁移期 endpoint 返回同一份 v0.3.34 manifest `539bffd4…`。
 - 公开 updater tar 在仓库外启动后 Core/投影/Kernel ready，Core 精确为 `860594a…`，proactivity 与 external send 关闭。Linux `35811719843` 与 Windows `35811727023` 公共安装启动均通过。完整证据见 [v0.3.34 Core occurrence 与签名发布验收](../acceptance/2026-09-23-v0.3.34-core-occurrence-release.md)。
-- 本机唯一安装副本仍为 v0.3.29；Mac 锁屏使应用内下载、验签、替换、重启和教师数据/模型配置复核尚未执行。通知点击、睡眠恢复与 Windows/Linux 旧版应用内升级也未由公共干净安装替代。
+- 当时本机唯一安装副本为 v0.3.29，Mac 锁屏使该版本的安装验收尚未执行；后来的 v0.3.34 失败和 v0.3.35 成功以上方当前状态为准。通知点击、睡眠恢复与 Windows/Linux 旧版应用内升级仍未由公共干净安装替代。
 
 ## 2026-09-23 v0.3.31-v0.3.32 启动回滚与 v0.3.33 修复
 

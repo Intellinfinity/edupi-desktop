@@ -31,6 +31,6 @@
 
 ## 状态边界
 
-- 已发布并完成 Linux/Windows 公共安装：v0.3.34 固定 merge `c492aea`，11 项资产、7 个签名 updater 键、DMG 公证/装订和 Linux/Windows 安装启动通过；完整证据见 [v0.3.34 发布验收](2026-09-23-v0.3.34-core-occurrence-release.md)。
-- 未验证：PDF/image/ICS 的可信 occurrence 提取；macOS 本机应用内升级、通知点击、睡眠恢复与数据保持；Windows/Linux 旧版应用内升级；六领域真实内容人工核对；正式盲测；真实教师价值。
+- v0.3.34 曾完成 Linux/Windows 公共安装，但其 macOS 签名 helper 缺 JIT 权限并已撤回；v0.3.35 固定 merge `e88f084`，三平台发布和公共安装、本机 macOS 启动与数据保持均通过。完整证据见 [v0.3.35 恢复验收](2026-09-23-v0.3.35-signed-macos-recovery.md)。
+- 未验证：PDF/image/ICS 的可信 occurrence 提取；v0.3.35 后续应用内升级、通知点击、睡眠恢复；Windows/Linux 旧版应用内升级；六领域真实内容人工核对；正式盲测；真实教师价值。
 - 判定：`L4 功能收敛中`，不能写 `L4 established`。

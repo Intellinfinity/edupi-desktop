@@ -9,11 +9,12 @@
 ## 来源与去重合同
 
 - 新 PDF/DOCX 来源使用 `document-source-*`，来源与 occurrence 只从 Core v1.2 当前投影重建；Desktop 不建立第二份来源 baseline。
-- 模型不能提供 `source_occurrence_ref`。Desktop 只在同一来源内 `name + type` 唯一时生成确定性 ref；同名同类多项、错源、多来源或无法唯一映射均 fail closed。
+- 模型不能提供 `source_occurrence_ref`。单项继续使用兼容的 `name + type` ref；同一文档内多条同名同类事项使用完整语义内容生成稳定 variant ref，完全重复行折叠为一项。修订时先按 variant 精确配对，只在剩余恰好一新一旧时续接原 event ID/ref 并交给 Core held/conflict；多项同时变化、错源或多来源继续 fail closed。
 - 同字节改名保持来源；不同字节修订必须显式选择既有来源。来源 fingerprint 是 Core 当前 occurrence 内容的 CAS，stale fingerprint 在写入前拒绝。
 - PDF/DOCX 与 ICS 的相同事项不会自动跨信任域合并：页面同时列出“日历”和“材料”来源，教师明确选择后才复用既有 occurrence。文档只可为完全一致的 ICS 事项补证，不得用 `inferred` 覆盖已确认日历；ICS 明确替换材料来源时继续使用全量撤回语义。
 - 教师已确认的文档事项不能被后续模型降级。精确重放保留较高 confidence；有实质内容差异时先拒绝或进入 Core 冲突审核。
 - H2 首次显式绑定到 H 后，后续同字节精确重放可从 Core 当前 occurrence 的 `schedule-evidence-H2` 恢复 H，不再要求重复选择。自动 alias 同时要求 Core 中仍有当前、已接受且同 `source_hash` 的材料目标；仅有残留 ICS/混合 evidence、已删除材料、多个候选来源、内容漂移或新增课表项时均 fail closed。
+- 旧 singleton ref 保持不变；同名组新增第二项时只为新项生成 variant。pre-typed inferred legacy 行可在同字节证据下用 1:1 配对保留 canonical event ID 并进入 held；教师已确认的内容差异仍拒绝。foreign legacy 即使 variant 已变，只要 `name + type` anchor 相同也必须显式处理，不能新建重复来源。
 
 ## 旧状态、遗漏与删除
 
@@ -28,7 +29,8 @@
 - 真实 DOCX E2 从文字提取、受控模型 JSON、Core v1.2、真实 `/api/edupi/intake` POST 到重启读取，覆盖新建与 source update、H2→H 无感精确重放、遗漏保留、stale CAS、改期 held、PDF/DOCX↔ICS 去重、pre-c8 filename issuer、legacy held adoption、同哈希双副本逐份删除、全部隐藏、明确恢复及恢复后 alias；最终 `external_send=false`。
 - 隔离浏览器实际打开材料页，来源选择器同时显示“日历”和“材料”，选择修订来源后显示“未识别到的旧安排不会自动撤回”；控制台 error/warn 为 0。
 - `desktop:prepare`、staged desktop、staged uploaded-calendar、staged occurrence 通过；packaged Core closure、依赖闭包与独立 model host 8/8 通过。
-- 最终全量 1545 tests，1519 passed / 26 skipped / 0 failed；TypeScript、lint、npm audit 和独立只读终审通过。Core `npm test`、schedule/feedback 定向套件及 CI `core-quality` 通过；终审无剩余 P0/P1/P2。
+- alias 风险批全量为 1545 tests，1519 passed / 26 skipped / 0 failed；同名 occurrence 批最终为 1547 tests，1521 passed / 26 skipped / 0 failed。TypeScript、lint、npm audit 和独立只读终审通过；终审无剩余 P0/P1/P2。
+- 真实 DOCX E2 额外覆盖同一文件两场同名会议、改名精确重放、一项改期复用原身份并 held、无第三条重复，以及文档内完全重复行只导入一次。
 - `desktop:prepare` 固定并打包 Core `c1edefd…`；staged Desktop、uploaded-calendar、occurrence、feedback 通过，packaged Core closure、依赖闭包与独立 model host 8/8 通过。staged 状态明确为 `proactivity=disabled / external_send=false`。
 - symlink worktree 的 Next trace 曾在仓库根生成 `edupi-desktop/node_modules`。packaging 现在用 exclusive directory、dev/ino 与随机 0600 marker 绑定 cleanup；预存或被 swap 的目录拒绝删除。真实 `desktop:prepare` 后工作树无 trace leak。
 
@@ -36,11 +38,12 @@
 
 - 删除标签 guard 在 baseline 缺失时采取保守阻断；同名但确为新事项的文件可能需要先处理删除记录。
 - 自动 alias 只覆盖有逐项 event evidence 的精确重放；材料同时含课表项时仍要求显式选择，避免用 event 证明越权绑定 slot。
+- 同名组中两项或更多事项同时发生无法逐项证明的变化时整批拒绝；当前没有教师逐项配对界面。
 - 进程被不可捕获的 SIGKILL 终止时可能留下带 marker 的生成目录；下一次 build 会安全拒绝，不会自动删除或覆盖。
 
 ## Unverified
 
-- occurrence ref 目前只有 `name + type`。同一文件中两次不同日期的同名同类事项会整份 409；尚无教师逐项消歧界面，不能宣称覆盖所有日程文件。
+- 多项同名组的单项变化已可安全续接；两项以上同时变化仍需教师逐项配对界面，不能自动猜测。
 - Core 当前材料目标因容量或历史裁剪不在投影中时，Desktop 会要求再次选择来源；这是保守降级，不会自动猜测 alias。
 - 图片、扫描 PDF 和 legacy `.doc` 尚无可信 OCR 坐标/文字证据，仍不能输出 typed time/location。
 - 真实 provider 质量、Windows/macOS 正式安装版、公开升级、正式盲测和真实教师价值尚未验证。

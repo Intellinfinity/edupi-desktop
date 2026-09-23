@@ -8,6 +8,16 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     "/*": ["./.git/**/*", "./.env*", "./.edupi/**/*", "./src-tauri/target/**/*", "./src-tauri/resources/**/*", "./.next/**/*", "./.next-desktop/standalone/**/*"],
   },
+  outputFileTracingIncludes: {
+    "/*": [
+      "./lib/edupi-ics-worker.cjs",
+      "./node_modules/node-ical/**/*",
+      "./node_modules/rrule-temporal/**/*",
+      "./node_modules/temporal-polyfill/**/*",
+      "./node_modules/temporal-spec/**/*",
+      "./node_modules/temporal-utils/**/*",
+    ],
+  },
   ...(isDesktopBuild
     ? { output: "standalone" as const, distDir: ".next-desktop" }
     : {}),
@@ -17,7 +27,9 @@ const nextConfig: NextConfig = {
     "@earendil-works/pi-ai",
     "@earendil-works/pi-tui",
     "mammoth",
+    "node-ical",
     "proper-lockfile",
+    "temporal-polyfill",
   ],
   experimental: {
     optimizePackageImports: ["@lobehub/icons", "react-syntax-highlighter"],

@@ -313,6 +313,13 @@ test("routes education uploads through Desktop staging without Core paths or aut
   assert.match(panel, /recognize: true/);
   assert.match(panel, /loadStagedMaterials|listDesktopStagedMaterials/);
   assert.match(panel, /type="file"/);
+  assert.match(panel, /"ics"/);
+  assert.match(panel, /\.ics/);
+  assert.match(panel, /calendarSourceFingerprint/);
+  assert.match(materials, /作为新日历/);
+  assert.match(materials, /更新 \{source\.label\}/);
+  assert.match(materials, /更新可能撤回该来源的旧安排，请确认来源/);
+  assert.match(materials, /calendarIntakeReady = materialIntakeReady && data\.capabilities\.calendar\.enabled && data\.capabilities\.entityDelete\.enabled/);
   assert.match(workspaceViews, /stagedMaterials/);
   assert.match(materials, /接入 EduPi/);
   for (const label of ["材料名称", "材料类型", "学科", "班级", "确认接入"]) assert.match(materials, new RegExp(label));

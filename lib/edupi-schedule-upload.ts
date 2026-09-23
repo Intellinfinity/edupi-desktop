@@ -38,10 +38,12 @@ export function stableOccurrenceCalendarEventId(issuer: unknown, sourceOccurrenc
   return `calendar-occurrence-${stableScheduleToken({ issuer: normalizedIssuer, source_occurrence_ref: normalizedRef })}`;
 }
 
-export function stableFileScheduleIssuer(originalName: unknown): string {
+export function stableFileScheduleIssuer(originalName: unknown, sourceHash?: unknown): string {
   const normalizedName = normalizedScheduleText(originalName);
   if (!normalizedName) throw new Error("Schedule file identity is unavailable");
-  return `desktop-file-schedule-${stableScheduleToken({ original_name: normalizedName }).slice(0, 24)}`;
+  const normalizedHash = typeof sourceHash === "string" && /^sha256:[a-f0-9]{64}$/u.test(sourceHash) ? sourceHash : null;
+  const identity = normalizedHash ? { original_name: normalizedName, source_hash: normalizedHash } : { original_name: normalizedName };
+  return `desktop-file-schedule-${stableScheduleToken(identity).slice(0, 24)}`;
 }
 
 export function stableRecognizedCalendarEventId(value: { date?: unknown; endDate?: unknown; name?: unknown; type?: unknown; notes?: unknown }): string {

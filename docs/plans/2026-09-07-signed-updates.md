@@ -1,5 +1,11 @@
 # 自动下载安装
 
+## 2026-09-23 ICS 来源收敛开发配对（未发布）
+
+- 当前开发分支已固定 Core `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`，[Desktop #222](https://github.com/Intellinfinity/edupi-desktop/pull/222) 以提交 `e097865`、`1e4c2c8`、`1402691`、`ee71640` 完成严格 ICS 暂存、确定性解析、来源 CAS、单次/整组取消、循环系列替换、精确重放和 tombstone 恢复防护。
+- `desktop:prepare`、staged uploaded-calendar/occurrence/conflict/feedback/desktop、bundle closure 3/3 和 model host 2/2 均通过；packaged 页面在隔离数据根实际完成首次导入和来源更新，console error/warn 为 0。验收详见 [上传 ICS 日历来源收敛验收](../acceptance/2026-09-23-uploaded-calendar-source-sync.md)。
+- 本节不改变公开更新状态：Latest 仍是 v0.3.36/Core `860594a…`。包含 Core `b2c2bb8` 的正式三平台构建、签名、公证、公开安装和应用内升级尚未执行，不能以 staged 资源替代安装版验收。
+
 ## 2026-09-23 v0.3.36 应用内更新风险验收（当前）
 
 - Desktop #220 merge `71d9670` 要求正式构建内嵌 updater 公钥，并在 macOS 最终可执行文件公证前比对精确公钥；缺公钥构建负测按预期拒绝。正式 run `35820263217` 三平台与 manifest 全绿，Release `394308386` 为公开 v0.3.36、11 项资产、7 个签名 updater 键。Apple DMG submission `fb9c113d-aad4-461a-8f14-61170f43b1b3` Accepted，三条 feed 均回读 v0.3.36、清单 SHA-256 `e6b474a0…`。

@@ -1,5 +1,14 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-23 上传 ICS 来源与循环日程收敛（开发验收通过，尚未发布）
+
+- Core [#174](https://github.com/Intellinfinity/edupi/pull/174)、[#175](https://github.com/Intellinfinity/edupi/pull/175)、[#176](https://github.com/Intellinfinity/edupi/pull/176) 已依次合并，最终 pin 为 `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`；Desktop 交付为 [#222](https://github.com/Intellinfinity/edupi-desktop/pull/222)，实现提交为 `e097865`、`1e4c2c8`、`1402691`、`ee71640`。完整证据见 [上传 ICS 日历来源收敛验收](../acceptance/2026-09-23-uploaded-calendar-source-sync.md)。
+- `.ics` 现在走严格暂存和确定性解析，不调用模型；Core 持有原始 evidence、来源、occurrence、CAS 和 tombstone。支持全量修订、REQUEST/PUBLISH 增量、EXDATE、单次/整组 CANCEL、系列改时、recurring↔single、精确重放、重启回读和同来源其他 UID 保持。
+- 风险门已覆盖错源/混源、旧 CAS、命名空间碰撞、history 截断、丢响应重试、active tombstone 与并发恢复。取消 no-op 绑定 source+evidence hash、batch request 与最终 source→ledger 复核；无关 ambient snapshot 漂移不阻塞。
+- Desktop 最终全量为 1509 tests，1483 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint、source/staged uploaded-calendar E2、staged occurrence/conflict/feedback/desktop、bundle closure 3/3、model host 2/2 和 packaged 页面操作通过。页面实际完成首次导入及“导入 1 项、撤回 1 项”的来源更新，console error/warn 为 0。
+- 发布边界：以上是当前开发分支和 packaged staged 证据，公开 Latest 仍是 v0.3.36/Core `860594a…`；未生成、签名、上传或安装包含本批的正式 Release。
+- Unverified：PDF、图片和 Word 仍缺可信 occurrence/来源修订合同；Windows 安装版 ICS、旧版应用内升级、通知点击、真实睡眠补跑、正式盲测和真实教师价值未验证。整体状态仍是“L4 功能收敛中”。
+
 ## 2026-09-23 L4 风险收敛与行程 occurrence 配对（v0.3.36 应用内升级通过）
 
 - 当前发布状态覆盖下方历史结论：v0.3.30/v0.3.33/v0.3.34 的 macOS 签名 helper 启动失败，三版已改回 draft；v0.3.35 修复签名并从 v0.3.29 手动 bootstrap。v0.3.36 增加更新公钥构建门禁，本机从 v0.3.35 实际完成应用内下载、验签、替换和重启；Core `860594a…` 就绪，51/240/43/9 与模型/认证/设置摘要保持，唯一安装副本和 Gatekeeper 通过。公开 Latest/三条 feed 均为 v0.3.36。完整证据见 [v0.3.36 updater 验收](../acceptance/2026-09-23-v0.3.36-in-app-updater.md)。
@@ -9,7 +18,7 @@
 - Desktop 已完成源码与 staged 证据：`npm test` 1451 tests，1425 passed / 26 skipped / 0 failed；TypeScript、lint、`desktop:prepare`、packaged Core closure 3/3、隔离 model host 2/2 通过。source 与 staged occurrence E2 均完成 intake、精确重放、v1.2 投影、改期 hold、same-ref keep-both 拒绝、replace 和重启回读；source/staged schedule conflict 在 ambient 默认关闭时完成 owner bootstrap、读取、决定、重放与重启回读；feedback 与 desktop runtime 同时通过。完整记录见 [Core 860594a 与 Desktop occurrence 配对验收](../acceptance/2026-09-23-desktop-core-occurrence-pin.md)。
 - v0.3.34 发布前 P2 已修：所有 review/task/memory/delete/restore mutation 都在验证回执后重读 occurrence v1.2 当前快照，教师资料审核后时间、时区、地点和 occurrence ref 不消失；旧 owner state 缺持久 key 时普通 Core 降级启动，owner/反馈/冲突读取统一 fail closed，ambient 仍阻止启动，不自动重绑、不修改旧状态。全量 1425 passed / 26 skipped / 0 failed，source occurrence mutation E2、lost credential conflict E2 与真实旧状态升级演练通过。首次 run `35804036187` 在上传前暴露并修正 409/503 错误映射，空 draft 已删除。
 - v0.3.34 曾由 merge `c492aea` 发布：Release `394223451` 有 11 项资产和 7 个签名 updater 键，Apple DMG submission `192c6e32-de59-47d3-9f12-4e5b54702eb4` Accepted；Linux `35811719843` 与 Windows `35811727023` 公共安装启动通过。macOS 实装反证后该 Release 已撤回为 draft；这些构建证据不构成 macOS 运行验收。
-- Unverified：PDF、图片和 ICS 尚未形成可信 occurrence ref、时区和地点提取闭环；macOS 后台通知点击与真实睡眠唤醒尚未执行；Windows/Linux 旧版应用内升级也未由干净安装替代；旧随机 owner key 没有自动迁移，已有 owner 状态缺凭据时继续保留数据并 fail closed。
+- Unverified：PDF、图片和 Word 尚未形成可信 occurrence ref、时区、地点和来源修订闭环；ICS 的开发态收敛以上方新记录为准，但尚未进入正式安装版。macOS 后台通知点击与真实睡眠唤醒尚未执行；Windows/Linux 旧版应用内升级也未由干净安装替代；旧随机 owner key 没有自动迁移，已有 owner 状态缺凭据时继续保留数据并 fail closed。
 - L4 仍为“L4 功能收敛中”：六领域机制和统一反馈通道已有工程闭环，但实际教学内容仍需逐域人工核对；正式盲测、真实教师 5 日基线、至少 10 日试用和不少于 20 个机会仍未开始。真实教师价值由用户组织，本地合成反馈不计入价值门。
 - 版本边界：v0.3.33 只包含 Core G6 且 macOS helper 同样启动失败；occurrence/Core `860594a` 配对和两项 P2 修复已由 v0.3.35 修复发布并在本机安装验收。v0.3.29 缺 updater 插件，本次手动 bootstrap 不冒充应用内验签升级。
 

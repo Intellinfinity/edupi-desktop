@@ -13,6 +13,8 @@ import { MaterialRecognitionAdmissionError, withMaterialRecognitionLock } from "
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 import { stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
 import { parseCalendarIntakeCommand } from "@/lib/edupi-calendar-intake-request";
+import { syncCalendarFile } from "@/lib/edupi-calendar-file-sync";
+import { CalendarSourceError } from "@/lib/edupi-calendar-sources";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,8 +76,8 @@ function timetableCommand(body: RawRecord): EducationIntakeCommand {
   return { command_type: "import_timetable", source: sourceFor("timetable", slots as unknown as RawRecord[]), slots };
 }
 
-function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean } {
-  if (!exactKeys(body, ["kind", "stagingId", "title", "materialKind", "subject", "classId", "recognize"])) throw new EducationIntakeError("invalid_envelope", "材料接入字段无效。");
+function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean; calendarSourceId: string | null; calendarSourceFingerprint: string | null } {
+  if (!exactKeys(body, ["kind", "stagingId", "title", "materialKind", "subject", "classId", "recognize", "calendarSourceId", "calendarSourceFingerprint"])) throw new EducationIntakeError("invalid_envelope", "材料接入字段无效。");
   const stagingId = requiredText(body.stagingId, 160);
   const descriptor = listStagedMaterials().find((item) => item.staging_id === stagingId);
   if (!descriptor) throw new EducationIntakeError("staging_missing", "暂存材料不存在或已经处理。");
@@ -83,6 +85,17 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
   if (!MATERIAL_KINDS.has(requestedKind)) throw new EducationIntakeError("invalid_envelope", "材料类型无效。");
   const title = optionalText(body.title, 240) || descriptor.original_name;
   if (body.recognize !== undefined && typeof body.recognize !== "boolean") throw new EducationIntakeError("invalid_envelope", "材料识别选项无效。");
+  const calendarSourceId = optionalText(body.calendarSourceId, 160) ?? null;
+  const calendarSourceFingerprint = optionalText(body.calendarSourceFingerprint, 160) ?? null;
+  if (descriptor.kind === "calendar") {
+    if (body.recognize === false || calendarSourceId !== null && !/^calendar-source-[a-f0-9]{32}$/u.test(calendarSourceId)
+      || calendarSourceFingerprint !== null && !/^sha256:[a-f0-9]{64}$/u.test(calendarSourceFingerprint)
+      || (calendarSourceId === null) !== (calendarSourceFingerprint === null)) {
+      throw new EducationIntakeError("invalid_envelope", "日历来源字段无效。");
+    }
+  } else if (calendarSourceId !== null || calendarSourceFingerprint !== null) {
+    throw new EducationIntakeError("invalid_envelope", "普通材料不能指定日历来源。");
+  }
   return {
     descriptor,
     title,
@@ -90,6 +103,8 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
     subject: optionalText(body.subject, 120) ?? null,
     classId: optionalText(body.classId, 160) ?? null,
     recognize: body.recognize !== false,
+    calendarSourceId,
+    calendarSourceFingerprint,
   };
 }
 
@@ -107,10 +122,24 @@ export async function POST(request: Request) {
     if (!body || typeof body.kind !== "string") throw new EducationIntakeError("invalid_envelope", "教育导入请求无效。");
     if (body.kind === "material") {
       const material = materialInput(body);
+      if (material.descriptor.kind === "calendar") {
+        const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => syncCalendarFile({
+          descriptor: material.descriptor,
+          requestedSourceId: material.calendarSourceId,
+          expectedSourceFingerprint: material.calendarSourceFingerprint,
+          signal: request.signal,
+        }));
+        const receipt = result.receipts[0] ?? null;
+        if (result.committed) settleStagedMaterial(material.descriptor.staging_id, "accepted_receipt");
+        return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition,
+          scheduleNeedsReview: result.scheduleNeedsReview, calendarSourceId: result.sourceId,
+          calendarCommitted: result.committed, removedEventCount: result.removedEventIds.length, staged: listStagedMaterials() });
+      }
       const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => intakeRecognizedMaterial(material));
       const receipt = result.receipts[0];
       if (receipt?.status === "accepted") settleStagedMaterial(material.descriptor.staging_id, "accepted_receipt");
-      return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition, scheduleNeedsReview: result.scheduleNeedsReview, staged: listStagedMaterials() });
+      return NextResponse.json({ receipt: receipt ?? null, receipts: result.receipts, recognition: result.recognition,
+        scheduleNeedsReview: result.scheduleNeedsReview, staged: listStagedMaterials() });
     }
     const command = body.kind === "calendar"
       ? parseCalendarIntakeCommand(body)
@@ -122,7 +151,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Education intake request is too large" }, { status: 413 });
     if (error instanceof EducationIntakeError) return NextResponse.json({ error: error.message, code: error.code }, { status: statusFor(error) });
-    if (error instanceof MaterialRecognitionError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.code === "too_large" ? 413 : error.code === "ambiguous_schedule" ? 409 : 503 });
+    if (error instanceof MaterialRecognitionError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.code === "too_large" ? 413 : error.code === "ambiguous_schedule" ? 409 : error.code === "invalid_output" ? 400 : 503 });
+    if (error instanceof CalendarSourceError) return NextResponse.json({ error: error.message, code: error.code }, {
+      status: error.code === "invalid_calendar_source_projection" ? 503 : 409,
+    });
     if (error instanceof MaterialRecognitionAdmissionError) return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
     return NextResponse.json({ error: "教育导入暂不可用", code: "unavailable" }, { status: 503 });
   }

@@ -5,10 +5,11 @@ import { isEduPiManagedPath } from "./edupi-managed-path";
 
 export const MATERIAL_STAGING_MAX_FILES = 10;
 export const MATERIAL_STAGING_MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MATERIAL_STAGING_MAX_CALENDAR_BYTES = 1024 * 1024;
 export const MATERIAL_STAGING_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 export const MATERIAL_STAGING_MAX_REQUEST_BYTES = MATERIAL_STAGING_MAX_TOTAL_BYTES + 1024 * 1024;
 
-export type MaterialStagingKind = "image" | "pdf" | "word";
+export type MaterialStagingKind = "image" | "pdf" | "word" | "calendar";
 export type MaterialStagingErrorCode =
   | "configuration"
   | "forbidden_root"
@@ -181,6 +182,21 @@ function validateMime(actual: string, allowed: readonly string[]): boolean {
   return !normalized || normalized === "application/octet-stream" || allowed.includes(normalized);
 }
 
+function hasCalendarSignature(bytes: Buffer): boolean {
+  if (bytes.length === 0 || bytes.length > MATERIAL_STAGING_MAX_CALENDAR_BYTES || bytes.includes(0)) return false;
+  try {
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/u, "");
+    const normalized = decoded.replace(/\r\n/gu, "\n");
+    if (normalized.includes("\r")) return false;
+    const lines = normalized.split("\n");
+    while (lines[0] === "") lines.shift();
+    while (lines.at(-1) === "") lines.pop();
+    return lines[0] === "BEGIN:VCALENDAR" && lines.at(-1) === "END:VCALENDAR";
+  } catch {
+    return false;
+  }
+}
+
 function classifyInput(name: string, mimeType: string, bytes: Buffer): { extension: string; kind: MaterialStagingKind } {
   const extension = path.extname(name).toLowerCase();
   if (extension === ".png" && validateMime(mimeType, ["image/png"]) && hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
@@ -203,6 +219,10 @@ function classifyInput(name: string, mimeType: string, bytes: Buffer): { extensi
     && hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04])) {
     return { extension, kind: "word" };
   }
+  if (extension === ".ics" && validateMime(mimeType, ["text/calendar", "application/ics"])
+    && hasCalendarSignature(bytes)) {
+    return { extension, kind: "calendar" };
+  }
   throw new MaterialStagingError("unsupported_type", "Material type or file signature is unsupported");
 }
 
@@ -217,6 +237,9 @@ function validateInputs(inputs: MaterialStagingInput[]): ValidatedInput[] {
     const bytes = Buffer.from(input.bytes.buffer, input.bytes.byteOffset, input.bytes.byteLength);
     if (bytes.length > MATERIAL_STAGING_MAX_FILE_BYTES) {
       throw new MaterialStagingError("too_large", "Each material must be 25MB or smaller");
+    }
+    if (path.extname(name).toLowerCase() === ".ics" && bytes.length > MATERIAL_STAGING_MAX_CALENDAR_BYTES) {
+      throw new MaterialStagingError("too_large", "ICS calendars must be 1MB or smaller");
     }
     totalBytes += bytes.length;
     if (totalBytes > MATERIAL_STAGING_MAX_TOTAL_BYTES) {
@@ -298,7 +321,7 @@ function parseStoredDescriptor(value: unknown, stagingId: string, stagingDir: st
     || Number(descriptor.expected_size_bytes) > MATERIAL_STAGING_MAX_FILE_BYTES
     || typeof descriptor.source_hash !== "string"
     || !/^sha256:[a-f0-9]{64}$/.test(descriptor.source_hash)
-    || (descriptor.kind !== "image" && descriptor.kind !== "pdf" && descriptor.kind !== "word")
+    || (descriptor.kind !== "image" && descriptor.kind !== "pdf" && descriptor.kind !== "word" && descriptor.kind !== "calendar")
     || descriptor.source_scope !== "desktop_staging") {
     throw new MaterialStagingError("unavailable", "Staged material descriptor is invalid");
   }

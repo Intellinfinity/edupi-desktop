@@ -2,7 +2,7 @@
 
 ## 2026-09-23 非 ICS 日程来源身份（开发配对，未发布）
 
-- Desktop 提交 `c8cb6f0` 让 PDF、图片和 Word 的 schedule issuer 以校验后的内容 SHA-256 为准；同字节改名稳定、同名不同字节隔离。该项没有生成安装包，详细边界见 [验收记录](../acceptance/2026-09-23-document-schedule-content-identity.md)。
+- [Desktop #223](https://github.com/Intellinfinity/edupi-desktop/pull/223) 的提交 `c8cb6f0` 让 PDF、图片和 Word 的 schedule issuer 以校验后的内容 SHA-256 为准；同字节改名稳定、同名不同字节隔离。该项没有生成安装包，详细边界见 [验收记录](../acceptance/2026-09-23-document-schedule-content-identity.md)。
 - 公开 Latest 仍为 v0.3.36/Core `860594a…`；下个正式包仍需重跑三平台构建、签名、公证、安装与应用内升级，不能用源码测试替代。
 
 ## 2026-09-23 ICS 来源收敛开发配对（未发布）

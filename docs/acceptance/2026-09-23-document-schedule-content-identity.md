@@ -3,7 +3,7 @@
 ## 状态
 
 - 结论：非 ICS 材料的 schedule issuer 已改为内容哈希优先；同字节文件改名后保持同一来源，同名不同字节不再误共享来源。该项为“部分实现已验收”，整体仍是“L4 功能收敛中”。
-- Desktop 实现提交：`c8cb6f0`，基于已合并的 ICS PR [#222](https://github.com/Intellinfinity/edupi-desktop/pull/222) 与 Core `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`。
+- Desktop 交付为 [#223](https://github.com/Intellinfinity/edupi-desktop/pull/223)，实现提交为 `c8cb6f0`，基于已合并的 ICS PR [#222](https://github.com/Intellinfinity/edupi-desktop/pull/222) 与 Core `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`。
 
 ## 行为与证据
 

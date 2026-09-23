@@ -49,6 +49,7 @@ import { studentRecordKey } from "@/lib/edupi-student-roster-model";
 import { materialItemRoute, objectItemForView, reviewTargetObjectId, reviewTargetRoute, viewKeepsObjectItem, type ReviewTargetRoute } from "@/lib/edupi-domain-navigation";
 import { APP_PREF_KEYS } from "@/lib/app-prefs";
 import { materialRecognitionSummary } from "@/lib/edupi-material-recognition-status";
+import type { DocumentPairingSubmission } from "@/lib/edupi-document-pairing-contract";
 import { preserveUnavailableWorkspaceResources, readEduPiWorkspace } from "@/lib/edupi-education-client";
 import { EduPiPreparationArtifactEditor } from "./EduPiPreparationArtifactEditor";
 import { deleteEducationEntity } from "@/lib/edupi-entity-delete-client";
@@ -359,7 +360,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [educationIntakeBusy, loadWorkspace]);
 
-  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" } | null) => {
+  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" } | null, pairing?: DocumentPairingSubmission | null) => {
     const calendarSource = item.kind === "calendar" ? scheduleSource : null;
     const documentSource = item.kind !== "calendar" ? scheduleSource : null;
     const result = await submitEducationIntake({
@@ -374,6 +375,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       calendarSourceFingerprint: calendarSource?.fingerprint ?? null,
       documentSourceId: documentSource?.sourceId ?? null,
       documentSourceFingerprint: documentSource?.fingerprint ?? null,
+      documentPairingFingerprint: pairing?.recognitionFingerprint ?? null,
+      documentPairings: pairing?.pairings ?? null,
     });
     const eventCount = result.recognition?.eventCount || 0;
     const slotCount = result.recognition?.slotCount || 0;

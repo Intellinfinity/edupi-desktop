@@ -13,6 +13,8 @@ import { readEntityDeletionLedger, type EntityDeletionLedger } from "./edupi-ent
 import { intakeRecognizedMaterial } from "./edupi-material-intake-flow";
 import { MaterialRecognitionError, recognizeStagedMaterial, type MaterialRecognitionResult } from "./edupi-material-recognition";
 import type { MaterialStagingDescriptor } from "./edupi-material-staging";
+import { documentPairingFingerprint, pairDocumentEvents as planDocumentEventPairs } from "./edupi-document-pairing";
+import type { DocumentPairingChoice, DocumentPairingPreview } from "./edupi-document-pairing-contract";
 import { stableDocumentOccurrenceRef, stableDocumentOccurrenceVariantRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId } from "./edupi-schedule-upload";
 
 type IssueResult = { receipt: Record<string, unknown>; data: unknown };
@@ -88,37 +90,13 @@ function uniqueDocumentEvents(events: MaterialRecognitionResult["events"]): Mate
 function pairDocumentEvents(
   events: MaterialRecognitionResult["events"],
   occurrences: DocumentOccurrence[],
+  choices?: readonly DocumentPairingChoice[],
 ): Map<DocumentEvent, DocumentOccurrence | null> {
-  const assigned = new Map<DocumentEvent, DocumentOccurrence | null>();
-  const anchors = new Set(events.map((event) => stableDocumentOccurrenceRef(event)));
-  for (const anchor of anchors) {
-    const incoming = events.filter((event) => stableDocumentOccurrenceRef(event) === anchor);
-    const current = occurrences.filter((occurrence) => stableDocumentOccurrenceRef(occurrence.content) === anchor);
-    const usedCurrent = new Set<DocumentOccurrence>();
-    for (const event of incoming) {
-      const variant = stableDocumentOccurrenceVariantRef(event);
-      const matches = current.filter((occurrence) => !usedCurrent.has(occurrence)
-        && stableDocumentOccurrenceVariantRef(occurrence.content) === variant);
-      if (matches.length > 1) {
-        throw new MaterialRecognitionError("ambiguous_schedule", "所选来源包含重复安排，无法安全更新。");
-      }
-      if (matches.length === 1) {
-        assigned.set(event, matches[0]);
-        usedCurrent.add(matches[0]);
-      }
-    }
-    const remainingIncoming = incoming.filter((event) => !assigned.has(event));
-    const remainingCurrent = current.filter((occurrence) => !usedCurrent.has(occurrence));
-    if (remainingIncoming.length > 0 && remainingCurrent.length > 0) {
-      if (remainingIncoming.length !== 1 || remainingCurrent.length !== 1) {
-        throw new MaterialRecognitionError("ambiguous_schedule", "同名同类安排同时发生多项变化，请逐项核对后再更新。");
-      }
-      assigned.set(remainingIncoming[0], remainingCurrent[0]);
-      remainingIncoming.shift();
-    }
-    for (const event of remainingIncoming) assigned.set(event, null);
+  const plan = planDocumentEventPairs(events, occurrences, choices);
+  if (plan.reviewGroups.length > 0) {
+    throw new MaterialRecognitionError("ambiguous_schedule", "同名同类安排同时发生多项变化，请逐项核对后再更新。");
   }
-  return assigned;
+  return plan.assignments;
 }
 
 function legacyDocumentEventBindings(
@@ -126,6 +104,7 @@ function legacyDocumentEventBindings(
   descriptor: MaterialStagingDescriptor,
   events: MaterialRecognitionResult["events"],
   baseline: CoreCalendarSource | null,
+  choices?: readonly DocumentPairingChoice[],
 ): Map<string, { eventId: string; confidence: "confirmed" | "teacher_confirmed" | "inferred" }> {
   const legacySourceId = stableFileScheduleIssuer(descriptor.original_name, descriptor.source_hash);
   const expectedEvidenceId = `schedule-evidence-${descriptor.source_hash.slice("sha256:".length, "sha256:".length + 32)}`;
@@ -146,7 +125,7 @@ function legacyDocumentEventBindings(
     }
   });
   const owned = legacyRows.filter((item) => item.owned);
-  const currentAssignments = pairDocumentEvents(events, baseline?.occurrences || []);
+  const currentAssignments = pairDocumentEvents(events, baseline?.occurrences || [], choices);
   const unresolvedEvents = events.filter((event) => currentAssignments.get(event) === null);
   const bindings = new Map<string, { eventId: string; confidence: "confirmed" | "teacher_confirmed" | "inferred" }>();
   if (owned.length > 0) {
@@ -227,8 +206,9 @@ function bindDocumentOccurrences(
   events: MaterialRecognitionResult["events"],
   sourceId: string,
   baseline: CoreCalendarSource | null,
+  choices?: readonly DocumentPairingChoice[],
 ): MaterialRecognitionResult["events"] {
-  const assigned = pairDocumentEvents(events, baseline?.occurrences || []);
+  const assigned = pairDocumentEvents(events, baseline?.occurrences || [], choices);
   const bindings = events.map((event) => {
     const anchor = stableDocumentOccurrenceRef(event);
     const match = assigned.get(event) || null;
@@ -261,6 +241,63 @@ function bindDocumentOccurrences(
   }));
 }
 
+function pairingTimeLabel(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const interval = value as Record<string, unknown>;
+  if (typeof interval.start !== "string" || typeof interval.end !== "string") return null;
+  const start = /T(\d{2}:\d{2})([+-]\d{2}:\d{2})/u.exec(interval.start);
+  const end = /T(\d{2}:\d{2})([+-]\d{2}:\d{2})/u.exec(interval.end);
+  if (!start || !end) return null;
+  const zone = typeof interval.time_zone === "string" ? interval.time_zone : "";
+  const offsets = start[2] === end[2] ? `UTC${start[2]}` : `UTC${start[2]} → UTC${end[2]}`;
+  return `${start[1]}–${end[1]} · ${zone ? `${zone} · ` : ""}${offsets}`;
+}
+
+export async function previewDocumentSchedulePairings(input: {
+  descriptor: MaterialStagingDescriptor;
+  requestedSourceId: string;
+  expectedSourceFingerprint: string;
+  signal?: AbortSignal;
+}, dependencies: Pick<DocumentSyncDependencies, "recognize" | "readSources"> = {}): Promise<DocumentPairingPreview> {
+  if (!supportsDocumentScheduleSource(input.descriptor)) {
+    throw new MaterialRecognitionError("invalid_output", "只有 PDF 和 DOCX 可以逐项配对日程。");
+  }
+  const sourceRead = await (dependencies.readSources || (() => readCoreCalendarSources(input.signal)))();
+  const selected = sourceRead.sources.find(source => source.sourceId === input.requestedSourceId);
+  if (!selected || selected.sourceKind !== "document") {
+    throw new CalendarSourceError("calendar_source_not_found", "所选材料日程来源已不可用于逐项配对。");
+  }
+  if (selected.fingerprint !== input.expectedSourceFingerprint) {
+    throw new CalendarSourceError("stale_calendar_source", "日程来源已变化，请重新选择后配对。");
+  }
+  const recognized = await (dependencies.recognize || recognizeStagedMaterial)(input.descriptor);
+  const events = uniqueDocumentEvents(recognized.events);
+  if (events.length === 0) throw new MaterialRecognitionError("ambiguous_schedule", "材料没有可配对的日程事项。");
+  const candidates = documentSourceCandidates(sourceRead.sources, events);
+  if (candidates.length !== 1 || candidates[0].sourceId !== selected.sourceId) {
+    throw new CalendarSourceError("calendar_source_selection_required", "材料事项无法证明属于所选来源。");
+  }
+  const plan = planDocumentEventPairs(events, selected.occurrences);
+  return {
+    stagingId: input.descriptor.staging_id,
+    sourceId: selected.sourceId,
+    sourceFingerprint: selected.fingerprint,
+    recognitionFingerprint: documentPairingFingerprint(events),
+    groups: plan.reviewGroups.map(group => ({
+      anchor: group.anchor,
+      incoming: group.incoming.map(event => ({ variantRef: stableDocumentOccurrenceVariantRef(event),
+        date: event.date, endDate: event.end_date ?? null, name: event.name, type: event.type,
+        time: pairingTimeLabel(event.time_interval), location: event.location ?? null, notes: event.notes ?? null })),
+      current: group.current.map(occurrence => ({ sourceOccurrenceRef: occurrence.sourceOccurrenceRef,
+        date: String(occurrence.content.date || ""), name: String(occurrence.content.name || ""), type: String(occurrence.content.type || ""),
+        endDate: typeof occurrence.content.end_date === "string" ? occurrence.content.end_date : null,
+        time: pairingTimeLabel(occurrence.content.time_interval),
+        location: typeof occurrence.content.location === "string" ? occurrence.content.location : null,
+        notes: typeof occurrence.content.notes === "string" ? occurrence.content.notes : null })),
+    })),
+  };
+}
+
 export async function syncDocumentScheduleFile(input: {
   descriptor: MaterialStagingDescriptor;
   title: string;
@@ -269,6 +306,8 @@ export async function syncDocumentScheduleFile(input: {
   classId: string | null;
   requestedSourceId: string | null;
   expectedSourceFingerprint: string | null;
+  pairingFingerprint?: string | null;
+  pairings?: readonly DocumentPairingChoice[] | null;
   signal?: AbortSignal;
 }, dependencies: DocumentSyncDependencies = {}): Promise<{
   sourceId: string | null;
@@ -290,6 +329,15 @@ export async function syncDocumentScheduleFile(input: {
     throw new MaterialRecognitionError("invalid_output", "普通材料不能撤回既有日程。");
   }
   const recognition = { ...recognized, events: uniqueDocumentEvents(recognized.events) };
+  const pairingChoices = input.pairings ?? undefined;
+  if (pairingChoices !== undefined) {
+    if (!input.requestedSourceId || !input.expectedSourceFingerprint || !input.pairingFingerprint
+      || input.pairingFingerprint !== documentPairingFingerprint(recognition.events)) {
+      throw new CalendarSourceError("stale_calendar_source", "材料识别结果或日程来源已变化，请重新逐项配对。");
+    }
+  } else if (input.pairingFingerprint) {
+    throw new MaterialRecognitionError("invalid_output", "逐项配对内容不完整。");
+  }
   if (recognition.events.length === 0) {
     if (input.requestedSourceId || input.expectedSourceFingerprint) {
       throw new MaterialRecognitionError("ambiguous_schedule", "材料没有可用于确认来源的日程事项。");
@@ -316,6 +364,9 @@ export async function syncDocumentScheduleFile(input: {
   if (input.requestedSourceId && !requested) {
     throw new CalendarSourceError("calendar_source_not_found", "所选材料日程来源已经不存在，请刷新后重试。");
   }
+  if (pairingChoices !== undefined && requested?.sourceKind !== "document") {
+    throw new CalendarSourceError("calendar_source_selection_required", "逐项配对只能更新已选择的材料日程来源。");
+  }
   const currentMaterialEvidence = hasCurrentMaterialEvidence(sourceRead, input.descriptor.source_hash);
   const directDerived = currentMaterialEvidence
     ? sourceRead.sources.find((source) => source.sourceId === derivedSourceId) || null : null;
@@ -330,9 +381,9 @@ export async function syncDocumentScheduleFile(input: {
   const candidates = documentSourceCandidates(sourceRead.sources, recognition.events);
   const legacyBaseline = requested?.sourceKind === "document" ? requested : requested ? null : derived;
   const legacyBindings = !requested || requested.sourceKind === "document"
-    ? legacyDocumentEventBindings(sourceRead.snapshot.occurrenceEvents || [], input.descriptor, recognition.events, legacyBaseline)
+    ? legacyDocumentEventBindings(sourceRead.snapshot.occurrenceEvents || [], input.descriptor, recognition.events, legacyBaseline, pairingChoices)
     : new Map<string, { eventId: string; confidence: "confirmed" | "teacher_confirmed" | "inferred" }>();
-  const boundEvents = bindDocumentOccurrences(recognition.events, sourceId, requested || derived).map((event) => {
+  const boundEvents = bindDocumentOccurrences(recognition.events, sourceId, requested || derived, pairingChoices).map((event) => {
     const legacy = legacyBindings.get(stableDocumentOccurrenceVariantRef(event));
     return { ...event, event_id: legacy?.eventId || event.event_id, confidence: legacy?.confidence || event.confidence };
   });

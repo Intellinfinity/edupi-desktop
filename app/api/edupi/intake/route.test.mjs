@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { createJiti } from "jiti";
 
 const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
 const { parseCalendarIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-calendar-intake-request.ts");
 const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableDocumentOccurrenceRef, stableDocumentOccurrenceVariantRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
+const { stageMaterialInputs } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-material-staging.ts");
 
 function request(body, headers = {}) {
   return new Request("http://localhost/api/edupi/intake", {
@@ -37,6 +41,41 @@ test("rejects unknown and unbounded intake shapes before Core dispatch", async (
     const response = await POST(request(body));
     assert.equal(response.status, 400);
     assert.equal((await response.json()).code, "invalid_envelope");
+  }
+});
+
+test("document pairing fields cannot be smuggled into another material kind", async () => {
+  const root = mkdtempSync(join(tmpdir(), "edupi-pairing-envelope-"));
+  const stateDir = join(root, "state");
+  const dataRoot = join(root, "data");
+  const coreRoot = join(root, "core");
+  mkdirSync(dataRoot); mkdirSync(coreRoot);
+  const previous = Object.fromEntries(["PI_DESKTOP_STATE_DIR", "EDUPI_DATA_ROOT", "EDUPI_CORE_ROOT"]
+    .map(key => [key, process.env[key]]));
+  try {
+    process.env.PI_DESKTOP_STATE_DIR = stateDir;
+    process.env.EDUPI_DATA_ROOT = dataRoot;
+    process.env.EDUPI_CORE_ROOT = coreRoot;
+    const bytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlYdxsAAAAASUVORK5CYII=", "base64");
+    const [staged] = stageMaterialInputs([{ name: "blank.png", mimeType: "image/png", bytes }],
+      { stateDir, dataRoot, coreRoot, idFactory: () => `stg_${"1".repeat(32)}` });
+    const base = { kind: "material", stagingId: staged.staging_id, title: "blank.png", materialKind: "other",
+      subject: "测试", classId: "测试班", recognize: true,
+      documentSourceId: `document-source-${"2".repeat(32)}`,
+      documentSourceFingerprint: `sha256:${"3".repeat(64)}`,
+      documentPairingFingerprint: `sha256:${"4".repeat(64)}` };
+    for (const pairings of [[], [{ incomingVariantRef: "bad", currentSourceOccurrenceRef: null }],
+      [{ incomingVariantRef: `document-occurrence-${"5".repeat(32)}-${"6".repeat(32)}`, currentSourceOccurrenceRef: "other\nsource" }]]) {
+      const response = await POST(request({ ...base, documentPairings: pairings }));
+      assert.equal(response.status, 400);
+      assert.equal((await response.json()).code, "invalid_envelope");
+    }
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(root, { recursive: true, force: true });
   }
 });
 

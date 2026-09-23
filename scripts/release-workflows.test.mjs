@@ -433,6 +433,7 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("test:staged-uploaded-calendar-runtime"));
   assert.ok(buildJob.includes("test:staged-feedback-runtime"));
   assert.match(buildJob, /name: Verify signed macOS packaged runtime[\s\S]*?npm run test:staged-ocr/u);
+  assert.match(buildJob, /name: Verify signed macOS packaged runtime[\s\S]*?npm run test:staged-docx/u);
   assert.ok(buildJob.includes("name: Verify paired Core bundle on Windows"));
   assert.ok(buildJob.includes("if: runner.os == 'Windows'"));
   assert.ok(buildJob.includes("--test-name-pattern"));
@@ -482,5 +483,6 @@ test("release and preview refuse a packaged OCR runtime without offline language
   for (const name of ["release.yml", "preview-installers.yml"]) {
     const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
     assert.match(workflow, /name: Verify bundled offline OCR[\s\S]*?run: npm run test:staged-ocr/u);
+    assert.match(workflow, /name: Verify bundled DOCX extraction[\s\S]*?run: npm run test:staged-docx/u);
   }
 });

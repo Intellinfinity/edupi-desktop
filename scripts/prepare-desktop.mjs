@@ -8,7 +8,7 @@ import { desktopTargetTriple } from "./desktop-platform.mjs";
 import { copyDesktopStandaloneTree, verifyDesktopServerRuntime } from "./desktop-standalone-tree.mjs";
 import { buildPackagedCoreBundle } from "./packaged-core-bundle.mjs";
 import { piPackageDirNames } from "./pi-packages.mjs";
-import { removeUnusedMuslSharp } from "./packaged-sharp.mjs";
+import { removeUnusedMuslNativePackages } from "./packaged-sharp.mjs";
 import { copyPackageClosure, copyPreparationDependencies } from "./preparation-runtime.mjs";
 import { copyRuntimeModelHostFiles } from "./runtime-model-host-files.mjs";
 import { cleanupStandaloneTraceLeak, planStandaloneTraceLeakCleanup } from "./desktop-trace-leak.mjs";
@@ -319,7 +319,7 @@ try {
   await cleanupStandaloneTraceLeak(traceLeakCleanup);
 }
 await assembleServer();
-await removeUnusedMuslSharp(serverResourcesDir);
+await removeUnusedMuslNativePackages(serverResourcesDir);
 
 const deduped = await dedupeNestedPackages();
 if (deduped > 0) console.log(`Removed ${deduped} redundant nested package cop${deduped === 1 ? "y" : "ies"}`);

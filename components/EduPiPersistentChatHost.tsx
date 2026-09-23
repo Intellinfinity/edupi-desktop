@@ -22,8 +22,7 @@ export function EduPiPersistentChatHost({ children, mode, task, onPreparePrompt,
     `教学任务：${task.title}`,
     `来源：${taskSourceLabel(task)}`,
     `截止：${task.dueDate || "日期待确认"}`,
-    "请仅在教师内部协助，保留来源，不外发；先提出需要教师确认的修改建议。",
-  ].join("\n") : "请仅在教师内部协助当前教学工作，不外发。";
+  ].join("\n") : "当前教学工作";
   return (
     <section ref={drawerRef} className={`edupi-persistent-chat-host is-${mode}`} role={mode === "drawer" ? "dialog" : undefined} aria-modal={mode === "drawer" ? "true" : undefined} aria-label={mode === "drawer" ? "任务内协作" : "对话"}>
       <header className="edupi-persistent-chat-host__header">

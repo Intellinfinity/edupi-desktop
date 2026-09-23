@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { EducationContract, EducationEntityDeleteKind, EducationMemory } from "@/lib/edupi-education-contract";
 import { MEMORY_CATEGORIES, memoryCategoryRoute, memoryItemRoute, memorySemesterRoute } from "@/lib/edupi-domain-navigation";
 import { scopedMemoryIds, type EducationMemoryScopeProjection } from "@/lib/edupi-memory-scopes";
-import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { isUserFacingMemory } from "@/lib/edupi-workbench";
 import { EduPiMemoryHistory } from "./EduPiMemoryHistory";
 import { EduPiPagination } from "./EduPiActionIcon";
@@ -83,11 +82,10 @@ export function EduPiMemoryDatabase({ data, memoryScopes, query, selectedObjectI
     }
   };
   const openMemoryAgent = (memory: EducationMemory) => {
-    const prompt = appendTeacherInputSlot([
-      `请协助我修订这条 EduPi ${categoryLabel}记忆。`,
+    const prompt = [
+      `${categoryLabel}记忆`,
       `当前内容：${memory.content}`,
-      "请根据我的要求说明修改建议和依据，待我确认后再写回并保留旧版本。",
-    ].join("\n"), "我希望改成（在这里输入或口述）：");
+    ].join("\n");
     onStartAgent(prompt, "replace");
   };
   const deleteMemory = async (memory: EducationMemory) => {

@@ -12,25 +12,30 @@ test("ChatInput exposes replacement without touching attached images", async () 
   assert.doesNotMatch(source.slice(source.indexOf("replaceText(text: string) {"), source.indexOf("replaceMessage(message: UserMessage)")), /setAttachedImages/);
 });
 
-test("context and task handoffs replace the composer while ordinary EduPi prompts insert", async () => {
+test("EduPi handoffs offer a page reference without replacing teacher text", async () => {
   const appShell = await read("./AppShell.tsx");
   const panel = await read("./EduPiEducationPanel.tsx");
+  const chat = await read("./ChatWindow.tsx");
 
-  assert.match(appShell, /onReplaceAgentPrompt=\{\(prompt\) => chatInputRef\.current\?\.replaceText\(prompt\)\}/);
-  assert.match(appShell, /onPrepareAgentPrompt=\{\(prompt\) => chatInputRef\.current\?\.insertText\(`\$\{prompt\}\\n`\)\}/);
+  assert.match(appShell, /onReplaceAgentPrompt=\{\(prompt\) => setPendingEduPiContext\(\{ context: createComposerContext\(prompt\), openId: crypto\.randomUUID\(\) \}\)\}/);
+  assert.match(appShell, /onPrepareAgentPrompt=\{\(prompt\) => setPendingEduPiContext\(\{ context: createComposerContext\(prompt\), openId: crypto\.randomUUID\(\) \}\)\}/);
+  assert.doesNotMatch(appShell, /onReplaceAgentPrompt=\{\(prompt\) => chatInputRef\.current\?\.replaceText/);
+  assert.match(chat, /!\(session\?\.id \|\| newSessionCwd\)/);
+  assert.match(chat, /offerContext\(educationContext\)/);
+  assert.match(chat, /insertText\(`\$\{teacherDraftText\}\\n`\)/);
   assert.match(panel, /onReplaceAgentPrompt: \(prompt: string\) => void/);
-  assert.match(panel, /type AgentPromptMode = "insert" \| "replace"/);
+  assert.match(panel, /type AgentPromptMode = "insert" \| "replace" \| "teacher" \| "teacher-main"/);
   assert.match(panel, /onStartAgent=\{\(prompt, mode\) => startAgent\(prompt, mode\)\}/);
 
   const contextHandoff = panel.slice(panel.indexOf("onAgentRequest={(prompt) => {"), panel.indexOf("</EduPiContextEditor>"));
   assert.match(contextHandoff, /setContextOpen\(false\)/);
-  assert.match(contextHandoff, /startAgent\(prompt, "replace"\)/);
+  assert.match(contextHandoff, /startAgent\(prompt, "teacher-main"\)/);
   assert.doesNotMatch(contextHandoff, /selectView\("chat"\)/);
   assert.doesNotMatch(contextHandoff, /setPendingAgentPromptMode/);
   assert.match(panel, /drawer !== "agent" \|\| \(activeView !== "tasks" && activeView !== "review"\)/);
 
   const startAgent = panel.slice(panel.indexOf("const startAgent"), panel.indexOf("useEffect", panel.indexOf("const startAgent")));
-  const replaceBranchStart = startAgent.indexOf('if (mode === "replace")');
+  const replaceBranchStart = startAgent.indexOf('if (mode === "replace" || mode === "teacher-main")');
   assert.notEqual(replaceBranchStart, -1);
   const replaceBranch = startAgent.slice(replaceBranchStart, startAgent.indexOf("setDrawer(\"agent\")", replaceBranchStart));
   assert.match(replaceBranch, /selectView\("chat"\)/);
@@ -45,9 +50,9 @@ test("context and task handoffs replace the composer while ordinary EduPi prompt
 
   assert.match(panel, /const mode = pendingAgentPromptMode/);
   assert.match(panel, /if \(mode === "replace"\)/);
-  assert.match(startAgent, /mode === "replace" \? `\$\{prompt\.trim\(\)\}\\n`/);
   assert.doesNotMatch(replaceBranch, /setDrawer\("agent"\)/);
   assert.match(panel, /onReplaceAgentPrompt\(pendingAgentPrompt\)/);
+  assert.match(panel, /onPrepareTeacherDraft\(pendingAgentPrompt\)/);
 });
 
 test("task activation carries cancellation through the panel and AppShell", async () => {

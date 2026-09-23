@@ -1,4 +1,5 @@
 import { APP_PREF_KEYS, getPrefJson, setPrefJson } from "@/lib/app-prefs";
+import type { EduPiComposerContext } from "@/lib/edupi-composer-context";
 
 export interface ChatDraftImage {
   data: string;
@@ -8,6 +9,7 @@ export interface ChatDraftImage {
 export interface ChatDraft {
   value: string;
   images: ChatDraftImage[];
+  context?: EduPiComposerContext;
 }
 
 const drafts = new Map<string, ChatDraft>();
@@ -21,11 +23,19 @@ function cloneDraft(draft: ChatDraft): ChatDraft {
   return {
     value: draft.value,
     images: draft.images.map((image) => ({ ...image })),
+    ...(draft.context ? { context: { ...draft.context } } : {}),
   };
 }
 
 function isEmptyDraft(draft: ChatDraft): boolean {
-  return !draft.value && draft.images.length === 0;
+  return !draft.value && draft.images.length === 0 && !draft.context;
+}
+
+function validContext(value: unknown): value is EduPiComposerContext {
+  if (!value || typeof value !== "object") return false;
+  const context = value as Partial<EduPiComposerContext>;
+  return typeof context.title === "string" && context.title.length > 0 && context.title.length <= 60
+    && typeof context.reference === "string" && context.reference.length > 0 && context.reference.length <= 500_000;
 }
 
 function imagePersistable(image: ChatDraftImage): boolean {
@@ -40,14 +50,15 @@ function hydrateFromStorage(): void {
   if (!stored || typeof stored !== "object") return;
   for (const [key, draft] of Object.entries(stored)) {
     if (!draft || typeof draft.value !== "string" || !Array.isArray(draft.images)) continue;
-    if (isEmptyDraft(draft)) continue;
-    drafts.set(key, {
+    const normalized: ChatDraft = {
       value: draft.value,
       images: draft.images
         .filter((image) => image && typeof image.data === "string" && typeof image.mimeType === "string")
         .filter(imagePersistable)
         .map((image) => ({ data: image.data, mimeType: image.mimeType })),
-    });
+      ...(validContext(draft.context) ? { context: { ...draft.context } } : {}),
+    };
+    if (!isEmptyDraft(normalized)) drafts.set(key, normalized);
   }
 }
 
@@ -63,6 +74,7 @@ function schedulePersist(): void {
         {
           value: draft.value,
           images: draft.images.filter(imagePersistable),
+          ...(draft.context ? { context: draft.context } : {}),
         },
       ] as const);
     setPrefJson(APP_PREF_KEYS.chatDrafts, Object.fromEntries(entries));

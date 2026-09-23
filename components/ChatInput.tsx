@@ -5,6 +5,7 @@ import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, Slas
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
 import { clearDraft, getDraft, setDraft, type ChatDraftImage } from "@/lib/draft-store";
+import { composeTeacherMessage, contextHandoffMode, parseTeacherMessage, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import {
   MAX_ATTACHED_IMAGE_BYTES,
   MAX_ATTACHED_IMAGES,
@@ -90,6 +91,7 @@ interface Props {
 }
 
 export interface ChatInputHandle {
+  offerContext: (context: EduPiComposerContext) => void;
   insertText: (text: string) => void;
   insertIfEmpty: (text: string) => void;
   replaceText: (text: string) => void;
@@ -390,6 +392,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const { t, locale } = useI18n();
   const isMobile = useIsMobile();
   const [value, setValue] = useState(() => (draftKey ? getDraft(draftKey)?.value ?? "" : ""));
+  const [context, setContext] = useState<EduPiComposerContext | null>(() => (draftKey ? getDraft(draftKey)?.context ?? null : null));
+  const [offeredContext, setOfferedContext] = useState<EduPiComposerContext | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const [modelFilter, setModelFilter] = useState("");
@@ -446,9 +450,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const fileIndexFetchingRef = useRef<string | null>(null);
   const draftKeyRef = useRef(draftKey);
   const valueRef = useRef(value);
+  const contextRef = useRef(context);
   const attachedImagesRef = useRef(attachedImages);
   const pendingImageCountRef = useRef(0);
   valueRef.current = value;
+  contextRef.current = context;
   attachedImagesRef.current = attachedImages;
 
   const appendDictationTranscript = useCallback((transcript: string) => {
@@ -470,6 +476,18 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const abortDictation = dictation.abort;
 
   useImperativeHandle(ref, () => ({
+    offerContext(next: EduPiComposerContext) {
+      const current = (textareaRef.current?.value ?? valueRef.current).trim();
+      const handoff = contextHandoffMode(current, contextRef.current, next);
+      if (handoff === "offer") {
+        setOfferedContext(next);
+      } else {
+        if (handoff === "migrate") setValue("");
+        setContext(next);
+        setOfferedContext(null);
+      }
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    },
     insertIfEmpty(text: string) {
       const ta = textareaRef.current;
       const current = ta ? ta.value : value;
@@ -501,7 +519,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       const current = ta ? ta.value : value;
       if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current)) return;
 
-      setValue(getUserMessageText(message));
+      const restored = getUserMessageText(message);
+      const contextual = parseTeacherMessage(restored);
+      setValue(contextual?.teacherText ?? restored);
+      setContext(contextual?.context ?? null);
+      setOfferedContext(null);
       setAtQuery(null);
       setHistoryMenuOpen(false);
       setAttachedImages((prev) => {
@@ -677,6 +699,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const clearInput = useCallback(() => {
     abortDictation();
     setValue("");
+    setContext(null);
+    setOfferedContext(null);
     setAtQuery(null);
     setHistoryMenuOpen(false);
     if (draftKey) clearDraft(draftKey);
@@ -692,8 +716,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     setDraft(draftKey, {
       value,
       images: attachedImages.map(imageToDraftImage),
+      ...(context ? { context } : {}),
     });
-  }, [attachedImages, draftKey, value]);
+  }, [attachedImages, context, draftKey, value]);
 
   useEffect(() => {
     const previousDraftKey = draftKeyRef.current;
@@ -703,12 +728,23 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       setDraft(previousDraftKey, {
         value: valueRef.current,
         images: attachedImagesRef.current.map(imageToDraftImage),
+        ...(contextRef.current ? { context: contextRef.current } : {}),
       });
     }
 
-    const draft = draftKey ? getDraft(draftKey) : null;
+    let draft = draftKey ? getDraft(draftKey) : null;
+    if (!previousDraftKey && draftKey && !draft && (valueRef.current || attachedImagesRef.current.length || contextRef.current)) {
+      draft = {
+        value: valueRef.current,
+        images: attachedImagesRef.current.map(imageToDraftImage),
+        ...(contextRef.current ? { context: contextRef.current } : {}),
+      };
+      setDraft(draftKey, draft);
+    }
     draftKeyRef.current = draftKey;
     setValue(draft?.value ?? "");
+    setContext(draft?.context ?? null);
+    setOfferedContext(null);
     setAtQuery(null);
     setHistoryMenuOpen(false);
     setAttachedImages((prev) => {
@@ -733,6 +769,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const handleSend = useCallback(async () => {
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
+    if (context && !msg) return;
     if (isStreaming) return;
     onAudioUnlock?.();
     if (!attachedImages.length && msg.startsWith("/") && onBuiltinCommand) {
@@ -742,9 +779,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         return;
       }
     }
-    onSend(msg, attachedImages.length ? attachedImages : undefined);
+    onSend(context && !msg.startsWith("/") ? composeTeacherMessage(context, msg) : msg, attachedImages.length ? attachedImages : undefined);
     clearInput();
-  }, [value, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
+  }, [value, context, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
 
   const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1))
     ? value.slice(1).toLowerCase()
@@ -777,6 +814,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     : t(slashQuery ? "chat.matches" : "chat.commands", { count: filteredSlashCommands.length });
   const hasInputText = Boolean(value.trim());
   const canQueueStreamingMessage = hasInputText && attachedImages.length === 0;
+  const canSendMessage = Boolean(hasInputText || attachedImages.length) && (!context || hasInputText);
 
   // ── @ file autocomplete ──────────────────────────────────────────────────
   // Recomputed from the text before the caret on every change/caret move.
@@ -963,6 +1001,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const sendQueued = useCallback((mode: "steer" | "followup") => {
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
+    if (context && !msg) return;
     if (attachedImages.length) return;
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
@@ -971,13 +1010,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       clearInput();
       return;
     }
+    const message = context && !msg.startsWith("/") ? composeTeacherMessage(context, msg) : msg;
     if (mode === "steer" && onSteer) {
-      onSteer(msg, attachedImages.length ? attachedImages : undefined);
+      onSteer(message, attachedImages.length ? attachedImages : undefined);
     } else if (mode === "followup" && onFollowUp) {
-      onFollowUp(msg, attachedImages.length ? attachedImages : undefined);
+      onFollowUp(message, attachedImages.length ? attachedImages : undefined);
     }
     clearInput();
-  }, [value, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
+  }, [value, context, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
 
   const getNextSlashIndex = useCallback((direction: "up" | "down" | "left" | "right") => {
     const lastIndex = displayedSlashCommands.length - 1;
@@ -1877,6 +1917,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             );
           })()}
           <div className="chat-composer">
+          {offeredContext ? <div className="chat-composer-context-offer" role="status">
+            <span>当前草稿未改</span>
+            <button type="button" onClick={() => { setContext(offeredContext); setOfferedContext(null); textareaRef.current?.focus(); }}>带入{offeredContext.title}</button>
+            <button type="button" onClick={() => setOfferedContext(null)}>不带入</button>
+          </div> : null}
+          {context ? <div className="chat-composer-context">
+            <span>当前事项</span>
+            <strong title={context.title}>{context.title}</strong>
+            <details><summary>查看参考</summary><pre>{context.reference}</pre></details>
+            <button type="button" aria-label={`移除${context.title}参考`} title="移除参考" onClick={() => setContext(null)}>×</button>
+          </div> : null}
           <div
             className="chat-composer-editor"
             style={{
@@ -1922,7 +1973,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               isStreaming && (onSteer || onFollowUp)
                 ? "继续补充教学任务，EduPi 会接着处理…"
                 : isStreaming ? "EduPi 正在处理任务…"
-                : "描述教学目标，或继续当前任务…"
+                : context ? "说说你希望 EduPi 做什么…" : "描述教学目标，或继续当前任务…"
             }
             rows={1}
             style={{
@@ -2010,22 +2061,22 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             <button
               className="native-primary-button composer-send-button"
               onClick={handleSend}
-              disabled={!value.trim() && !attachedImages.length}
+              disabled={!canSendMessage}
               aria-label={t("chat.send")}
               title={t("chat.send")}
               style={{
                 flexShrink: 0,
                 alignSelf: "flex-end",
                 display: "flex", width: 38, height: 34, padding: 0, alignItems: "center", justifyContent: "center",
-                background: (value.trim() || attachedImages.length) ? "var(--accent)" : "var(--bg-panel)",
+                background: canSendMessage ? "var(--accent)" : "var(--bg-panel)",
                 border: "none",
                 borderRadius: 8,
-                color: (value.trim() || attachedImages.length) ? "var(--accent-contrast)" : "var(--text-dim)",
-                cursor: (value.trim() || attachedImages.length) ? "pointer" : "not-allowed",
+                color: canSendMessage ? "var(--accent-contrast)" : "var(--text-dim)",
+                cursor: canSendMessage ? "pointer" : "not-allowed",
                 fontSize: 13,
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
-                boxShadow: (value.trim() || attachedImages.length) ? "0 1px 3px var(--focus-ring)" : "none",
+                boxShadow: canSendMessage ? "0 1px 3px var(--focus-ring)" : "none",
                 transition: "background 0.15s, box-shadow 0.15s",
               }}
             >

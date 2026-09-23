@@ -9,6 +9,7 @@ const jiti = createJiti(import.meta.url, {
   tsconfigPaths: true,
 });
 const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, canRestoreUserMessage, filterModelOptions, getUserMessageText, getUserMessageDraftImages } = await jiti.import("./ChatInput.tsx");
+const { setDraft, clearDraft } = await jiti.import("../lib/draft-store.ts");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 /** The banner reads its title through useI18n, so it needs the provider. */
@@ -75,6 +76,22 @@ test("the send action is icon-only with an accessible name", () => {
   assert.match(html, /aria-label="Send"/);
   assert.match(html, /title="Send"/);
   assert.doesNotMatch(html, />Send<\/button>/);
+});
+
+test("shows a compact removable page reference while leaving the teacher input empty", () => {
+  const draftKey = "edupi-context-render-test";
+  setDraft(draftKey, { value: "", images: [], context: { title: "第一课备课", reference: "教学任务：第一课备课\n任务 ID：task-1" } });
+  try {
+    const html = renderWithI18n(React.createElement(ChatInput, { onSend() {}, onAbort() {}, isStreaming: false, draftKey }));
+    assert.match(html, /当前事项/);
+    assert.match(html, /<strong title="第一课备课">第一课备课<\/strong>/);
+    assert.match(html, /<summary>查看参考<\/summary>/);
+    assert.match(html, /aria-label="移除第一课备课参考"/);
+    assert.match(html, /placeholder="说说你希望 EduPi 做什么…"/);
+    assert.match(html, /composer-send-button[^>]+disabled/);
+  } finally {
+    clearDraft(draftKey);
+  }
 });
 
 test("filters model options by name and id", () => {

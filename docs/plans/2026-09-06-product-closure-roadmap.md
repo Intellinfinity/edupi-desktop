@@ -2,7 +2,7 @@
 
 ## 2026-09-23 上传 ICS 来源与循环日程收敛（开发验收通过，尚未发布）
 
-- Core [#174](https://github.com/Intellinfinity/edupi/pull/174)、[#175](https://github.com/Intellinfinity/edupi/pull/175)、[#176](https://github.com/Intellinfinity/edupi/pull/176) 已依次合并，最终 pin 为 `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`；Desktop 实现提交为 `e097865`、`1e4c2c8`、`1402691`、`ee71640`。完整证据见 [上传 ICS 日历来源收敛验收](../acceptance/2026-09-23-uploaded-calendar-source-sync.md)。
+- Core [#174](https://github.com/Intellinfinity/edupi/pull/174)、[#175](https://github.com/Intellinfinity/edupi/pull/175)、[#176](https://github.com/Intellinfinity/edupi/pull/176) 已依次合并，最终 pin 为 `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`；Desktop 交付为 [#222](https://github.com/Intellinfinity/edupi-desktop/pull/222)，实现提交为 `e097865`、`1e4c2c8`、`1402691`、`ee71640`。完整证据见 [上传 ICS 日历来源收敛验收](../acceptance/2026-09-23-uploaded-calendar-source-sync.md)。
 - `.ics` 现在走严格暂存和确定性解析，不调用模型；Core 持有原始 evidence、来源、occurrence、CAS 和 tombstone。支持全量修订、REQUEST/PUBLISH 增量、EXDATE、单次/整组 CANCEL、系列改时、recurring↔single、精确重放、重启回读和同来源其他 UID 保持。
 - 风险门已覆盖错源/混源、旧 CAS、命名空间碰撞、history 截断、丢响应重试、active tombstone 与并发恢复。取消 no-op 绑定 source+evidence hash、batch request 与最终 source→ledger 复核；无关 ambient snapshot 漂移不阻塞。
 - Desktop 最终全量为 1509 tests，1483 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint、source/staged uploaded-calendar E2、staged occurrence/conflict/feedback/desktop、bundle closure 3/3、model host 2/2 和 packaged 页面操作通过。页面实际完成首次导入及“导入 1 项、撤回 1 项”的来源更新，console error/warn 为 0。

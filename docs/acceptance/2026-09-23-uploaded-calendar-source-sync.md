@@ -4,7 +4,7 @@
 
 - 结论：ICS 上传、精确重放、显式更新、连续修订、撤回、重启回读和 packaged server 已验收通过；整体产品仍为“L4 功能收敛中”。
 - Core：[#174](https://github.com/Intellinfinity/edupi/pull/174) 合并为 `897b1b07fc4472f0ee5934adbd13f4bfe59e234b`，[#175](https://github.com/Intellinfinity/edupi/pull/175) 合并为 `a1b8c159afa163eb520fd3d3c37c87846ae88f4c`，[#176](https://github.com/Intellinfinity/edupi/pull/176) 合并为 `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`。
-- Desktop 实现提交：`e097865`、`1e4c2c8`、`1402691`、`ee71640`；最终 Core pin 为 `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`，Desktop/Runtime component hash 分别为 `sha256:9c1b834004842b76a49f4f52c5272daae28a976709e0d8396ce850c6a25f6da0` 与 `sha256:34ae1d53d166af1a6535a93dd208dfef2bd01ce5e4c560492de2ab35a7b53ede`。
+- Desktop 交付为 [#222](https://github.com/Intellinfinity/edupi-desktop/pull/222)，实现提交为 `e097865`、`1e4c2c8`、`1402691`、`ee71640`；最终 Core pin 为 `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`，Desktop/Runtime component hash 分别为 `sha256:9c1b834004842b76a49f4f52c5272daae28a976709e0d8396ce850c6a25f6da0` 与 `sha256:34ae1d53d166af1a6535a93dd208dfef2bd01ce5e4c560492de2ab35a7b53ede`。
 - 环境：macOS 26.5.1、Node.js 22.23.1；所有写入均使用隔离临时数据根，未切换真实教师数据根、launchd 或安装版。
 
 ## 实际行为

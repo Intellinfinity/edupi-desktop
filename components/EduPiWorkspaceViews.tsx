@@ -46,7 +46,7 @@ type Props = {
   stagedMaterials: MaterialStagingDescriptor[];
   stagingBusy: boolean;
   intakeBusy: boolean;
-  stagingMessage: string | null;
+  stagingMessage: { text: string; tone: "success" | "error" } | null;
   calendarSelection: CalendarItemSelection | null;
   onTask: (task: TeacherTask, stage?: TaskStage) => void;
   onTaskDetail: (task: TeacherTask) => void;

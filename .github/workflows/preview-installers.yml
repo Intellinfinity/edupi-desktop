@@ -85,6 +85,10 @@ jobs:
         env:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run desktop:prepare
+      - name: Verify bundled offline OCR
+        env:
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
+        run: npm run test:staged-ocr
       - name: Build unsigned preview installer
         shell: bash
         env:

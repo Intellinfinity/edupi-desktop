@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-24 扫描材料 OCR staged 验收（未发布）
+
+- Desktop `77e88f8` 将离线 OCR/PDF 运行依赖纳入三平台打包准备，Release/preview 在打包后用真实图片与图片版 PDF 执行 OCR smoke；macOS 签名后的 bundle 也增加同一 smoke。固定 Core `c1edefd…` 的隔离 OCR→日程 E2 与 macOS staged server/Core 回读通过，详细边界见 [验收记录](../acceptance/2026-09-24-l4-scanned-material-ocr.md)。
+- 尚无包含该提交的正式 Release。公开 Latest 仍是 v0.3.36；签名/公证后的 macOS 包、Windows/Linux 安装包及旧客户端应用内升级必须在正式发布时另验，不能用 staged 结果替代。
+
 ## 2026-09-23 文档同名 occurrence 配对（开发验收，未发布）
 
 - [Desktop #229](https://github.com/Intellinfinity/edupi-desktop/pull/229) 的提交 `082648e` 支持同一 PDF/DOCX 的多条同名同类事项：完整语义 variant ref、exact duplicate 折叠、旧 singleton 保持、精确优先与剩余 1:1 配对。单项变化沿用原 ID，由 Core 按 revision/conflict 规则处理；日期或时段变化进入 held/conflict，多项变化不猜测。

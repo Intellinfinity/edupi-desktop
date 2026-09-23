@@ -17,6 +17,7 @@ test("calendar source listing is no-store, Core-owned, and exposes no private oc
   assert.match(source, /readCoreCalendarSources/);
   assert.match(source, /Cache-Control["']:\s*["']no-store/);
   assert.match(source, /sourceId:\s*source\.sourceId/);
+  assert.match(source, /sourceKind:\s*source\.sourceKind/);
   assert.match(source, /fingerprint:\s*source\.fingerprint/);
   assert.doesNotMatch(source, /PI_DESKTOP_STATE_DIR|calendar-sources\.json|occurrences:\s*source\.occurrences|source_hash/);
 });

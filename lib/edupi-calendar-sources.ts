@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import { readEduPiEducationSnapshot, type EduPiBridgeRoots } from "./edupi-core-snapshot";
 
-const SOURCE_ID = /^calendar-source-[a-f0-9]{32}$/u;
+const CALENDAR_SOURCE_ID = /^calendar-source-[a-f0-9]{32}$/u;
+const DOCUMENT_SOURCE_ID = /^document-source-[a-f0-9]{32}$/u;
 const SHA256 = /^sha256:[a-f0-9]{64}$/u;
+export type CoreScheduleSourceKind = "calendar" | "document";
 
 type RawRecord = Record<string, unknown>;
 
@@ -23,15 +25,27 @@ export type CoreCalendarOccurrence = {
 
 export type CoreCalendarSource = {
   sourceId: string;
+  sourceKind: CoreScheduleSourceKind;
   label: string;
   eventCount: number;
   fingerprint: string;
   occurrences: CoreCalendarOccurrence[];
 };
 
+function sourceKind(value: string): CoreScheduleSourceKind | null {
+  if (CALENDAR_SOURCE_ID.test(value)) return "calendar";
+  if (DOCUMENT_SOURCE_ID.test(value)) return "document";
+  return null;
+}
+
 export type CoreCalendarSourceRead = {
   sources: CoreCalendarSource[];
-  snapshot: { payload: RawRecord & { education_workspace: RawRecord }; roots: EduPiBridgeRoots };
+  snapshot: {
+    envelope: RawRecord;
+    payload: RawRecord & { education_workspace: RawRecord };
+    roots: EduPiBridgeRoots;
+    occurrenceEvents: RawRecord[];
+  };
 };
 
 function record(value: unknown): RawRecord | null {
@@ -99,11 +113,12 @@ export function projectCoreCalendarSources(events: unknown[]): CoreCalendarSourc
     }
     const rawSourceIds = event.source_ids.map((item) => text(item, 160));
     if (rawSourceIds.some((item) => item === null)
-      || rawSourceIds.some((item) => item!.startsWith("calendar-source-") && !SOURCE_ID.test(item!))) {
+      || rawSourceIds.some((item) => item!.startsWith("calendar-source-") && !CALENDAR_SOURCE_ID.test(item!))
+      || rawSourceIds.some((item) => item!.startsWith("document-source-") && !DOCUMENT_SOURCE_ID.test(item!))) {
       throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源身份无效。");
     }
     const uniqueSourceIds = [...new Set(rawSourceIds as string[])];
-    const sourceIds = uniqueSourceIds.filter((item) => SOURCE_ID.test(item));
+    const sourceIds = uniqueSourceIds.filter((item) => sourceKind(item) !== null);
     if (sourceIds.length === 0) continue;
     if (sourceIds.length !== 1 || uniqueSourceIds.length !== 1) {
       throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源身份不唯一。");
@@ -131,6 +146,7 @@ export function projectCoreCalendarSources(events: unknown[]): CoreCalendarSourc
     if (!SHA256.test(fingerprint)) throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源指纹无效。");
     return {
       sourceId,
+      sourceKind: sourceKind(sourceId) as CoreScheduleSourceKind,
       label: rows.length > 1 ? `${firstName} 等 ${rows.length} 项` : firstName,
       eventCount: rows.length,
       fingerprint,
@@ -143,12 +159,23 @@ export function calendarSourceSelectionCandidates(
   sources: CoreCalendarSource[],
   events: Array<RawRecord & { source_occurrence_ref?: string }>,
   affectedSeriesRefs: string[] = [],
+  kind: CoreScheduleSourceKind | null = "calendar",
 ): CoreCalendarSource[] {
   const refs = new Set(events.flatMap((event) => typeof event.source_occurrence_ref === "string" ? [event.source_occurrence_ref] : []));
   const content = new Set(events.map(calendarOccurrenceContentFingerprint));
   const series = new Set(affectedSeriesRefs);
-  return sources.filter((source) => source.occurrences.some((occurrence) => refs.has(occurrence.sourceOccurrenceRef)
-    || content.has(occurrence.contentFingerprint) || series.has(calendarOccurrenceSeriesRef(occurrence.sourceOccurrenceRef) || "")));
+  const anchor = (value: RawRecord) => {
+    const name = typeof value.name === "string" ? value.name.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase() : "";
+    const type = typeof value.type === "string" ? value.type.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase() : "";
+    return name && type ? `${type}\0${name}` : null;
+  };
+  const anchors = kind === null ? new Set(events.map(anchor).filter((value): value is string => Boolean(value))) : new Set<string>();
+  return sources.filter((source) => (kind === null || source.sourceKind === kind) && source.occurrences.some((occurrence) => (
+    refs.has(occurrence.sourceOccurrenceRef)
+    || content.has(occurrence.contentFingerprint)
+    || series.has(calendarOccurrenceSeriesRef(occurrence.sourceOccurrenceRef) || "")
+    || anchors.has(anchor(occurrence.content) || "")
+  )));
 }
 
 export async function readCoreCalendarSources(signal?: AbortSignal): Promise<CoreCalendarSourceRead> {
@@ -156,6 +183,11 @@ export async function readCoreCalendarSources(signal?: AbortSignal): Promise<Cor
   if (!snapshot.occurrenceProjection) throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源投影不可用。");
   return {
     sources: projectCoreCalendarSources(snapshot.occurrenceProjection.events),
-    snapshot: { payload: snapshot.payload, roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot } },
+    snapshot: {
+      envelope: snapshot.envelope,
+      payload: snapshot.payload,
+      roots: { runtime: snapshot.runtime, dataRoot: snapshot.dataRoot },
+      occurrenceEvents: snapshot.occurrenceProjection.events,
+    },
   };
 }

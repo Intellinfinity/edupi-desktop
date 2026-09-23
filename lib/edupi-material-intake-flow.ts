@@ -9,6 +9,7 @@ type RawRecord = Record<string, unknown>;
 type FlowInput = {
   descriptor: MaterialStagingDescriptor;
   scheduleSourceId?: string;
+  preserveOccurrenceEventIds?: boolean;
   title?: string;
   materialKind: MaterialIntake["kind"];
   subject: string | null;
@@ -54,7 +55,9 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   const scheduleSourceId = input.scheduleSourceId || stableFileScheduleIssuer(input.descriptor.original_name, input.descriptor.source_hash);
   const baseEvents = distinctRecognized(recognized.events.map((event) => ({ ...event,
     event_id: event.source_occurrence_ref
-      ? stableOccurrenceCalendarEventId(scheduleSourceId, event.source_occurrence_ref)
+      ? input.preserveOccurrenceEventIds
+        ? event.event_id
+        : stableOccurrenceCalendarEventId(scheduleSourceId, event.source_occurrence_ref)
       : event.time_interval
         ? stableRecognizedCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type,
           notes: event.notes, timeInterval: event.time_interval, location: event.location })

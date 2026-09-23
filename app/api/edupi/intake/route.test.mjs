@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createJiti } from "jiti";
 
 const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
 const { parseCalendarIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-calendar-intake-request.ts");
-const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
+const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableDocumentOccurrenceRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
 
 function request(body, headers = {}) {
   return new Request("http://localhost/api/edupi/intake", {
@@ -83,4 +84,18 @@ test("derives stable semantic IDs for schedule uploads without caller IDs", () =
   assert.notEqual(stableFileScheduleIssuer("校历和课表.pdf", firstHash), stableFileScheduleIssuer("校历和课表.pdf", secondHash),
     "different bytes with the same filename must not share schedule provenance");
   assert.notEqual(stableFileScheduleIssuer("校历和课表.pdf", firstHash), stableFileScheduleIssuer("校历和课表.pdf"));
+  assert.equal(stableDocumentScheduleSourceId(firstHash), `document-source-${"a".repeat(32)}`);
+  assert.equal(stableDocumentOccurrenceRef({ name: " 教研  会 ", type: "MEETING" }),
+    stableDocumentOccurrenceRef({ name: "教研 会", type: "meeting" }));
+  assert.notEqual(stableDocumentOccurrenceRef({ name: "教研会", type: "meeting" }),
+    stableDocumentOccurrenceRef({ name: "教研会", type: "activity" }));
+});
+
+test("routes PDF and DOCX schedule revisions through a distinct bounded source contract", async () => {
+  const source = await readFile(new URL("./route.ts", import.meta.url), "utf8");
+  assert.match(source, /syncDocumentScheduleFile/);
+  assert.match(source, /documentSourceId/);
+  assert.match(source, /documentSourceFingerprint/);
+  assert.match(source, /\^\(\?:document\|calendar\)-source-\[a-f0-9\]\{32\}\$/);
+  assert.doesNotMatch(source, /deleteDocument|removedDocumentEvent/);
 });

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import test from "node:test";
 import { createJiti } from "jiti";
 
 const { GET, POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const source = await fs.readFile(new URL("./route.ts", import.meta.url), "utf8");
 const url = "http://localhost:30141/api/edupi/schedule-conflicts";
 
 test("conflict reads and decisions require the native process token before Core access", async () => {
@@ -18,6 +20,11 @@ test("conflict reads and decisions require the native process token before Core 
     if (previousToken === undefined) delete process.env.PI_DESKTOP_API_TOKEN;
     else process.env.PI_DESKTOP_API_TOKEN = previousToken;
   }
+});
+
+test("conflict owner reads stay behind the persistent owner credential", () => {
+  assert.match(source, /callOwnerControl\("owner_read", \{\}\)/);
+  assert.doesNotMatch(source, /\.call\("owner_read", \{\}\)/);
 });
 
 test("malformed conflict decisions fail before starting Core", async () => {

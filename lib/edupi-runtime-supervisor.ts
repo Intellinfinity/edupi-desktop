@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { validateContainedRegularFile, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
 import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-model-host";
-import { loadOwnerControlToken } from "./edupi-owner-control-token";
+import { loadRuntimeOwnerControlToken } from "./edupi-owner-control-token";
 
 export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callOwnerControl(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
@@ -104,7 +104,9 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   const configuredStateDir = process.env.PI_DESKTOP_STATE_DIR?.trim();
   const ambientPlanning = process.env.EDUPI_AMBIENT_PLANNING === "1";
   const ownerControlAvailable = ambientPlanning || Boolean(configuredStateDir && path.isAbsolute(configuredStateDir));
-  const ownerControlToken = ownerControlAvailable ? loadOwnerControlToken(configuredStateDir, dataRoot.root) : null;
+  const ownerControlToken = ownerControlAvailable
+    ? loadRuntimeOwnerControlToken(configuredStateDir, dataRoot.root, { required: ambientPlanning })
+    : null;
   const child = fork(bootstrap, [], {
     cwd: runtime.root, execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"],
     env: { PATH: process.env.PATH, LANG: process.env.LANG || "en_US.UTF-8", TZ: process.env.TZ || "Asia/Shanghai", NODE_ENV: process.env.NODE_ENV || "production", EDUPI_PROJECT_ROOT: dataRoot.root, EDUPI_HOME: path.join(dataRoot.root, ".edupi"), EDUPI_MEMORY_DIR: dataRoot.memoryDir, EDUPI_OUTPUT_DIR: dataRoot.outputDir, EDUPI_LOCK_DIR: dataRoot.lockDir, EDUPI_CORE_COMMIT: runtime.coreCommit, EDUPI_CORE_PARENT_PID: String(process.pid), ...(configuredStateDir && path.isAbsolute(configuredStateDir) ? { PI_DESKTOP_STATE_DIR: path.resolve(configuredStateDir) } : {}) },
@@ -160,7 +162,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
     });
   } catch (error) { await close(); throw unavailable(startupFailureCode(error)); }
   const callRuntime = async (operation: string, payload: unknown, signal?: AbortSignal, ownerControl = false) => {
-    if (ownerControl && !ownerControlToken) throw unavailable();
+    if (ownerControl && !ownerControlToken) throw unavailable("owner_control_credential_unavailable");
     if (exited || stopping) throw unavailable();
     const request = { protocol: protocol.CORE_RUNTIME_PROTOCOL, protocol_version: protocol.CORE_RUNTIME_PROTOCOL_VERSION, schema_hash: protocol.CORE_RUNTIME_SCHEMA_HASH, request_id: randomUUID(), operation, payload };
     if (!protocol.validateRuntimeRequest(request).ok) throw Object.assign(new Error("Invalid runtime request."), { code: "invalid_request" });

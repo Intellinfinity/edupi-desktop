@@ -8,7 +8,7 @@
 
 ## 2026-09-23 文本 PDF/DOCX 时间地点证据（工程验收通过）
 
-- 提交 `fe53b51` 为文本 PDF/DOCX 增加原子 typed time/location 合同：同一原文摘录必须证明名称、日期、完整时段、时区/offset 和地点；DST、UTC/GMT、Unicode minus、冲突 offset、跨日和缓存重放均 fail closed，详细证据见 [文本材料时间地点验收](../acceptance/2026-09-23-text-schedule-evidence.md)。
+- [Desktop #225](https://github.com/Intellinfinity/edupi-desktop/pull/225) 的提交 `fe53b51` 为文本 PDF/DOCX 增加原子 typed time/location 合同：同一原文摘录必须证明名称、日期、完整时段、时区/offset 和地点；DST、UTC/GMT、Unicode minus、冲突 offset、跨日和缓存重放均 fail closed，详细证据见 [文本材料时间地点验收](../acceptance/2026-09-23-text-schedule-evidence.md)。
 - 真实 DOCX→提取→受控模型 JSON→Core v1.2 E2 通过；同字节改名不重复、typed cache 会重新提取原文重放验证、改源 hash 拒绝，最终事项保持 `inferred / hold / external_send=false`。release gate 与 symlink packaged server 闭包同步更新。
 - 全量 1520 tests，1494 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint 通过，独立终审无 P0/P1/P2。
 - 仍未完成：图片/扫描 PDF 的可信 OCR 证据、PDF/DOCX 跨修订 logical source 与 omission 撤回、真实 provider 质量、Windows 安装版、正式盲测和真实教师价值。公开 Latest 仍为 v0.3.36/Core `860594a…`，整体状态仍为“L4 功能收敛中”。

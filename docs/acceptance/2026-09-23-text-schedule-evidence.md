@@ -3,7 +3,7 @@
 ## 状态
 
 - 结论：文本 PDF 与 DOCX 可以把原文明确证明的日期、起止时间、时区和地点写入 Core v1.2；结果始终为 `inferred / hold`，不自动接受、不外发。该项工程验收通过，整体仍为“L4 功能收敛中”。
-- Desktop 实现提交：`fe53b51`，基于已合并的内容来源身份 [#223](https://github.com/Intellinfinity/edupi-desktop/pull/223) 和 Core `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`。
+- Desktop 交付为 [#225](https://github.com/Intellinfinity/edupi-desktop/pull/225)，实现提交为 `fe53b51`，基于已合并的内容来源身份 [#223](https://github.com/Intellinfinity/edupi-desktop/pull/223) 和 Core `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`。
 
 ## 证据合同
 

@@ -2,7 +2,7 @@
 
 ## 2026-09-23 文本日程证据配对（开发验收，未发布）
 
-- Desktop 提交 `fe53b51` 让文本 PDF/DOCX 仅在原文可证明完整 typed time/location 时进入 Core v1.2，并新增真实 DOCX E2 与 release gate；packaged symlink worktree 同时补齐 `undici` 外部依赖闭包。证据见 [验收记录](../acceptance/2026-09-23-text-schedule-evidence.md)。
+- [Desktop #225](https://github.com/Intellinfinity/edupi-desktop/pull/225) 的提交 `fe53b51` 让文本 PDF/DOCX 仅在原文可证明完整 typed time/location 时进入 Core v1.2，并新增真实 DOCX E2 与 release gate；packaged symlink worktree 同时补齐 `undici` 外部依赖闭包。证据见 [验收记录](../acceptance/2026-09-23-text-schedule-evidence.md)。
 - 本节没有生成正式安装包；公开 Latest 仍为 v0.3.36/Core `860594a…`，三平台签名、公证、公开安装和后续应用内升级仍需单独执行。
 
 ## 2026-09-23 非 ICS 日程来源身份（开发配对，未发布）

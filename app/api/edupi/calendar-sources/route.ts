@@ -11,12 +11,13 @@ export async function GET(request: Request) {
     const result = await readCoreCalendarSources(request.signal);
     return NextResponse.json({ sources: result.sources.map((source) => ({
       sourceId: source.sourceId,
+      sourceKind: source.sourceKind,
       label: source.label,
       eventCount: source.eventCount,
       fingerprint: source.fingerprint,
     })) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const code = error instanceof CalendarSourceError ? error.code : "unavailable";
-    return NextResponse.json({ error: "日历来源暂不可用。", code }, { status: 503 });
+    return NextResponse.json({ error: "日程来源暂不可用。", code }, { status: 503 });
   }
 }

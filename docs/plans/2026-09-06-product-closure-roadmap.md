@@ -1,5 +1,9 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-24 v0.3.37 签名版准备（未发布）
+
+- Desktop 版本、组件清单、Cargo 锁文件与发布说明已准备为 `0.3.37`，固定 Core `68004b2`；发布合同和 Cargo metadata 已校验。当前仍没有新版签名安装资产，L4/AI 协作的安装与真实老师材料验收继续未完成。v0.3.36 仍是公开 Latest，不把版本号更新等同交付。
+
 ## 2026-09-24 R23 OpenConnector 授权止血（源码阶段，未发布）
 
 - 当前 Desktop 分支 `feat/jev-openconnector-integration` 将所有外部 Action 执行收敛到教师可见确认；`operationType=read`、未知元数据与 Action 名称均不再免确认。弹窗和执行使用同一 JSON 快照，不能完整展示的输入拒绝执行；授权绑定运行时幂等键。Agent/用户 bash 子进程环境移除 OpenConnector runtime/admin token 和 JEV 密钥。

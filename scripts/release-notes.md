@@ -1,19 +1,8 @@
-EduPi Desktop 0.3.36。
+EduPi Desktop 0.3.37。
 
-- 发布前核对 updater 公钥确实进入 macOS 最终可执行文件；本版本用于验证 v0.3.35 起的应用内升级链路
-- 修复 macOS 签名包内 Node helper 缺少 JIT 权限导致首次启动崩溃；发布前实际运行签名后的 helper 和安装包内服务器
-- 修复 v0.3.31-v0.3.32 安装包漏带 Next.js 运行时依赖、首次启动退出的问题
-- 日程导入使用稳定 occurrence 标识，改期冲突由教师显式审核并支持重放、过期拒绝和重启回读
-- 审核其他事项后继续保留日程时间、时区和地点；旧主动授权缺凭据时不阻断普通工作区，也不自动重绑
-- 手机入口经独立局域网网关只开放配对、会话和提醒路径；桌面 API 与配对管理要求桌面进程令牌
-- 手机批准后立即显示已有对话；请求中断不自动重发消息，退出时撤销手机授权；网关不可达时不显示可用地址或生成配对码
-- Safe Mode 只加载 Core 清单内的内置 Skills，不运行教师目录中的第三方 Skills
-- Core 固定到 `860594a`，保留 v1.1 桥接并增加可选 occurrence v1.2；ambient planning 和外部发送保持关闭
-- 正式 macOS 发布缺签名或公证凭据时停止，发布前验证应用与 DMG 的公证 ticket 和签名
-
-- macOS Apple Silicon DMG
-- Windows x64 安装程序
-- Linux x64 Debian / AppImage
-- 支持带更新插件的旧版在应用内检查、下载、安装并重启；v0.3.29 需要一次手动安装
-
-macOS 应用使用 Developer ID 签名并公证；更新包签名与 Windows 代码签名是独立机制。
+- “找 AI 继续聊 / AI 协作”不再把固定长模板塞进输入框。老师可以直接写本次要求，事项参考单独附上并可移除；旧草稿保留。
+- PDF、DOCX 和扫描图片材料的日程提取增加离线 OCR、逐项配对及课表来源核对。不确定的来源和冲突继续交给老师确认，不自动覆盖已有事项。
+- Core 固定到 `68004b2`，保留 `edupi-bridge-v1.1`；单班单科主动运行试用默认关闭，Core 主动运行不执行外部发送。
+- OpenConnector 外部 Action 执行统一要求教师可见确认，输入快照与幂等键绑定；同用户 shell 与 runtime 凭据的强隔离尚未完成，该集成仍默认关闭，不作为本版可用能力宣传。
+- macOS Apple Silicon DMG 使用 Developer ID 签名与公证；Windows x64 为 NSIS 安装程序；Linux x64 提供 Debian 包与 AppImage。
+- 带 updater 插件的旧版可在应用内检查、下载、验签、安装并重启。v0.3.29 仍需一次手动安装新版。

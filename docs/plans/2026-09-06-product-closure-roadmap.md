@@ -2,7 +2,7 @@
 
 ## 2026-09-24 L4 课表材料来源别名（源码与 staged 验收，未发布）
 
-- Core [#182](https://github.com/Intellinfinity/edupi/pull/182) 与 [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并；Desktop 固定 Core `68004b2`，将权威课表来源/证据用于 PDF/DOCX 的纯课表与混合材料保守别名。重复导入、增量新增、旧材料删除和快照竞争均由隔离 Core 真写入回读；缺失、歧义、已删除或被教师更正的证据不自动绑来源。教师可显式选当前课表来源，选项及提交均按指纹与独占锚点核对。详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。
+- Core [#182](https://github.com/Intellinfinity/edupi/pull/182) 与 [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并；Desktop `0f2c75d` 固定 Core `68004b2`，将权威课表来源/证据用于 PDF/DOCX 的纯课表与混合材料保守别名。重复导入、增量新增、旧材料删除和快照竞争均由隔离 Core 真写入回读；缺失、歧义、已删除或被教师更正的证据不自动绑来源。教师可显式选当前课表来源，选项及提交均按指纹与独占锚点核对。详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。
 - staged bundle 的 Core/投影/Kernel ready、来源只读 API、DOCX/OCR smoke 与隔离浏览器 800×900 通过；课表来源 503 或悬挂时 PDF 禁提交且可重试，日历来源独立可用。正式签名安装包、真实材料与真实模型语义未验；整体 L4 仍未完成。本节取代下方历史记录中“slot alias 未实现”的状态，OCR 与多项日程配对的旧证据继续有效。
 
 ## 2026-09-24 L4 同名多项日程逐项配对（源码与 staged 验收，未发布）

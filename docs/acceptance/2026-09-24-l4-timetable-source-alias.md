@@ -1,6 +1,6 @@
 # L4 课表材料来源别名验收
 
-状态：Desktop 源码与 macOS staged server 验收通过；正式安装包与真实老师材料未验收。Core 固定为合并提交 `68004b2c0294159eef4f88bcbf4a921ef6978037`，公开 Latest 仍为 v0.3.36，未包含本次 Desktop 改动。
+状态：Desktop `0f2c75d` 源码与 macOS staged server 验收通过；正式安装包与真实老师材料未验收。Core 固定为合并提交 `68004b2c0294159eef4f88bcbf4a921ef6978037`，公开 Latest 仍为 v0.3.36，未包含本次 Desktop 改动。
 
 ## 合同与边界
 

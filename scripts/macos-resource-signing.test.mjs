@@ -26,5 +26,8 @@ test("signed macOS Node helper retains only its required JIT entitlement and run
   assert.match(workflow, /name: Verify signed macOS packaged runtime/);
   assert.match(workflow, /name: Verify signed macOS packaged runtime[\s\S]*npm run test:staged-desktop-runtime/);
   assert.ok(workflow.indexOf("name: Build, sign, and upload updater artifacts") < workflow.indexOf("name: Verify signed macOS packaged runtime"));
-  assert.ok(workflow.indexOf("name: Verify signed macOS packaged runtime") < workflow.indexOf("name: Notarize, staple, and replace macOS disk image"));
+  assert.ok(workflow.indexOf("name: Verify signed macOS packaged runtime") < workflow.indexOf("name: Verify packaged macOS updater key"));
+  assert.ok(workflow.indexOf("name: Verify packaged macOS updater key") < workflow.indexOf("name: Notarize, staple, and replace macOS disk image"));
+  assert.match(workflow, /node scripts\/verify-updater-plugin-binary\.mjs/);
+  assert.match(workflow, /PI_AGENT_DESKTOP_REQUIRE_UPDATER: '1'/);
 });

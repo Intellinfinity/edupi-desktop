@@ -8,6 +8,7 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
 const MESSAGE_REF = /^owner_message:[a-f0-9]{64}$/u;
 const RAW_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,127}$/u;
 const INTERPRETATIONS = new Set(["request", "commitment", "preference", "question", "quote", "tentative", "cancel", "correction", "unknown"]);
+const DOMAINS = new Set(["teaching_preparation", "student_followup", "lesson_reflection", "calendar_administration", "parent_communication", "safety_privacy"]);
 
 type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number; status: "active" | "paused" | "revoked" };
 type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected"; resolutionStatus: string; reason: string | null;
@@ -31,16 +32,20 @@ function result(value: unknown, stage: EduPiAmbientMessageError["stage"]): Recor
   return output as Record<string, unknown>;
 }
 
-function intentCandidate(value: unknown, messageRef: string): { interpretation: string } {
+function intentCandidate(value: unknown, messageRef: string): { interpretation: string | null; domain: string | null; outOfScope: boolean } {
   const view = result(value, "intent");
   const candidate = view.candidate;
+  if (view.message_ref !== messageRef || view.external_send !== false) fail("proactivity_response_invalid", "intent");
+  if (view.status === "held" && view.action === "abstain" && view.reason === "domain_not_authorized" && candidate === null) {
+    return { interpretation: null, domain: null, outOfScope: true };
+  }
   if (view.status !== "current" || !candidate || typeof candidate !== "object" || Array.isArray(candidate)) fail("proactivity_response_invalid", "intent");
   const item = candidate as Record<string, unknown>;
-  if (view.message_ref !== messageRef || view.external_send !== false || item.domain !== "teaching_preparation"
-    || !INTERPRETATIONS.has(String(item.interpretation))) {
+  if (!Object.hasOwn(item, "domain")
+    || item.domain !== null && !DOMAINS.has(String(item.domain)) || !INTERPRETATIONS.has(String(item.interpretation))) {
     fail("proactivity_response_invalid", "intent");
   }
-  return { interpretation: String(item.interpretation) };
+  return { interpretation: String(item.interpretation), domain: item.domain === null ? null : String(item.domain), outOfScope: false };
 }
 
 async function controlBindings(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
@@ -94,6 +99,22 @@ function safeControlResult(value: unknown, stage: EduPiAmbientMessageError["stag
   return applied;
 }
 
+async function withdrawCapturedMessage(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
+  input: { rootRef: string }, context: { ownerId: string }, messageRef: string): Promise<string> {
+  const output = result(await host.callOwnerControl("owner_message", { action: "withdraw", root_ref: input.rootRef,
+    expected_owner_id: context.ownerId, message_ref: messageRef, expected_revision: 1 }), "capture");
+  const receipt = output.receipt;
+  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) fail("proactivity_response_invalid", "capture");
+  const item = receipt as Record<string, unknown>;
+  let recordedAt: string | null = null;
+  try { recordedAt = typeof item.recorded_at === "string" ? new Date(item.recorded_at).toISOString() : null; } catch { recordedAt = null; }
+  if (item.action !== "withdraw" || item.message_ref !== messageRef || item.revision !== 2
+    || item.owner_id !== context.ownerId || item.root_ref !== input.rootRef || item.apply !== false
+    || item.live_authority !== false || item.external_send !== false || recordedAt === null || recordedAt !== item.recorded_at
+    || typeof output.replayed !== "boolean") fail("proactivity_response_invalid", "capture");
+  return recordedAt;
+}
+
 export function predictEduPiOwnerMessageRef(rootRef: string, ownerId: string, messageId: string): string {
   if (!HASH.test(rootRef) || !ID.test(ownerId) || !RAW_ID.test(messageId)) fail();
   const digest = (value: string) => crypto.createHash("sha256").update(value, "utf8").digest("hex");
@@ -110,7 +131,8 @@ export async function captureAndApplyAmbientMessage(
   dependencies: { findAppliedGoal?: (workCaseId: string) => Promise<{ goalId: string } | null>;
     controlScope?: { classId: string; subject: string };
     onPrepared?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
-    onCaptured?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void> } = {},
+    onCaptured?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
+    onWithdrawn?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number; withdrawnAt: string }) => Promise<void> } = {},
 ): Promise<AmbientResult> {
   let canonicalOccurredAt = false;
   try { canonicalOccurredAt = new Date(input.occurredAt).toISOString() === input.occurredAt; } catch { canonicalOccurredAt = false; }
@@ -162,6 +184,15 @@ export async function captureAndApplyAmbientMessage(
     expected_owner_id: context.ownerId,
     message_ref: messageRef,
   }), messageRef) : null;
+  if (candidate && (candidate.outOfScope || candidate.domain !== "teaching_preparation")) {
+    const withdrawnAt = await withdrawCapturedMessage(host, input, context, messageRef);
+    if (dependencies.onWithdrawn) {
+      try { await dependencies.onWithdrawn({ ...messageBinding, withdrawnAt }); }
+      catch { fail("proactivity_runtime_unavailable", "capture"); }
+    }
+    return { status: "captured", resolutionStatus: "held", reason: "domain_out_of_scope",
+      goalId: null, workCaseId: null, externalSend: false };
+  }
   let bindingsPromise: Promise<ControlBinding[]> | null = null;
   const bindings = () => bindingsPromise ??= controlBindings(host, input, context, dependencies.controlScope!);
   if (candidate?.interpretation === "cancel") {

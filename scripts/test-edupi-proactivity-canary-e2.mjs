@@ -127,6 +127,16 @@ try {
   assert.equal(enabledBody.externalSend, false);
   assert.equal((await (await messageRoute.GET(request("http://localhost/api/edupi/proactivity/messages"))).json()).status, "enabled");
 
+  const outOfScope = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
+    sessionId, messageId: "canary-out-of-scope", text: "请跟进学生张三的课堂观察", occurredAt: new Date().toISOString(),
+  }));
+  const outOfScopeBody = await outOfScope.json();
+  assert.equal(outOfScope.status, 200, JSON.stringify(outOfScopeBody));
+  assert.equal(outOfScopeBody.status, "captured");
+  assert.equal(outOfScopeBody.reason, "domain_out_of_scope");
+  assert.equal(ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot })
+    .some((item) => item.messageId === "canary-out-of-scope"), false);
+
   const messageBody = { sessionId, messageId: "canary-message-1", text: "帮我准备明天的数学教案", occurredAt: new Date().toISOString() };
   const firstMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));
   const firstMessageBody = await firstMessage.json();
@@ -231,7 +241,7 @@ try {
   const afterDeletePlanning = JSON.parse(fs.readFileSync(planningFile, "utf8")).state;
   assert.equal(afterDeletePlanning.goals.find((item) => item.id === deletionSourceResult.goalId).status, "revoked");
   console.log(JSON.stringify({ status: "passed", explicit_opt_in: true, scope_bound: true, ordinary_message_goal: true,
-    concurrent_activation_cas: true, natural_correction: true, natural_cancellation: true, replay_no_duplicate: true, restart_persistent: true,
+    concurrent_activation_cas: true, out_of_scope_tombstoned: true, natural_correction: true, natural_cancellation: true, replay_no_duplicate: true, restart_persistent: true,
     feedback_channel: true, synthetic_feedback_excluded: true, explicit_stop: true, session_delete_withdrawal: true,
     active_goal_delete_propagation: true, capture_crash_recovery: true, model_provider_calls: 0, external_send: false }));
 } finally {

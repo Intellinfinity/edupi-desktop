@@ -24,6 +24,8 @@ test("ambient message intake is bounded, owner-controlled, and external-send-fre
   assert.match(source, /captureAndApplyAmbientMessage/);
   assert.match(source, /prepareEduPiAmbientMessageBinding/);
   assert.match(source, /confirmEduPiAmbientMessageBinding/);
+  assert.match(source, /markEduPiAmbientMessageWithdrawn/);
+  assert.match(source, /onWithdrawn/);
   assert.match(source, /sessionId/);
   assert.match(source, /readProactivityOwnerContext/);
   assert.match(source, /withEduPiAmbientSessionLock/);

@@ -12,7 +12,7 @@
 
 1. Desktop 私有配置绑定当前数据根，错误文件、异根、符号链接和宽权限目录均 fail closed；启停按数据根串行并使用 `updatedAt` CAS，并发启用只有一个提交成功。停止无法确认 grant 已暂停时保留原 scope/grant 作为栅栏，只提供“重试停止”，不允许切换到第二个范围；关闭后 Runtime 回到 ambient 默认关闭。
 2. 管理中心提供一个班级/学科选择和一个启用动作，启用前明确确认期限、调用上限和不外发；运行中可显式停止。
-3. 普通聊天在主 Agent 已接受 prompt 后异步镜像到 Core；提交正文前先以无正文、桌面令牌保护的本地 GET 核对配置、能力、未过期 grant，默认关闭时本机正文提交为零。slash/bash 不进入该链，页面切换使用 bounded keepalive，主聊天失败不生成 Goal。
+3. 普通聊天在主 Agent 已接受 prompt 后异步镜像到 Core；提交正文前先以无正文、桌面令牌保护的本地 GET 核对配置、能力、未过期 grant，默认关闭时本机正文提交为零。G1 grant 未授权的 G2–G6/无领域消息在 Core 判定后立即 tombstone，并同步终结 Desktop ledger，不进入解析、Goal 或长期明文保留；slash/bash 不进入该链，页面切换使用 bounded keepalive，主聊天失败不生成 Goal。
 4. Core 独占 owner、grant、intent、Goal、work case、task、取消、修订和重放。Desktop 只消费认证的 canonical guard 绑定；跨 scope、多目标、授权未开始/过期、时钟回退、过期 Goal 和错误响应均不执行。
 5. 自然请求可创建 Goal；自然修订撤销旧 Goal 并创建新 Goal；自然取消撤销当前唯一 Goal。多目标无法唯一定位时保持询问态，不猜目标。
 6. 反馈目标从同 scope、单领域的 Core 当前事件推导；Goal/Opportunity 在修改、撤销、到期或时钟回退后不再算 current。synthetic 回归反馈明确排除于真实教师价值指标。
@@ -21,10 +21,10 @@
 ## 证据
 
 - Core：最终 merge `26fc91e` 的全量 `npm test`、runtime protocol、component manifest、writer matrix、daemon、`npm audit --audit-level=high` 与 `core-quality` run `35916645318` 通过；同一材料支撑多个普通课次 Goal 与旧 direct-source 精确重放回归通过。
-- Desktop 全量：1672 tests，1646 passed / 26 skipped / 0 failed；配置、控制、owner/grant、普通消息、两阶段无正文账本、session 删除、canonical binding、API 鉴权、UI、反馈和 release workflow 定向测试、TypeScript、lint、actionlint 与 `npm audit --audit-level=high` 通过。
+- Desktop 全量：1673 tests，1647 passed / 26 skipped / 0 failed；配置、控制、owner/grant、普通消息、跨领域即时 tombstone、两阶段无正文账本、session 删除、canonical binding、API 鉴权、UI、反馈和 release workflow 定向测试、TypeScript、lint、actionlint 与 `npm audit --audit-level=high` 通过。
 - Packaged staged：`desktop:prepare` 精确内嵌 Core `26fc91e`；Desktop、feedback、occurrence、conflict、uploaded ICS、offline OCR、DOCX、Core closure 3/3 和 isolated model host 2/2 均通过，staged 状态 `proactivity=disabled`、`external_send=false`。
-- 真实合并 Core E2：并发显式开启（一个成功、一个 stale CAS）→ 普通对话 Goal → 精确重放 → synthetic 反馈写入/回读且排除 → 自然修订/重放 → 自然取消/重复无新增控制事件 → 再创建一个共享材料的独立课次 Goal → Runtime 重启保持 → 显式停止 → ambient 关闭状态删除会话并撤回四条来源、撤销仍存活的 Goal，并安全终结一条模拟 capture-crash pending。
-- E2 结果：`explicit_opt_in=true`、`scope_bound=true`、`concurrent_activation_cas=true`、`ordinary_message_goal=true`、`natural_correction=true`、`natural_cancellation=true`、`feedback_channel=true`、`synthetic_feedback_excluded=true`、`replay_no_duplicate=true`、`restart_persistent=true`、`explicit_stop=true`、`session_delete_withdrawal=true`、`active_goal_delete_propagation=true`、`capture_crash_recovery=true`、`model_provider_calls=0`、`external_send=false`。
+- 真实合并 Core E2：并发显式开启（一个成功、一个 stale CAS）→ G2 消息因未授权领域立即 tombstone → 普通对话 Goal → 精确重放 → synthetic 反馈写入/回读且排除 → 自然修订/重放 → 自然取消/重复无新增控制事件 → 再创建一个共享材料的独立课次 Goal → Runtime 重启保持 → 显式停止 → ambient 关闭状态删除会话并撤回四条来源、撤销仍存活的 Goal，并安全终结一条模拟 capture-crash pending。
+- E2 结果：`explicit_opt_in=true`、`scope_bound=true`、`concurrent_activation_cas=true`、`out_of_scope_tombstoned=true`、`ordinary_message_goal=true`、`natural_correction=true`、`natural_cancellation=true`、`feedback_channel=true`、`synthetic_feedback_excluded=true`、`replay_no_duplicate=true`、`restart_persistent=true`、`explicit_stop=true`、`session_delete_withdrawal=true`、`active_goal_delete_propagation=true`、`capture_crash_recovery=true`、`model_provider_calls=0`、`external_send=false`。
 
 ## 主动程度与用户投入
 
@@ -39,7 +39,7 @@
 
 ## Risk
 
-- 已关闭：机会列表交叉积导致错目标、跨班领域错绑、多 marker 错绑、共享材料的普通课次 source-binding 冲突、grant/Goal 到期漂移、时钟回退、重复修订/取消写入、修订或取消重放误伤后建 Goal、并发双 grant、停止失败后换 scope、会话删除与捕获竞态、capture 硬崩丢失撤回身份、来源删除未级联、synthetic 冒充真人指标。
+- 已关闭：机会列表交叉积导致错目标、跨班领域错绑、多 marker 错绑、G1 试用长期保留未授权领域聊天、共享材料的普通课次 source-binding 冲突、grant/Goal 到期漂移、时钟回退、重复修订/取消写入、修订或取消重放误伤后建 Goal、并发双 grant、停止失败后换 scope、会话删除与捕获竞态、capture 硬崩丢失撤回身份、来源删除未级联、synthetic 冒充真人指标。
 - 当前代码风险边界：配置、账本或 Core 回执无法验证时均 fail closed；停止/删除可能暂时返回“需要恢复”或 503 并保留原对象供精确重试，不静默继续执行。
 
 ## Unverified

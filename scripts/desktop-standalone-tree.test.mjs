@@ -117,3 +117,8 @@ test("the final server audit runs after every server augmentation", async () => 
   assert.ok(verifyAt > source.indexOf("await cp(publicDir"));
   assert.ok(verifyAt > source.indexOf("await copyRuntimeModelHostFiles"));
 });
+
+test("symlinked worktree packaging closes over every direct external runtime package", async () => {
+  const source = await readFile(new URL("./prepare-desktop.mjs", import.meta.url), "utf8");
+  assert.match(source, /\["next", "react", "react-dom", "undici"\]/u);
+});

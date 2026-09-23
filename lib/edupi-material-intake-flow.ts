@@ -55,10 +55,14 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   const baseEvents = distinctRecognized(recognized.events.map((event) => ({ ...event,
     event_id: event.source_occurrence_ref
       ? stableOccurrenceCalendarEventId(scheduleSourceId, event.source_occurrence_ref)
-      : stableCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type }),
+      : event.time_interval
+        ? stableRecognizedCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type,
+          notes: event.notes, timeInterval: event.time_interval, location: event.location })
+        : stableCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type }),
   })), (event) => event.event_id);
   const events = baseEvents.map((event) => event.source_occurrence_ref ? event : ({ ...event,
-    event_id: stableRecognizedCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type, notes: event.notes }),
+    event_id: stableRecognizedCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type,
+      notes: event.notes, timeInterval: event.time_interval, location: event.location }),
   }));
   if (input.descriptor.kind === "calendar" && events.some((event) => !event.source_occurrence_ref)) {
     throw new MaterialRecognitionError("invalid_output", "ICS 日历缺少稳定事项身份。");

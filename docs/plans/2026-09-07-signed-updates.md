@@ -1,6 +1,12 @@
 # 自动下载安装
 
-## 2026-09-23 v0.3.34 Core occurrence 配对发布（Linux/Windows 安装通过，macOS 原位升级待验收）
+## 2026-09-23 macOS 安装回滚与 v0.3.35 修复（当前）
+
+- v0.3.29 应用内更新在清单检查阶段返回 `UPD-227408f2`，解码为 `plugin updater not found`；旧二进制未内嵌 updater 公钥。手动 bootstrap 的 v0.3.34 通过 Gatekeeper 后，在内置签名 Node 的 V8 初始化处 SIGTRAP；v0.3.30/v0.3.33 的同类 helper 也重现。根因是发布脚本以 Hardened Runtime 二次签名 helper 时丢失 `allow-jit` entitlement。
+- 本机恢复 v0.3.29 并回读 Core/投影/Kernel ready，51/240/43/9 数据和三份配置摘要不变。v0.3.30/v0.3.33/v0.3.34 已调回 draft；公开 Latest 与三个 updater endpoint 均回到 v0.3.29，feed commit `18d87dba`，清单 SHA-256 `2b0e934a…`。完整证据见 [v0.3.34 安装回滚](../acceptance/2026-09-23-v0.3.34-core-occurrence-release.md)。
+- v0.3.35 候选为 Node helper 仅加入 `allow-jit`，发布脚本签名后执行 V8 命令，Tauri 打包后从最终 `.app` 启动隔离 Core。隔离 Developer ID 签名副本执行 `node -e` 通过；以同一签名 helper 和公开包的 server/Core 在隔离根运行 `test:staged-desktop-runtime`，回读 Core/投影 ready、occurrence 1.2、外部发送关闭。本机完整脚本的时间戳服务不可用，正式签名/公证和安装仍以新 Release 为准。v0.3.29 到修复版需一次手动 bootstrap，不能继续宣称旧客户端可应用内升级。
+
+## 2026-09-23 v0.3.34 Core occurrence 配对发布（历史，macOS 启动失败后撤回）
 
 - Desktop PR #212/#215/#216 最终发布 merge 为 `c492aea8e50b3aadd207be9bae40a34e0412dedc`，固定 Core `860594a05c5d32617fffdbdf03d56e6ade6dc211`；occurrence mutation 连续性、旧 owner key 安全降级和 owner read 503 映射均已进入公开包。
 - 全平台 run `35805159993` 完成 Linux/Windows 构建；macOS 的已知 hosted runner 临时根 writer admission 波动没有生成资产。同 SHA 的一次 macOS 补跑 `35808315316` 完成构建、公证和 manifest。Release `394223451` 为公开 v0.3.34，11 项资产、7 个签名键，feed commit `9e70f0e`。

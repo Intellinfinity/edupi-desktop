@@ -310,6 +310,17 @@ jobs:
           tauriScript: npx tauri
           args: --verbose --target ${{ matrix.target }} --bundles ${{ runner.os == 'macOS' && 'app,dmg' || runner.os == 'Windows' && 'nsis' || 'deb,appimage' }}
 
+      - name: Verify signed macOS packaged runtime
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          EDUPI_STAGED_RESOURCES: src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app/Contents/Resources/resources
+        run: |
+          set -euo pipefail
+          helper="$EDUPI_STAGED_RESOURCES/Pi Agent Server.app/Contents/MacOS/node"
+          test "$("$helper" -e 'process.stdout.write("EDUPI_NODE_JIT_READY")')" = EDUPI_NODE_JIT_READY
+          npm run test:staged-desktop-runtime
+
       - name: Notarize, staple, and replace macOS disk image
         if: runner.os == 'macOS'
         shell: bash

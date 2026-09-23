@@ -136,6 +136,15 @@ try {
     const response = stagedServer ? await fetch(request, { signal: AbortSignal.timeout(30_000) }) : await intakeRoute.POST(request);
     return { response, body: await response.json() };
   };
+  const intakeManualOccurrence = async () => {
+    const request = new Request(`${baseUrl()}/api/edupi/intake`, { method: "POST", headers: { ...headers(), "content-type": "application/json" },
+      body: JSON.stringify({ kind: "calendar", events: [{ eventId: null, date: "2026-10-09", endDate: null,
+        name: "手工日程", type: "meeting", confidence: "teacher_confirmed", notes: null,
+        sourceOccurrenceRef: "manual-ui-occurrence", timeInterval: { start: "2026-10-09T09:00+08:00",
+          end: "2026-10-09T10:00+08:00", timeZone: "Asia/Shanghai" }, location: "手工地点" }] }) });
+    const response = stagedServer ? await fetch(request, { signal: AbortSignal.timeout(30_000) }) : await intakeRoute.POST(request);
+    return { response, body: await response.json() };
+  };
   const education = async () => {
     const request = new Request(`${baseUrl()}/api/edupi/education`, { headers: headers() });
     const response = stagedServer ? await fetch(request, { signal: AbortSignal.timeout(15_000) }) : await educationRoute.GET();
@@ -146,6 +155,12 @@ try {
     const response = stagedServer ? await fetch(request, { signal: AbortSignal.timeout(15_000) }) : await sourceRoute.GET(request);
     return { response, body: await response.json() };
   };
+
+  const manual = await intakeManualOccurrence();
+  assert.equal(manual.response.status, 200, JSON.stringify(manual.body));
+  let sourceList = await listSources();
+  assert.equal(sourceList.response.status, 200, JSON.stringify(sourceList.body));
+  assert.deepEqual(sourceList.body.sources, [], "manual occurrence issuers must not poison uploaded-calendar source discovery");
 
   const firstBytes = calendar([
     timed("upload-a", "20261001", "09", "教研会", "东楼 203"),
@@ -164,7 +179,7 @@ try {
   const firstMaterial = intakeState.materials.find((item) => item.material_id === firstEvidenceId);
   assert.ok(firstMaterial, "Core must own the original ICS evidence artifact");
   assert.deepEqual(fs.readFileSync(path.join(dataRoot, firstMaterial.relative_path)), firstBytes);
-  let sourceList = await listSources();
+  sourceList = await listSources();
   assert.equal(sourceList.response.status, 200, JSON.stringify(sourceList.body));
   let sourceFingerprint = sourceList.body.sources.find((source) => source.sourceId === sourceId)?.fingerprint;
   assert.match(sourceFingerprint, /^sha256:[a-f0-9]{64}$/u);
@@ -248,6 +263,31 @@ try {
   assert.equal(recurringCurrent.length, 2);
   assert.equal(recurringCurrent.some((item) => item.occurrenceRef === "upload-recurring#2026-10-27T01:00:00.000Z"), false);
 
+  sourceList = await listSources();
+  const recurrenceAfterExdate = sourceList.body.sources.find((source) => source.sourceId === recurringSourceId);
+  const singleCancellation = [
+    "BEGIN:VEVENT", "UID:upload-recurring", "RECURRENCE-ID;TZID=Asia/Shanghai:20261103T090000",
+    "DTSTAMP:20260923T000000Z", "STATUS:CANCELLED", "END:VEVENT",
+  ];
+  stagedFile = await stage(calendar([singleCancellation], "CANCEL"), "循环教研日历-取消一次.ics");
+  const recurrenceCancelled = await intake(stagedFile.staging_id, recurringSourceId, recurrenceAfterExdate.fingerprint);
+  assert.equal(recurrenceCancelled.response.status, 200, JSON.stringify(recurrenceCancelled.body));
+  assert.equal(recurrenceCancelled.body.calendarCommitted, true);
+  assert.equal(recurrenceCancelled.body.removedEventCount, 1);
+
+  const firstImportExdate = [
+    "BEGIN:VEVENT", "UID:upload-first-exdate", "DTSTAMP:20260923T000000Z",
+    "DTSTART;TZID=Asia/Shanghai:20261110T090000", "DTEND;TZID=Asia/Shanghai:20261110T100000",
+    "RRULE:FREQ=WEEKLY;COUNT=3", "EXDATE;TZID=Asia/Shanghai:20261117T090000",
+    "SUMMARY:首次导入即排除", "STATUS:CONFIRMED", "END:VEVENT",
+  ];
+  stagedFile = await stage(calendar([firstImportExdate], "PUBLISH"), "首次导入含排除日历.ics");
+  const firstExdate = await intake(stagedFile.staging_id);
+  assert.equal(firstExdate.response.status, 200, JSON.stringify(firstExdate.body));
+  assert.equal(firstExdate.body.calendarCommitted, true);
+  assert.equal(firstExdate.body.recognition.eventCount, 2);
+  assert.equal(firstExdate.body.removedEventCount, 0);
+
   if (stagedServer) {
     await stagedServer.stop();
     stagedServer = await startStagedServer();
@@ -258,16 +298,18 @@ try {
   read = await education();
   assert.equal(read.body.calendar.some((item) => ["upload-a", "upload-b"].includes(item.occurrenceRef)), false);
   assert.equal(read.body.calendar.filter((item) => ["upload-c", "upload-d"].includes(item.occurrenceRef)).length, 2);
-  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-recurring#")).length, 2);
+  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-recurring#")).length, 1);
+  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-first-exdate#")).length, 2);
   const deletionState = JSON.parse(fs.readFileSync(path.join(home, "output", "entity_delete_state.json"), "utf8"));
-  assert.equal(deletionState.records.filter((item) => item.target_kind === "calendar").length, 3);
+  assert.equal(deletionState.records.filter((item) => item.target_kind === "calendar").length, 4);
   assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === `ICS 日历来源更新 ${updateEvidenceId}`), true,
     "the batch tombstone history must identify the ICS revision that caused the withdrawal");
   assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === `ICS 日历来源更新 ${secondUpdateEvidenceId}`), true,
     "a later revision must preserve its own withdrawal evidence after earlier tombstones");
   console.log(JSON.stringify({ status: "passed", staged_server: staged, deterministic_ics: true, exact_replay: true,
-    explicit_update: true, consecutive_update: true, exdate_delta: true, deletion_propagation: true,
-    restart_readback: true, external_send: false }));
+    explicit_update: true, consecutive_update: true, exdate_delta: true, exdate_first_import: true,
+    recurrence_cancel: true, manual_occurrence_coexistence: true, deletion_propagation: true, restart_readback: true,
+    external_send: false }));
 } finally {
   await stagedServer?.stop();
   await runtimeSupervisor?.closeAllEduPiRuntimes();

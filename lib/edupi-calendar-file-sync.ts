@@ -189,7 +189,7 @@ export async function syncCalendarFile(input: {
   if (!baseline && recognition.events.length === 0 && !recoveredMissingCancellation) {
     throw new MaterialRecognitionError("ambiguous_schedule", "撤回日历必须明确选择此前导入的日历来源。");
   }
-  if ((recognition.calendar_mode === "delta_cancel" || recognition.calendar_mode === "delta_upsert")
+  if (baseline && (recognition.calendar_mode === "delta_cancel" || recognition.calendar_mode === "delta_upsert")
     && cancellationRefs.some((ref) => !baseline?.occurrences.some((occurrence) => occurrence.sourceOccurrenceRef === ref)
       && !deletedIds.has(stableOccurrenceCalendarEventId(sourceId, ref)))) {
     throw new MaterialRecognitionError("ambiguous_schedule", "取消事项不属于所选日历，请核对来源后重试。");

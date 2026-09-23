@@ -86,13 +86,26 @@ export function projectCoreCalendarSources(events: unknown[]): CoreCalendarSourc
   for (const value of events) {
     const event = record(value);
     if (!event || !Object.hasOwn(event, "source_occurrence_ref")) continue;
+    if (!Array.isArray(event.source_ids) || event.source_ids.length === 0 || event.source_ids.length > 50) {
+      throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源身份无效。");
+    }
+    const rawSourceIds = event.source_ids.map((item) => text(item, 160));
+    if (rawSourceIds.some((item) => item === null)
+      || rawSourceIds.some((item) => item!.startsWith("calendar-source-") && !SOURCE_ID.test(item!))) {
+      throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源身份无效。");
+    }
+    const uniqueSourceIds = [...new Set(rawSourceIds as string[])];
+    const sourceIds = uniqueSourceIds.filter((item) => SOURCE_ID.test(item));
+    if (sourceIds.length === 0) continue;
+    if (sourceIds.length !== 1 || uniqueSourceIds.length !== 1) {
+      throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源身份不唯一。");
+    }
     const ref = text(event.source_occurrence_ref, 160);
     const eventId = text(event.event_id, 160);
     const evidenceIds = Array.isArray(event.evidence_ids)
       ? [...new Set(event.evidence_ids.map((item) => text(item, 160)).filter((item): item is string => Boolean(item)))]
       : [];
-    const sourceIds = Array.isArray(event.source_ids) ? [...new Set(event.source_ids.filter((item): item is string => typeof item === "string" && SOURCE_ID.test(item)))] : [];
-    if (!ref || !eventId || sourceIds.length !== 1) throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源身份不唯一。");
+    if (!ref || !eventId) throw new CalendarSourceError("invalid_calendar_source_projection", "Core 日历来源身份无效。");
     const content = eventContent(event);
     const occurrence = { sourceOccurrenceRef: ref, eventId, contentFingerprint: hash(content), content, evidenceIds };
     const rows = groups.get(sourceIds[0]) || [];

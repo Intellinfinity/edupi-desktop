@@ -171,7 +171,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
                 <option value="">作为新日历</option>
                 {calendarSources.map((source) => <option value={source.sourceId} key={source.sourceId}>更新 {source.label}</option>)}
               </select></label>
-              {intakeDraft.calendarSourceId ? <p>更新会撤回新文件中未列出的旧安排。</p> : null}
+              {intakeDraft.calendarSourceId ? <p>更新可能撤回该来源的旧安排，请确认来源。</p> : null}
               <button type="submit" className="is-primary" disabled={stagingBusy}>{intakeDraft.calendarSourceId ? "确认更新" : "确认导入"}</button>
             </> : <>
               <label>材料名称<input required maxLength={240} value={intakeDraft.title} onChange={(event) => setIntakeDraft({ ...intakeDraft, title: event.target.value })} /></label>

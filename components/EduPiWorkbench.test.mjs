@@ -318,7 +318,7 @@ test("routes education uploads through Desktop staging without Core paths or aut
   assert.match(panel, /calendarSourceFingerprint/);
   assert.match(materials, /作为新日历/);
   assert.match(materials, /更新 \{source\.label\}/);
-  assert.match(materials, /更新会撤回新文件中未列出的旧安排/);
+  assert.match(materials, /更新可能撤回该来源的旧安排，请确认来源/);
   assert.match(materials, /calendarIntakeReady = materialIntakeReady && data\.capabilities\.calendar\.enabled && data\.capabilities\.entityDelete\.enabled/);
   assert.match(workspaceViews, /stagedMaterials/);
   assert.match(materials, /接入 EduPi/);

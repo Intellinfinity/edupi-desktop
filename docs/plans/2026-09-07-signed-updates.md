@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-23 文档日程跨修订来源配对（开发验收，未发布）
+
+- [Desktop #226](https://github.com/Intellinfinity/edupi-desktop/pull/226) 的提交 `0f9ec30`、`f255674`、`bd10438` 把 PDF/DOCX 修订绑定 Core logical source 和 occurrence，补跨格式去重、legacy/filename issuer 接管、教师确认防降级、omission 保留、tombstone 恢复与真实 route POST；详细边界和证据见 [验收记录](../acceptance/2026-09-23-document-schedule-revision-source.md)。
+- 本节没有生成正式安装包；公开 Latest 仍为 v0.3.36/Core `860594a…`。重复同名同类事项、source-hash alias、图片/扫描 PDF、正式三平台安装及应用内升级仍需后续交付。
+
 ## 2026-09-23 文本日程证据配对（开发验收，未发布）
 
 - [Desktop #225](https://github.com/Intellinfinity/edupi-desktop/pull/225) 的提交 `fe53b51` 让文本 PDF/DOCX 仅在原文可证明完整 typed time/location 时进入 Core v1.2，并新增真实 DOCX E2 与 release gate；packaged symlink worktree 同时补齐 `undici` 外部依赖闭包。证据见 [验收记录](../acceptance/2026-09-23-text-schedule-evidence.md)。

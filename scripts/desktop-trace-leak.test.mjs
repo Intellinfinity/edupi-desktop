@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -34,6 +34,18 @@ test("refuses to clean a path that existed before the build", async (t) => {
   await writeFile(path.join(preexisting, "keep.txt"), "user data\n");
   await assert.rejects(planStandaloneTraceLeakCleanup(fixturePaths), /already exists/);
   assert.equal(await access(path.join(preexisting, "keep.txt")).then(() => true), true);
+});
+
+test("refuses to delete a regular directory swapped in after planning", async (t) => {
+  const fixturePaths = await fixture(t);
+  const plan = await planStandaloneTraceLeakCleanup(fixturePaths);
+  const owned = `${plan.leakRoot}-owned`;
+  await rename(plan.leakRoot, owned);
+  await mkdir(plan.leakRoot, { recursive: true });
+  const userFile = path.join(plan.leakRoot, "keep.txt");
+  await writeFile(userFile, "replacement user data\n");
+  await assert.rejects(cleanupStandaloneTraceLeak(plan), /changed during the build/);
+  assert.equal(await access(userFile).then(() => true), true);
 });
 
 test("does nothing when node_modules is a regular directory", async (t) => {

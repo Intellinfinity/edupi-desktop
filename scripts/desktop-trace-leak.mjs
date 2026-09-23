@@ -1,4 +1,5 @@
-import { lstat, realpath, rm } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, rm, rmdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 function inside(root, candidate) {
@@ -35,7 +36,22 @@ export async function planStandaloneTraceLeakCleanup({ rootDir, standaloneDir })
   if (await existingStat(leakRoot)) {
     throw new Error(`Refusing desktop build because the trace leak cleanup path already exists: ${leakRoot}`);
   }
-  return { rootDir: root, leakRoot };
+  try {
+    await mkdir(leakRoot, { mode: 0o700 });
+  } catch (error) {
+    if (error?.code === "EEXIST") throw new Error(`Refusing desktop build because the trace leak cleanup path already exists: ${leakRoot}`);
+    throw error;
+  }
+  const markerToken = randomUUID();
+  const markerPath = path.join(leakRoot, ".edupi-trace-owner");
+  const owner = await lstat(leakRoot);
+  try {
+    await writeFile(markerPath, `${markerToken}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  } catch (error) {
+    try { await rmdir(leakRoot); } catch { /* Preserve a non-empty or replaced path for inspection. */ }
+    throw error;
+  }
+  return { rootDir: root, leakRoot, markerPath, markerToken, device: owner.dev, inode: owner.ino };
 }
 
 export async function cleanupStandaloneTraceLeak(plan) {
@@ -47,8 +63,13 @@ export async function cleanupStandaloneTraceLeak(plan) {
   }
   const stat = await existingStat(leakRoot);
   if (!stat) return;
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.dev !== plan.device || stat.ino !== plan.inode) {
     throw new Error("Desktop trace leak cleanup target changed during the build");
   }
+  const markerStat = await existingStat(plan.markerPath);
+  const marker = markerStat?.isFile() && !markerStat.isSymbolicLink()
+    ? await readFile(plan.markerPath, "utf8")
+    : null;
+  if (marker !== `${plan.markerToken}\n`) throw new Error("Desktop trace leak cleanup ownership marker changed during the build");
   await rm(leakRoot, { recursive: true, force: false });
 }

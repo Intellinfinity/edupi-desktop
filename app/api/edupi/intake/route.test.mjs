@@ -70,5 +70,11 @@ test("derives stable semantic IDs for schedule uploads without caller IDs", () =
   const second = { eventId: "b", date: "2026-09-02", name: "班会", type: "meeting" };
   assert.equal(stableScheduleSourceHash([first, second]), stableScheduleSourceHash([second, first]));
   assert.equal(stableFileScheduleIssuer("校历和课表.pdf"), "desktop-file-schedule-aac4e224bafe9fe3e1aceb9c");
-  assert.notEqual(stableFileScheduleIssuer("校历和课表.pdf", `sha256:${"a".repeat(64)}`), stableFileScheduleIssuer("校历和课表.pdf"));
+  const firstHash = `sha256:${"a".repeat(64)}`;
+  const secondHash = `sha256:${"b".repeat(64)}`;
+  assert.equal(stableFileScheduleIssuer("校历和课表.pdf", firstHash), stableFileScheduleIssuer("重命名后的行程.pdf", firstHash),
+    "the same bytes must retain one schedule issuer after a rename");
+  assert.notEqual(stableFileScheduleIssuer("校历和课表.pdf", firstHash), stableFileScheduleIssuer("校历和课表.pdf", secondHash),
+    "different bytes with the same filename must not share schedule provenance");
+  assert.notEqual(stableFileScheduleIssuer("校历和课表.pdf", firstHash), stableFileScheduleIssuer("校历和课表.pdf"));
 });

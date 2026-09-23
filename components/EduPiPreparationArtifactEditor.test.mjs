@@ -14,7 +14,7 @@ test("editor retains a conflicting draft and restores history through versioned 
   };
   const exports={};const jsx=(type,props)=>({type,props});
   const code=ts.transpileModule(fs.readFileSync(new URL("./EduPiPreparationArtifactEditor.tsx",import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText;
-  vm.runInNewContext(code,{exports,TextEncoder,AbortController,require:name=>name==="react"?react:name.includes("jsx-runtime")?{jsx,jsxs:jsx}:name.includes("artifact-client")?client:{appendTeacherInputSlot:text=>text}});
+  vm.runInNewContext(code,{exports,TextEncoder,AbortController,require:name=>name==="react"?react:name.includes("jsx-runtime")?{jsx,jsxs:jsx}:name.includes("artifact-client")?client:undefined});
   const render=()=>{do{dirty=false;cursor=0;tree=exports.EduPiPreparationArtifactEditor({artifactId:"a",preview:"原预览",onSaved:value=>saved.push(value),onAgent(){}});}while(dirty);for(const[i,e]of effects){slots[i]?.cleanup?.();slots[i]={deps:e.deps,cleanup:e.callback()};}effects.clear();return tree;};
   const nodes=node=>!node||typeof node!=="object"?[]:Array.isArray(node)?node.flatMap(nodes):[node,...nodes(node.props?.children)];
   const find=(type,label)=>nodes(render()).find(node=>node.type===type&&(node.props.children===label||node.props["aria-label"]===label));

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { EducationContract, EducationTeacherMaterial } from "@/lib/edupi-education-contract";
-import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import {
   MATERIAL_METADATA_FIELDS,
   materialMetadataPatch,
@@ -190,13 +189,12 @@ export function EduPiMaterialMetadataEditor({ material, classes, onEducation, on
   };
 
   const collaborate = () => {
-    onStartAgent(appendTeacherInputSlot([
-      `请协作修订材料“${material.title}”的信息。`,
+    onStartAgent([
+      `材料：${material.title}`,
       `当前类型：${KIND_LABELS[material.kind]}`,
       `当前学科：${material.subject || "未设置"}`,
       `当前班级：${material.class_id || "未设置"}`,
-      "请给出修改候选，等我确认后再保存。",
-    ].join("\n"), "我要补充或修改的材料信息（在这里输入或口述）："), "replace");
+    ].join("\n"), "replace");
   };
 
   return <section className="edupi-material-metadata-editor">

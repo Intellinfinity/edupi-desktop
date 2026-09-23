@@ -57,7 +57,7 @@ export function EduPiGrowthWorkspace({ data, teachingSkills, query, selectedObje
   if (category === "teacher") headingDescription = "真实教学实践、反馈与改进记录";
   else if (teachingSkills.status === "unavailable") headingDescription = "教学方法暂不可用";
   let headingAction: ReactNode = null;
-  if (category === "teacher") headingAction = <button type="button" onClick={() => onStartAgent("请根据我填写的课堂经历整理教学复盘，保存到 .edupi/output/weekly/，不要编造课堂效果。\n\n本次教学与效果（在这里填写）：", "replace")}>记录复盘</button>;
+  if (category === "teacher") headingAction = <button type="button" onClick={() => onStartAgent("教学复盘", "replace")}>记录复盘</button>;
   else if (teachingSkills.mutationEnabled) headingAction = <button type="button" onClick={() => { setSavedMessage(""); setEditor((current) => current?.mode === "create" ? null : { methodId: null, mode: "create" }); }}>新增教学方法</button>;
 
   return <main className="edupi-module-workspace edupi-database-workspace">

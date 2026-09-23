@@ -5,7 +5,6 @@ import type { EducationContract, EducationEntityDeleteKind, TeacherTask } from "
 import { MATERIAL_CATEGORIES, materialCategoryRoute, materialItemRoute, materialObjectId } from "@/lib/edupi-domain-navigation";
 import type { MaterialStagingDescriptor } from "@/lib/edupi-material-staging-client";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
-import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { buildMaterialRows, defaultMaterialIntakeMetadata, type MaterialIntakeMetadata, type MaterialRow } from "@/lib/edupi-material-rows";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
@@ -96,12 +95,11 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   const materialSource = data.dataSources.materials;
   const openMaterialAgent = () => {
     if (!selected) return;
-    const prompt = appendTeacherInputSlot([
-      `请补充或修订这份材料的信息：${selected.title}`,
+    const prompt = [
+      `材料：${selected.title}`,
       `当前说明：${selected.summary}`,
       `来源：${selected.source}`,
-      "请保留原始来源，根据我的要求整理修改候选，待我确认后写回。",
-    ].join("\n"), "我要补充或修改的信息（在这里输入或口述）：");
+    ].join("\n");
     onStartAgent(prompt, "replace");
   };
   const deleteSelected = async () => {

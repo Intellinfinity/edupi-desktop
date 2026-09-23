@@ -81,3 +81,13 @@ export function setPrefJson(key: AppPrefKey, value: unknown): void {
     // ignore
   }
 }
+
+export function trySetPrefJson(key: AppPrefKey, value: unknown): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}

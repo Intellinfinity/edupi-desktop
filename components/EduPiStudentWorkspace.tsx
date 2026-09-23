@@ -6,7 +6,6 @@ import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { studentRecordKey, studentRecordName } from "@/lib/edupi-student-roster-model";
 import { parseStudentProfileList } from "@/lib/edupi-student-profile-edit";
 import { buildStudentProfileConversationPrompt } from "@/lib/edupi-student-profile-prompt";
-import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import { isUserFacingMemory, taskDisplayTitle, taskKey, taskStatusLabel } from "@/lib/edupi-workbench";
 import { EduPiRosterPreview, type RosterPreview } from "./EduPiRosterPreview";
 import { EduPiStudentEvents } from "./EduPiStudentEvents";
@@ -305,11 +304,10 @@ export function EduPiStudentWorkspace({ mode, data, context, query, selectedStud
   };
   const openStudentMemoryAgent = (content: string) => {
     if (!selectedName) return;
-    const prompt = appendTeacherInputSlot([
-      `请修订关于${selectedName}的这条 EduPi 记忆。`,
+    const prompt = [
+      `学生：${selectedName}`,
       `当前内容：${content}`,
-      "请根据我的要求说明修改建议和依据，待我确认后再写回并保留旧版本。",
-    ].join("\n"), "我希望改成（在这里输入或口述）：");
+    ].join("\n");
     onStartAgent(prompt, "replace");
   };
   const deleteStudent = async () => {

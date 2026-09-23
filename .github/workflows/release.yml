@@ -189,6 +189,7 @@ jobs:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: |
           npm run test:edupi-ambient-today-runtime
+          npm run test:edupi-proactivity-canary-e2
           npm run test:edupi-schedule-conflicts-e2
           npm run test:edupi-schedule-occurrence-e2
           npm run test:edupi-uploaded-calendar-e2

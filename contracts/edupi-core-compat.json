@@ -2,11 +2,11 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "c1edefd2a2b77e3d10dfc9f0a47eceb7b5f7b1de",
+    "core_commit": "0f675489c5f1b8a35c5f32a0b74e6fc51f942758",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
     "component_manifest_hash": "sha256:de5414533590986f9ad3cd51e9b1d193c21e44021e47f3195a6443c16544a388",
-    "runtime_component_manifest_hash": "sha256:c3dc57b89820cc1ebaa671554e1c5be452e8da19fd02639bbc23aac1e1555b79",
-    "runtime_schema_hash": "sha256:5ec30b6043bcb89e170d2cb7a4c2b8fe3be2660d546c13df9b0b3996a3dc3c1e"
+    "runtime_component_manifest_hash": "sha256:c6cc01f7871696b46380d67525d3bf1efb61d61b81249c9337ec9dcc4cb92aa3",
+    "runtime_schema_hash": "sha256:815f827e4a1d87c3e42c5a301b34c5eda5520b8bfbf79686f4c910f0a8dae700"
   },
   "contract_identities": [
     {
@@ -147,7 +147,11 @@
     "https://github.com/Intellinfinity/edupi/pull/174",
     "https://github.com/Intellinfinity/edupi/pull/175",
     "https://github.com/Intellinfinity/edupi/pull/176",
-    "https://github.com/Intellinfinity/edupi/pull/177"
+    "https://github.com/Intellinfinity/edupi/pull/177",
+    "https://github.com/Intellinfinity/edupi/pull/178",
+    "https://github.com/Intellinfinity/edupi/pull/179",
+    "https://github.com/Intellinfinity/edupi/pull/180",
+    "https://github.com/Intellinfinity/edupi/pull/181"
   ],
-  "change_note": "Desktop pin to merged Core c1edefd: preserves the frozen v1.1 bridge and opt-in v1.2 occurrence contract, propagates PDF/DOCX material deletion and restore through document schedule evidence, mixed-source visibility, active work, and teacher-feedback lineage. external_send=false is unchanged."
+  "change_note": "Desktop pin to merged Core 0f67548: preserves the frozen v1.1 bridge and opt-in v1.2 occurrence contract; keeps authenticated canonical owner Goal/work-case/task bindings and clock-fenced feedback targets; and now reconciles an owner-message withdrawal through derived Goals and queued work even after ambient scheduling is stopped. New capture remains disabled while stopped and external_send=false is unchanged."
 }

@@ -16,6 +16,8 @@ test("projects only validated Core health and education snapshot", { skip: !core
   assert.equal(typeof body.proactivity.ambientPlanning, "boolean");
   assert.equal(typeof body.proactivity.attentionDelivery, "boolean");
   assert.equal(typeof body.proactivity.teacherFeedback, "boolean");
+  assert.ok(["default", "desktop_canary", "environment"].includes(body.proactivity.activationSource));
+  assert.ok(["missing", "ready", "mismatched", "invalid"].includes(body.proactivity.configurationStatus));
   assert.equal(body.core.status, "ready");
   assert.equal(body.core.contractVersion, "1.1");
   assert.deepEqual(body.core.supportedCommands, ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"]);

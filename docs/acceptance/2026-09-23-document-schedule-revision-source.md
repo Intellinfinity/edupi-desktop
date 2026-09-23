@@ -9,7 +9,7 @@
 ## 来源与去重合同
 
 - 新 PDF/DOCX 来源使用 `document-source-*`，来源与 occurrence 只从 Core v1.2 当前投影重建；Desktop 不建立第二份来源 baseline。
-- 模型不能提供 `source_occurrence_ref`。单项继续使用兼容的 `name + type` ref；同一文档内多条同名同类事项使用完整语义内容生成稳定 variant ref，完全重复行折叠为一项。修订时先按 variant 精确配对，只在剩余恰好一新一旧时续接原 event ID/ref 并交给 Core held/conflict；多项同时变化、错源或多来源继续 fail closed。
+- 模型不能提供 `source_occurrence_ref`。单项继续使用兼容的 `name + type` ref；同一文档内多条同名同类事项使用完整语义内容生成稳定 variant ref，完全重复行折叠为一项。修订时先按 variant 精确配对，只在剩余恰好一新一旧时续接原 event ID/ref，并由 Core 按 revision/conflict 规则处理；日期或时段变化进入 held/conflict。多项同时变化、错源或多来源继续 fail closed。
 - 同字节改名保持来源；不同字节修订必须显式选择既有来源。来源 fingerprint 是 Core 当前 occurrence 内容的 CAS，stale fingerprint 在写入前拒绝。
 - PDF/DOCX 与 ICS 的相同事项不会自动跨信任域合并：页面同时列出“日历”和“材料”来源，教师明确选择后才复用既有 occurrence。文档只可为完全一致的 ICS 事项补证，不得用 `inferred` 覆盖已确认日历；ICS 明确替换材料来源时继续使用全量撤回语义。
 - 教师已确认的文档事项不能被后续模型降级。精确重放保留较高 confidence；有实质内容差异时先拒绝或进入 Core 冲突审核。

@@ -3,7 +3,7 @@
 ## 2026-09-23 文档同名 occurrence 消歧（工程验收通过，尚未发布）
 
 - [Desktop #229](https://github.com/Intellinfinity/edupi-desktop/pull/229) 的提交 `082648e` 让同一 PDF/DOCX 内多条 `name + type` 相同的事项使用完整语义 variant ref；完全重复行折叠，改名重放稳定，旧 singleton ID 保持。
-- 修订配对按“variant 精确匹配 → 剩余仅 1:1”执行。一项变化复用原 occurrence 并交给 Core held/conflict；多项同时变化、foreign legacy、删除 sibling 复活和教师已确认内容差异均在写入前拒绝。pre-typed inferred legacy 的同字节 typed 升级保留 canonical ID。
+- 修订配对按“variant 精确匹配 → 剩余仅 1:1”执行。一项变化复用原 occurrence，并由 Core 按 revision/conflict 规则处理；日期或时段变化进入 held/conflict。多项同时变化、foreign legacy、删除 sibling 复活和教师已确认内容差异均在写入前拒绝。pre-typed inferred legacy 的同字节 typed 升级保留 canonical ID。
 - 固定 Core `c1edefd…` 的真实 DOCX E2 覆盖两场同名会议、新旧 ID、一次改期无第三条重复和文档内 exact duplicate。全量 1547 tests，1521 passed / 26 skipped / 0 failed；TypeScript、lint、audit、`desktop:prepare`、staged runtime 和独立复审通过，`external_send=false`。
 - Unverified：同名组两项以上同时变化仍缺教师逐项配对 UI；slot alias、图片/扫描 PDF 的可信 OCR、正式安装版、真实 provider、正式盲测和真实教师价值仍未验证。`proactivity` 仍默认关闭，整体状态仍是“L4 功能收敛中”。
 

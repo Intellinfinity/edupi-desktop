@@ -4,14 +4,20 @@
 
 - 当前开发分支已固定 Core `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`，Desktop 提交 `e097865`、`1e4c2c8`、`1402691`、`ee71640` 完成严格 ICS 暂存、确定性解析、来源 CAS、单次/整组取消、循环系列替换、精确重放和 tombstone 恢复防护。
 - `desktop:prepare`、staged uploaded-calendar/occurrence/conflict/feedback/desktop、bundle closure 3/3 和 model host 2/2 均通过；packaged 页面在隔离数据根实际完成首次导入和来源更新，console error/warn 为 0。验收详见 [上传 ICS 日历来源收敛验收](../acceptance/2026-09-23-uploaded-calendar-source-sync.md)。
-- 本节不改变公开更新状态：Latest 仍是 v0.3.35/Core `860594a…`。包含 Core `b2c2bb8` 的正式三平台构建、签名、公证、公开安装和应用内升级尚未执行，不能以 staged 资源替代安装版验收。
+- 本节不改变公开更新状态：Latest 仍是 v0.3.36/Core `860594a…`。包含 Core `b2c2bb8` 的正式三平台构建、签名、公证、公开安装和应用内升级尚未执行，不能以 staged 资源替代安装版验收。
 
-## 2026-09-23 v0.3.35 签名启动恢复（发布与本机安装通过）
+## 2026-09-23 v0.3.36 应用内更新风险验收（当前）
+
+- Desktop #220 merge `71d9670` 要求正式构建内嵌 updater 公钥，并在 macOS 最终可执行文件公证前比对精确公钥；缺公钥构建负测按预期拒绝。正式 run `35820263217` 三平台与 manifest 全绿，Release `394308386` 为公开 v0.3.36、11 项资产、7 个签名 updater 键。Apple DMG submission `fb9c113d-aad4-461a-8f14-61170f43b1b3` Accepted，三条 feed 均回读 v0.3.36、清单 SHA-256 `e6b474a0…`。
+- 本机从已安装的 v0.3.35 设置页实际点击“更新”：完成清单检查、下载、验签、安装与自动重启，进程 `10848 → 58654`，原路径版本为 0.3.36；Core/投影/Kernel ready、Core `860594a…`，51/240/43/9 和三份模型/认证/设置摘要保持，手机仍关闭、JEV 设置保持，唯一安装副本与 Gatekeeper 通过。固定 Tauri updater 2.10.1 在 `download` 返回前验签，失败不会进入 `install`。完整证据见 [v0.3.36 应用内更新验收](../acceptance/2026-09-23-v0.3.36-in-app-updater.md)。
+- v0.3.29 已发布的 macOS 二进制无法原地补入 updater 插件；v0.3.25–v0.3.28 固化旧 endpoint，因此这些版本仍需一次性手动替换。这台 Mac 已在上一版完成该 bootstrap。Windows/Linux 旧版应用内升级尚需独立验收。
+
+## 2026-09-23 v0.3.35 签名启动恢复（历史，首次手动安装通过）
 
 - v0.3.29 应用内更新在清单检查阶段返回 `UPD-227408f2`，解码为 `plugin updater not found`；旧二进制未内嵌 updater 公钥。手动 bootstrap 的 v0.3.34 通过 Gatekeeper 后，在内置签名 Node 的 V8 初始化处 SIGTRAP；v0.3.30/v0.3.33 的同类 helper 也重现。根因是发布脚本以 Hardened Runtime 二次签名 helper 时丢失 `allow-jit` entitlement。
 - v0.3.30/v0.3.33/v0.3.34 已调回 draft；中途公开 Latest/三条 feed 曾回到 v0.3.29，feed commit `18d87dba`，清单 SHA-256 `2b0e934a…`。该回滚和 v0.3.34 本机失败见 [安装回滚证据](../acceptance/2026-09-23-v0.3.34-core-occurrence-release.md)。
 - v0.3.35 只给 Node helper 加 `allow-jit`，签名后执行 V8 命令，Tauri 最终 `.app` 再启动隔离 Core。正式 run `35815288358` 三平台、DMG 公证与 manifest 全绿；Release `394282553` 为公开 Latest，11 项资产、7 个签名 updater 键。Apple submission `f9b1d9ff-93cc-4374-a36f-77061c6e7653` Accepted，公开 DMG SHA-256 `b766f9be…`；canonical Raw、旧 Raw 和旧 Latest 均返回同一份 v0.3.35 manifest `d306677b…`。
-- Linux `35817527851` 和 Windows `35817533119` 公共安装通过。本机从 v0.3.29 保留备份手动安装 v0.3.35 后，应用窗口与 Core `860594a…` 就绪；51/240/43/9 数据和模型/认证/设置摘要保持，手机仍关闭、JEV 设置保留、唯一 `/Applications/EduPi.app`。完整证据见 [v0.3.35 签名启动恢复与安装验收](../acceptance/2026-09-23-v0.3.35-signed-macos-recovery.md)。v0.3.29 没有 updater 插件，故本次手动 bootstrap 不等于 Tauri 应用内下载/验签；v0.3.35 到后续版本的自动升级仍待实测。
+- Linux `35817527851` 和 Windows `35817533119` 公共安装通过。本机从 v0.3.29 保留备份手动安装 v0.3.35 后，应用窗口与 Core `860594a…` 就绪；51/240/43/9 数据和模型/认证/设置摘要保持，手机仍关闭、JEV 设置保留、唯一 `/Applications/EduPi.app`。完整证据见 [v0.3.35 签名启动恢复与安装验收](../acceptance/2026-09-23-v0.3.35-signed-macos-recovery.md)。v0.3.29 没有 updater 插件；v0.3.35 后续自动升级现以上方 v0.3.36 实测为准。
 
 ## 2026-09-23 v0.3.34 Core occurrence 配对发布（历史，macOS 启动失败后撤回）
 

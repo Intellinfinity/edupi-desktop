@@ -25,6 +25,8 @@ Choose an asset from [Releases](https://github.com/Intellinfinity/edupi-desktop/
 | Windows x64 | `x64-setup.exe` |
 | Linux x64 | `.deb` |
 
+On macOS, v0.3.29 lacks the updater plugin; v0.3.25–v0.3.28 have the old release endpoint built in. The withdrawn v0.3.30–v0.3.34 builds also need replacement. Quit EduPi, download the latest signed `aarch64.dmg`, replace `/Applications/EduPi.app`, and reopen it. Keep the separate teacher data directory. From v0.3.35 onward, use Settings to update in the app; the v0.3.35 → v0.3.36 path was verified on an installed Mac.
+
 The desktop package includes the local Next.js server, Node.js, Pi SDK, and a pinned EduPi Core runtime. The installed app starts its own local server. Complete the teacher setup when opening the app, then configure an available model in Settings.
 
 The app uses bundled Core and a managed data directory by default, and can restore a previously selected data directory. When using a remote model, conversation content and the context required by the request are sent to that provider. Local storage does not imply offline inference.

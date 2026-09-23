@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-24 L4 扫描材料可信 OCR（源码与 staged 验收，未发布）
+
+- Desktop `77e88f8` 为图片/三页内扫描 PDF 加入离线打包 OCR 来源，词级高置信与坐标校验、材料/页面哈希、单行完整日期/名称引文；不可信或无年份时 fail closed，不向模型发送扫描原图，不导入 OCR 时段、地点或课表。Core 仍固定 `c1edefd…` 且唯一拥有日程状态。准确证据和未验证条件见 [L4 扫描材料 OCR 验收](../acceptance/2026-09-24-l4-scanned-material-ocr.md)。
+- 隔离 Core 的真实图片/PDF→OCR→日程写入→投影回读为 2 条 `inferred/hold`、`external_send=false`；打包 Node/PDF/WASM/语言数据的 staged smoke 与 800×900 隔离页面失败提示通过。`npm test` 1590 passed / 26 skipped / 0 failed，TypeScript、lint、audit、release verify、Cargo metadata、actionlint 均通过。
+- L4 仅该 OCR 子项达到“已实现待正式安装及真实材料验收”；同名组多项同时变化的逐项配对、slot alias、六领域内容人工核对仍未完成。公开 Latest 仍为 v0.3.36。材料 OCR 失败提示刷新后不持久、正式签名包和 Windows/Linux 未验收，不能把本段记为整体 L4 完成。
+
 ## 2026-09-24 R18/R20 AI 协作输入与提醒续聊（开发态验收通过）
 
 - Desktop `3c146fe` 及 PR #227 后续修正将“找 AI 继续聊 / AI 协作”的固定长模板改为可移除的事项参考；老师输入框留空且自由编辑，原草稿不被入口覆盖。页面参考与教师本次要求分开传给模型，历史消息默认显示老师原话，参考按需展开；工作台新要求遇旧草稿时必须明确选择。各模块改为传入对象事实，删除旧的“在这里输入”模板。
@@ -10,7 +16,7 @@
 
 | 顺序 | 原任务 | 尚未完成的交付 | 状态 |
 | --- | --- | --- | --- |
-| 近期 | L4 | 扫描 PDF 与图片的可信 OCR 来源、同名组多项同时变化的逐项配对、slot alias；六领域内容逐域核对 | Core #177 与 Desktop #228/#229 已完成来源别名、删除传播和同名 occurrence 单项变化；文档遗漏不自动撤回 |
+| 近期 | L4 | 扫描 PDF/图片 OCR 的正式安装及真实材料验收；同名组多项同时变化的逐项配对、slot alias；六领域内容逐域核对 | OCR 源码/staged 已由上方 `77e88f8` 验收，未正式安装；Core #177 与 Desktop #228/#229 已完成来源别名、删除传播和同名 occurrence 单项变化；文档遗漏不自动撤回 |
 | 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 安装版 runtime；Core WorkCase capability 与 Receipt 落账 | Adapter 和 JEV 独立设置已实现，实服/安装版/权威落账未完成；JEV 不用于对话 |
 | 随下一正式包 | R22 / R15 | 将 Core `c1edefd`、ICS 与文本材料新能力发布到正式安装版，再核对升级和数据保持 | 源码已合并，公开 Latest 仍为 v0.3.36/Core `860594a`；Apple 签名、公证与本机旧包升级链路已验收 |
 | 验收批 | R21 / R22 / R25 | 通知点击回到事项、真实睡眠补跑、安装版故障插件 Safe Mode 恢复；Windows/Linux 旧版应用内升级 | 功能或源码回归已有，所列真实流程未验收 |

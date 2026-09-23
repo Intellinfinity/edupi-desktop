@@ -1,5 +1,11 @@
 # 自动下载安装
 
+## 2026-09-23 ICS 来源收敛开发配对（未发布）
+
+- 当前开发分支已固定 Core `b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e`，Desktop 提交 `e097865`、`1e4c2c8`、`1402691`、`ee71640` 完成严格 ICS 暂存、确定性解析、来源 CAS、单次/整组取消、循环系列替换、精确重放和 tombstone 恢复防护。
+- `desktop:prepare`、staged uploaded-calendar/occurrence/conflict/feedback/desktop、bundle closure 3/3 和 model host 2/2 均通过；packaged 页面在隔离数据根实际完成首次导入和来源更新，console error/warn 为 0。验收详见 [上传 ICS 日历来源收敛验收](../acceptance/2026-09-23-uploaded-calendar-source-sync.md)。
+- 本节不改变公开更新状态：Latest 仍是 v0.3.35/Core `860594a…`。包含 Core `b2c2bb8` 的正式三平台构建、签名、公证、公开安装和应用内升级尚未执行，不能以 staged 资源替代安装版验收。
+
 ## 2026-09-23 v0.3.35 签名启动恢复（发布与本机安装通过）
 
 - v0.3.29 应用内更新在清单检查阶段返回 `UPD-227408f2`，解码为 `plugin updater not found`；旧二进制未内嵌 updater 公钥。手动 bootstrap 的 v0.3.34 通过 Gatekeeper 后，在内置签名 Node 的 V8 初始化处 SIGTRAP；v0.3.30/v0.3.33 的同类 helper 也重现。根因是发布脚本以 Hardened Runtime 二次签名 helper 时丢失 `allow-jit` entitlement。

@@ -109,6 +109,9 @@ type EducationIntakeApiResult = {
   recognition?: { eventCount?: number; slotCount?: number };
   scheduleNeedsReview?: boolean;
   receipt?: { status?: string };
+  calendarSourceId?: string;
+  calendarCommitted?: boolean;
+  removedEventCount?: number;
 };
 
 type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null; retryable?: boolean };
@@ -353,7 +356,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [educationIntakeBusy, loadWorkspace]);
 
-  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata) => {
+  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, calendarSourceId: string | null, calendarSourceFingerprint: string | null) => {
     const result = await submitEducationIntake({
       kind: "material",
       stagingId: item.staging_id,
@@ -362,9 +365,20 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       subject: metadata.subject,
       classId: metadata.classId,
       recognize: true,
+      calendarSourceId,
+      calendarSourceFingerprint,
     });
     const eventCount = result.recognition?.eventCount || 0;
     const slotCount = result.recognition?.slotCount || 0;
+    if (item.kind === "calendar") {
+      if (!result.calendarCommitted) {
+        setMaterialStagingMessage({ tone: "error", sticky: true, text: `${item.original_name} 的部分变更待核对，请以当前日历显示为准。` });
+        return result;
+      }
+      const removed = result.removedEventCount ? `，撤回 ${result.removedEventCount} 项旧安排` : "";
+      setMaterialStagingMessage({ tone: "success", text: `${item.original_name} 已导入 ${eventCount} 项日程${removed}。` });
+      return result;
+    }
     if (result.scheduleNeedsReview) {
       setMaterialStagingMessage({ tone: "error", sticky: true, text: `${item.original_name} 的材料已接入，识别出的时间安排尚未全部生效；请核对文件或在日程手动更正。` });
       return result;
@@ -856,7 +870,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     void selectFilesNative({
       multiple: true,
       title: "选择教学材料",
-      filters: [{ name: "教学材料", extensions: ["jpg", "jpeg", "png", "webp", "pdf", "doc", "docx"] }],
+      filters: [{ name: "教学材料", extensions: ["jpg", "jpeg", "png", "webp", "pdf", "doc", "docx", "ics"] }],
     }).then(async (paths) => {
       if (paths.length === 0) return;
       const staged = await stageDesktopMaterialPaths(paths);
@@ -1194,7 +1208,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       <EduPiQuickEntry open={quickEntryOpen} education={education} onClose={onCloseQuickEntry} onSelect={selectQuickEntry} />
       {deleteLabel ? <EduPiDeleteConfirmation label={deleteLabel} onResolve={resolveDeleteConfirmation} /> : null}
       {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? (() => { const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation" && file.available !== false && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === previewPath.replaceAll("\\", "/")); const preview = renderFilePreview(previewPath); return artifact ? <EduPiPreparationArtifactEditor key={artifact.artifact_id} artifactId={artifact.artifact_id} preview={preview} onSaved={value => { setPreviewPath(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }} onAgent={prompt => { closeDrawer(false); startAgent(prompt, "replace"); }} /> : preview; })() : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}
-      <input ref={materialUploadInputRef} type="file" multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void stageBrowserFiles(files); }} />
+      <input ref={materialUploadInputRef} type="file" multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.ics" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void stageBrowserFiles(files); }} />
       {materialStagingMessage && activeView !== "materials" ? <div className={`edupi-material-staging-toast is-${materialStagingMessage.tone}`} role={materialStagingMessage.tone === "error" ? "alert" : "status"} aria-live="polite"><span>{materialStagingMessage.text}</span>{materialStagingMessage.sticky ? <button type="button" onClick={() => setMaterialStagingMessage(null)} aria-label="关闭提示" title="关闭提示">×</button> : null}</div> : null}
       {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button data-autofocus type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} history={education?.teacherContextReviewHistory ?? []} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => await loadWorkspace() ?? education} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}
     </section>

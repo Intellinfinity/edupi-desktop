@@ -30,6 +30,11 @@ const MODEL_TIMEOUT_MS = 90_000;
 const MAX_RECOGNITION_CACHE_BYTES = 256 * 1024;
 const DOCX_WORKER_TIMEOUT_MS = 20_000;
 const DOCX_WORKER_HEAP_MB = 128;
+const ICS_WORKER_TIMEOUT_MS = 12_000;
+const ICS_WORKER_HEAP_MB = 128;
+const RECOGNITION_CACHE_VERSION = 2;
+const RECOGNITION_POLICY_VERSION = "edupi-schedule-recognition-v2";
+const ICS_PARSER_VERSION = "node-ical@0.27.2";
 const CALENDAR_TYPES = new Set<CalendarImportEvent["type"]>(["exam", "activity", "meeting", "holiday", "festival", "teaching", "custom"]);
 const SLOT_KINDS = new Set<TimetableImportSlot["kind"]>(["class", "routine"]);
 const CALENDAR_TYPE_ALIASES: Record<string, CalendarImportEvent["type"]> = {
@@ -48,7 +53,12 @@ function resolveMammothEntry(): string {
 export type RecognitionImage = { data: string; mimeType: string };
 export type ExtractedMaterial = { text: string; images: RecognitionImage[] };
 export type RecognitionModelInput = { originalName: string; text: string; images: RecognitionImage[] };
-export type MaterialRecognitionResult = { events: CalendarImportEvent[]; slots: TimetableImportSlot[] };
+export type MaterialRecognitionResult = {
+  events: CalendarImportEvent[];
+  slots: TimetableImportSlot[];
+  cancelled_occurrence_refs?: string[];
+  calendar_mode?: "full_snapshot" | "delta_upsert" | "delta_cancel";
+};
 type VerifiedStagedMaterial = { bytes: Buffer; extension: string };
 
 export type RecognitionModelDiagnosticCategory =
@@ -246,6 +256,9 @@ export function parseRecognitionOutput(output: string, idFactory: () => string =
   }
   const events: CalendarImportEvent[] = root.events.map((value) => {
     const item = record(value);
+    // Model output never owns a stable source occurrence identity. Typed
+    // time/place requires deterministic source evidence, which the ICS path
+    // supplies separately without invoking the model.
     if (!item || !exactKeysWithOptional(item, ["date", "name", "type"], ["end_date", "notes"])) throw new MaterialRecognitionError("invalid_output", "校历识别结果无效。");
     return {
       event_id: text(idFactory(), 160) as string,
@@ -276,7 +289,11 @@ export function parseRecognitionOutput(output: string, idFactory: () => string =
 }
 
 function boundedExtractedText(value: string): string {
-  return value.replace(/\r\n/g, "\n").replace(/\u0000/g, "").trim().slice(0, MAX_TEXT_CHARS);
+  const normalized = value.replace(/\r\n/g, "\n").replace(/\u0000/g, "").trim();
+  if (normalized.length > MAX_TEXT_CHARS) {
+    throw new MaterialRecognitionError("ambiguous_schedule", "材料正文超过完整识别上限，未导入其中的时间安排。");
+  }
+  return normalized;
 }
 
 export function validateDocxArchive(bytes: Buffer): void {
@@ -297,7 +314,7 @@ async function extractDocxText(filePath: string): Promise<string> {
   const workerSource = `
     const mammoth = require(process.argv[2]);
     mammoth.extractRawText({ path: process.argv[1] }).then(
-      (result) => process.stdout.write(String(result.value || "").slice(0, ${MAX_TEXT_CHARS})),
+      (result) => process.stdout.write(String(result.value || "").slice(0, ${MAX_TEXT_CHARS + 1})),
       () => { process.exitCode = 2; }
     );
   `;
@@ -373,15 +390,34 @@ function recognitionCachePath(descriptor: MaterialStagingDescriptor): string {
 
 function validateCachedRecognitionResult(value: unknown): MaterialRecognitionResult {
   const result = record(value);
-  if (!result || !exactKeys(result, ["events", "slots"]) || !Array.isArray(result.events) || !Array.isArray(result.slots)
+  if (!result || !exactKeysWithOptional(result, ["events", "slots"], ["cancelled_occurrence_refs", "calendar_mode"])
+    || !Array.isArray(result.events) || !Array.isArray(result.slots)
     || result.events.length > MAX_RESULT_ITEMS || result.slots.length > MAX_RESULT_ITEMS) throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
   for (const eventValue of result.events) {
     const event = record(eventValue);
-    if (!event || !exactKeys(event, ["event_id", "date", "end_date", "name", "type", "confidence", "notes"])
-      || typeof event.event_id !== "string" || !event.event_id || typeof event.date !== "string" || event.date.length > 32
-      || typeof event.name !== "string" || !event.name || !CALENDAR_TYPES.has(event.type as CalendarImportEvent["type"])
-      || event.confidence !== "inferred" || (event.end_date !== null && typeof event.end_date !== "string")
-      || (event.notes !== null && typeof event.notes !== "string")) throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+    if (!event || !exactKeysWithOptional(event, ["event_id", "date", "end_date", "name", "type", "confidence", "notes"], ["source_occurrence_ref", "time_interval", "location"])
+      || typeof event.event_id !== "string" || !event.event_id || event.event_id.length > 160
+      || typeof event.date !== "string" || event.date.length > 32
+      || typeof event.name !== "string" || !event.name || event.name.length > 240 || !CALENDAR_TYPES.has(event.type as CalendarImportEvent["type"])
+      || (event.confidence !== "inferred" && event.confidence !== "teacher_confirmed") || (event.end_date !== null && typeof event.end_date !== "string")
+      || (event.notes !== null && (typeof event.notes !== "string" || event.notes.length > 1000))) throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+    if (Object.hasOwn(event, "source_occurrence_ref")
+      && (typeof event.source_occurrence_ref !== "string" || !event.source_occurrence_ref || event.source_occurrence_ref.length > 160
+        || /[\u0000-\u001f\u007f]/u.test(event.source_occurrence_ref))) throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+    if (Object.hasOwn(event, "location") && event.location !== null
+      && (typeof event.location !== "string" || !event.location || event.location.length > 240
+        || /[\u0000-\u001f\u007f]/u.test(event.location))) throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+    if (Object.hasOwn(event, "time_interval")) {
+      const interval = record(event.time_interval);
+      const local = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d[+-](?:(?:0\d|1[0-4]):[0-5]\d)$/u;
+      if (!interval || !exactKeys(interval, ["start", "end", "time_zone"])
+        || typeof interval.start !== "string" || typeof interval.end !== "string" || typeof interval.time_zone !== "string"
+        || interval.time_zone.length < 1 || interval.time_zone.length > 100 || !/^[A-Za-z][A-Za-z0-9_+/-]*$/u.test(interval.time_zone)
+        || local.exec(interval.start)?.[1] !== event.date || local.exec(interval.end)?.[1] !== event.date
+        || !Number.isFinite(Date.parse(interval.start)) || Date.parse(interval.end) <= Date.parse(interval.start)) {
+        throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+      }
+    }
   }
   for (const slotValue of result.slots) {
     const slot = record(slotValue);
@@ -390,6 +426,14 @@ function validateCachedRecognitionResult(value: unknown): MaterialRecognitionRes
       || !Number.isInteger(slot.period) || Number(slot.period) < 0 || Number(slot.period) > 64 || typeof slot.subject !== "string" || !slot.subject
       || !SLOT_KINDS.has(slot.kind as TimetableImportSlot["kind"]) || (slot.class_name !== null && typeof slot.class_name !== "string")
       || (slot.notes !== null && typeof slot.notes !== "string")) throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+  }
+  if (result.cancelled_occurrence_refs !== undefined
+    && (!Array.isArray(result.cancelled_occurrence_refs) || result.cancelled_occurrence_refs.length > MAX_RESULT_ITEMS
+      || result.cancelled_occurrence_refs.some((item) => typeof item !== "string" || !item || item.length > 160 || /[\u0000-\u001f\u007f]/u.test(item)))) {
+    throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
+  }
+  if (result.calendar_mode !== undefined && result.calendar_mode !== "full_snapshot" && result.calendar_mode !== "delta_upsert" && result.calendar_mode !== "delta_cancel") {
+    throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效。");
   }
   return structuredClone(result) as MaterialRecognitionResult;
 }
@@ -401,8 +445,15 @@ export function loadRecognitionCache(descriptor: MaterialStagingDescriptor): Mat
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_RECOGNITION_CACHE_BYTES) throw new Error("invalid cache file");
     const cache = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (!cache || typeof cache !== "object" || Array.isArray(cache) || Object.keys(cache).sort().join("|") !== "original_name|result|source_hash|version"
-      || cache.version !== 1 || cache.source_hash !== descriptor.source_hash || cache.original_name !== descriptor.original_name) throw new Error("invalid cache binding");
+    if (!cache || typeof cache !== "object" || Array.isArray(cache)) throw new Error("invalid cache binding");
+    if (cache.source_hash !== descriptor.source_hash || cache.original_name !== descriptor.original_name) throw new Error("invalid cache binding");
+    const keys = Object.keys(cache).sort().join("|");
+    if (keys === "original_name|result|source_hash|version" && cache.version === 1) return null;
+    if (keys !== "extractor_version|kind|original_name|parser_version|policy_version|result|source_hash|version"
+      || cache.kind !== descriptor.kind) throw new Error("invalid cache binding");
+    if (cache.version !== RECOGNITION_CACHE_VERSION || cache.extractor_version !== RECOGNITION_CACHE_VERSION
+      || cache.policy_version !== RECOGNITION_POLICY_VERSION
+      || cache.parser_version !== (descriptor.kind === "calendar" ? ICS_PARSER_VERSION : null)) return null;
     return validateCachedRecognitionResult(cache.result);
   } catch {
     throw new MaterialRecognitionError("extract_unavailable", "材料识别缓存无效，请重新上传原文件。");
@@ -413,10 +464,20 @@ export function saveRecognitionCache(descriptor: MaterialStagingDescriptor, resu
   const validated = validateCachedRecognitionResult(result);
   const file = recognitionCachePath(descriptor);
   const pending = `${file}.pending-${process.pid}-${crypto.randomUUID()}`;
-  const bytes = `${JSON.stringify({ version: 1, source_hash: descriptor.source_hash, original_name: descriptor.original_name, result: validated })}\n`;
+  const bytes = `${JSON.stringify({
+    version: RECOGNITION_CACHE_VERSION,
+    extractor_version: RECOGNITION_CACHE_VERSION,
+    policy_version: RECOGNITION_POLICY_VERSION,
+    kind: descriptor.kind,
+    parser_version: descriptor.kind === "calendar" ? ICS_PARSER_VERSION : null,
+    source_hash: descriptor.source_hash,
+    original_name: descriptor.original_name,
+    result: validated,
+  })}\n`;
   if (Buffer.byteLength(bytes) > MAX_RECOGNITION_CACHE_BYTES) throw new MaterialRecognitionError("too_large", "材料识别结果过大。");
   try {
     fs.writeFileSync(pending, bytes, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    if (fs.existsSync(file)) fs.unlinkSync(file);
     fs.renameSync(pending, file);
     if (process.platform !== "win32") fs.chmodSync(file, 0o600);
   } finally {
@@ -435,6 +496,45 @@ async function withPrivateSnapshot<T>(bytes: Buffer, extension: string, operatio
   }
 }
 
+export async function parseIcsCalendar(bytes: Buffer): Promise<MaterialRecognitionResult> {
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > 1024 * 1024) {
+    throw new MaterialRecognitionError(bytes?.length > 1024 * 1024 ? "too_large" : "invalid_output", "ICS 日历无效。");
+  }
+  const workerPath = path.join(process.cwd(), "lib", "edupi-ics-worker.cjs");
+  let stdout: string;
+  try {
+    const result = await withPrivateSnapshot(bytes, ".ics", async (filePath) => execFileAsync(process.execPath, [
+      `--max-old-space-size=${ICS_WORKER_HEAP_MB}`,
+      workerPath,
+      filePath,
+    ], { encoding: "utf8", maxBuffer: MAX_RECOGNITION_CACHE_BYTES, timeout: ICS_WORKER_TIMEOUT_MS, windowsHide: true }));
+    stdout = result.stdout;
+  } catch (error) {
+    const failure = error as NodeJS.ErrnoException & { killed?: boolean; signal?: string; stderr?: string };
+    console.error("EduPi ICS worker failed", {
+      code: failure.code || "worker_failed",
+      killed: failure.killed === true,
+      signal: failure.signal || null,
+      stderr: typeof failure.stderr === "string" ? failure.stderr.slice(0, 500) : "",
+    });
+    throw new MaterialRecognitionError("invalid_output", "ICS 日历解析失败。");
+  }
+  let envelope: Record<string, unknown> | null = null;
+  try { envelope = record(JSON.parse(stdout)); } catch { /* handled below */ }
+  if (!envelope || !exactKeysWithOptional(envelope, ["ok"], ["result", "code"])) {
+    throw new MaterialRecognitionError("invalid_output", "ICS 日历解析结果无效。");
+  }
+  if (envelope.ok !== true) {
+    const code = envelope.code === "too_large" ? "too_large" : envelope.code === "ambiguous_schedule" ? "ambiguous_schedule" : "invalid_output";
+    throw new MaterialRecognitionError(code, code === "too_large" ? "ICS 日程超过 200 项限制。" : code === "ambiguous_schedule" ? "ICS 日程存在无法安全导入的时间或重复规则。" : "ICS 日历无效。");
+  }
+  try { return validateCachedRecognitionResult(envelope.result); }
+  catch (error) {
+    if (error instanceof MaterialRecognitionError) throw new MaterialRecognitionError("invalid_output", "ICS 日历解析结果无效。");
+    throw error;
+  }
+}
+
 async function extractPdf(filePath: string): Promise<ExtractedMaterial> {
   try {
     const { stdout } = await execFileAsync("pdftotext", ["-layout", "-enc", "UTF-8", filePath, "-"], { encoding: "utf8", maxBuffer: 2 * 1024 * 1024, timeout: 20_000 });
@@ -446,6 +546,15 @@ async function extractPdf(filePath: string): Promise<ExtractedMaterial> {
 
   const temp = await mkdtemp(path.join(fs.realpathSync(os.tmpdir()), "edupi-pdf-pages-"));
   try {
+    let pageCount = 0;
+    try {
+      const { stdout } = await execFileAsync("pdfinfo", [filePath], { encoding: "utf8", maxBuffer: 512 * 1024, timeout: 10_000 });
+      pageCount = Number(/^Pages:\s+(\d+)\s*$/imu.exec(stdout)?.[1] || 0);
+    } catch {
+      throw new MaterialRecognitionError("extract_unavailable", "PDF 页数检查组件不可用。");
+    }
+    if (!Number.isSafeInteger(pageCount) || pageCount < 1) throw new MaterialRecognitionError("extract_unavailable", "PDF 页数无法确认。");
+    if (pageCount > MAX_MODEL_IMAGES) throw new MaterialRecognitionError("ambiguous_schedule", "扫描版 PDF 超过三页，未导入不完整的时间安排。");
     const prefix = path.join(temp, "page");
     await execFileAsync("pdftoppm", ["-png", "-f", "1", "-l", String(MAX_MODEL_IMAGES), "-scale-to", "1600", filePath, prefix], { encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 30_000 });
     const pages = (await readdir(temp)).filter((name) => name.endsWith(".png")).sort().slice(0, MAX_MODEL_IMAGES);
@@ -758,10 +867,17 @@ export async function runRecognitionModel(
 export async function recognizeStagedMaterial(descriptor: MaterialStagingDescriptor, dependencies: RecognitionDependencies = {}): Promise<MaterialRecognitionResult> {
   const cacheEnabled = !dependencies.extract && !dependencies.runModel;
   let verified: VerifiedStagedMaterial | undefined;
-  if (cacheEnabled) {
+  if (cacheEnabled || descriptor.kind === "calendar") {
     verified = await readVerifiedStagedMaterial(descriptor);
-    const cached = loadRecognitionCache(descriptor);
-    if (cached) return cached;
+    if (cacheEnabled) {
+      const cached = loadRecognitionCache(descriptor);
+      if (cached) return cached;
+    }
+  }
+  if (descriptor.kind === "calendar") {
+    const result = await parseIcsCalendar(verified!.bytes);
+    if (cacheEnabled) saveRecognitionCache(descriptor, result);
+    return result;
   }
   const extracted = dependencies.extract
     ? await dependencies.extract(descriptor)

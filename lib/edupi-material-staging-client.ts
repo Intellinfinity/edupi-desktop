@@ -19,7 +19,7 @@ function parseDescriptor(value: unknown): MaterialStagingDescriptor | null {
     || descriptor.original_name.length > 240 || /[\\/\u0000-\u001f\u007f]/.test(descriptor.original_name)
     || typeof descriptor.expected_size_bytes !== "number" || !Number.isSafeInteger(descriptor.expected_size_bytes) || descriptor.expected_size_bytes <= 0
     || typeof descriptor.source_hash !== "string" || !/^sha256:[a-f0-9]{64}$/.test(descriptor.source_hash)
-    || (descriptor.kind !== "image" && descriptor.kind !== "pdf" && descriptor.kind !== "word")
+    || (descriptor.kind !== "image" && descriptor.kind !== "pdf" && descriptor.kind !== "word" && descriptor.kind !== "calendar")
     || descriptor.source_scope !== "desktop_staging") return null;
   return descriptor as unknown as MaterialStagingDescriptor;
 }
@@ -32,7 +32,7 @@ async function parseResponse(response: Response): Promise<MaterialStagingDescrip
     raw = null;
   }
   if (!response.ok) {
-    if (record(raw)?.code === "unsupported_type") throw new Error("不支持这类文件，请选择 Word、PDF 或图片");
+    if (record(raw)?.code === "unsupported_type") throw new Error("不支持这类文件，请选择 Word、PDF、图片或 ICS 日历");
     throw new Error("材料暂存服务暂不可用，请稍后重试。");
   }
   const body = record(raw);

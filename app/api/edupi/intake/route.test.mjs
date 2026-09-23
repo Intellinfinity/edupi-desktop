@@ -4,7 +4,7 @@ import { createJiti } from "jiti";
 
 const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
 const { parseCalendarIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-calendar-intake-request.ts");
-const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
+const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
 
 function request(body, headers = {}) {
   return new Request("http://localhost/api/edupi/intake", {
@@ -69,4 +69,6 @@ test("derives stable semantic IDs for schedule uploads without caller IDs", () =
   const first = { eventId: "a", date: "2026-09-01", name: "开学", type: "teaching" };
   const second = { eventId: "b", date: "2026-09-02", name: "班会", type: "meeting" };
   assert.equal(stableScheduleSourceHash([first, second]), stableScheduleSourceHash([second, first]));
+  assert.equal(stableFileScheduleIssuer("校历和课表.pdf"), "desktop-file-schedule-aac4e224bafe9fe3e1aceb9c");
+  assert.notEqual(stableFileScheduleIssuer("校历和课表.pdf", `sha256:${"a".repeat(64)}`), stableFileScheduleIssuer("校历和课表.pdf"));
 });

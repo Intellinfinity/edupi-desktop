@@ -2,12 +2,13 @@ import { issueEducationIntake, type EducationIntakeCommand, type MaterialIntake 
 import { MaterialRecognitionError, recognizeStagedMaterial, type MaterialRecognitionResult } from "./edupi-material-recognition";
 import type { MaterialStagingDescriptor } from "./edupi-material-staging";
 import { markRecognizedTimetableNote } from "./edupi-recognition-markers";
-import { stableCalendarEventId, stableFileScheduleIssuer, stableRecognizedCalendarEventId, stableRecognizedTimetableSlotId, stableTimetableSlotId } from "./edupi-schedule-upload";
+import { stableCalendarEventId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableRecognizedTimetableSlotId, stableTimetableSlotId } from "./edupi-schedule-upload";
 
 type RawRecord = Record<string, unknown>;
 
 type FlowInput = {
   descriptor: MaterialStagingDescriptor;
+  scheduleSourceId?: string;
   title?: string;
   materialKind: MaterialIntake["kind"];
   subject: string | null;
@@ -41,6 +42,8 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   data: unknown;
   recognition: { eventCount: number; slotCount: number };
   scheduleNeedsReview: boolean;
+  calendarOccurrences: Array<{ sourceOccurrenceRef: string; eventId: string }>;
+  cancelledOccurrenceRefs: string[];
 }> {
   const recognize = dependencies.recognize || ((descriptor: MaterialStagingDescriptor) => {
     let index = 0;
@@ -48,12 +51,19 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   });
   const issue = dependencies.issue || issueEducationIntake;
   const recognized = input.recognize === false ? { events: [], slots: [] } : await recognize(input.descriptor);
+  const scheduleSourceId = input.scheduleSourceId || stableFileScheduleIssuer(input.descriptor.original_name,
+    input.descriptor.kind === "calendar" ? input.descriptor.source_hash : undefined);
   const baseEvents = distinctRecognized(recognized.events.map((event) => ({ ...event,
-    event_id: stableCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type }),
+    event_id: event.source_occurrence_ref
+      ? stableOccurrenceCalendarEventId(scheduleSourceId, event.source_occurrence_ref)
+      : stableCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type }),
   })), (event) => event.event_id);
-  const events = baseEvents.map((event) => ({ ...event,
+  const events = baseEvents.map((event) => event.source_occurrence_ref ? event : ({ ...event,
     event_id: stableRecognizedCalendarEventId({ date: event.date, endDate: event.end_date, name: event.name, type: event.type, notes: event.notes }),
   }));
+  if (input.descriptor.kind === "calendar" && events.some((event) => !event.source_occurrence_ref)) {
+    throw new MaterialRecognitionError("invalid_output", "ICS 日历缺少稳定事项身份。");
+  }
   const baseSlots = distinctRecognized(recognized.slots.map((slot) => ({ ...slot,
     slot_id: stableTimetableSlotId({ dayOfWeek: slot.day_of_week, period: slot.period, subject: slot.subject, className: slot.class_name, kind: slot.kind }),
   })), (slot) => slot.slot_id);
@@ -61,24 +71,33 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
     slot_id: stableRecognizedTimetableSlotId({ dayOfWeek: slot.day_of_week, period: slot.period, subject: slot.subject, className: slot.class_name, kind: slot.kind, notes: slot.notes }),
   }));
   const materialSource = {
-    source_id: input.descriptor.staging_id,
+    source_id: input.descriptor.kind === "calendar"
+      ? `calendar-evidence-${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 32)}`
+      : input.descriptor.staging_id,
     source_kind: "teacher_file" as const,
     source_hash: input.descriptor.source_hash,
     evidence_ids: [input.descriptor.staging_id],
   };
-  const scheduleSource = { ...materialSource, source_id: stableFileScheduleIssuer(input.descriptor.original_name) };
+  const scheduleSource = {
+    ...materialSource,
+    source_id: scheduleSourceId,
+    evidence_ids: [input.descriptor.kind === "calendar" ? materialSource.source_id
+      : `schedule-evidence-${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 32)}`],
+  };
   const commands: EducationIntakeCommand[] = [{
     command_type: "intake_material",
     source: materialSource,
     material: {
-      material_id: `material-${input.descriptor.staging_id.slice("stg_".length)}`,
+      material_id: input.descriptor.kind === "calendar" ? materialSource.source_id
+        : `material-${input.descriptor.staging_id.slice("stg_".length)}`,
       staging_id: input.descriptor.staging_id,
       staging_path: input.descriptor.staging_path,
       source_path: null,
       source_hash: input.descriptor.source_hash,
       expected_size_bytes: input.descriptor.expected_size_bytes,
       kind: input.materialKind,
-      title: input.title?.trim() || input.descriptor.original_name,
+      title: input.descriptor.kind === "calendar" ? `ICS 日历来源 ${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 8)}`
+        : input.title?.trim() || input.descriptor.original_name,
       subject: input.subject,
       class_id: input.classId,
       source_scope: "desktop_staging",
@@ -104,5 +123,9 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
     recognition: { eventCount: events.length, slotCount: slots.length },
     scheduleNeedsReview: receipts.slice(1).some((receipt) => !["accepted", "modified"].includes(String(receipt.status))
       || Array.isArray(receipt.rejected_ids) && receipt.rejected_ids.length > 0),
+    calendarOccurrences: events.flatMap((event) => event.source_occurrence_ref
+      ? [{ sourceOccurrenceRef: event.source_occurrence_ref, eventId: event.event_id }]
+      : []),
+    cancelledOccurrenceRefs: [...(recognized.cancelled_occurrence_refs || [])],
   };
 }

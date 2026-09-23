@@ -191,6 +191,7 @@ jobs:
           npm run test:edupi-ambient-today-runtime
           npm run test:edupi-schedule-conflicts-e2
           npm run test:edupi-schedule-occurrence-e2
+          npm run test:edupi-uploaded-calendar-e2
           node scripts/test-edupi-c2-e2.mjs
           node scripts/test-edupi-c3-e2.mjs
           node --test scripts/packaged-core-bundle.test.mjs
@@ -257,6 +258,7 @@ jobs:
         run: |
           npm run test:staged-schedule-conflicts-runtime
           npm run test:staged-schedule-occurrence-runtime
+          npm run test:staged-uploaded-calendar-runtime
           npm run test:staged-feedback-runtime
           node --test scripts/runtime-model-host-files.test.mjs
 

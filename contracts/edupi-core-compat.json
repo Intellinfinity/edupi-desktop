@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "860594a05c5d32617fffdbdf03d56e6ade6dc211",
+    "core_commit": "b2c2bb809d4c4f8c09af7bc0e2741c025985dd3e",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:5a767d1c720b87e3b7e6681fdf16c2c2967606231199f82da94c62d3c0d49430",
-    "runtime_component_manifest_hash": "sha256:f98d0de51c19773c760a9cc208029eac091d7f31b37a7665bfe953d23813a4ca",
+    "component_manifest_hash": "sha256:9c1b834004842b76a49f4f52c5272daae28a976709e0d8396ce850c6a25f6da0",
+    "runtime_component_manifest_hash": "sha256:34ae1d53d166af1a6535a93dd208dfef2bd01ce5e4c560492de2ab35a7b53ede",
     "runtime_schema_hash": "sha256:5ec30b6043bcb89e170d2cb7a4c2b8fe3be2660d546c13df9b0b3996a3dc3c1e"
   },
   "contract_identities": [
@@ -143,7 +143,10 @@
     "https://github.com/Intellinfinity/edupi/pull/170",
     "https://github.com/Intellinfinity/edupi/pull/171",
     "https://github.com/Intellinfinity/edupi/pull/172",
-    "https://github.com/Intellinfinity/edupi/pull/173"
+    "https://github.com/Intellinfinity/edupi/pull/173",
+    "https://github.com/Intellinfinity/edupi/pull/174",
+    "https://github.com/Intellinfinity/edupi/pull/175",
+    "https://github.com/Intellinfinity/edupi/pull/176"
   ],
-  "change_note": "Desktop pin to merged Core 860594a: preserves the frozen v1.1 bridge and opt-in v1.2 occurrence contract, stabilizes ambient-aware command receipts, and enables explicit owner-bound schedule review while ambient planning remains off. external_send=false is unchanged."
+  "change_note": "Desktop pin to merged Core b2c2bb8: preserves the frozen v1.1 bridge and opt-in v1.2 occurrence contract, persists and recovers original ICS evidence, binds current-content provenance across revisions, and provides visible-source CAS batch withdrawal that tolerates unrelated ambient state drift. external_send=false is unchanged."
 }

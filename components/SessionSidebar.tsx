@@ -13,6 +13,7 @@ import { notifyDesktop } from "@/lib/desktop-notify";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { revealItemInDirNative } from "@/lib/desktop-native";
 import { getDesktopPlatform, type DesktopPlatform } from "@/lib/desktop-window";
+import { visibleTeacherMessageText } from "@/lib/edupi-composer-context";
 
 function ToolbarIconButton({
   onClick,
@@ -391,7 +392,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       loadSessions(false);
       const sessionName = (id: string) => {
         const session = allSessions.find((item) => item.id === id);
-        return session?.name || session?.firstMessage || id.slice(0, 8);
+        return session?.name || (session?.firstMessage ? visibleTeacherMessageText(session.firstMessage) : id.slice(0, 8));
       };
       for (const id of completedInBackground) {
         void notifyDesktop({
@@ -1541,7 +1542,7 @@ function SessionItem({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  const title = session.name || session.firstMessage.slice(0, 50) || session.id.slice(0, 12);
+  const title = session.name || visibleTeacherMessageText(session.firstMessage).slice(0, 50) || session.id.slice(0, 12);
 
   const startRename = useCallback(() => {
     setRenameValue(session.name ?? "");

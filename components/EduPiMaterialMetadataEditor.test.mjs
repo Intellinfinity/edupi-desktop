@@ -20,7 +20,7 @@ test("renders direct material metadata editing, AI collaboration, and truthful h
   assert.doesNotMatch(html, /暂无信息历史/);
 });
 
-test("material metadata editor uses only bounded Core routes and a teacher input slot", async () => {
+test("material metadata editor uses bounded Core routes and factual AI context", async () => {
   const [component, workspace, rows, views, css] = await Promise.all([
     readFile(new URL("./EduPiMaterialMetadataEditor.tsx", import.meta.url), "utf8"),
     readFile(new URL("./EduPiMaterialsWorkspace.tsx", import.meta.url), "utf8"),
@@ -35,7 +35,8 @@ test("material metadata editor uses only bounded Core routes and a teacher input
   assert.match(component, /expectedRevision: editor\.baseRevision/);
   assert.match(component, /materialMetadataPatch\(editor\.baseValues, normalizedEditor\)/);
   assert.match(component, /恢复会同时替换名称、类型、学科和班级/);
-  assert.match(component, /我要补充或修改的材料信息（在这里输入或口述）/);
+  assert.match(component, /材料：\$\{material\.title\}/);
+  assert.doesNotMatch(component, /在这里输入或口述/);
   assert.match(workspace, /<EduPiMaterialMetadataEditor/);
   assert.match(workspace, /edupi-material-drawer__body/);
   assert.match(rows, /material: source/);

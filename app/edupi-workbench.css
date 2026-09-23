@@ -908,8 +908,22 @@ html.dark .edupi-teacher-shell {
 .edupi-material-intake-form input,
 .edupi-material-intake-form select { min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--ep-border); border-radius: 5px; background: var(--ep-surface); color: var(--ep-text); font: inherit; }
 .edupi-material-intake-form button.is-primary { border-color: var(--ep-blue); background: var(--ep-blue); color: white; }
+.edupi-material-pairing { grid-column: 1 / -1; display: grid; gap: 8px; padding: 10px 0 0; border-top: 1px solid var(--ep-border); }
+.edupi-material-pairing h3 { margin: 0; font-size: 12px; font-weight: 600; }
+.edupi-material-pairing label { grid-template-columns: minmax(0, 1fr) minmax(180px, 1fr); align-items: center; gap: 10px; color: var(--ep-text); font-size: 11px; }
+.edupi-material-pairing label span { overflow-wrap: anywhere; }
+.edupi-material-pairing label small { display: block; margin-top: 3px; color: var(--ep-muted); font-size: 11px; white-space: pre-wrap; }
+.edupi-material-pairing select { width: 100%; }
+.edupi-material-pairing p { margin: 0; color: var(--ep-muted); font-size: 11px; }
+.edupi-material-pairing__current { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--ep-border); background: var(--ep-surface); font-size: 11px; }
+.edupi-material-pairing__current strong { font-size: 11px; }
+.edupi-material-pairing__current div { overflow-wrap: anywhere; }
+.edupi-material-pairing__current p { margin: 3px 0 0; white-space: pre-wrap; }
+.edupi-material-pairing-error { grid-column: 1 / -1; margin: 0; color: var(--ep-red); font-size: 11px; }
 @media (max-width: 900px) { .edupi-material-intake-form { grid-template-columns: 1fr 1fr; } }
-.edupi-material-message { margin: 10px 0 0; color: var(--ep-muted); font-size: 10px; }
+@media (max-width: 700px) { .edupi-material-pairing label { grid-template-columns: 1fr; } }
+.edupi-material-message { margin: 10px 0 0; color: var(--ep-muted); font-size: 12px; line-height: 1.5; }
+.edupi-material-message.is-error { padding: 8px 10px; border-left: 2px solid var(--ep-orange); background: var(--ep-orange-soft); color: var(--ep-text); }
 .edupi-material-drawer { position: fixed; z-index: 110; top: 0; right: 0; bottom: 0; display: grid; width: min(400px, 94vw); grid-template-rows: auto minmax(0, 1fr) auto; border-left: 1px solid var(--ep-border); background: var(--ep-surface); box-shadow: -14px 0 34px rgba(18, 24, 32, .16); animation: edupiCalendarDetailIn .16s ease-out; }
 .edupi-material-drawer > header { display: flex; min-height: 88px; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px; border-bottom: 1px solid var(--ep-border); }
 .edupi-material-drawer > header span { color: var(--ep-blue); font-size: 9px; font-weight: 700; }

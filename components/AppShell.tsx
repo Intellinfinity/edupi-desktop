@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useEduPiCompletionMonitor } from "@/hooks/useEduPiCompletionMonitor";
 import { reminderNotificationAction, useEduPiReminderNotifications } from "@/hooks/useEduPiReminderNotifications";
+import { createComposerContext, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import { bindReminderSession } from "@/lib/edupi-reminder-session";
 import { reminderPrompt } from "@/lib/edupi-reminder-prompt";
 import { readEduPiWorkspace } from "@/lib/edupi-education-client";
@@ -22,7 +23,7 @@ import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-comp
 import type { KernelRunAction } from "@/lib/edupi-kernel-display";
 import { runComputerUseFromAgent, setComputerUseEnabledNative } from "@/lib/desktop-computer-use";
 import { ChatWindow } from "./ChatWindow";
-import { clearDraft, getDraft, setDraft } from "@/lib/draft-store";
+import { getDraft, resetNewSessionDraft, setDraft } from "@/lib/draft-store";
 import { TabBar, type Tab } from "./TabBar";
 import { SafeModeBanner } from "./SafeModeBanner";
 
@@ -106,6 +107,8 @@ export function AppShell() {
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
   const [newSessionCwd, setNewSessionCwd] = useState<string | null>(null);
+  const [pendingEduPiContext, setPendingEduPiContext] = useState<{ context: EduPiComposerContext; openId: string } | null>(null);
+  const [pendingTeacherDraft, setPendingTeacherDraft] = useState<{ text: string; openId: string } | null>(null);
   const [initialCwdStatus, setInitialCwdStatus] = useState<"idle" | "validating" | "ready" | "error">(
     () => initialNavigation.requestedCwd ? "validating" : "idle",
   );
@@ -496,6 +499,7 @@ export function AppShell() {
 
   const initialSessionId = initialNavigation.sessionId;
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const activeCwdRef = useRef<string | null>(null);
   const activeProjectRootRef = useRef<string | null>(null);
   // True once the initial ?session= URL param has been resolved (or confirmed absent)
   const [initialSessionRestored, setInitialSessionRestored] = useState<boolean>(() => !initialSessionId);
@@ -538,7 +542,10 @@ export function AppShell() {
   }, [initialNavigation]);
 
   const handleCwdChange = useCallback((cwd: string | null, projectRoot?: string | null) => {
+    const previousCwd = activeCwdRef.current;
+    activeCwdRef.current = cwd;
     setActiveCwd(cwd);
+    if (previousCwd && cwd && previousCwd !== cwd) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     // Skip if cwd is null (initial mount).
     if (!cwd) return;
     const newProject = projectRoot ?? cwd;
@@ -558,6 +565,7 @@ export function AppShell() {
     if (currentProject === newProject) {
       return;
     }
+    if (currentProject) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     // Close any session that belongs to a different project — it no longer
     // matches the selected project directory.
     setSelectedSession(null);
@@ -581,6 +589,7 @@ export function AppShell() {
   }, [edupiEducationModule, router, selectedSession]);
 
   const handleSelectSession = useCallback((session: SessionInfo, isRestore = false) => {
+    if (!isRestore) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     setNewSessionCwd(null);
     setSelectedSession(session);
     // Do not bump sessionKey here — ChatWindow stays mounted and swaps
@@ -609,6 +618,7 @@ export function AppShell() {
   }, [router, isMobile]);
 
   const handleEducationSelectSession = useCallback((session: SessionInfo, isRestore = false) => {
+    if (!isRestore) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
     setNewSessionCwd(null);
     setSelectedSession(session);
     setBranchTree([]);
@@ -628,13 +638,17 @@ export function AppShell() {
     params.set("edupi", "1");
     params.set("view", "chat");
     params.set("session", session.id);
+    params.delete("task");
+    params.delete("reminders");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   const handleNewSession = useCallback((_sessionId: string, cwd: string) => {
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
     // "New task" is an explicit reset. A cwd-based blank-task draft would
     // otherwise be reloaded immediately when the composer remounts.
-    clearDraft(`new:${cwd}`);
+    resetNewSessionDraft(`new:${cwd}`);
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setEduPiEducationModule(null);
@@ -653,7 +667,9 @@ export function AppShell() {
   }, [router, isMobile]);
 
   const handleEducationNewSession = useCallback((_sessionId: string, cwd: string) => {
-    clearDraft(`new:${cwd}`);
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
+    resetNewSessionDraft(`new:${cwd}`);
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setSessionKey((key) => key + 1);
@@ -774,7 +790,7 @@ export function AppShell() {
     }
 
     throwIfStale();
-    clearDraft(`new:${cwd}`);
+    resetNewSessionDraft(`new:${cwd}`);
     throwIfStale();
     setSelectedSession(null);
     setNewSessionCwd(cwd);
@@ -864,7 +880,7 @@ export function AppShell() {
     return true;
   }, [router, searchParams]);
 
-  const [reminderDraft, setReminderDraft] = useState<{ taskId: string; text: string; title: string } | null>(null);
+  const [reminderDraft, setReminderDraft] = useState<{ taskId: string; title: string; context?: EduPiComposerContext; openId?: string } | null>(null);
   const continueReminder = useCallback(async (taskId: string) => {
     const response = await fetch("/api/edupi/workspace", { cache: "no-store" });
     if (!response.ok) throw new Error("事项读取失败");
@@ -882,13 +898,11 @@ export function AppShell() {
     const result = await handleActivateEducationAgentSession({ taskId, sessionId, cwd: data.workspace, view: "tasks", stage: "run", signal: new AbortController().signal });
     if (workspaceDraft) setDraft(workspaceDraftKey, workspaceDraft);
     const key = result === "existing" ? sessionId! : reminderKey;
-    if (draft && (draft.value || draft.images.length)) { setDraft(key, draft); setReminderDraft({ taskId, text: draft.value, title }); }
-    else if (result === "existing") setReminderDraft({ taskId, text: "", title });
-    else {
-      const text = task ? reminderPrompt(task) : `关于${document.title}：\n${document.excerpt}\n来源文件：${document.path}\n\n我想补充：\n`;
-      setDraft(key, { value: text, images: [] });
-      setReminderDraft({ taskId, text, title });
-    }
+    if (draft && (draft.value || draft.images.length || draft.context)) setDraft(key, draft);
+    const reference = task
+      ? reminderPrompt(task).replace(/\n\n我想补充：\s*$/u, "")
+      : `事项：${document.title}\n摘要：${document.excerpt}\n来源文件：${document.path}`;
+    setReminderDraft({ taskId, title, context: createComposerContext(reference, title), openId: crypto.randomUUID() });
     const params = new URLSearchParams({ edupi: "1", module: "home", view: "chat", task: taskId });
     if (result === "existing" && sessionId) params.set("session", sessionId);
     router.replace(`/?${params.toString()}`, { scroll: false });
@@ -989,6 +1003,8 @@ export function AppShell() {
   }, [selectedSession?.id]);
 
   const handleSessionForked = useCallback((newSessionId: string) => {
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
     setRefreshKey((k) => k + 1);
     setNewSessionCwd(null);
     setSelectedSession((prev) => ({
@@ -1000,6 +1016,8 @@ export function AppShell() {
   }, [router, hydrateSelectedSession]);
 
   const handleEducationSessionForked = useCallback((newSessionId: string) => {
+    setPendingEduPiContext(null);
+    setPendingTeacherDraft(null);
     setRefreshKey((key) => key + 1);
     setNewSessionCwd(null);
     setSelectedSession((previous) => ({
@@ -1010,6 +1028,8 @@ export function AppShell() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("edupi", "1");
     params.set("session", newSessionId);
+    params.delete("task");
+    params.delete("reminders");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [hydrateSelectedSession, router, searchParams]);
 
@@ -1243,7 +1263,7 @@ export function AppShell() {
   const activeCwdName = activeCwd ? getFileName(activeCwd) || activeCwd : null;
   const windowTitle = activeCwdName ? `${activeCwdName} - ${PRODUCT_NAME}` : PRODUCT_NAME;
   const topBarTitle = selectedSession
-    ? selectedSession.name || selectedSession.firstMessage || "未命名教学任务"
+    ? selectedSession.name || visibleTeacherMessageText(selectedSession.firstMessage) || "未命名教学任务"
     : showChat
       ? "新建教学任务"
       : PRODUCT_NAME;
@@ -1381,7 +1401,15 @@ export function AppShell() {
       onEduPiProactiveTarget={openEduPiProactiveTarget}
       onOpenEduPiReminders={openReminderPanel}
       proactiveOpenRequest={proactiveOpenRequest}
-      reminderText={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.text : undefined}
+      reminderContext={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.context : undefined}
+      reminderOpenId={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.openId : undefined}
+      onReminderContextApplied={(openId) => setReminderDraft((current) => current?.openId === openId ? { ...current, context: undefined, openId: undefined } : current)}
+      educationContext={pendingEduPiContext?.context}
+      educationOpenId={pendingEduPiContext?.openId}
+      onEducationContextApplied={(openId) => setPendingEduPiContext((current) => current?.openId === openId ? null : current)}
+      teacherDraftText={pendingTeacherDraft?.text}
+      teacherDraftOpenId={pendingTeacherDraft?.openId}
+      onTeacherDraftApplied={(openId) => setPendingTeacherDraft((current) => current?.openId === openId ? null : current)}
       reminderTitle={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.title : undefined}
       reminderDraftKey={!selectedSession && searchParams.get("task") && effectiveNewSessionCwd ? `reminder:${effectiveNewSessionCwd}:${searchParams.get("task")}` : undefined}
       onEduPiComputerAction={handleEduPiComputerAction}
@@ -2029,8 +2057,9 @@ export function AppShell() {
               onOpenProactive={openEduPiProactive}
               onOpenGuide={() => setFirstRunGuideOpen(true)}
               onOpenPhoneControl={openPhoneControl}
-              onPrepareAgentPrompt={(prompt) => chatInputRef.current?.insertText(`${prompt}\n`)}
-              onReplaceAgentPrompt={(prompt) => chatInputRef.current?.replaceText(prompt)}
+              onPrepareAgentPrompt={(prompt) => setPendingEduPiContext({ context: createComposerContext(prompt), openId: crypto.randomUUID() })}
+              onReplaceAgentPrompt={(prompt) => setPendingEduPiContext({ context: createComposerContext(prompt), openId: crypto.randomUUID() })}
+              onPrepareTeacherDraft={(text) => setPendingTeacherDraft({ text, openId: crypto.randomUUID() })}
               quickEntryOpen={quickEntryOpen}
               onCloseQuickEntry={() => setQuickEntryOpen(false)}
               onFocusAgentChat={focusEducationChat}
@@ -2069,7 +2098,9 @@ export function AppShell() {
               onEduPiProactiveTarget={openEduPiProactiveTarget}
               onOpenEduPiReminders={openReminderPanel}
               proactiveOpenRequest={proactiveOpenRequest}
-              reminderText={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.text : undefined}
+              reminderContext={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.context : undefined}
+              reminderOpenId={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.openId : undefined}
+              onReminderContextApplied={(openId) => setReminderDraft((current) => current?.openId === openId ? { ...current, context: undefined, openId: undefined } : current)}
               reminderTitle={reminderDraft?.taskId === searchParams.get("task") ? reminderDraft.title : undefined}
               reminderDraftKey={!selectedSession && searchParams.get("task") && effectiveNewSessionCwd ? `reminder:${effectiveNewSessionCwd}:${searchParams.get("task")}` : undefined}
               onEduPiComputerAction={handleEduPiComputerAction}

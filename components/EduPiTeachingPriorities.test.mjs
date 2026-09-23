@@ -41,7 +41,8 @@ test("teaching priority UI uses Core APIs, full restore wording, and unified del
   assert.match(component, /恢复会同时替换学科、班级、主题、说明和状态/);
   assert.match(component, />重试<\/button>/);
   assert.match(component, /onDeleteEntity\("teaching_priority"/);
-  assert.match(component, /我最近要补充或修改的教学重点（在这里输入或口述）/);
+  assert.match(component, /教学重点：\$\{priority\.topic\}/);
+  assert.doesNotMatch(component, /在这里输入或口述/);
   assert.match(workspace, /continuity\.teachingPriorities/);
   assert.match(workspace, /<EduPiTeachingPriorities/);
   assert.match(views, /onDeleteEntity=\{props\.onDeleteEntity\}/);

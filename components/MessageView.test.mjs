@@ -9,6 +9,7 @@ const jiti = createJiti(import.meta.url, {
   tsconfigPaths: true,
 });
 const { MessageView, replaceUserMessageText } = await jiti.import("./MessageView.tsx");
+const { createComposerContext, composeTeacherMessage } = await jiti.import("../lib/edupi-composer-context.ts");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 function renderMessage(message) {
@@ -78,6 +79,15 @@ test("does not collapse incomplete skill-looking user text", () => {
 
   assert.match(html, /ordinary user text/);
   assert.doesNotMatch(html, /aria-expanded/);
+});
+
+test("shows the teacher request first and keeps the page reference behind disclosure", () => {
+  const context = createComposerContext("教学任务：第一课备课\n任务 ID：task-1", "第一课备课");
+  const html = renderMessage({ role: "user", content: composeTeacherMessage(context, "先看看学生哪里容易困惑") });
+  assert.match(html, /先看看学生哪里容易困惑/);
+  assert.match(html, /<details class="message-user-context"><summary>参考：第一课备课<\/summary>/);
+  assert.match(html, /任务 ID：task-1/);
+  assert.doesNotMatch(html, /EduPi 页面参考 v1/);
 });
 
 test("keeps attached images when restoring a compact command for editing", () => {

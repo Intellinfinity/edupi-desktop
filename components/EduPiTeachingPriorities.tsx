@@ -3,7 +3,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { EducationContract, EducationEntityDeleteKind, EducationTeachingPriority } from "@/lib/edupi-education-contract";
 import { filterTeachingPriorityItems, TEACHING_PRIORITY_STATUS_LABELS } from "@/lib/edupi-domain-navigation";
-import { appendTeacherInputSlot } from "@/lib/edupi-teacher-input-slot";
 import type { TeachingPriorityVersion, TeachingPriorityVersionHistory, TeachingPriorityVersionSide, TeachingPriorityValues } from "@/lib/edupi-teaching-priorities";
 
 type Editor = {
@@ -164,13 +163,12 @@ export function EduPiTeachingPriorities({ priorities, defaultSubject, defaultCla
 
   const collaborate = (priority?: EducationTeachingPriority) => {
     const prompt = priority ? [
-      `请协作修订教学重点“${priority.topic}”。`,
+      `教学重点：${priority.topic}`,
       `当前范围：${priority.subject} · ${priority.className || "全部班级"}`,
       `当前说明：${priority.note || "未填写"}`,
       `当前状态：${STATUS_LABELS[priority.status]}`,
-      "请结合已有教学依据给出修改候选，等我确认后再保存。",
-    ].join("\n") : "请根据我接下来提供的内容整理一个教学重点候选，包含学科、班级、主题和简短说明，等我确认后再保存。";
-    onStartAgent(appendTeacherInputSlot(prompt, "我最近要补充或修改的教学重点（在这里输入或口述）："), "replace");
+    ].join("\n") : "教学重点";
+    onStartAgent(prompt, "replace");
   };
 
   const remove = async (priority: EducationTeachingPriority) => {

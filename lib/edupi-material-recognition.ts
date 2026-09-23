@@ -1,9 +1,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 import {
@@ -21,6 +20,7 @@ import type { CalendarImportEvent, TimetableImportSlot } from "./edupi-education
 import type { MaterialStagingDescriptor, MaterialStagingKind } from "./edupi-material-staging";
 import { extractTextContent } from "./session-scan";
 import { validateOfficeArchive } from "../desktop/office-archive.mjs";
+import { extractTrustedOcrPage, type OcrPageEvidence } from "./edupi-ocr-evidence";
 
 const execFileAsync = promisify(execFile);
 const MAX_TEXT_CHARS = 30_000;
@@ -44,19 +44,13 @@ const CALENDAR_TYPE_ALIASES: Record<string, CalendarImportEvent["type"]> = {
 };
 const WEEKDAY_ALIASES: Record<string, number> = { 周一: 1, 星期一: 1, 周二: 2, 星期二: 2, 周三: 3, 星期三: 3, 周四: 4, 星期四: 4, 周五: 5, 星期五: 5, 周六: 6, 星期六: 6, 周日: 7, 星期日: 7, 星期天: 7 };
 const STAGING_ID = /^stg_[a-f0-9]{32}$/;
-function resolveMammothEntry(): string {
-  // Keep the dynamic package root out of webpack's createRequire parser. The
-  // DOCX worker is resolved only when a staged DOCX is actually recognized.
-  const nodeRequire = createRequire;
-  return nodeRequire(path.join(process.cwd(), "package.json")).resolve("mammoth");
-}
-
 export type RecognitionImage = { data: string; mimeType: string };
-export type ExtractedMaterial = { text: string; images: RecognitionImage[] };
-export type RecognitionModelInput = { originalName: string; text: string; images: RecognitionImage[] };
+export type ExtractedMaterial = { text: string; images: RecognitionImage[]; ocrEvidence?: OcrPageEvidence[]; ocrStatus?: "trusted" | "unavailable"; textLayout?: "coordinate_rows" };
+export type RecognitionModelInput = { originalName: string; text: string; images: RecognitionImage[]; sourceTextKind?: "trusted_ocr" };
 export type MaterialRecognitionResult = {
   events: CalendarImportEvent[];
   slots: TimetableImportSlot[];
+  ocrStatus?: "trusted" | "unavailable";
   cancelled_occurrence_refs?: string[];
   affected_series_refs?: string[];
   calendar_mode?: "full_snapshot" | "delta_upsert" | "delta_cancel";
@@ -241,6 +235,18 @@ function evidenceDateVariants(date: string): string[] {
     `${year}年${month}月${day}日`, `${year}年${paddedMonth}月${paddedDay}日`];
 }
 
+function ocrDateMentions(line: string): string[] {
+  const tokens = line.normalize("NFKC").match(/(?<![\dA-Za-z])\d{4}(?:[-/.]\d{1,2}[-/.]\d{1,2}|年\d{1,2}月\d{1,2}日?)(?![\dA-Za-z])/gu) ?? [];
+  return tokens.flatMap((token) => {
+    const date = normalizedDate(token);
+    const parts = date && /^(\d{4})-(\d{2})-(\d{2})$/u.exec(date);
+    if (!parts) return [];
+    const actual = new Date(Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])));
+    return actual.getUTCFullYear() === Number(parts[1]) && actual.getUTCMonth() + 1 === Number(parts[2])
+      && actual.getUTCDate() === Number(parts[3]) ? [date] : [];
+  });
+}
+
 function quoteHasTimeRange(quote: string, startClock: string, endClock: string): boolean {
   const start = /^(\d{2}):(\d{2})$/u.exec(startClock);
   const end = /^(\d{2}):(\d{2})$/u.exec(endClock);
@@ -404,6 +410,9 @@ export function parseRecognitionOutput(
   output: string,
   idFactory: () => string = () => `recognized-${crypto.randomUUID()}`,
   sourceText = "",
+  requireEvidenceQuote = false,
+  ocrPages: readonly OcrPageEvidence[] = [],
+  requireLineBoundQuote = false,
 ): MaterialRecognitionResult {
   const root = jsonObject(output);
   if (!exactKeys(root, ["events", "slots"]) || !Array.isArray(root.events) || !Array.isArray(root.slots)
@@ -417,6 +426,7 @@ export function parseRecognitionOutput(
     }
     const date = normalizedDate(item.date) || "";
     const evidenceQuote = Object.hasOwn(item, "evidence_quote") ? text(item.evidence_quote, 300) as string : null;
+    if (requireEvidenceQuote && !evidenceQuote) throw new MaterialRecognitionError("invalid_output", "OCR 日程缺少可核对的证据摘录。");
     const normalizedQuote = evidenceQuote ? normalizedEvidenceText(evidenceQuote) : "";
     const normalizedSource = normalizedEvidenceText(sourceText);
     const hasTimeInterval = item.time_interval !== undefined;
@@ -433,6 +443,33 @@ export function parseRecognitionOutput(
       throw new MaterialRecognitionError("invalid_output", "材料日程证据无法在原文中确认。");
     }
     const name = text(item.name, 240) as string;
+    const lineBoundSegments = requireLineBoundQuote && evidenceQuote
+      ? sourceText.split(/[\n|]/u).filter(segment => normalizedEvidenceText(segment).includes(normalizedQuote)) : [];
+    const lineBoundDates = lineBoundSegments.length === 1 ? ocrDateMentions(lineBoundSegments[0]) : [];
+    if (requireLineBoundQuote && (!evidenceQuote
+      || lineBoundSegments.length !== 1 || lineBoundDates.length !== 1
+      || lineBoundDates[0] !== date || endDate && endDate !== date
+      || !normalizedQuote.includes(normalizedEvidenceText(name))
+      || (date && !evidenceDateVariants(date).some(variant => normalizedQuote.includes(normalizedEvidenceText(variant)))))) {
+      throw new MaterialRecognitionError("invalid_output", "PDF 日程摘录必须由同一行文字证明，不能跨栏拼接。");
+    }
+    const ocrSupportingLines = requireEvidenceQuote
+      ? ocrPages.flatMap(page => page.lines.filter(line => normalizedEvidenceText(line.text).includes(normalizedQuote))
+        .map(line => ({ page, line }))) : [];
+    const ocrDates = ocrSupportingLines.length === 1 ? ocrDateMentions(ocrSupportingLines[0].line.text) : [];
+    if (requireEvidenceQuote && ocrSupportingLines.length === 1
+      && ocrDates.length === 0
+      && /(?:\d{1,2}月\d{1,2}日?|\d{1,2}[-/.]\d{1,2})/u.test(ocrSupportingLines[0].line.text)) {
+      throw new MaterialRecognitionError("ambiguous_schedule", "OCR 日期缺少年份，未导入时间安排；请核对原文件。");
+    }
+    if (requireEvidenceQuote && (!evidenceQuote
+      || ocrSupportingLines.length !== 1 || ocrDates.length !== 1 || ocrDates[0] !== date
+      || endDate && endDate !== date
+      || !normalizedQuote.includes(normalizedEvidenceText(name))
+      || (date && !evidenceDateVariants(date).some(variant => normalizedQuote.includes(normalizedEvidenceText(variant))))
+      || (endDate && !evidenceDateVariants(endDate).some(variant => normalizedQuote.includes(normalizedEvidenceText(variant)))))) {
+      throw new MaterialRecognitionError("invalid_output", "OCR 日程摘录未能证明同一行中的事项和日期。");
+    }
     if (hasTypedDetails && !normalizedQuote.includes(normalizedEvidenceText(name))) {
       throw new MaterialRecognitionError("invalid_output", "材料事项名称无法由原文证明。");
     }
@@ -440,6 +477,10 @@ export function parseRecognitionOutput(
       throw new MaterialRecognitionError("invalid_output", "材料地点无法由原文证明。");
     }
     const timeInterval = modelTimeInterval(item.time_interval, date, normalizedQuote);
+    const citation = ocrSupportingLines[0];
+    const ocrNote = requireEvidenceQuote
+      ? `OCR 摘录：${citation.line.text.normalize("NFKC").replace(/\s+/gu, " ").trim()}；第 ${citation.page.pageNumber} 页；来源哈希 ${citation.page.sourceHash}`
+      : null;
     return {
       event_id: text(idFactory(), 160) as string,
       date,
@@ -447,7 +488,7 @@ export function parseRecognitionOutput(
       name,
       type: normalizedCalendarType(item.type),
       confidence: "inferred",
-      notes: text(item.notes ?? null, 1000, true),
+      notes: ocrNote ? text(ocrNote, 1000) : text(item.notes ?? null, 1000, true),
       ...(timeInterval ? { time_interval: timeInterval } : {}),
       ...(location ? { location } : {}),
     };
@@ -493,23 +534,24 @@ function imageFromBytes(bytes: Buffer, mimeType: string): RecognitionImage {
 }
 
 async function extractDocxText(filePath: string): Promise<string> {
-  const workerSource = `
-    const mammoth = require(process.argv[2]);
-    mammoth.extractRawText({ path: process.argv[1] }).then(
-      (result) => process.stdout.write(String(result.value || "").slice(0, ${MAX_TEXT_CHARS + 1})),
-      () => { process.exitCode = 2; }
-    );
-  `;
   try {
+    const workerPath = [path.join(process.cwd(), "docx-text-worker.cjs"), path.join(process.cwd(), "desktop", "docx-text-worker.cjs")]
+      .find(candidate => fs.existsSync(candidate));
+    if (!workerPath) throw new Error("DOCX worker is missing");
     const { stdout } = await execFileAsync(process.execPath, [
       `--max-old-space-size=${DOCX_WORKER_HEAP_MB}`,
-      "-e",
-      workerSource,
+      workerPath,
       filePath,
-      resolveMammothEntry(),
-    ], { encoding: "utf8", maxBuffer: 128 * 1024, timeout: DOCX_WORKER_TIMEOUT_MS, windowsHide: true });
+    ], { encoding: "utf8", maxBuffer: 128 * 1024, timeout: DOCX_WORKER_TIMEOUT_MS, windowsHide: true,
+      env: { NODE_ENV: process.env.NODE_ENV ?? "production", LANG: "C.UTF-8", TMPDIR: path.dirname(filePath) } });
     return stdout;
-  } catch {
+  } catch (error) {
+    const failure = error && typeof error === "object" ? error as NodeJS.ErrnoException & { killed?: boolean; signal?: string } : null;
+    console.error("EduPi DOCX extraction worker failed", {
+      code: typeof failure?.code === "string" ? failure.code : typeof failure?.code === "number" ? `exit_${failure.code}` : "process_error",
+      killed: failure?.killed === true,
+      signal: typeof failure?.signal === "string" ? failure.signal : null,
+    });
     throw new MaterialRecognitionError("extract_unavailable", "DOCX 文字提取失败。");
   }
 }
@@ -768,39 +810,50 @@ export async function parseIcsCalendar(bytes: Buffer): Promise<MaterialRecogniti
   }
 }
 
-async function extractPdf(filePath: string): Promise<ExtractedMaterial> {
+async function extractPdf(filePath: string, sourceHash: string): Promise<ExtractedMaterial> {
   try {
-    const { stdout } = await execFileAsync("pdftotext", ["-layout", "-enc", "UTF-8", filePath, "-"], { encoding: "utf8", maxBuffer: 2 * 1024 * 1024, timeout: 20_000 });
+    const { stdout } = await execFileAsync("pdftotext", ["-layout", "-enc", "UTF-8", filePath, "-"], {
+      encoding: "utf8", maxBuffer: 2 * 1024 * 1024, timeout: 20_000, windowsHide: true,
+    });
     const extracted = boundedExtractedText(stdout);
     if (extracted.length >= 20) return { text: extracted, images: [] };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new MaterialRecognitionError("extract_unavailable", "PDF 文字提取组件不可用。");
+    if (error instanceof MaterialRecognitionError) throw error;
+    // Clean installs need the bundled renderer; it also handles scanned pages.
   }
-
   const temp = await mkdtemp(path.join(fs.realpathSync(os.tmpdir()), "edupi-pdf-pages-"));
   try {
-    let pageCount = 0;
-    try {
-      const { stdout } = await execFileAsync("pdfinfo", [filePath], { encoding: "utf8", maxBuffer: 512 * 1024, timeout: 10_000 });
-      pageCount = Number(/^Pages:\s+(\d+)\s*$/imu.exec(stdout)?.[1] || 0);
-    } catch {
-      throw new MaterialRecognitionError("extract_unavailable", "PDF 页数检查组件不可用。");
+    const helper = [path.join(process.cwd(), "pdf-page-extract.mjs"), path.join(process.cwd(), "desktop", "pdf-page-extract.mjs")]
+      .find(candidate => fs.existsSync(candidate));
+    if (!helper) throw new MaterialRecognitionError("extract_unavailable", "PDF 识别组件不可用。");
+    const { stdout } = await execFileAsync(process.execPath, ["--max-old-space-size=512", helper, filePath, temp], {
+      encoding: "utf8", maxBuffer: 128 * 1024, timeout: 45_000, windowsHide: true,
+      env: { NODE_ENV: process.env.NODE_ENV ?? "production", LANG: "C.UTF-8", TMPDIR: temp },
+    });
+    const report = record(JSON.parse(stdout));
+    const pageCount = report?.pageCount;
+    if (typeof pageCount !== "number" || !Number.isSafeInteger(pageCount) || pageCount < 1) {
+      throw new MaterialRecognitionError("extract_unavailable", "PDF 页数无法确认。");
     }
-    if (!Number.isSafeInteger(pageCount) || pageCount < 1) throw new MaterialRecognitionError("extract_unavailable", "PDF 页数无法确认。");
+    if (report?.tooLong === true) throw new MaterialRecognitionError("ambiguous_schedule", "材料正文超过完整识别上限，未导入其中的时间安排。");
+    const extracted = boundedExtractedText(typeof report?.text === "string" ? report.text : "");
+    if (extracted.length >= 20 && report?.imageCount === 0) return { text: extracted, images: [], textLayout: "coordinate_rows" };
     if (pageCount > MAX_MODEL_IMAGES) throw new MaterialRecognitionError("ambiguous_schedule", "扫描版 PDF 超过三页，未导入不完整的时间安排。");
-    const prefix = path.join(temp, "page");
-    await execFileAsync("pdftoppm", ["-png", "-f", "1", "-l", String(MAX_MODEL_IMAGES), "-scale-to", "1600", filePath, prefix], { encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 30_000 });
-    const pages = (await readdir(temp)).filter((name) => name.endsWith(".png")).sort().slice(0, MAX_MODEL_IMAGES);
-    if (pages.length === 0) throw new MaterialRecognitionError("extract_unavailable", "PDF 没有可识别页面。");
+    if (report?.imageCount !== pageCount) throw new MaterialRecognitionError("extract_unavailable", "PDF 页面识别结果不完整。");
     const images = [];
+    const evidence: OcrPageEvidence[] = [];
     let totalBytes = 0;
-    for (const name of pages) {
-      const bytes = await readFile(path.join(temp, name));
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
+      const bytes = await readFile(path.join(temp, `page-${pageNumber}.png`));
       totalBytes += bytes.byteLength;
       if (totalBytes > MAX_MODEL_IMAGES * MAX_MODEL_IMAGE_BYTES) throw new MaterialRecognitionError("too_large", "PDF 页面超过识别大小限制。");
       images.push(imageFromBytes(bytes, "image/png"));
+      const pageEvidence = await extractTrustedOcrPage({ sourceHash, pageNumber, imageBytes: bytes, mimeType: "image/png" });
+      if (pageEvidence?.text) evidence.push(pageEvidence);
     }
-    return { text: "", images };
+    return evidence.length === images.length
+      ? { text: evidence.map(item => item.text).join("\n"), images, ocrEvidence: evidence, ocrStatus: "trusted" }
+      : { text: "", images, ocrStatus: "unavailable" };
   } catch (error) {
     if (error instanceof MaterialRecognitionError) throw error;
     throw new MaterialRecognitionError("extract_unavailable", "PDF 页面识别组件不可用。");
@@ -813,8 +866,13 @@ export async function extractStagedMaterial(descriptor: MaterialStagingDescripto
   const verified = verifiedInput || await readVerifiedStagedMaterial(descriptor);
   const { bytes, extension } = verified;
   const mimeType = imageMime(extension);
-  if (mimeType) return { text: "", images: [imageFromBytes(bytes, mimeType)] };
-  if (extension === ".pdf") return withPrivateSnapshot(bytes, extension, extractPdf);
+  if (mimeType) {
+    const evidence = await extractTrustedOcrPage({ sourceHash: descriptor.source_hash, pageNumber: 1, imageBytes: bytes, mimeType });
+    return evidence?.text
+      ? { text: evidence.text, images: [imageFromBytes(bytes, mimeType)], ocrEvidence: [evidence], ocrStatus: "trusted" }
+      : { text: "", images: [imageFromBytes(bytes, mimeType)], ocrStatus: "unavailable" };
+  }
+  if (extension === ".pdf") return withPrivateSnapshot(bytes, extension, filePath => extractPdf(filePath, descriptor.source_hash));
   if (extension === ".docx") {
     validateDocxArchive(bytes);
     const extracted = await withPrivateSnapshot(bytes, extension, extractDocxText);
@@ -1056,7 +1114,9 @@ export async function runRecognitionModel(
 
     const prompt = [
       `文件名：${input.originalName}`,
-      input.text ? `材料正文：\n${input.text}` : "材料正文由附图提供。",
+      input.sourceTextKind === "trusted_ocr"
+        ? `本地 OCR 高置信文字：\n${input.text}\n\n仅能用以上文字逐字填写 evidence_quote；不得输出 time_interval、location 或 slots；不可补写 OCR 未证明的日程。`
+        : input.text ? `材料正文：\n${input.text}` : "材料正文由附图提供。",
     ].join("\n\n");
     const promptOptions = {
       expandPromptTemplates: false,
@@ -1117,16 +1177,40 @@ export async function recognizeStagedMaterial(descriptor: MaterialStagingDescrip
     : await extractStagedMaterial(descriptor, verified);
   const textInput = boundedExtractedText(extracted.text || "");
   const images = (extracted.images || []).slice(0, MAX_MODEL_IMAGES);
+  const ocrEvidence = extracted.ocrEvidence ?? [];
+  if (ocrEvidence.length > 0) {
+    if (ocrEvidence.length !== images.length || ocrEvidence.some((page, index) => {
+      const bytes = Buffer.from(images[index].data, "base64");
+      return page.sourceHash !== descriptor.source_hash || page.pageNumber !== index + 1
+        || page.imageHash !== `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`
+        || !page.lines.length || page.lines.some(line => line.minConfidence < 85)
+        || page.text !== page.lines.map(line => line.text).join("\n");
+    }) || textInput !== ocrEvidence.map(page => page.text).join("\n")) {
+      throw new MaterialRecognitionError("invalid_output", "OCR 来源与已验证材料不一致。");
+    }
+  }
+  if (images.length > 0 && !textInput) return { events: [], slots: [], ocrStatus: "unavailable" };
   if (!textInput && images.length === 0) return { events: [], slots: [] };
-  if (cacheEnabled) {
+  // Coordinate-reconstructed PDF text has a stricter same-row/column quote
+  // contract; an older pdftotext cache cannot be replayed under that contract.
+  if (cacheEnabled && ocrEvidence.length === 0 && extracted.textLayout !== "coordinate_rows") {
     const cached = loadRecognitionCache(descriptor, textInput);
     if (cached) return cached;
   }
-  const output = await (dependencies.runModel || ((input) => runRecognitionModel(input, dependencies.runtime)))({ originalName: descriptor.original_name, text: textInput, images });
-  const result = parseRecognitionOutput(output, dependencies.idFactory, textInput);
-  if (hasTypedModelDetails(result) && !supportsTypedTextEvidence(descriptor)) {
-    throw new MaterialRecognitionError("invalid_output", "只有文本 PDF 和 DOCX 可以写入结构化时间地点。");
+  const output = await (dependencies.runModel || ((input) => runRecognitionModel(input, dependencies.runtime)))({
+    originalName: descriptor.original_name, text: textInput, images: ocrEvidence.length ? [] : images,
+    ...(ocrEvidence.length ? { sourceTextKind: "trusted_ocr" as const } : {}),
+  });
+  const result = parseRecognitionOutput(output, dependencies.idFactory, textInput, ocrEvidence.length > 0, ocrEvidence,
+    extracted.textLayout === "coordinate_rows");
+  if (ocrEvidence.length > 0 && result.slots.length > 0) {
+    throw new MaterialRecognitionError("invalid_output", "OCR 课表缺少逐项证据，暂不自动导入。");
   }
-  if (cacheEnabled) saveRecognitionCache(descriptor, result, { modelOutput: output, sourceText: textInput });
-  return result;
+  if (hasTypedModelDetails(result) && (ocrEvidence.length > 0 || !supportsTypedTextEvidence(descriptor))) {
+    throw new MaterialRecognitionError("invalid_output", "OCR 与图片暂不能写入结构化时间地点。");
+  }
+  if (cacheEnabled && ocrEvidence.length === 0 && extracted.textLayout !== "coordinate_rows") {
+    saveRecognitionCache(descriptor, result, { modelOutput: output, sourceText: textInput });
+  }
+  return ocrEvidence.length > 0 ? { ...result, ocrStatus: "trusted" } : result;
 }

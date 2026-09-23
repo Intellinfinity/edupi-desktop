@@ -85,7 +85,7 @@ test("teaching prepares the next class and continuity modules render one selecte
   ]);
   assert.match(teaching, /对话补充重点/);
   assert.match(teaching, /准备下一节课/);
-  assert.match(teaching, /请为\$\{nextSubject\}/);
+  assert.match(teaching, /下一节课：\$\{nextSubject\}/);
   assert.match(panel, /selectedObjectId/);
   assert.match(panel, /onObject=\{selectObject\}/);
   assert.match(panel, /const requestedObjectId = searchParams\.get\("item"\)/);

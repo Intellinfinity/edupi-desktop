@@ -29,6 +29,7 @@ import { sessionVisibleCounts } from "@/lib/scroll-memory";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-computer-use";
 import type { KernelRunAction } from "@/lib/edupi-kernel-display";
+import { parseTeacherMessage, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 
 interface Props {
   session: SessionInfo | null;
@@ -53,7 +54,15 @@ interface Props {
   onEduPiProactiveTarget?: (target: KernelRunAction["target"]) => void | Promise<void>;
   onOpenEduPiReminders?: () => void;
   proactiveOpenRequest?: number;
-  reminderText?: string;
+  reminderContext?: EduPiComposerContext;
+  reminderOpenId?: string;
+  onReminderContextApplied?: (openId: string) => void;
+  educationContext?: EduPiComposerContext;
+  educationOpenId?: string;
+  onEducationContextApplied?: (openId: string) => void;
+  teacherDraftText?: string;
+  teacherDraftOpenId?: string;
+  onTeacherDraftApplied?: (openId: string) => void;
   reminderTitle?: string;
   reminderDraftKey?: string;
   onEduPiComputerAction?: (action: ComputerUseInput, expiresAt?: number) => ComputerUseBridgeResult | Promise<ComputerUseBridgeResult>;
@@ -94,7 +103,7 @@ function findFinalAssistantIndex(messages: AgentMessage[], userIdx: number, endI
 function getUserInputText(message: AgentMessage): string | null {
   if (message.role !== "user") return null;
   if (typeof message.content === "string") {
-    const text = message.content.trim();
+    const text = (parseTeacherMessage(message.content)?.teacherText ?? message.content).trim();
     return text.length > 0 ? text : null;
   }
   const text = message.content
@@ -102,7 +111,8 @@ function getUserInputText(message: AgentMessage): string | null {
     .map((block) => block.text)
     .join("\n")
     .trim();
-  return text.length > 0 ? text : null;
+  const visible = (parseTeacherMessage(text)?.teacherText ?? text).trim();
+  return visible.length > 0 ? visible : null;
 }
 
 function getAssistantPreviewText(message: AgentMessage): string | null {
@@ -233,13 +243,28 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, children, t }: { mes
   );
 }
 
-export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, onEduPiProactiveTarget, onOpenEduPiReminders, proactiveOpenRequest = 0, reminderText, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
-  const appliedReminderText = useRef<string | null>(null);
+export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, onEduPiProactiveTarget, onOpenEduPiReminders, proactiveOpenRequest = 0, reminderContext, reminderOpenId, onReminderContextApplied, educationContext, educationOpenId, onEducationContextApplied, teacherDraftText, teacherDraftOpenId, onTeacherDraftApplied, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
+  const appliedReminderOpenId = useRef<string | null>(null);
   useEffect(() => {
-    if (!reminderText || !chatInputRef?.current || appliedReminderText.current === reminderText) return;
-    chatInputRef.current.insertIfEmpty(reminderText);
-    appliedReminderText.current = reminderText;
-  }, [reminderText, chatInputRef, newSessionCwd, session?.id]);
+    if (!reminderContext || !reminderOpenId || !(session?.id || newSessionCwd) || !chatInputRef?.current || appliedReminderOpenId.current === reminderOpenId) return;
+    chatInputRef.current.offerContext(reminderContext);
+    appliedReminderOpenId.current = reminderOpenId;
+    onReminderContextApplied?.(reminderOpenId);
+  }, [reminderContext, reminderOpenId, onReminderContextApplied, chatInputRef, newSessionCwd, session?.id]);
+  const appliedEducationOpenId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!educationContext || !educationOpenId || !(session?.id || newSessionCwd) || !chatInputRef?.current || appliedEducationOpenId.current === educationOpenId) return;
+    chatInputRef.current.offerContext(educationContext);
+    appliedEducationOpenId.current = educationOpenId;
+    onEducationContextApplied?.(educationOpenId);
+  }, [educationContext, educationOpenId, onEducationContextApplied, chatInputRef, newSessionCwd, session?.id]);
+  const appliedTeacherDraftOpenId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!teacherDraftText || !teacherDraftOpenId || !(session?.id || newSessionCwd) || !chatInputRef?.current || appliedTeacherDraftOpenId.current === teacherDraftOpenId) return;
+    chatInputRef.current.offerTeacherDraft(teacherDraftText);
+    appliedTeacherDraftOpenId.current = teacherDraftOpenId;
+    onTeacherDraftApplied?.(teacherDraftOpenId);
+  }, [teacherDraftText, teacherDraftOpenId, onTeacherDraftApplied, chatInputRef, newSessionCwd, session?.id]);
   const { t } = useI18n();
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
   const [openEduPiUtility, setOpenEduPiUtility] = useState<"proactive" | "files" | null>(null);
@@ -273,7 +298,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     agentRunning, bashRunning, pendingBash, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, toolPreset, permissionMode, thinkingLevel,
     retryInfo, contextUsage, forkingEntryId,
     isCompacting, compactError, compactResult, displayModel: displayModelValue, sessionStats,
-    slashCommands, slashCommandsLoading, queuedMessages,
+    slashCommands, slashCommandsLoading, queuedMessages, queueRecallBusy, queueRecoveryRequiresReview,
     notices, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection,
     agentPhase,
@@ -283,7 +308,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     lastUserMsgRef, promptAnchorActive,
     handleSend, handleAbort, handleFork, handleNavigate, handleModelChange,
     handleCompact, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
-    handleRecallQueue,
+    handleRecallQueue, handleResumeQueueRecovery, handleAbandonPreparedQueueRecovery,
     handleBuiltinSlashCommand, retryLoad,
     handleToolPresetChange, handlePermissionModeChange, handleThinkingLevelChange, loadSlashCommands, scrollToBottom, scrollUserMsgToTop,
   } = useAgentSession({
@@ -856,8 +881,12 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       thinkingLevelMap={currentThinkingLevelMap}
       retryInfo={retryInfo}
       queuedMessages={queuedMessages}
+      queueRecallBusy={queueRecallBusy}
+      queueRecoveryRequiresReview={queueRecoveryRequiresReview}
       inputHistory={inputHistory}
       onRecallQueue={handleRecallQueue}
+      onResumeQueueRecovery={handleResumeQueueRecovery}
+      onAbandonPreparedQueueRecovery={handleAbandonPreparedQueueRecovery}
       slashCommands={slashCommands}
       slashCommandsLoading={slashCommandsLoading}
       onLoadSlashCommands={loadSlashCommands}

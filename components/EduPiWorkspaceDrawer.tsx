@@ -23,8 +23,7 @@ export function EduPiWorkspaceDrawer({ kind, task, filePath, fileTitle, agentPan
     `教学任务：${task.title}`,
     `来源：${taskSourceLabel(task)}`,
     `截止：${task.dueDate || "日期待确认"}`,
-    "请仅在教师内部协助，保留来源，不外发；先提出需要教师确认的修改建议。",
-  ].join("\n") : "请仅在教师内部协助当前教学工作，不外发。";
+  ].join("\n") : "当前教学工作";
   return (
     <aside ref={drawerRef} className={`edupi-workspace-drawer is-${kind}`} role="dialog" aria-modal="true" aria-label={kind === "agent" ? "任务内协作" : "材料预览"}>
       <header>

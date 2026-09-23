@@ -421,6 +421,7 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("test:edupi-schedule-occurrence-e2"));
   assert.ok(buildJob.includes("test:edupi-uploaded-calendar-e2"));
   assert.ok(buildJob.includes("test:edupi-text-schedule-evidence-e2"));
+  assert.ok(buildJob.includes("test:edupi-ocr-schedule-e2"));
   assert.ok(buildJob.includes("test:edupi-document-revision-e2"));
   assert.ok(buildJob.includes("scripts/test-edupi-c2-e2.mjs"));
   assert.ok(buildJob.includes("scripts/test-edupi-c3-e2.mjs"));
@@ -432,6 +433,8 @@ test("release verifies paired runtime where supported and exact bundle bytes on 
   assert.ok(buildJob.includes("test:staged-schedule-occurrence-runtime"));
   assert.ok(buildJob.includes("test:staged-uploaded-calendar-runtime"));
   assert.ok(buildJob.includes("test:staged-feedback-runtime"));
+  assert.match(buildJob, /name: Verify signed macOS packaged runtime[\s\S]*?npm run test:staged-ocr/u);
+  assert.match(buildJob, /name: Verify signed macOS packaged runtime[\s\S]*?npm run test:staged-docx/u);
   assert.ok(buildJob.includes("name: Verify paired Core bundle on Windows"));
   assert.ok(buildJob.includes("if: runner.os == 'Windows'"));
   assert.ok(buildJob.includes("--test-name-pattern"));
@@ -475,4 +478,12 @@ test("all packaged platform configs carry the bundled Core and third-party notic
     assert.match(source, /resources\/third-party/);
   }
   assert.deepEqual(JSON.parse(dev).bundle.resources, []);
+});
+
+test("release and preview refuse a packaged OCR runtime without offline language data", async () => {
+  for (const name of ["release.yml", "preview-installers.yml"]) {
+    const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
+    assert.match(workflow, /name: Verify bundled offline OCR[\s\S]*?run: npm run test:staged-ocr/u);
+    assert.match(workflow, /name: Verify bundled DOCX extraction[\s\S]*?run: npm run test:staged-docx/u);
+  }
 });

@@ -31,6 +31,7 @@ import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edu
 import type { CalendarIntakeInput } from "@/lib/edupi-education-intake";
 import type { EduPiKernelState } from "@/lib/edupi-kernel-client";
 import type { MaterialIntakeMetadata } from "@/lib/edupi-material-rows";
+import type { DocumentPairingSubmission } from "@/lib/edupi-document-pairing-contract";
 
 type Props = {
   view: Exclude<WorkbenchView, "chat" | "tasks" | "review">;
@@ -46,7 +47,7 @@ type Props = {
   stagedMaterials: MaterialStagingDescriptor[];
   stagingBusy: boolean;
   intakeBusy: boolean;
-  stagingMessage: string | null;
+  stagingMessage: { text: string; tone: "success" | "error" } | null;
   calendarSelection: CalendarItemSelection | null;
   onTask: (task: TeacherTask, stage?: TaskStage) => void;
   onTaskDetail: (task: TeacherTask) => void;
@@ -55,7 +56,7 @@ type Props = {
   onObject: (id: string) => void;
   onNavigate: (view: WorkbenchView, objectId?: string) => void;
   onUpload: () => void;
-  onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" } | null) => Promise<unknown>;
+  onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" } | null, pairing?: DocumentPairingSubmission | null) => Promise<unknown>;
   onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>;
   onCalendarSelection: (selection: CalendarItemSelection | null) => void;
   onImportCalendar: (event: CalendarIntakeInput) => Promise<void>;

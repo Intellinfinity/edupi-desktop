@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("revision actions replace the composer with a prompt that ends in a teacher input slot", async () => {
+test("revision actions carry object facts without prewriting the teacher request", async () => {
   const [memory, materials, students, studentProfilePrompt, panel] = await Promise.all([
     read("./EduPiMemoryDatabase.tsx"),
     read("./EduPiMaterialsWorkspace.tsx"),
@@ -12,13 +12,15 @@ test("revision actions replace the composer with a prompt that ends in a teacher
     read("../lib/edupi-student-profile-prompt.ts"),
     read("./EduPiEducationPanel.tsx"),
   ]);
-  for (const source of [memory, materials, students]) assert.match(source, /appendTeacherInputSlot/);
-  assert.match(memory, /我希望改成（在这里输入或口述）：/);
-  assert.match(materials, /我要补充或修改的信息（在这里输入或口述）：/);
-  assert.match(students, /我希望改成（在这里输入或口述）：/);
-  assert.match(studentProfilePrompt, /我要新增、修改或删除的内容（在这里输入或口述）：/);
-  assert.match(panel, /我要让 EduPi 处理的内容（在这里输入或口述）：/);
-  assert.match(panel, /appendTeacherInputSlot/);
+  for (const source of [memory, materials, students, studentProfilePrompt]) {
+    assert.doesNotMatch(source, /appendTeacherInputSlot|在这里输入或口述/);
+  }
+  assert.match(memory, /当前内容：\$\{memory\.content\}/);
+  assert.match(materials, /材料：\$\{selected\.title\}/);
+  assert.match(studentProfilePrompt, /学生档案：\$\{input\.name\}/);
+  const taskHandoff = panel.slice(panel.indexOf("const activateAgent"), panel.indexOf("const openAgentForTask"));
+  assert.match(taskHandoff, /任务 ID：\$\{task\.id\}/);
+  assert.doesNotMatch(taskHandoff, /appendTeacherInputSlot|在这里输入或口述/);
   assert.match(memory, /onStartAgent\(prompt, "replace"\)/);
   assert.match(materials, /onStartAgent\(prompt, "replace"\)/);
   assert.match(students, /onStartAgent\(prompt, "replace"\)/);

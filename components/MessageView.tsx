@@ -21,6 +21,7 @@ import type {
   ToolCallContent,
   ThinkingContent,
 } from "@/lib/types";
+import { parseTeacherMessage } from "@/lib/edupi-composer-context";
 
 const MAX_THINKING_CACHE_ENTRIES = 100;
 const thinkingContentCache = new Map<string, Promise<string>>();
@@ -247,13 +248,14 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
           .filter((b): b is TextContent => b.type === "text")
           .map((b) => b.text)
           .join("\n");
+  const contextual = parseTeacherMessage(content);
 
   const imageBlocks: ImageContent[] =
     typeof message.content === "string"
       ? []
       : message.content.filter((b): b is ImageContent => b.type === "image");
 
-  const commandText = skillExpansionToCommand(content);
+  const commandText = contextual ? null : skillExpansionToCommand(content);
   const commandSeparator = commandText?.search(/\s/) ?? -1;
   const commandName = commandText
     ? commandSeparator === -1 ? commandText : commandText.slice(0, commandSeparator)
@@ -264,7 +266,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
 
   const time = formatTime(message.timestamp);
   const canFork = !!entryId && !!onFork;
-  const copyTarget = commandText ?? content;
+  const copyTarget = commandText ?? contextual?.teacherText ?? content;
   const editTarget = commandText ? replaceUserMessageText(message, commandText) : message;
 
   const imageBlocksNode = imageBlocks.length > 0 && (
@@ -378,7 +380,8 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
           ) : (
             <>
               {imageBlocksNode}
-              {content && <CollapsibleUserText text={content} cwd={cwd} onOpenFile={onOpenFile} />}
+              {(contextual?.teacherText ?? content) && <CollapsibleUserText text={contextual?.teacherText ?? content} cwd={cwd} onOpenFile={onOpenFile} />}
+              {contextual ? <details className="message-user-context"><summary>参考：{contextual.context.title}</summary><pre>{contextual.context.reference}</pre></details> : null}
             </>
           )}
         </div>

@@ -3,6 +3,7 @@ import {
   CalendarSourceError,
   calendarOccurrenceContentFingerprint,
   calendarSourceFingerprintForOccurrences,
+  documentSourceEvidenceAliasCandidates,
   readCoreCalendarSources,
   type CoreCalendarSource,
   type CoreCalendarSourceRead,
@@ -33,6 +34,23 @@ type DocumentSyncDependencies = {
 function supportsDocumentScheduleSource(descriptor: MaterialStagingDescriptor): boolean {
   const extension = path.extname(descriptor.staging_path).toLowerCase();
   return descriptor.kind === "pdf" && extension === ".pdf" || descriptor.kind === "word" && extension === ".docx";
+}
+
+function hasCurrentMaterialEvidence(sourceRead: CoreCalendarSourceRead, sourceHash: string): boolean {
+  const targets = sourceRead.snapshot.payload.review_targets;
+  if (!Array.isArray(targets)) return false;
+  return targets.some((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const target = value as Record<string, unknown>;
+    const identity = target.target;
+    return target.projection_kind === "material_intake"
+      && target.source_hash === sourceHash
+      && target.status === "accepted"
+      && target.intake_state === "accepted"
+      && Boolean(identity && typeof identity === "object" && !Array.isArray(identity)
+        && (identity as Record<string, unknown>).target_kind === "material_intake"
+        && typeof (identity as Record<string, unknown>).target_id === "string");
+  });
 }
 
 function documentSourceCandidates(sources: CoreCalendarSource[], events: MaterialRecognitionResult["events"]): CoreCalendarSource[] {
@@ -233,8 +251,17 @@ export async function syncDocumentScheduleFile(input: {
   if (input.requestedSourceId && !requested) {
     throw new CalendarSourceError("calendar_source_not_found", "所选材料日程来源已经不存在，请刷新后重试。");
   }
-  const sourceId = requested?.sourceId || derivedSourceId;
-  const derived = sourceRead.sources.find((source) => source.sourceId === derivedSourceId) || null;
+  const currentMaterialEvidence = hasCurrentMaterialEvidence(sourceRead, input.descriptor.source_hash);
+  const directDerived = currentMaterialEvidence
+    ? sourceRead.sources.find((source) => source.sourceId === derivedSourceId) || null : null;
+  const evidenceAliases = currentMaterialEvidence
+    ? documentSourceEvidenceAliasCandidates(sourceRead.sources, derivedSourceId) : [];
+  if (!requested && (evidenceAliases.length > 1
+    || directDerived && evidenceAliases.some((source) => source.sourceId !== directDerived.sourceId))) {
+    throw new CalendarSourceError("calendar_source_selection_required", "这份材料曾绑定多个日程来源，请明确选择来源。");
+  }
+  const derived = directDerived || evidenceAliases[0] || null;
+  const sourceId = requested?.sourceId || derived?.sourceId || derivedSourceId;
   const candidates = documentSourceCandidates(sourceRead.sources, recognition.events);
   const legacyBaseline = requested?.sourceKind === "document" ? requested : requested ? null : derived;
   const legacyBindings = !requested || requested.sourceKind === "document"
@@ -267,6 +294,12 @@ export async function syncDocumentScheduleFile(input: {
     },
   }));
   const incomingFingerprint = calendarSourceFingerprintForOccurrences(expectedOccurrences);
+  const scheduleEvidenceId = `schedule-evidence-${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 32)}`;
+  const exactEvidenceReplay = Boolean(derived && expectedOccurrences.length > 0 && expectedOccurrences.every((incoming) =>
+    derived.occurrences.some((current) => current.sourceOccurrenceRef === incoming.sourceOccurrenceRef
+      && current.eventId === incoming.eventId
+      && current.contentFingerprint === incoming.contentFingerprint
+      && current.evidenceIds.includes(scheduleEvidenceId))));
   if (requested) {
     if (candidates.length !== 1 || candidates[0].sourceId !== requested.sourceId) {
       throw new CalendarSourceError("calendar_source_selection_required", "材料事项属于另一个来源或无法确认，请重新选择。");
@@ -275,7 +308,10 @@ export async function syncDocumentScheduleFile(input: {
       throw new CalendarSourceError("stale_calendar_source", "材料日程来源已更新，请刷新后重试。");
     }
   } else {
-    if (derived && derived.fingerprint !== incomingFingerprint) {
+    if (derived && recognition.slots.length > 0) {
+      throw new CalendarSourceError("calendar_source_selection_required", "材料中的课表项没有来源别名证明，请明确选择来源。");
+    }
+    if (derived && derived.fingerprint !== incomingFingerprint && !exactEvidenceReplay) {
       throw new CalendarSourceError("calendar_source_selection_required", "这份材料与既有来源内容不一致，请明确选择要更新的来源。");
     }
     if (candidates.length > 0 && (!derived || candidates.length !== 1 || candidates[0].sourceId !== derived.sourceId)) {

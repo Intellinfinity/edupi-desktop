@@ -1,6 +1,6 @@
 # EduPi Desktop 更新与发布
 
-EduPi Desktop 使用 Tauri 的完整包更新。教师安装一次正式签名版本后，后续版本会走同一条闭环：
+EduPi Desktop v0.3.35 起使用 Tauri 的完整包更新。旧版 macOS 需要下方的一次性替换安装；之后版本走同一条闭环：
 
 1. EduPi 启动后检查最新稳定 Release；
 2. 有新版时在工作台右下角提示，并在“应用与桌面设置”显示版本与“更新”按钮；
@@ -10,18 +10,24 @@ EduPi Desktop 使用 Tauri 的完整包更新。教师安装一次正式签名�
 
 普通 Git commit 不会直接更新教师电脑。只有完整质量门通过并发布为 GitHub Release 的版本才会被客户端识别。
 
+## 旧版 macOS 一次性迁移
+
+v0.3.29 没有可用的 updater 插件；v0.3.25–v0.3.28 固化了旧 Release 地址；v0.3.30–v0.3.34 的 macOS 包因签名 Node 缺 JIT 权限已撤回。这些已安装版本需要一次替换安装。退出 EduPi，从 [正式 Releases](https://github.com/Intellinfinity/edupi-desktop/releases) 下载最新 `aarch64.dmg`，替换 `/Applications/EduPi.app` 后重新打开。教师数据和模型配置位于应用包之外，替换时不要删除这些目录。
+
+安装版 v0.3.35 → v0.3.36 已完成清单检查、下载、签名验证、安装、重启和教师数据复核。正式构建缺 updater 公钥会停止，macOS 产物在公证前还会核对最终可执行文件内的公钥。
+
 ## 单仓库发布边界
 
-- 源码与公开二进制发布：`PIGU-PPPgu/edupi-desktop`
-- 客户端清单：`https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json`
+- 源码与公开二进制发布：`Intellinfinity/edupi-desktop`
+- 客户端首选清单：`https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json`
 
-同一个仓库保存源码、审阅记录和 GitHub Releases。DMG、Windows 安装程序、Linux 包、updater 压缩包/签名、`latest.json` 与组件版本清单都发布到该仓库的 Release；客户端可以匿名检查和下载更新。
+同一个仓库保存源码、审阅记录和 GitHub Releases。DMG、Windows 安装程序、Linux 包、updater 压缩包/签名、`latest.json` 与组件版本清单都发布到该仓库的 Release；客户端可以匿名检查更新。清单位于专用 `updater-feed` 分支，资产 URL 使用 GitHub API Release Asset 端点。
 
 ## 一次性外部配置
 
 ### 1. 启用源码仓库 Release
 
-保持 `PIGU-PPPgu/edupi-desktop` 为公开仓库并启用 Actions。正式工作流在当前仓库创建草稿 Release，只有 macOS、Windows、Linux 和组件清单全部上传成功后才发布为 latest；不需要额外的发布仓库或跨仓库令牌。
+保持 `Intellinfinity/edupi-desktop` 为公开仓库并启用 Actions。正式工作流在当前仓库创建草稿 Release，只有 macOS、Windows、Linux 和组件清单全部上传成功后才发布为 latest；不需要额外的发布仓库或跨仓库令牌。
 
 ### 2. 创建永久 updater 密钥
 

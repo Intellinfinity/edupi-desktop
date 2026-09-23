@@ -4,7 +4,7 @@
   "request_id": "v11-command-request",
   "issued_at": "1970-01-01T00:00:00.000Z",
   "producer": "edupi-desktop",
-  "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+  "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
   "snapshot_id": "snapshot_fixture",
   "idempotency_key": "v11-command-idempotency",
   "provenance": [

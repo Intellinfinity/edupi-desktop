@@ -2,7 +2,7 @@
   "fixture_kind": "work_candidate_review",
   "fixture_version": "1.1",
   "contract_version": "1.1",
-  "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+  "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
   "external_send": false,
   "work_candidate": {
     "identity": {
@@ -466,7 +466,7 @@
       "request_id": "work-request-accept",
       "issued_at": "2026-08-28T00:00:00.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-accept",
       "provenance": [
@@ -514,7 +514,7 @@
       "request_id": "work-request-modify",
       "issued_at": "2026-08-28T00:00:01.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-modify",
       "provenance": [
@@ -566,7 +566,7 @@
       "request_id": "work-request-reject",
       "issued_at": "2026-08-28T00:00:02.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-reject",
       "provenance": [
@@ -614,7 +614,7 @@
       "request_id": "work-request-hold",
       "issued_at": "2026-08-28T00:00:03.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-hold",
       "provenance": [
@@ -662,7 +662,7 @@
       "request_id": "work-request-snooze",
       "issued_at": "2026-08-28T00:00:04.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-snooze",
       "provenance": [
@@ -712,7 +712,7 @@
       "request_id": "work-request-suppress-this",
       "issued_at": "2026-08-28T00:00:05.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-suppress-this",
       "provenance": [
@@ -762,7 +762,7 @@
       "request_id": "work-request-suppress-reason",
       "issued_at": "2026-08-28T00:00:05.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-suppress-reason",
       "provenance": [
@@ -812,7 +812,7 @@
       "request_id": "work-request-suppress-cycle",
       "issued_at": "2026-08-28T00:00:05.000Z",
       "producer": "edupi-desktop",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-0",
       "idempotency_key": "work-idempotency-suppress-cycle",
       "provenance": [
@@ -864,7 +864,7 @@
       "request_id": "work-request-accept",
       "issued_at": "2026-08-28T00:00:00.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-1",
       "provenance": [
         {
@@ -937,7 +937,7 @@
       "request_id": "work-request-modify",
       "issued_at": "2026-08-28T00:00:01.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-2",
       "provenance": [
         {
@@ -1010,7 +1010,7 @@
       "request_id": "work-request-reject",
       "issued_at": "2026-08-28T00:00:02.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-3",
       "provenance": [
         {
@@ -1083,7 +1083,7 @@
       "request_id": "work-request-hold",
       "issued_at": "2026-08-28T00:00:03.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-4",
       "provenance": [
         {
@@ -1156,7 +1156,7 @@
       "request_id": "work-request-snooze",
       "issued_at": "2026-08-28T00:00:04.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-5",
       "provenance": [
         {
@@ -1229,7 +1229,7 @@
       "request_id": "work-request-suppress-this",
       "issued_at": "2026-08-28T00:00:05.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-6",
       "provenance": [
         {
@@ -1302,7 +1302,7 @@
       "request_id": "work-request-suppress-reason",
       "issued_at": "2026-08-28T00:00:05.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-7",
       "provenance": [
         {
@@ -1375,7 +1375,7 @@
       "request_id": "work-request-suppress-cycle",
       "issued_at": "2026-08-28T00:00:05.000Z",
       "producer": "edupi-core",
-      "schema_hash": "sha256:7861fffd15d32074a8021ad98e7e082c841910118cfc50918f812816e5710da6",
+      "schema_hash": "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f",
       "snapshot_id": "snapshot-work-fixture-8",
       "provenance": [
         {

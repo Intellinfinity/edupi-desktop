@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-24 课表来源别名与 Core `68004b2` staged 验收（未发布）
+
+- Core [#182](https://github.com/Intellinfinity/edupi/pull/182) / [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并，Desktop 固定 `68004b2` 并通过真实隔离 Core 的纯课表、跨文件别名、教师选源增量、重复回放、旧材料删除和并发删除 CAS 流程。macOS staged bundle 的 Core/投影/Kernel ready，新课表来源 API 为 200/no-store，离线 OCR 与 DOCX smoke 均通过；详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。
+- 本批尚未生成签名/公证安装包，也未执行旧版应用内升级。公开 Latest 仍是 v0.3.36/Core `860594a…`；源码与 staged 结果不等于正式三平台安装验收。
+
 ## 2026-09-24 同名多项逐项配对 staged 验收（未发布）
 
 - Desktop `b029a45` 的教师逐项配对、Core CAS 和保留原事项身份已在隔离 Core/打包页面验收；签名后的 macOS 包新增 DOCX 提取 smoke，Release/preview 的三平台 staged 构建也需运行它。详情见 [逐项配对验收](../acceptance/2026-09-24-l4-document-pairing.md)。

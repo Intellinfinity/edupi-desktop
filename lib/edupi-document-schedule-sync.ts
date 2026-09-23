@@ -16,6 +16,7 @@ import type { MaterialStagingDescriptor } from "./edupi-material-staging";
 import { documentPairingFingerprint, pairDocumentEvents as planDocumentEventPairs } from "./edupi-document-pairing";
 import type { DocumentPairingChoice, DocumentPairingPreview } from "./edupi-document-pairing-contract";
 import { stableDocumentOccurrenceRef, stableDocumentOccurrenceVariantRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId } from "./edupi-schedule-upload";
+import { resolveSelectedTimetableSource, resolveTimetableSourceAlias } from "./edupi-timetable-source-alias";
 
 type IssueResult = { receipt: Record<string, unknown>; data: unknown };
 const CONFIDENCE = { inferred: 1, teacher_confirmed: 2, confirmed: 3 } as const;
@@ -339,25 +340,45 @@ export async function syncDocumentScheduleFile(input: {
     throw new MaterialRecognitionError("invalid_output", "逐项配对内容不完整。");
   }
   if (recognition.events.length === 0) {
-    if (input.requestedSourceId || input.expectedSourceFingerprint) {
+    if (recognition.slots.length === 0 && (input.requestedSourceId || input.expectedSourceFingerprint)
+      || Boolean(input.requestedSourceId) !== Boolean(input.expectedSourceFingerprint)) {
       throw new MaterialRecognitionError("ambiguous_schedule", "材料没有可用于确认来源的日程事项。");
     }
+    const sourceRead = recognition.slots.length > 0
+      ? await (dependencies.readSources || (() => readCoreCalendarSources(input.signal)))() : null;
+    const slotAlias = sourceRead && !input.requestedSourceId
+      ? resolveTimetableSourceAlias(input.descriptor, recognition.slots, sourceRead) : null;
+    const sourceId = input.requestedSourceId && sourceRead
+      ? resolveSelectedTimetableSource(sourceRead, input.requestedSourceId, input.expectedSourceFingerprint, recognition.slots)
+      : recognition.slots.length > 0 ? slotAlias || stableDocumentScheduleSourceId(input.descriptor.source_hash) : null;
+    let chainedSnapshot = sourceRead?.snapshot;
+    const issue = dependencies.issue || (async (command: EducationIntakeCommand) => {
+      const response = await issueEducationIntake(command, { readSnapshot: async () => chainedSnapshot! });
+      if (response.data && chainedSnapshot) chainedSnapshot = { ...chainedSnapshot, payload: response.data };
+      return response;
+    });
     const result = await intakeRecognizedMaterial({
       descriptor: input.descriptor,
+      ...(sourceId ? { scheduleSourceId: sourceId } : {}),
       title: input.title,
       materialKind: input.materialKind,
       subject: input.subject,
       classId: input.classId,
       recognize: true,
-    }, { recognize: async () => recognition, issue: dependencies.issue });
+    }, { recognize: async () => recognition, issue: sourceRead ? issue : dependencies.issue });
     const expectedReceiptCount = 1 + (recognition.slots.length > 0 ? 1 : 0);
-    return { ...result, sourceId: null, committed: result.receipts.length === expectedReceiptCount
+    return { ...result, sourceId, committed: result.receipts.length === expectedReceiptCount
       && result.receipts.every((receipt) => ["accepted", "modified"].includes(String(receipt.status)))
       && !result.scheduleNeedsReview, removedEventIds: [] };
   }
 
   const derivedSourceId = stableDocumentScheduleSourceId(input.descriptor.source_hash);
   const sourceRead = await (dependencies.readSources || (() => readCoreCalendarSources(input.signal)))();
+  const slotAlias = recognition.slots.length > 0 && !input.requestedSourceId
+    ? resolveTimetableSourceAlias(input.descriptor, recognition.slots, sourceRead) : null;
+  if (slotAlias?.startsWith("desktop-file-schedule-")) {
+    throw new CalendarSourceError("calendar_source_selection_required", "旧课表来源不能直接绑定新日程，请分别核对课表和日程。");
+  }
   const requested = input.requestedSourceId
     ? sourceRead.sources.find((source) => source.sourceId === input.requestedSourceId) || null
     : null;
@@ -377,7 +398,7 @@ export async function syncDocumentScheduleFile(input: {
     throw new CalendarSourceError("calendar_source_selection_required", "这份材料曾绑定多个日程来源，请明确选择来源。");
   }
   const derived = directDerived || evidenceAliases[0] || null;
-  const sourceId = requested?.sourceId || derived?.sourceId || derivedSourceId;
+  const sourceId = requested?.sourceId || derived?.sourceId || slotAlias || derivedSourceId;
   const candidates = documentSourceCandidates(sourceRead.sources, recognition.events);
   const legacyBaseline = requested?.sourceKind === "document" ? requested : requested ? null : derived;
   const legacyBindings = !requested || requested.sourceKind === "document"
@@ -424,7 +445,7 @@ export async function syncDocumentScheduleFile(input: {
       throw new CalendarSourceError("stale_calendar_source", "材料日程来源已更新，请刷新后重试。");
     }
   } else {
-    if (derived && recognition.slots.length > 0) {
+    if (derived && recognition.slots.length > 0 && slotAlias !== derived.sourceId) {
       throw new CalendarSourceError("calendar_source_selection_required", "材料中的课表项没有来源别名证明，请明确选择来源。");
     }
     if (derived && derived.fingerprint !== incomingFingerprint && !exactEvidenceReplay) {

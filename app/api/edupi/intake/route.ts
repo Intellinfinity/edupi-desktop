@@ -118,7 +118,7 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
       throw new EducationIntakeError("invalid_envelope", "日历来源字段无效。");
     }
   } else if (documentSchedule) {
-    if (body.recognize === false || documentSourceId !== null && !/^(?:document|calendar)-source-[a-f0-9]{32}$/u.test(documentSourceId)
+    if (body.recognize === false || documentSourceId !== null && !/^(?:(?:document|calendar)-source-[a-f0-9]{32}|desktop-file-schedule-[a-f0-9]{24})$/u.test(documentSourceId)
       || documentSourceFingerprint !== null && !/^sha256:[a-f0-9]{64}$/u.test(documentSourceFingerprint)
       || (documentSourceId === null) !== (documentSourceFingerprint === null)
       || documentPairings !== null && documentSourceId === null

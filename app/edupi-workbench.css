@@ -908,6 +908,7 @@ html.dark .edupi-teacher-shell {
 .edupi-material-intake-form input,
 .edupi-material-intake-form select { min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--ep-border); border-radius: 5px; background: var(--ep-surface); color: var(--ep-text); font: inherit; }
 .edupi-material-intake-form button.is-primary { border-color: var(--ep-blue); background: var(--ep-blue); color: white; }
+.edupi-material-intake-form button.is-primary:disabled { border-color: var(--ep-border); background: var(--ep-surface); color: var(--ep-muted); cursor: not-allowed; }
 .edupi-material-pairing { grid-column: 1 / -1; display: grid; gap: 8px; padding: 10px 0 0; border-top: 1px solid var(--ep-border); }
 .edupi-material-pairing h3 { margin: 0; font-size: 12px; font-weight: 600; }
 .edupi-material-pairing label { grid-template-columns: minmax(0, 1fr) minmax(180px, 1fr); align-items: center; gap: 10px; color: var(--ep-text); font-size: 11px; }

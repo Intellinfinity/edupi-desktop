@@ -360,7 +360,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [educationIntakeBusy, loadWorkspace]);
 
-  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" } | null, pairing?: DocumentPairingSubmission | null) => {
+  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" | "timetable" } | null, pairing?: DocumentPairingSubmission | null) => {
     const calendarSource = item.kind === "calendar" ? scheduleSource : null;
     const documentSource = item.kind !== "calendar" ? scheduleSource : null;
     const result = await submitEducationIntake({

@@ -1,6 +1,13 @@
 import { createLocalBashOperations, type BashOperations, type BashSpawnContext } from "@earendil-works/pi-coding-agent";
 
-const DESKTOP_SECRET_KEYS = ["PI_DESKTOP_API_TOKEN", "PI_DESKTOP_INSTANCE_ID"] as const;
+const DESKTOP_SECRET_KEYS = [
+  "PI_DESKTOP_API_TOKEN",
+  "PI_DESKTOP_INSTANCE_ID",
+  "EDUPI_OPENCONNECTOR_RUNTIME_TOKEN",
+  "EDUPI_OPENCONNECTOR_ADMIN_TOKEN",
+  "EDUPI_JEV_API_KEY",
+  "EDUPI_JEV_TEXT_MODEL_API_KEY",
+] as const;
 
 export function redactDesktopSecrets(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const sanitized = { ...env };

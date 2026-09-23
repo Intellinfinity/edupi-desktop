@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-24 R23 OpenConnector 授权止血（源码阶段，未发布）
+
+- 当前 Desktop 分支 `feat/jev-openconnector-integration` 将所有外部 Action 执行收敛到教师可见确认；`operationType=read`、未知元数据与 Action 名称均不再免确认。弹窗和执行使用同一 JSON 快照，不能完整展示的输入拒绝执行；授权绑定运行时幂等键。Agent/用户 bash 子进程环境移除 OpenConnector runtime/admin token 和 JEV 密钥。
+- 该代码尚未发布；R23 仍为部分实现。同用户无限制 shell 与服务端令牌之间没有强隔离，不能宣称外部执行不可绕过。下一步须建立受管 sidecar + Core WorkCase 权威 grant/Receipt 合同，并让 runtime 原子验证一次性授权。JEV 受管浏览器与实服执行也未完成。下方 2026-09-20 的 Adapter 验收是历史状态，由本节安全边界覆盖。
+
 ## 2026-09-24 L4 课表材料来源别名（源码与 staged 验收，未发布）
 
 - Core [#182](https://github.com/Intellinfinity/edupi/pull/182) 与 [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并；Desktop `0f2c75d` 固定 Core `68004b2`，将权威课表来源/证据用于 PDF/DOCX 的纯课表与混合材料保守别名。重复导入、增量新增、旧材料删除和快照竞争均由隔离 Core 真写入回读；缺失、歧义、已删除或被教师更正的证据不自动绑来源。教师可显式选当前课表来源，选项及提交均按指纹与独占锚点核对。详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。

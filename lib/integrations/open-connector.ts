@@ -44,6 +44,7 @@ export type ExternalActionAuthorization = {
   actionId: string;
   inputHash: string;
   connectionName: string;
+  idempotencyKey: string;
   confirmationId: string;
   confirmedAt: string;
 };
@@ -221,22 +222,6 @@ export function actionAllowed(actionId: string, capability: string, policy: Open
   return Array.isArray(patterns) && patterns.some((pattern) => patternToRegExp(pattern).test(actionId));
 }
 
-const READ_ONLY_ACTION = /^(get|list|search|find|read|fetch|query|lookup|inspect|describe|check|count|download|export|preview|resolve|validate|verify|watch|poll)(?:\b|_)/iu;
-
-export function classifyExternalAction(
-  actionId: string,
-  operationType?: ExternalActionSummary["operationType"],
-): { risk: ExternalActionRisk; reason: string } {
-  if (operationType === "read") return { risk: "low", reason: "runtime marks the action read-only" };
-  if (operationType === "write" || operationType === "destructive") {
-    return { risk: "high", reason: "runtime marks the action as external mutation" };
-  }
-  const operation = actionId.slice(actionId.indexOf(".") + 1);
-  return READ_ONLY_ACTION.test(operation)
-    ? { risk: "low", reason: "explicit read-only action" }
-    : { risk: "high", reason: "external action is not proven read-only" };
-}
-
 function stableHash(value: unknown): string {
   const source = typeof value === "string" ? value : JSON.stringify(value);
   return "sha256:" + createHash("sha256").update(source ?? "null", "utf8").digest("hex");
@@ -274,24 +259,29 @@ export function createActionAuthorization(
   input: Record<string, unknown>,
   connectionName: string,
   confirmationId: string,
+  idempotencyKey: string,
   confirmedAt = new Date().toISOString(),
 ): ExternalActionAuthorization {
   if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$/.test(actionId)) throw new ExternalConnectorError("invalid_action", "action id is invalid");
   const timestamp = Date.parse(confirmedAt);
-  if (!confirmationId || confirmationId.length > 128 || !Number.isFinite(timestamp) || timestamp > Date.now() + 60_000) {
+  if (!confirmationId || confirmationId.length > 128 || !idempotencyKey.trim()
+    || Buffer.byteLength(idempotencyKey, "utf8") > 255
+    || !Number.isFinite(timestamp) || timestamp > Date.now() + 60_000) {
     throw new ExternalConnectorError("invalid_authorization", "confirmation is invalid");
   }
-  return { actionId, inputHash: stableHash(input), connectionName: normalizeConnectionName(connectionName), confirmationId, confirmedAt };
+  return { actionId, inputHash: stableHash(input), connectionName: normalizeConnectionName(connectionName), idempotencyKey, confirmationId, confirmedAt };
 }
 
-function validAuthorization(authorization: ExternalActionAuthorization | undefined, actionId: string, input: Record<string, unknown>, connectionName: string): boolean {
+function validAuthorization(authorization: ExternalActionAuthorization | undefined, actionId: string, input: Record<string, unknown>, connectionName: string, idempotencyKey: string): boolean {
   if (!authorization) return false;
   const confirmedAt = Date.parse(authorization.confirmedAt);
   return authorization.actionId === actionId
     && authorization.inputHash === stableHash(input)
     && authorization.connectionName === connectionName
+    && authorization.idempotencyKey === idempotencyKey
     && Boolean(authorization.confirmationId)
     && Number.isFinite(confirmedAt)
+    && confirmedAt <= Date.now() + 60_000
     && confirmedAt + 10 * 60_000 >= Date.now();
 }
 
@@ -360,7 +350,6 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
   private readonly capabilities: OpenConnectorCapabilityPolicy;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
-  private readonly actionRisks = new Map<string, ExternalActionRisk>();
 
   constructor(options: OpenConnectorProviderOptions) {
     this.baseUrl = new URL(options.baseUrl);
@@ -472,10 +461,16 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
     const action = requireText(actionId, "actionId");
     this.ensureAllowed(action, requireText(capability, "capability", 64));
     const { data } = await this.request<ExternalActionInspection>("/v1/actions/" + encodeURIComponent(action), { method: "GET", auth: "runtime" });
-    if (data.id !== action) throw new ExternalConnectorError("invalid_action", "OpenConnector returned metadata for a different action");
-    const risk = data.operationType ? classifyExternalAction(action, data.operationType).risk : "high";
-    this.actionRisks.set(action, risk);
-    return { ...data, risk };
+    if (!data || typeof data !== "object" || data.id !== action) {
+      throw new ExternalConnectorError("invalid_action", "OpenConnector returned metadata for a different action");
+    }
+    const { operationType, ...inspection } = data;
+    return {
+      ...inspection,
+      ...(operationType === "read" || operationType === "write" || operationType === "destructive" ? { operationType } : {}),
+      // Runtime metadata is a separate request from execution and cannot authorize a later POST.
+      risk: "high",
+    };
   }
 
   async executeAction({ actionId, capability, input, connectionName = "default", idempotencyKey, authorization }: {
@@ -491,14 +486,10 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new ExternalConnectorError("invalid_input", "action input must be an object");
     validateActionInput(input);
     const selectedConnection = normalizeConnectionName(connectionName);
-    const key = idempotencyKey?.trim() || "edupi-" + randomUUID();
+    const key = idempotencyKey?.trim() || authorization?.idempotencyKey || "edupi-" + randomUUID();
     if (Buffer.byteLength(key, "utf8") > 255) throw new ExternalConnectorError("invalid_input", "idempotency key is too long");
-    const nameRisk = classifyExternalAction(action).risk;
-    const risk = this.actionRisks.get(action)
-      ?? (nameRisk === "low"
-        ? (await this.inspectAction({ actionId: action, capability })).risk ?? "high"
-        : nameRisk);
-    if (risk === "high" && !validAuthorization(authorization, action, input, selectedConnection)) {
+    const risk = "high";
+    if (!validAuthorization(authorization, action, input, selectedConnection, key)) {
       throw new ExternalConnectorError("authorization_required", "This external action requires exact teacher confirmation");
     }
     const { response, payload } = await this.fetchJson("/v1/actions/" + encodeURIComponent(action), {

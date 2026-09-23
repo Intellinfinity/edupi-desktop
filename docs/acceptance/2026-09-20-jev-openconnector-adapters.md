@@ -1,5 +1,9 @@
 # JEV / OpenConnector Adapter 验收记录
 
+## 2026-09-24 安全边界更新
+
+原记录中的“读取类 Action 自动执行”只描述当时的 Adapter 行为，已被本次规则取代。OpenConnector 元数据检查和执行是分开的请求，不能证明 `operationType=read` 在执行时仍成立；当前所有 `execute` 都需要教师可见确认，缺少 UI、拒绝确认、未知类型、输入无法完整显示时不发送执行 POST。弹窗与执行使用同一输入快照，授权绑定幂等键；Agent/用户 bash 子进程环境移除了连接器令牌。`search` / `inspect` 仍可不经确认查询目录。同用户无限制 shell 可尝试从父进程或本地凭据取得令牌，runtime 尚无强制的一次性教师确认验证，因此此更新仍只是 Adapter 防线，未完成受管 runtime、Core capability/Receipt 或正式安装验收。
+
 ## 版本与环境
 
 - Desktop branch：`feat/jev-openconnector-integration`

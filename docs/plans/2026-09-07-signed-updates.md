@@ -2,7 +2,7 @@
 
 ## 2026-09-23 文档同名 occurrence 配对（开发验收，未发布）
 
-- [Desktop #229](https://github.com/Intellinfinity/edupi-desktop/pull/229) 的提交 `082648e` 支持同一 PDF/DOCX 的多条同名同类事项：完整语义 variant ref、exact duplicate 折叠、旧 singleton 保持、精确优先与剩余 1:1 配对。单项变化沿用原 ID 进入 Core 审核，多项变化不猜测。
+- [Desktop #229](https://github.com/Intellinfinity/edupi-desktop/pull/229) 的提交 `082648e` 支持同一 PDF/DOCX 的多条同名同类事项：完整语义 variant ref、exact duplicate 折叠、旧 singleton 保持、精确优先与剩余 1:1 配对。单项变化沿用原 ID，由 Core 按 revision/conflict 规则处理；日期或时段变化进入 held/conflict，多项变化不猜测。
 - pre-typed inferred legacy 可在同字节证明下升级为 typed held；foreign legacy 同 anchor、deleted sibling 复活和确认内容漂移继续 fail closed。真实 DOCX E2、1521 passed / 26 skipped / 0 failed、TypeScript、lint、audit、packaged build、staged runtime 与独立复审通过。
 - 本节未生成或安装正式 Release；公开 Latest 仍为 v0.3.36/Core `860594a…`。多项同时变化的逐项 UI、slot alias、可信 OCR、安装版、盲测和真人价值继续留在 Unverified。
 

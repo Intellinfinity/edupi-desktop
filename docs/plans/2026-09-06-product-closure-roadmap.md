@@ -8,6 +8,7 @@
 
 - 当前 Desktop 分支 `feat/jev-openconnector-integration` 将所有外部 Action 执行收敛到教师可见确认；`operationType=read`、未知元数据与 Action 名称均不再免确认。弹窗和执行使用同一 JSON 快照，不能完整展示的输入拒绝执行；授权绑定运行时幂等键。Agent/用户 bash 子进程环境移除 OpenConnector runtime/admin token 和 JEV 密钥。
 - 该代码尚未发布；R23 仍为部分实现。同用户无限制 shell 与服务端令牌之间没有强隔离，不能宣称外部执行不可绕过。下一步须建立受管 sidecar + Core WorkCase 权威 grant/Receipt 合同，并让 runtime 原子验证一次性授权。JEV 受管浏览器与实服执行也未完成。下方 2026-09-20 的 Adapter 验收是历史状态，由本节安全边界覆盖。
+- 合同约束与安全负测已列于 [R23 外部 Action 权限规格](../architecture/R23-external-action-authority-spec.md)；文档本身不代表实现或验收。
 
 ## 2026-09-24 L4 课表材料来源别名（源码与 staged 验收，未发布）
 

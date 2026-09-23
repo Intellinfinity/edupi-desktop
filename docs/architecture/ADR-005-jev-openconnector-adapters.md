@@ -44,6 +44,8 @@ Action 必须同时通过 capability 白名单与 runtime token 自身策略。�
 
 Agent 与显式用户 bash 的子进程环境会移除 OpenConnector runtime/admin token 和 JEV API Key，但这只是紧急防泄露措施，不是同用户进程/文件访问的完整隔离。同一用户的无限制 shell 仍可能从父进程或本地凭据取得令牌，再直连 runtime 绕过工具确认。因此当前 Agent 工具不能视为具备强制外部执行授权边界；R23 的发布收口需要把模型可调用的本地执行环境与 runtime 凭据隔离，并在受管 sidecar/Core 权威 grant 处验证一次性确认。
 
+后续权威合同与验收门禁见 [R23 外部 Action 权限与受管 Runtime 规格](R23-external-action-authority-spec.md)。
+
 每次执行使用 runtime 级幂等键。成功和已开始执行的失败都转换为 `ExternalExecutionReceipt`；回执保留 `executionId`、Action、连接、风险、状态、审计持久化结果和脱敏输出/错误。审计回读再次应用 capability 白名单，不能用已知 execution id 跨任务读取其他 Action。当前回执保存在 Pi 会话工具结果与 OpenConnector 审计中；写入 Core WorkCase/Evidence/Receipt 仍需配对 Core 合同后再启用。
 
 ### 默认关闭

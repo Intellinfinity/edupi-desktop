@@ -3,7 +3,7 @@
 ## 状态
 
 - 结论：开发态工程闭环通过，整体仍为“L4 功能收敛中”。
-- Desktop 交付：[PR #233](https://github.com/Intellinfinity/edupi-desktop/pull/233)。
+- Desktop 交付：[PR #233](https://github.com/Intellinfinity/edupi-desktop/pull/233)，merge `a3def0aa3a8f4b2655d04e50007ef4fe0c62b2cf`。
 - 范围：单教师、单班级、单学科、教学准备，默认关闭；显式开启后运行 7 天，最多 12 次模型调用，始终 `external_send=false`。
 - 不计入本结论：正式安装版、真实模型内容质量、正式盲测和真实教师价值。
 - Core 配对：[Core #178](https://github.com/Intellinfinity/edupi/pull/178)–[#183](https://github.com/Intellinfinity/edupi/pull/183)，最终 merge `26fc91ef656877b15ca3e60f14093cf52ea7b736`；Desktop/Runtime manifest 分别为 `sha256:9c019d02…` / `sha256:85c6a8da…`，Runtime schema `sha256:815f827e…`。

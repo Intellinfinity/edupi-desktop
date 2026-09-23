@@ -95,8 +95,9 @@ async function startStagedServer() {
   } catch (error) { await stop(); throw error; }
 }
 
-function calendar(events) {
-  return Buffer.from(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//EduPi Uploaded Calendar E2//EN", ...events.flat(), "END:VCALENDAR", ""].join("\r\n"));
+function calendar(events, method = null) {
+  return Buffer.from(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//EduPi Uploaded Calendar E2//EN",
+    ...(method ? [`METHOD:${method}`] : []), ...events.flat(), "END:VCALENDAR", ""].join("\r\n"));
 }
 
 function timed(uid, date, hour, title, location) {
@@ -222,6 +223,31 @@ try {
   assert.equal(read.body.calendar.some((item) => ["upload-a", "upload-b"].includes(item.occurrenceRef)), false);
   assert.equal(read.body.calendar.filter((item) => ["upload-c", "upload-d"].includes(item.occurrenceRef)).length, 2);
 
+  const recurringEvent = (withExdate) => [
+    "BEGIN:VEVENT", "UID:upload-recurring", "DTSTAMP:20260923T000000Z",
+    "DTSTART;TZID=Asia/Shanghai:20261020T090000", "DTEND;TZID=Asia/Shanghai:20261020T100000",
+    "RRULE:FREQ=WEEKLY;COUNT=3", ...(withExdate ? ["EXDATE;TZID=Asia/Shanghai:20261027T090000"] : []),
+    "SUMMARY:循环教研会", "STATUS:CONFIRMED", "END:VEVENT",
+  ];
+  stagedFile = await stage(calendar([recurringEvent(false)]), "循环教研日历.ics");
+  const recurringInitial = await intake(stagedFile.staging_id);
+  assert.equal(recurringInitial.response.status, 200, JSON.stringify(recurringInitial.body));
+  assert.equal(recurringInitial.body.calendarCommitted, true);
+  assert.equal(recurringInitial.body.recognition.eventCount, 3);
+  const recurringSourceId = recurringInitial.body.calendarSourceId;
+  sourceList = await listSources();
+  const recurringSource = sourceList.body.sources.find((source) => source.sourceId === recurringSourceId);
+  assert.equal(recurringSource.eventCount, 3);
+  stagedFile = await stage(calendar([recurringEvent(true)], "REQUEST"), "循环教研日历-排除一次.ics");
+  const recurringUpdated = await intake(stagedFile.staging_id, recurringSourceId, recurringSource.fingerprint);
+  assert.equal(recurringUpdated.response.status, 200, JSON.stringify(recurringUpdated.body));
+  assert.equal(recurringUpdated.body.calendarCommitted, true);
+  assert.equal(recurringUpdated.body.removedEventCount, 1);
+  read = await education();
+  const recurringCurrent = read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-recurring#"));
+  assert.equal(recurringCurrent.length, 2);
+  assert.equal(recurringCurrent.some((item) => item.occurrenceRef === "upload-recurring#2026-10-27T01:00:00.000Z"), false);
+
   if (stagedServer) {
     await stagedServer.stop();
     stagedServer = await startStagedServer();
@@ -232,14 +258,16 @@ try {
   read = await education();
   assert.equal(read.body.calendar.some((item) => ["upload-a", "upload-b"].includes(item.occurrenceRef)), false);
   assert.equal(read.body.calendar.filter((item) => ["upload-c", "upload-d"].includes(item.occurrenceRef)).length, 2);
+  assert.equal(read.body.calendar.filter((item) => item.occurrenceRef?.startsWith("upload-recurring#")).length, 2);
   const deletionState = JSON.parse(fs.readFileSync(path.join(home, "output", "entity_delete_state.json"), "utf8"));
-  assert.equal(deletionState.records.filter((item) => item.target_kind === "calendar").length, 2);
+  assert.equal(deletionState.records.filter((item) => item.target_kind === "calendar").length, 3);
   assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === `ICS 日历来源更新 ${updateEvidenceId}`), true,
     "the batch tombstone history must identify the ICS revision that caused the withdrawal");
   assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === `ICS 日历来源更新 ${secondUpdateEvidenceId}`), true,
     "a later revision must preserve its own withdrawal evidence after earlier tombstones");
   console.log(JSON.stringify({ status: "passed", staged_server: staged, deterministic_ics: true, exact_replay: true,
-    explicit_update: true, consecutive_update: true, deletion_propagation: true, restart_readback: true, external_send: false }));
+    explicit_update: true, consecutive_update: true, exdate_delta: true, deletion_propagation: true,
+    restart_readback: true, external_send: false }));
 } finally {
   await stagedServer?.stop();
   await runtimeSupervisor?.closeAllEduPiRuntimes();

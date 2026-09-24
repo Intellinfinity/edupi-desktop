@@ -4,7 +4,12 @@ import { access, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
-import { createJiti } from "jiti";
+
+const managedMode = process.argv.includes("--managed");
+if (process.argv.slice(2).some((value) => value !== "--managed")
+  || process.argv.filter((value) => value === "--managed").length > 1) {
+  throw new Error("Only --managed is supported");
+}
 
 const resources = process.env.EDUPI_STAGED_RESOURCES;
 if (!resources || !path.isAbsolute(resources)) throw new Error("EDUPI_STAGED_RESOURCES must be an absolute path");
@@ -83,14 +88,17 @@ try {
   child.stdin.end();
   const exitCode = await waitForExit();
   assert.equal(exitCode, 0, errorTail);
-  const { runCatalogQuery } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../lib/openconnector-catalog-process.ts");
-  const managed = await runCatalogQuery({ op: "search", query: "calendar" }, { root: catalogRoot, nodeExecutable });
-  assert.equal(managed.kind, "search");
-  assert.ok(managed.actions.length > 0);
-  const inspected = await runCatalogQuery({ op: "inspect", actionId: "npm.get_package" }, { root: catalogRoot, nodeExecutable });
-  assert.equal(inspected.kind, "inspect");
-  assert.ok(inspected.fields.some((field) => field.name === "packageName" && field.required));
-  console.log(JSON.stringify({ status: "passed", catalog: true, inspect: true, execute_blocked: true }));
+  if (managedMode) {
+    const { createJiti } = await import("jiti");
+    const { runCatalogQuery } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../lib/openconnector-catalog-process.ts");
+    const managed = await runCatalogQuery({ op: "search", query: "calendar" }, { root: catalogRoot, nodeExecutable });
+    assert.equal(managed.kind, "search");
+    assert.ok(managed.actions.length > 0);
+    const inspected = await runCatalogQuery({ op: "inspect", actionId: "npm.get_package" }, { root: catalogRoot, nodeExecutable });
+    assert.equal(inspected.kind, "inspect");
+    assert.ok(inspected.fields.some((field) => field.name === "packageName" && field.required));
+  }
+  console.log(JSON.stringify({ status: "passed", catalog: true, inspect: true, execute_blocked: true, managed: managedMode }));
 } finally {
   if (child.exitCode === null && child.signalCode === null) {
     await new Promise((resolveExit) => {

@@ -9,7 +9,6 @@ on:
       tag:
         description: Published Linux version to install
         required: true
-        default: v0.3.7
 
 permissions:
   contents: read
@@ -57,6 +56,20 @@ jobs:
       - name: Install the published package
         run: |
           sudo apt-get install --yes "$EDUPI_DEB"
+
+      - name: Verify installed OpenConnector catalog
+        shell: bash
+        env:
+          EDUPI_TEST_RELEASE: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if dpkg --compare-versions "${EDUPI_TEST_RELEASE#v}" lt 0.3.38; then exit 0; fi
+          package_name="$(dpkg-deb -f "$EDUPI_DEB" Package)"
+          host="$(dpkg -L "$package_name" | grep -E '/resources/open-connector/host\.mjs$')"
+          node="$(dpkg -L "$package_name" | grep -E '/resources/node/node$')"
+          test -f "$host"
+          test -x "$node"
+          EDUPI_STAGED_RESOURCES="$(dirname "$(dirname "$host")")" "$node" scripts/test-staged-openconnector.mjs
 
       - name: Start the installed application and verify Core readiness
         shell: bash

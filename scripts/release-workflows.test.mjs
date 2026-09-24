@@ -497,3 +497,42 @@ test("release and preview refuse a packaged OCR runtime without offline language
     assert.match(workflow, /name: Verify bundled DOCX extraction[\s\S]*?run: npm run test:staged-docx/u);
   }
 });
+
+test("release and preview verify the bundled read-only OpenConnector catalog", async () => {
+  for (const name of ["release.yml", "preview-installers.yml"]) {
+    const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
+    assert.match(workflow, /name: Verify bundled OpenConnector catalog[\s\S]*?run: npm run test:staged-openconnector/u);
+  }
+  const preview = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
+  assert.match(preview, /target: aarch64-apple-darwin\s+bundle: app,dmg/u);
+  assert.match(preview, /name: Build unsigned preview installer[\s\S]*?name: Verify preview macOS application catalog[\s\S]*?run: npm run test:staged-openconnector/u);
+  assert.match(preview, /name: Verify preview Windows executable version[\s\S]*?Preview executable version does not match package version/u);
+  const prepare = await readFile(join(root, "scripts", "prepare-desktop.mjs"), "utf8");
+  assert.match(prepare, /copyPackageClosure\(rootDir, openConnectorResourcesDir, "@oomol-lab\/open-connector"\)/u);
+  const release = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  assert.match(release, /name: Verify signed macOS packaged runtime[\s\S]*?EDUPI_STAGED_RESOURCES: \$\{\{ github\.workspace \}\}\/src-tauri\/target/u);
+  assert.match(release, /name: Verify signed macOS packaged runtime[\s\S]*?EDUPI_STAGED_NODE="\$helper" npm run test:staged-openconnector/u);
+  const linux = await readFile(join(root, ".github", "workflows", "linux-published-install.yml"), "utf8");
+  assert.match(linux, /name: Verify installed OpenConnector catalog[\s\S]*?test-staged-openconnector\.mjs/u);
+  const windows = await readFile(join(root, "scripts", "test-windows-installed-release.ps1"), "utf8");
+  assert.match(windows, /Installed OpenConnector catalog smoke failed/u);
+  assert.match(windows, /Installed executable version does not match release tag/u);
+});
+
+test("preview installs Desktop dependencies before the paired Core runtime test", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
+  const packageJob = workflow.slice(workflow.indexOf("  package:"));
+  assert.match(packageJob, /Install Core runtime dependencies[\s\S]*?- run: npm ci[\s\S]*?Verify paired Core runtime/u);
+  assert.match(packageJob, /name: Verify paired Core runtime\s+if: runner\.os != 'Windows'/u);
+  assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
+});
+
+test("published install workflows require an explicit release tag", async () => {
+  for (const name of ["linux-published-install.yml", "windows-build-debug.yml"]) {
+    const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
+    assert.match(workflow, /tag:\s+description: Published [^\n]+ version to install\s+required: true/u);
+    assert.doesNotMatch(workflow, /default: v0\.3\.7/u);
+  }
+  const windows = await readFile(join(root, ".github", "workflows", "windows-build-debug.yml"), "utf8");
+  assert.doesNotMatch(windows, /\$\(ls "\$d" \| wc -l\)/u);
+});

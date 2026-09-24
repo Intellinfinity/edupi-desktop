@@ -10,7 +10,8 @@ test("preview installers are manual, unsigned, non-release artifacts for Mac and
   for (const forbidden of ["push:", "pull_request:", "pull_request_target:", "repository_dispatch:", "workflow_run:", "schedule:", "workflow_call:", "contents: write", "gh release", "npm publish", "cargo publish", "tauri-action", "softprops/action-gh-release", "ncipollo/release-action", "actions/create-release", "uploadUpdaterJson", "TAURI_SIGNING_PRIVATE_KEY", "TAURI_UPDATER_PUBLIC_KEY"]) assert.equal(workflow.includes(forbidden), false, forbidden);
   assert.match(workflow, /package:\n\s+needs:\s+quality/);
   assert.match(workflow, /aarch64-apple-darwin/);
-  assert.match(workflow, /bundle:\s*dmg/);
+  assert.match(workflow, /bundle:\s*app,dmg/);
+  assert.match(workflow, /artifact_path:\s*src-tauri\/target\/aarch64-apple-darwin\/release\/bundle\/dmg\/\*\.dmg/);
   assert.match(workflow, /x86_64-pc-windows-msvc/);
   assert.match(workflow, /bundle:\s*nsis/);
   assert.doesNotMatch(packageJob, /ubuntu|linux|x86_64-unknown-linux-gnu|bundle:\s*(?:deb|rpm|appimage)|\.AppImage/);

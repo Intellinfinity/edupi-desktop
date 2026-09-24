@@ -35,7 +35,6 @@ on:
       tag:
         description: Published Windows version to install
         required: true
-        default: v0.3.7
       native_only:
         description: Skip the private Core build and check the public installer/native source only
         type: boolean
@@ -157,7 +156,7 @@ jobs:
           "./src-tauri/resources/node/node.exe" --version
           echo "--- bundled pi packages ---"
           for d in src-tauri/resources/server/node_modules/@earendil-works/*/dist; do
-            echo "$d: $(ls "$d" | wc -l) entries"
+            echo "$d: $(find "$d" -mindepth 1 -maxdepth 1 | wc -l) entries"
           done
 
       - name: Check native desktop commands

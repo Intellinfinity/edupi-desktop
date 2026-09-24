@@ -265,6 +265,11 @@ jobs:
           EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
         run: npm run test:staged-docx
 
+      - name: Verify bundled OpenConnector catalog
+        env:
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
+        run: npm run test:staged-openconnector
+
       - name: Verify staged macOS integrations
         if: runner.os == 'macOS'
         env:
@@ -332,7 +337,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         env:
-          EDUPI_STAGED_RESOURCES: src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app/Contents/Resources/resources
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app/Contents/Resources/resources
         run: |
           set -euo pipefail
           helper="$EDUPI_STAGED_RESOURCES/Pi Agent Server.app/Contents/MacOS/node"
@@ -340,6 +345,7 @@ jobs:
           npm run test:staged-desktop-runtime
           npm run test:staged-ocr
           npm run test:staged-docx
+          EDUPI_STAGED_NODE="$helper" npm run test:staged-openconnector
 
       - name: Verify packaged macOS updater key
         if: runner.os == 'macOS'

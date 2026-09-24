@@ -12,7 +12,8 @@
       "resources/node",
       "resources/component-versions.json",
       "resources/third-party",
-      "resources/edupi-core"
+      "resources/edupi-core",
+      "resources/open-connector"
     ],
     "linux": {
       "deb": {

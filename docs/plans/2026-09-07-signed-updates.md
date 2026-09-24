@@ -1,9 +1,9 @@
 # 自动下载安装
 
-## 2026-09-24 v0.3.37 公开发布（macOS 原位升级待验收）
+## 2026-09-24 v0.3.37 公开发布与本机原位升级
 
 - 修复版 run [`35932154000`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35932154000) 的 macOS、Linux、Windows 和 manifest 全部成功；正式 Release `395131181` 非草稿、11 项资产，Raw feed 为 `0.3.37`、7 个签名平台键、清单 SHA-256 `bed10e86…`。Linux 和 Windows 公开安装启动分别由 `35936781815`、`35936813172` 验收通过。
-- macOS 公开 DMG 的独立下载摘要与 Release 相同，本机 Gatekeeper 为 `Notarized Developer ID`；runner 两次 Apple submission 均 Accepted，应用与 DMG 的装订验证通过。本机 `stapler validate` 因 CloudKit TLS `-1200` 无结论。已安装的 0.3.36 检测到 0.3.37，但 Mac 锁屏阻止点击更新及重启后教师数据、模型配置核对，不能标记 macOS 原位升级完成。完整证据见 [v0.3.37 验收](../acceptance/2026-09-24-v0.3.37-signed-release.md)。
+- macOS 公开 DMG 的独立下载摘要与 Release 相同，本机 Gatekeeper 为 `Notarized Developer ID`；runner 两次 Apple submission 均 Accepted，应用与 DMG 的装订验证通过。本机 `stapler validate` 因 CloudKit TLS `-1200` 无结论。已安装的 0.3.36 从原生设置页点击更新，随后同路径变为 0.3.37、进程 `86147 → 22116`，Core `68004b2` ready、51/240/43/9 教师数据和三份模型/认证/设置摘要保持；中途锁屏使进度各阶段未逐帧可见。完整证据见 [v0.3.37 验收](../acceptance/2026-09-24-v0.3.37-signed-release.md)。
 
 ## 2026-09-24 v0.3.37 首轮 Linux 构建失败（历史，已由上节取代）
 

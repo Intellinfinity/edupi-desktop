@@ -33,7 +33,7 @@ jobs:
         include:
           - runner: macos-15
             target: aarch64-apple-darwin
-            bundle: dmg
+            bundle: app,dmg
             artifact_name: EduPi-macOS-Apple-Silicon
             artifact_path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             apple_signing_identity: "-"
@@ -76,11 +76,20 @@ jobs:
           git -C .edupi-core-runtime archive HEAD | tar -x -C .edupi-core-runtime
       - name: Install Core runtime dependencies
         run: npm ci --ignore-scripts --prefix .edupi-core-runtime
+      - run: npm ci
       - name: Verify paired Core runtime
+        if: runner.os != 'Windows'
         env:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run test:edupi-ambient-today-runtime
-      - run: npm ci
+      - name: Verify paired Core bundle on Windows
+        if: runner.os == 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: >
+          node --test --test-name-pattern
+          "bundled validation rejects|external mode still requires"
+          scripts/packaged-core-bundle.test.mjs
       - name: Verify paired timetable source alias
         if: runner.os != 'Windows'
         env:
@@ -98,6 +107,10 @@ jobs:
         env:
           EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
         run: npm run test:staged-docx
+      - name: Verify bundled OpenConnector catalog
+        env:
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
+        run: npm run test:staged-openconnector
       - name: Build unsigned preview installer
         shell: bash
         env:
@@ -107,6 +120,21 @@ jobs:
           --target "${{ matrix.target }}"
           --bundles "${{ matrix.bundle }}"
           --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Verify preview macOS application catalog
+        if: runner.os == 'macOS'
+        env:
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app/Contents/Resources/resources
+        run: npm run test:staged-openconnector
+      - name: Verify preview Windows executable version
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $expected = (Get-Content src-tauri/pi-agent-desktop-package.json -Raw | ConvertFrom-Json).version
+          $binary = "src-tauri/target/${{ matrix.target }}/release/pi-agent-desktop.exe"
+          $actual = (Get-Item $binary).VersionInfo.ProductVersion
+          if ($actual -notmatch '^(\d+)\.(\d+)\.(\d+)' -or "$($Matches[1]).$($Matches[2]).$($Matches[3])" -ne $expected) {
+            throw "Preview executable version does not match package version"
+          }
       - name: Upload preview installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

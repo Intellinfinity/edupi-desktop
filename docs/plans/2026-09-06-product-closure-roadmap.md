@@ -15,7 +15,7 @@
 
 ## 2026-09-24 R23 OpenConnector 只读目录按需查询（开发态，未发布）
 
-- 基于已合并的只读目录资源，桌面设置新增折叠的 OpenConnector 目录搜索与参数查看；打包服务器只在桌面令牌授权后按请求启动包内 Node/host，使用私有临时数据目录、12 秒截止和最小子进程环境，请求完成即退出。API 只允许 `search/inspect`，不会重新注册 Agent Action 工具、管理账户、传凭据、POST Action 或授予 Core capability；R23 仍“部分实现”。隔离 staged 资源与包内 Node 的目录查询、800×900 模拟桌面页面搜索/失败/焦点回退和质量门通过，尚未在签名安装版或 Windows/Linux 安装后验收。证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。
+- 基于已合并的只读目录资源，桌面设置新增折叠的 OpenConnector 目录搜索与参数查看；打包服务器只在桌面令牌授权后按请求启动包内 Node/host，使用私有临时数据目录、12 秒截止、最小子进程环境和单进程并发门，请求完成即退出。重叠请求返回 429；inspect 失败先清空旧 schema。API 只允许 `search/inspect`，不会重新注册 Agent Action 工具、管理账户、传凭据、POST Action 或授予 Core capability；R23 仍“部分实现”。隔离 staged 资源与包内 Node 的目录查询、800×900 模拟桌面页面搜索/失败/焦点回退和质量门通过，尚未在签名安装版或 Windows/Linux 安装后验收。证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。
 
 ## 2026-09-24 R18/R20 AI 入口漏项修正（开发态，待发布）
 

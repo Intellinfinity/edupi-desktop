@@ -34,6 +34,9 @@ test("catalog UI uses only the privileged desktop API and inspects a selected re
   assert.match(source, /readOnly=\{Boolean\(busy\)\} maxLength=\{200\}/);
   assert.match(source, /onChange=\{\(event\) => \{ setQuery\(event\.target\.value\); setActions\(\[\]\); setSelected\(null\); setSearched\(false\);/);
   assert.match(source, /aria-disabled=\{Boolean\(busy\)\} onClick=\{\(\) => void inspect\(action\.id\)\}/);
+  assert.match(source, /async function inspect[\s\S]*setSelected\(null\)[\s\S]*requestCatalog/);
+  assert.match(source, /type="submit" disabled=\{!query\.trim\(\) \|\| Boolean\(busy\)\}/);
+  assert.match(source, /type="button"[^>]*disabled=\{Boolean\(busy\)\}[^>]*aria-pressed/);
   assert.match(source, /inspectHeadingRef\.current\?\.focus\(\)/);
   assert.match(source, /<h4 ref=\{inspectHeadingRef\} tabIndex=\{-1\}>/);
   assert.doesNotMatch(source, /op: "execute"|fetch\("https?:\/\//);

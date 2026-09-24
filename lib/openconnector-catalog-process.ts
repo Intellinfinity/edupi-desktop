@@ -9,15 +9,44 @@ const MAX_OUTPUT_BYTES = 512 * 1024 + 1024;
 const HOST_FILE = /^[a-z0-9-]+\.mjs$/u;
 
 export class CatalogProcessError extends Error {
-  constructor(public readonly code: "invalid_catalog_request" | "catalog_unavailable" | "catalog_timeout" | "catalog_invalid_response") {
+  constructor(public readonly code: "invalid_catalog_request" | "catalog_unavailable" | "catalog_timeout" | "catalog_invalid_response" | "catalog_busy") {
     super(code);
     this.name = "CatalogProcessError";
   }
 }
 
-export async function runCatalogQuery(
+type CatalogProcessOptions = { root?: string; hostFile?: string; nodeExecutable?: string; timeoutMs?: number };
+
+declare global {
+  var __edupiOpenConnectorCatalogActive: boolean | undefined;
+}
+
+function acquireCatalogProcess(): () => void {
+  // A catalog process loads the full packaged connector directory. Reject
+  // overlap instead of building an unbounded in-memory queue of heavy runtimes.
+  if (globalThis.__edupiOpenConnectorCatalogActive) throw new CatalogProcessError("catalog_busy");
+  globalThis.__edupiOpenConnectorCatalogActive = true;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    globalThis.__edupiOpenConnectorCatalogActive = false;
+  };
+}
+
+export async function runCatalogQuery(query: CatalogQuery, options: CatalogProcessOptions = {}): Promise<CatalogResult> {
+  if (!parseCatalogQuery(query)) throw new CatalogProcessError("invalid_catalog_request");
+  const release = acquireCatalogProcess();
+  try {
+    return await runCatalogQueryOnce(query, options);
+  } finally {
+    release();
+  }
+}
+
+async function runCatalogQueryOnce(
   query: CatalogQuery,
-  { root = process.env.EDUPI_OPENCONNECTOR_CATALOG_ROOT, hostFile = "host.mjs", nodeExecutable = process.execPath, timeoutMs = 12_000 }: { root?: string; hostFile?: string; nodeExecutable?: string; timeoutMs?: number } = {},
+  { root = process.env.EDUPI_OPENCONNECTOR_CATALOG_ROOT, hostFile = "host.mjs", nodeExecutable = process.execPath, timeoutMs = 12_000 }: CatalogProcessOptions = {},
 ): Promise<CatalogResult> {
   const normalized = parseCatalogQuery(query);
   if (!normalized) throw new CatalogProcessError("invalid_catalog_request");

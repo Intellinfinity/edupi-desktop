@@ -85,6 +85,7 @@ export function OpenConnectorCatalogCard() {
     if (busy) return;
     setBusy(actionId);
     setError("");
+    setSelected(null);
     try {
       const result = await requestCatalog({ op: "inspect", actionId });
       if (result.kind !== "inspect" || result.action?.id !== actionId || !Array.isArray(result.fields)) throw new Error("目录暂不可用");
@@ -101,11 +102,11 @@ export function OpenConnectorCatalogCard() {
     <p>只读预览，尚不能执行外部操作。</p>
     <form onSubmit={(event) => void search(event)}>
       <label className="native-field"><span className="native-field-label">搜索 Action</span><input className="native-input" value={query} readOnly={Boolean(busy)} maxLength={200} autoComplete="off" onChange={(event) => { setQuery(event.target.value); setActions([]); setSelected(null); setSearched(false); setLimited(false); setError(""); }} /></label>
-      <button className="native-button" type="submit" disabled={!query.trim()} aria-disabled={Boolean(busy) || !query.trim()}>{busy === "search" ? "查找中…" : "查找"}</button>
+      <button className="native-button" type="submit" disabled={!query.trim() || Boolean(busy)} aria-disabled={Boolean(busy) || !query.trim()}>{busy === "search" ? "查找中…" : "查找"}</button>
     </form>
     {error ? <div className="native-inline-alert is-error" role="alert">{error}</div> : null}
     {searched && !error ? <div className="openconnector-catalog-count" role="status">{actions.length ? `${actions.length} 项` : "没有匹配项"}{limited ? " · 请缩小关键词" : ""}</div> : null}
-    {actions.length > 0 ? <ul className="openconnector-catalog-results">{actions.map((action) => <li key={action.id}><button type="button" aria-pressed={selected?.action.id === action.id} aria-disabled={Boolean(busy)} onClick={() => void inspect(action.id)}><strong>{action.name}</strong><small>{action.service ? `${action.service} · ` : ""}{action.description || action.id}</small></button></li>)}</ul> : null}
+    {actions.length > 0 ? <ul className="openconnector-catalog-results">{actions.map((action) => <li key={action.id}><button type="button" disabled={Boolean(busy)} aria-pressed={selected?.action.id === action.id} aria-disabled={Boolean(busy)} onClick={() => void inspect(action.id)}><strong>{action.name}</strong><small>{action.service ? `${action.service} · ` : ""}{action.description || action.id}</small></button></li>)}</ul> : null}
     {selected ? <section className="openconnector-catalog-inspect" aria-label={`${selected.action.name} 参数`}><h4 ref={inspectHeadingRef} tabIndex={-1}>{selected.action.name}</h4>{selected.fields.length ? <dl>{selected.fields.map((field) => <div key={field.name}><dt>{field.name}{field.required ? " · 必填" : ""}</dt><dd>{field.description || field.type}</dd></div>)}</dl> : <p>无需输入参数</p>}{selected.limited ? <p>仅显示前 30 项参数</p> : null}</section> : null}
   </details>;
 }

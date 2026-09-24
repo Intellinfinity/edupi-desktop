@@ -12,6 +12,16 @@ function reply(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+function errorStatus(code: CatalogProcessError["code"]): number {
+  switch (code) {
+    case "catalog_busy": return 429;
+    case "catalog_timeout": return 504;
+    case "catalog_invalid_response": return 502;
+    case "invalid_catalog_request": return 400;
+    default: return 503;
+  }
+}
+
 export async function POST(request: Request) {
   if (!isDesktopApiRequestAllowed(request)) return reply({ ok: false, code: "desktop_authorization_required" }, 403);
   if (!hasJsonContentType(request)) return reply({ ok: false, code: "invalid_catalog_request" }, 415);
@@ -28,7 +38,6 @@ export async function POST(request: Request) {
     return reply({ ok: true, data: await runCatalogQuery(query) }, 200);
   } catch (error) {
     const code = error instanceof CatalogProcessError ? error.code : "catalog_unavailable";
-    const status = code === "catalog_timeout" ? 504 : code === "catalog_invalid_response" ? 502 : code === "invalid_catalog_request" ? 400 : 503;
-    return reply({ ok: false, code }, status);
+    return reply({ ok: false, code }, errorStatus(code));
   }
 }

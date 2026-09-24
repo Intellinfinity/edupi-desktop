@@ -1,14 +1,14 @@
 # 自动下载安装
 
-## 2026-09-24 v0.3.39 发布准备（未构建、未发布）
+## 2026-09-24 v0.3.39 公开发布与公网安装
 
-- Desktop 版本、组件清单、Cargo 锁文件和 Release 说明已同步为 `0.3.39`，Core 仍固定 `68004b2`；候选变更是 R15/R22 本机更新代理一次保存。
-- 正式三平台签名、公证、7 键 feed、公开安装和旧版应用内原位升级均未完成；发布前须先合入 Windows 已有代理文件覆盖替换修复，再复核全量门禁及安装产物。v0.3.38 保持公开 Latest 与可回退资产。
+- 正式 run [`35979258168`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 在 `acd7ae4` 上完成 Linux、Windows、macOS、公证/装订和 manifest；公开 Release [`v0.3.39`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.39) 含 11 项资产和 7 个签名平台键，Core 固定 `68004b2`，三条 feed SHA-256 均为 `758e0d10…`。
+- Linux [`35984248531`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984248531) 与 Windows [`35984248332`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984248332) 公开干净安装通过。v0.3.38 保留为可回退资产；本机 v0.3.37 原位升级仍待明确安装确认。
 
-## 2026-09-24 更新代理一次保存（主线已合并，待签名版）
+## 2026-09-24 更新代理一次保存（已发布，待本机持久化验收）
 
 - 桌面设置可保存本机 HTTP 更新代理，例如 `http://127.0.0.1:7897`；配置在独立原生文件中持久化，不写 `ui-prefs.json` 的教师数据根。Tauri 签名更新的清单/资产和 `/api/updates` 的 GitHub Release 查询均使用它，后者只设置单请求 dispatcher，不影响 Core 或模型网络。设置后立即刷新版本；并发旧结果不可覆盖新结果。缺失配置沿用系统网络，损坏配置 fail closed，可显式恢复系统网络。
-- 隔离代理 CONNECT、失败缓存/重试、800×900 页面、Rust/TypeScript 门禁、`35973703981` 无签名预览和 `35976790629` Windows 编译已有证据，见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。本机经 `127.0.0.1:7897` 请求 GitHub 返回 200；尚无包含该设置的签名版，不能宣称应用内升级已端到端通过。
+- 隔离代理 CONNECT、失败缓存/重试、800×900 页面、Rust/TypeScript 门禁、`35973703981` 预览、`35976790629` Windows 编译和 v0.3.39 正式三平台构建已有证据，见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。本机经 7897 请求 GitHub 返回 200，但尚未在已安装 app 内保存并完成下一跳升级。
 - 现有 v0.3.38 及更早版本不含此设置；首次获得支持版仍需旧更新链路成功或一次经核验的安装引导。保存后的代理用于后续版本更新，不对旧包提供追溯能力。
 
 ## 2026-09-24 v0.3.38 公开发布与公网安装

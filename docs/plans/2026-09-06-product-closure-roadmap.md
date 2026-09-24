@@ -103,7 +103,7 @@
 | 顺序 | 原任务 | 尚未完成的交付 | 状态 |
 | --- | --- | --- | --- |
 | 近期 | L4 | 扫描 PDF/图片 OCR、同名多项配对与课表来源别名的真实材料验收；六领域内容逐域核对与真人反馈 | v0.3.39 三平台已公开并通过公网安装；#256 Today 注意力预算只在之后的源码/packaged 版，真实材料、教师决议、原生反馈表单和真实睡眠/通知仍未核对 |
-| 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 受管 Action runtime；Core WorkCase capability 与 Receipt 落账 | v0.3.39 保持生产 Action 隔离和只读目录；实服 Action、权威落账、人工授权与 OS 隔离未实现，JEV 不用于对话 |
+| 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 受管 Action runtime；Core WorkCase capability 与 Receipt 落账 | v0.3.39 保持生产 Action 隔离和只读目录；安装版 JEV 已配置但单次实服测试返回 `service_unavailable`，不用于对话。实服 Action、权威落账、人工授权与 OS 隔离未实现；见 [JEV/OpenConnector 验收](../acceptance/2026-09-20-jev-openconnector-adapters.md) |
 | 当前验收 | R22 / R15 | 安装版保存 7897、重启回读并从下一版经代理更新；Windows/Linux 旧版原位升级 | 本机已从 v0.3.37 直升 v0.3.39，Core `68004b2`、51/240/43/9、模型/认证/设置与唯一安装副本保持；7897 当前无监听、代理文件未保存，下一跳代理升级和 Windows/Linux 旧版原位升级未验 |
 | 验收批 | R21 / R22 / R25 | 通知点击回到事项、真实睡眠补跑、安装版故障插件 Safe Mode 恢复；Windows/Linux 旧版应用内升级 | 功能或源码回归已有，所列真实流程未验收 |
 | 部署批 | R16 / L4 | 真实外部账号、学校隔离与备份恢复、正式盲测和教师连续试用 | 依赖目标环境、账号与真人参与，不计入本地工程通过 |

@@ -97,6 +97,7 @@ jobs:
         run: |
           git -C .edupi-core-runtime config core.autocrlf false
           git -C .edupi-core-runtime checkout-index --all --force
+          git -C .edupi-core-runtime archive HEAD | tar -x -C .edupi-core-runtime
       - name: Install Core runtime dependencies
         run: npm ci --ignore-scripts --prefix .edupi-core-runtime
 

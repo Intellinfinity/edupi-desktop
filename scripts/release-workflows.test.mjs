@@ -470,6 +470,7 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
     assert.match(workflow, /persist-credentials: false/);
     assert.match(workflow, /git -C \.edupi-core-runtime config core\.autocrlf false/);
     assert.match(workflow, /git -C \.edupi-core-runtime checkout-index --all --force/);
+    assert.match(workflow, /git -C \.edupi-core-runtime archive HEAD \| tar -x -C \.edupi-core-runtime/);
     assert.match(workflow, /npm ci --ignore-scripts --prefix \.edupi-core-runtime/);
     assert.match(workflow, /EDUPI_CORE_ROOT: \$\{\{ github\.workspace \}\}\/\.edupi-core-runtime/);
     assert.doesNotMatch(workflow, /git checkout (main|master|latest)/i);

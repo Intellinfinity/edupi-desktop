@@ -4,6 +4,31 @@ import vm from "node:vm";
 import test from "node:test";
 import ts from "typescript";
 
+test("standalone reminders wait for the first fetch before showing an empty state", async () => {
+  const slots = [], effects = [];
+  let cursor = 0, finishFetch;
+  const jsx = (type, props) => ({ type, props });
+  const react = {
+    useState(initial) { const i = cursor++; slots[i] ??= { value: initial }; return [slots[i].value, value => { slots[i].value = typeof value === "function" ? value(slots[i].value) : value; }]; },
+    useEffect(callback, deps) { const i = cursor++; if (!slots[i] || deps.some((value, index) => slots[i].deps[index] !== value)) { slots[i]?.cleanup?.(); slots[i] = { deps }; effects.push(() => { slots[i].cleanup = callback(); }); } },
+  };
+  const exports = {};
+  const code = ts.transpileModule(fs.readFileSync(new URL("./EduPiReminderInbox.tsx", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
+  vm.runInNewContext(code, { exports, AbortController, Date, setInterval: () => 1, clearInterval() {}, fetch: () => new Promise(resolve => { finishFetch = resolve; }), require: name => name === "react" ? react : name.includes("jsx-runtime") ? { jsx, jsxs: jsx } : { useSearchParams: () => new URLSearchParams("reminders=1") } });
+  const render = () => { cursor = 0; const tree = exports.EduPiReminderInbox({ onAction: () => true, standalone: true, onClose: () => {} }); while (effects.length) effects.shift()(); return JSON.stringify(tree); };
+
+  const before = render();
+  assert.match(before, /正在读取提醒/);
+  assert.doesNotMatch(before, /没有待处理提醒|暂无待处理提醒/);
+
+  finishFetch({ ok: true, json: async () => ({ items: [] }) });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(render(), /没有待处理提醒/);
+  const settled = render();
+  assert.match(settled, /没有待处理提醒/);
+  assert.doesNotMatch(settled, /正在读取提醒/);
+});
+
 test("opening reminders reads newly available items without waiting for polling", async () => {
   const slots = [], effects = [];
   let cursor = 0, requests = 0, tree;

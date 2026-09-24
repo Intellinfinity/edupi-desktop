@@ -70,7 +70,9 @@ export function EduPiReminderInbox({
   onClose?: () => void;
 }) {
   const params = useSearchParams();
-  const [open, setOpen] = useState(standalone || params.get("reminders") === "1");
+  const remindersRequested = params.get("reminders") === "1";
+  const [open, setOpen] = useState(standalone || remindersRequested);
+  const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Reminder[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -79,8 +81,11 @@ export function EduPiReminderInbox({
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (params.get("reminders") === "1") setOpen(true);
-  }, [params]);
+    if (remindersRequested) {
+      setLoading(true);
+      setOpen(true);
+    }
+  }, [remindersRequested]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,9 +97,13 @@ export function EduPiReminderInbox({
         if (!controller.signal.aborted) {
           setItems(Array.isArray(result.items) ? result.items : []);
           setError("");
+          setLoading(false);
         }
       } catch {
-        if (!controller.signal.aborted) setError("提醒暂不可用");
+        if (!controller.signal.aborted) {
+          setError("提醒暂不可用");
+          setLoading(false);
+        }
       }
     };
     void load();
@@ -109,6 +118,7 @@ export function EduPiReminderInbox({
     handled: items.filter((item) => item.handled || item.withdrawn).length,
   };
   const filtered = filterItems(items, filter);
+  const loadingEmpty = loading && items.length === 0;
   const pageCount = Math.max(1, Math.ceil(filtered.length / 8));
   const currentPage = Math.min(page, pageCount - 1);
   const pageItems = filtered.slice(currentPage * 8, currentPage * 8 + 8);
@@ -173,17 +183,18 @@ export function EduPiReminderInbox({
     <section
       className={`edupi-reminder-inbox${standalone ? " is-standalone" : " is-compact"}`}
       aria-label="提醒"
+      aria-busy={loadingEmpty}
     >
       {standalone ? (
         <header className="edupi-reminder-inbox__header">
           <div>
             <h1>提醒</h1>
-            <span>{pending.length ? `${pending.length} 条待处理` : "没有待处理提醒"}</span>
+            {!loadingEmpty ? <span>{pending.length ? `${pending.length} 条待处理` : "没有待处理提醒"}</span> : null}
           </div>
           <button type="button" className="edupi-reminder-inbox__back" onClick={onClose}>返回对话</button>
         </header>
       ) : (
-        <button type="button" className="native-button" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <button type="button" className="native-button" aria-expanded={open} onClick={() => { if (!open) setLoading(true); setOpen(!open); }}>
           提醒{pending.length ? ` ${pending.length}` : ""}
         </button>
       )}
@@ -201,11 +212,11 @@ export function EduPiReminderInbox({
                   onClick={() => { setFilter(option.value); setPage(0); setSelectedId(null); }}
                 >
                   <span>{option.label}</span>
-                  <b>{counts[option.value]}</b>
+                  {!loadingEmpty ? <b>{counts[option.value]}</b> : null}
                 </button>
               ))}
             </div>
-            <span className="edupi-reminder-inbox__toolbar-count">{filtered.length} 条</span>
+            {!loadingEmpty ? <span className="edupi-reminder-inbox__toolbar-count">{filtered.length} 条</span> : null}
           </div>
 
           {error ? <p className="edupi-reminder-inbox__message is-error" role="alert">{error}</p> : null}
@@ -237,7 +248,7 @@ export function EduPiReminderInbox({
                   ))}
                 </ul>
               ) : (
-                <div className="edupi-reminder-inbox__empty" role="status">{emptyLabel}</div>
+                <div className="edupi-reminder-inbox__empty" role="status">{loadingEmpty ? "正在读取提醒" : emptyLabel}</div>
               )}
               {pageCount > 1 ? (
                 <div className="edupi-reminder-inbox__pagination" aria-label="提醒分页">
@@ -272,7 +283,7 @@ export function EduPiReminderInbox({
                 </>
               ) : (
                 <div className="edupi-reminder-inbox__detail-empty">
-                  <strong>{emptyLabel}</strong>
+                  {!loadingEmpty ? <strong>{emptyLabel}</strong> : null}
                 </div>
               )}
             </article>

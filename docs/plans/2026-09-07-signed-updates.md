@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-24 更新代理一次保存（开发态，未发布）
+
+- 桌面设置可保存本机 HTTP 更新代理，例如 `http://127.0.0.1:7897`；配置在独立原生文件中持久化，不写 `ui-prefs.json` 的教师数据根。Tauri 签名更新的清单/资产和 `/api/updates` 的 GitHub Release 查询均使用它，后者只设置单请求 dispatcher，不影响 Core 或模型网络。设置后立即刷新版本；并发旧结果不可覆盖新结果。缺失配置沿用系统网络，损坏配置 fail closed，可显式恢复系统网络。
+- 隔离代理 CONNECT、失败缓存/重试、800×900 页面及 Rust/TypeScript 门禁已有证据，见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。本机以 `127.0.0.1:7897` 为显式代理请求 GitHub API 返回 200；功能尚未进入签名包，真实应用内下载、验签、替换与重启仍未验。
+
 ## 2026-09-24 v0.3.38 公开发布与公网安装
 
 - 正式 run [`35967579321`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35967579321) 在 `8871a1b` 上完成 macOS、Windows、Linux 与 manifest；Release [`v0.3.38`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.38) 为公开 Latest，非草稿/非预发布，11 项资产、7 个签名平台键，Core 固定 `68004b2`。`latest.json` SHA-256 为 `eadbc4db…`，公开 DMG 为 `f58462f5…`。

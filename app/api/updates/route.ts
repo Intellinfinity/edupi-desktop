@@ -8,10 +8,10 @@ import {
   compareAppVersions,
   getAvailableAppUpdates,
   getNextAppUpdateCheckAt,
-  getLatestAppRelease,
   getUnknownAppReleaseInfo,
   isAppUpdateDue,
 } from "@/lib/app-updates";
+import { getLatestAppReleaseWithConfiguredProxy } from "@/lib/update-proxy-server";
 import type {
   AppComponentReleaseInfo,
   AppUpdateProjectId,
@@ -138,7 +138,7 @@ async function performUpdateCheck(forceRefresh = false): Promise<AppUpdatesRespo
 
   const settled = await Promise.allSettled(dueProjects.map(async (project) => ({
     project,
-    release: await getLatestAppRelease(project),
+    release: await getLatestAppReleaseWithConfiguredProxy(project),
   })));
   const errors: NonNullable<AppUpdatesResponse["errors"]> = [];
   let stateChanged = false;

@@ -2,12 +2,12 @@
 
 状态：源码、本机 staged 与 macOS/Windows 无签名预览打包验收通过；未作为公开安装版发布。此子项不等于 R23 Action 执行完成。
 
-## 2026-09-24 按需查询与桌面入口（基于 `cad68d9`，开发态）
+## 2026-09-24 按需查询与桌面入口（基于 `cad68d9`，已合入 #245 生产 Action 隔离）
 
 - Tauri 在打包服务器启动时只传目录资源绝对路径。服务器的桌面令牌鉴权路由只接受严格的 `search/inspect` 查询，最多 1 KiB 请求体；每次请求启动包内 Node 与已打包 host，使用新建的私有临时目录、最小 `NODE_ENV/PATH` 环境、512 KiB 输出上限与 12 秒截止，结束后退出并清理。未知操作、附加字段、无令牌、跨站来源及缺失资源在进程启动前拒绝。查询结果只投影 Action 名称/描述及输入字段，不回传执行策略、账户或凭据。
 - 使用 staged OpenConnector `1.6.5` 与打包 Node helper 运行 `test:staged-openconnector` 通过；完整桌面令牌路由在隔离环境下搜索 `calendar` 返回 10 项，检查 `npm.get_package` 只显示必填 `packageName`。子进程测试证实 runtime token 不继承、执行请求拒绝、超时后终止、崩溃/缺包安全失败。
 - 800×900 隔离 Next 页面注入测试 Tauri 桥与一次性测试令牌，设置中展开“OpenConnector 目录”→搜索得到 10 项→查看参数，键盘焦点移到参数标题，页面无横向溢出；注入第二次请求 503 后旧结果清空并显示“目录暂不可用”。此桥接模拟只证明 WebView 交互和 API 联通，不证明正式原生签名包已通过。
-- 本批 `npm test` 1714 tests、1688 passed / 26 skipped / 0 failed；TypeScript、lint、npm audit（0 漏洞）、release verify、Cargo metadata、Cargo 28/28 tests、`git diff --check` 通过。新入口未生成、签名或安装新版本；正式 macOS/Windows/Linux 的包内路径、启动/关闭及 UI 仍待下一版验收。真实 Action、账号凭据、Core WorkCase grant/Receipt 与 Agent 强隔离继续不开放。
+- 合入 #245 后 `npm test` 1715 tests、1689 passed / 26 skipped / 0 failed；TypeScript、lint、npm audit（0 漏洞）、release verify、Cargo metadata、Cargo 28/28 tests、`git diff --check` 通过。新入口未生成、签名或安装新版本；正式 macOS/Windows/Linux 的包内路径、启动/关闭及 UI 仍待下一版验收。真实 Action、账号凭据、Core WorkCase grant/Receipt 与 Agent 强隔离继续不开放。
 
 ## 版本、环境与范围
 

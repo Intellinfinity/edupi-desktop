@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-24 R23 未受管 Action 隔离（开发态，待发布）
+
+- 环境变量不再能向生产 AgentSession 注册 OpenConnector Action 工具；runtime/admin token 在扩展加载前从服务端环境清除。Provider 默认目录只读，执行、连接管理和审计回读均在网络前拒绝，旧副作用路径只允许隔离合同测试显式开启。
+- 此改动尚未进入公开签名版；v0.3.37 仍只有此前的确认止血。下一签名包必须复验“配置全部旧环境变量后工具仍不存在”，并保持只读 catalog host 的 Action/proxy 全阻断。Core grant/Receipt 和受管 runtime 未实现，R23 继续部分实现。
+
 ## 2026-09-24 v0.3.37 公开发布与本机原位升级
 
 - 修复版 run [`35932154000`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35932154000) 的 macOS、Linux、Windows 和 manifest 全部成功；正式 Release `395131181` 非草稿、11 项资产，Raw feed 为 `0.3.37`、7 个签名平台键、清单 SHA-256 `bed10e86…`。Linux 和 Windows 公开安装启动分别由 `35936781815`、`35936813172` 验收通过。
@@ -23,7 +28,7 @@
 - Desktop [#233](https://github.com/Intellinfinity/edupi-desktop/pull/233) 已合并为 `a3def0aa3a8f4b2655d04e50007ef4fe0c62b2cf`，[#235](https://github.com/Intellinfinity/edupi-desktop/pull/235) 的未授权领域即时 tombstone 已合并为 `e47bcca6cb18fa8feeb403dd2520a7d1a4515a6b`。此 G1 checkpoint 当时固定 Core [#183](https://github.com/Intellinfinity/edupi/pull/183) merge `26fc91ef656877b15ca3e60f14093cf52ea7b736`、Desktop/Runtime manifest `sha256:9c019d02…` / `sha256:85c6a8da…`；当前唯一配对 pin 已由上方 `68004b2` 取代。默认仍关闭；单班单科显式 canary 的期限、预算和 `external_send=false` 不变。
 - Core/ Desktop 已覆盖串行启停与 stale CAS、停止失败栅栏、grant 到期、未授权领域即时 tombstone、多个普通课次共享材料、自然请求/修订/取消、反馈回读及 synthetic 排除、两阶段无正文 message ledger、会话删除前来源撤回、停止后撤回、active Goal/队列/草稿级联失效和 capture-crash pending 恢复。真实 merge Core E2 与 staged runtime 通过。
 - Desktop 全量为 1673 tests，1647 passed / 26 skipped / 0 failed；TypeScript、lint、audit、actionlint、staged Desktop/feedback/occurrence/conflict/ICS/OCR/DOCX、Core closure 3/3 和 model host 2/2 通过。
-- 本批未生成或安装正式 Release，公开 Latest 仍为 v0.3.36。macOS 锁屏阻止本轮原生 UI 操作；Windows、睡眠、通知点击、旧版升级、真实模型内容、正式盲测和教师试用保持 Unverified，整体仍为“L4 功能收敛中”。
+- 后续 v0.3.37 已正式发布并安装。macOS 同一签名 `.app` 使用隔离 data/config/agent 目录实际完成 G1 启用、Core active、停止和重启后保持 disabled；状态始终 `external_send=false`。恢复真实 config 后 Core `68004b2`、Projection/Kernel 与 51/240/43/9 保持。Windows/Linux G1 原生 UI、真实睡眠、通知点击、Windows 旧版原位升级、真实模型内容、正式盲测和教师试用保持 Unverified，整体仍为“L4 功能收敛中”。
 
 ## 2026-09-24 同名多项逐项配对 staged 验收（未发布）
 

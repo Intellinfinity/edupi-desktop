@@ -2,10 +2,10 @@
 
 ## 状态
 
-- 结论：开发态工程闭环通过，整体仍为“L4 功能收敛中”。
+- 结论：开发态与 macOS 签名安装版的 G1 控制闭环通过，整体仍为“L4 功能收敛中”。
 - Desktop 交付：[PR #233](https://github.com/Intellinfinity/edupi-desktop/pull/233)，merge `a3def0aa3a8f4b2655d04e50007ef4fe0c62b2cf`；未授权领域即时 tombstone [#235](https://github.com/Intellinfinity/edupi-desktop/pull/235) 合并为 `e47bcca6cb18fa8feeb403dd2520a7d1a4515a6b`。
 - 范围：单教师、单班级、单学科、教学准备，默认关闭；显式开启后运行 7 天，最多 12 次模型调用，始终 `external_send=false`。
-- 不计入本结论：正式安装版、真实模型内容质量、正式盲测和真实教师价值。
+- 不计入本结论：Windows/Linux 的 G1 原生界面操作、真实模型内容质量、正式盲测和真实教师价值。
 - Core 配对：[Core #178](https://github.com/Intellinfinity/edupi/pull/178)–[#183](https://github.com/Intellinfinity/edupi/pull/183)，最终 merge `26fc91ef656877b15ca3e60f14093cf52ea7b736`；Desktop/Runtime manifest 分别为 `sha256:9c019d02…` / `sha256:85c6a8da…`，Runtime schema `sha256:815f827e…`。
 
 ## 已实现
@@ -25,6 +25,8 @@
 - Packaged staged：`desktop:prepare` 精确内嵌 Core `26fc91e`；Desktop、feedback、occurrence、conflict、uploaded ICS、offline OCR、DOCX、Core closure 3/3 和 isolated model host 2/2 均通过，staged 状态 `proactivity=disabled`、`external_send=false`。
 - 真实合并 Core E2：并发显式开启（一个成功、一个 stale CAS）→ G2 消息因未授权领域立即 tombstone → 普通对话 Goal → 精确重放 → synthetic 反馈写入/回读且排除 → 自然修订/重放 → 自然取消/重复无新增控制事件 → 再创建一个共享材料的独立课次 Goal → Runtime 重启保持 → 显式停止 → ambient 关闭状态删除会话并撤回四条来源、撤销仍存活的 Goal，并安全终结一条模拟 capture-crash pending。
 - E2 结果：`explicit_opt_in=true`、`scope_bound=true`、`concurrent_activation_cas=true`、`out_of_scope_tombstoned=true`、`ordinary_message_goal=true`、`natural_correction=true`、`natural_cancellation=true`、`feedback_channel=true`、`synthetic_feedback_excluded=true`、`replay_no_duplicate=true`、`restart_persistent=true`、`explicit_stop=true`、`session_delete_withdrawal=true`、`active_goal_delete_propagation=true`、`capture_crash_recovery=true`、`model_provider_calls=0`、`external_send=false`。
+- macOS 签名安装版 v0.3.37：先原样移出真实 App config，以隔离数据根、隔离 Pi agent 目录和隔离 config 启动同一 `/Applications/EduPi.app` 于 `127.0.0.1:38472`。管理中心原生页面显示 `七一班 · 数学` 可用范围，实际点击启用后显示“运行中 / 主动备课已启用”；状态 API 回读 Core/Projection `ready`、`desktop_canary`、`class-7-1/数学`、`external_send=false`。点击停止后显示“默认关闭 / 主动运行已停止”，重启同一安装版后 UI 与 API 均保持 disabled。
+- 验收后结束隔离实例并原样恢复真实 config；正式 v0.3.37 在 `38471` 重新启动，Core `68004b2`、Projection/Kernel ready、G1 disabled，真实 51 名学生、240 个任务、43 个校历节点、9 条课表保持。真实数据因缺少“稳定 class_id 课表 + 同范围材料”而保持启用按钮禁用，未写入合成材料绕过门槛。结构化证据见 [安装版原生 G1 记录](../loop/evidence/2026-09-24-g1-installed-native.json)。
 
 ## 主动程度与用户投入
 
@@ -44,7 +46,7 @@
 
 ## Unverified
 
-- macOS 当前锁屏，未完成最终原生窗口的启用—运行—停止视觉操作；组件语义测试和真实 API E2 已通过，但不替代原生安装版验收。
-- 尚未生成、签名或安装包含本批的 Release；Windows、睡眠唤醒、系统通知点击和旧版应用内升级未复验。
+- macOS v0.3.37 的隔离原生启用—运行—停止—重启保持已通过；真实教师根因缺少可用 canary scope 未执行启用，属于数据前置条件而非绕过项。
+- Windows/Linux 尚未执行 G1 原生界面启停；Windows 旧版原位升级、真实睡眠唤醒和系统通知点击仍未复验。
 - 未调用真实 provider，未人工核对生成教案；12 + 360 + 120 正式模型实验、独立盲评和真实教师试用均未开始。
 - G2–G5 已有 Core Goal/执行与统一反馈机制，但普通聊天 ambient wiring 仍只开放 G1；安全隐私继续作为跨域 veto/hold，未开放任何自动外发。

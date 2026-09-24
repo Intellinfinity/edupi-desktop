@@ -6,21 +6,21 @@
 - Desktop 不改 Core 状态或总数，只按 Core 截止日期距当天的距离排列“待你决定”，每列默认显示 4 项，其余通过原生 disclosure 展开。packaged 页面实际显示“查看其余 27 项”与“查看其余 8 项”，展开/收起通过；390×844 无横向溢出，`external_send=false`。证据见 [Today 注意力预算验收](../acceptance/2026-09-24-today-attention-budget.md)。
 - 此项尚未进入签名安装版，也不自动处置旧候选；真实教师是否更无感仍须由反馈通道测量。整体状态保持“L4 功能收敛中”。
 
-## 2026-09-24 v0.3.39 更新代理签名版准备（未构建、未发布）
+## 2026-09-24 v0.3.39 更新代理签名版（公开安装通过，代理路径待验）
 
-- Desktop 版本、组件清单、Cargo 锁文件和 Release 说明准备为 `0.3.39`，目标是把已合并的 R15/R22 更新代理一次保存带入正式三平台包；Core 继续固定 `68004b2`，不调整 AI 对话与教师数据。
-- 公开 Latest 仍为 v0.3.38；签名、公证、公开资产和安装版代理验收尚未执行。正式构建前必须包含 Windows 已有配置覆盖替换修复；旧包不能追溯获得代理设置，首次升级仍走旧链路，v0.3.38 暂保留为回退版本。
+- Desktop [#255](https://github.com/Intellinfinity/edupi-desktop/pull/255) 将 Windows 已有代理文件的原子覆盖修复合入 `acd7ae4`；正式 [run 35979258168](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 完成三平台签名构建、Apple 公证及 7 键 feed，公开 Latest 已是 v0.3.39。Linux/Windows 公网安装通过；本机 v0.3.37→v0.3.39 原位升级、Core `68004b2`、51/240/43/9、模型/认证/设置保持和唯一安装副本已回读。详见 [v0.3.39 验收](../acceptance/2026-09-24-v0.3.39-signed-update-proxy.md)。
+- 首次升级来自旧客户端链路；安装版代理入口可见但尚未保存 7897，故真实代理下载/验签仍未验。稍后合并的 #256 Today 注意力预算不在此版，R15/R22 整体继续部分验收。
 
-## 2026-09-24 R15/R22 更新代理一次保存（主线已合并，待签名版）
+## 2026-09-24 R15/R22 更新代理一次保存（已发布，原生持久化待验）
 
-- 桌面原生设置新增只接受无凭据本机 HTTP 地址的更新代理，独立持久化、损坏配置保守失败；Tauri updater 和设置/启动提醒的 Release 检查都使用同一代理，版本刷新有迟到结果栅栏。隔离 CONNECT、失败缓存/重试、800×900 模拟设置、`35973703981` 无签名预览和 `35976790629` Windows 源码编译通过；本机以 `127.0.0.1:7897` 请求 GitHub 返回 200。功能尚未进入签名安装版；Windows 已有目标文件的覆盖写入风险由独立修复分支收敛。证据见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。
+- 桌面原生设置新增只接受无凭据本机 HTTP 地址的更新代理，独立持久化、损坏配置保守失败；Tauri updater 和设置/启动提醒的 Release 检查都使用同一代理，版本刷新有迟到结果栅栏。隔离 CONNECT、失败缓存/重试、800×900 模拟设置和 Windows 原生覆盖编译通过；v0.3.39 安装版已显示该入口。验收时 7897 无监听，原生输入未获得可验证回读、专用配置文件仍不存在；不能把旧链路成功升级 v0.3.39 当成保存代理后的升级。证据见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。
 
 ## 2026-09-24 v0.3.38 公开签名版与安装验收
 
 - Desktop `v0.3.38` 固定 Core `68004b2`，正式 run [`35967579321`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35967579321) 的 macOS、Windows、Linux 和 manifest 全部成功。Release [`v0.3.38`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.38) 固定 `8871a1b`，非草稿、非预发布，含 11 项资产和 7 个签名 updater 平台键；三条 feed 均返回 `0.3.38`，`latest.json` SHA-256 为 `eadbc4db…`。
 - macOS runner 完成签名 runtime 启动、updater 公钥、公证、staple 与 Gatekeeper；独立下载公开 DMG 的 SHA-256 为 `f58462f5…`，挂载后的 `.app` 通过严格签名校验，Gatekeeper 为 `Notarized Developer ID` 且 ticket 已装订。Linux [`35973841908`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841908) 与 Windows [`35973841420`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841420) 均完成公开安装、包内只读目录和原生/Core readiness 验收。
 - 首轮 Linux/Windows 公网验收暴露的是稀疏 checkout 脚本顶层依赖开发包 `jiti`，没有进入已安装应用。Desktop [#250](https://github.com/Intellinfinity/edupi-desktop/pull/250) 合并为 `f7349df`，让公开安装 smoke 不依赖 `node_modules`，并保留仓库态 `--managed` 验证；同一批已发布资产随后重跑，未重发或替换 Release。
-- 本版已公开 R23 生产 Action 隔离、按需只读目录、教师价值与六领域漏报反馈。它不等于 L4 建立：本机 0.3.37→0.3.38 原位升级、Windows/Linux 旧版原位升级、真实睡眠/通知点击、真实教师连续试用与正式模型语义盲测仍分别保留为 Unverified。完整边界见 [v0.3.38 发布验收](../acceptance/2026-09-24-v0.3.38-signed-release.md)。
+- 本版已公开 R23 生产 Action 隔离、按需只读目录、教师价值与六领域漏报反馈。它不等于 L4 建立：本机未单独执行 0.3.37→0.3.38，而是后续直升 0.3.39；Windows/Linux 旧版原位升级、真实睡眠/通知点击、真实教师连续试用与正式模型语义盲测仍分别保留为 Unverified。完整边界见 [v0.3.38 发布验收](../acceptance/2026-09-24-v0.3.38-signed-release.md)。
 - 旧 Desktop PR #71、#74 已关闭为 superseded，没有在落后分支上解冲突或整批覆盖主线；旧依赖 PR #32 的目标版本已在当前锁文件且 `npm audit` 为 0，亦已关闭。
 
 ## 2026-09-24 L4 真实教师价值与漏报反馈通道（已发布，待真人证据）

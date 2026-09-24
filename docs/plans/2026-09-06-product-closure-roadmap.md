@@ -1,5 +1,9 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-24 R15/R22 更新代理一次保存（开发态，未发布）
+
+- 桌面原生设置新增只接受无凭据本机 HTTP 地址的更新代理，独立持久化、损坏配置保守失败；Tauri updater 和设置/启动提醒的 Release 检查都使用同一代理，版本刷新有迟到结果栅栏。隔离本机 CONNECT、失败后缓存保持与重试、800×900 模拟桌面设置及 `35973703981` 的 macOS/Windows 无签名预览通过；真实 7897 监听和签名安装版升级尚未验。证据见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。R15/R22 整体仍部分验收，手机异地服务继续排最后。
+
 ## 2026-09-24 v0.3.38 公开签名版与安装验收
 
 - Desktop `v0.3.38` 固定 Core `68004b2`，正式 run [`35967579321`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35967579321) 的 macOS、Windows、Linux 和 manifest 全部成功。Release [`v0.3.38`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.38) 固定 `8871a1b`，非草稿、非预发布，含 11 项资产和 7 个签名 updater 平台键；三条 feed 均返回 `0.3.38`，`latest.json` SHA-256 为 `eadbc4db…`。

@@ -1431,6 +1431,15 @@ html.dark .sidebar-view-switcher-thumb {
 }
 
 .openconnector-catalog-card { padding: 13px 14px; border: 1px solid var(--border); }
+.update-proxy-card { padding: 13px 14px; border: 1px solid var(--border); }
+.update-proxy-card > summary { cursor: pointer; font-size: 12px; font-weight: 700; }
+.update-proxy-card__status { margin-left: 8px; color: var(--text-muted); font-size: 11px; font-weight: 500; }
+.update-proxy-card > form { display: flex; align-items: end; gap: 8px; margin-top: 12px; }
+.update-proxy-card > form > label { flex: 1; }
+.update-proxy-card > form > button { flex: none; }
+.update-proxy-card > p { margin: 8px 0 0; color: var(--text-muted); font-size: 11px; }
+.update-proxy-card__recovery { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+@media (max-width: 520px) { .update-proxy-card > form { align-items: stretch; flex-direction: column; } }
 .openconnector-catalog-card > summary { cursor: pointer; font-size: 12px; font-weight: 700; }
 .openconnector-catalog-card > p { margin: 9px 0 0; color: var(--text-muted); font-size: 11px; }
 .openconnector-catalog-card > form { display: flex; align-items: end; gap: 8px; margin-top: 12px; }

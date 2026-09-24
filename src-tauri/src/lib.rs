@@ -10,7 +10,7 @@ use std::{
         Arc, Mutex,
     },
     thread,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
 };
@@ -590,6 +590,16 @@ fn set_ui_theme(app: AppHandle, theme: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_update_proxy(app: AppHandle) -> Result<Option<String>, String> {
+    read_update_proxy_from_path(&update_proxy_path(&app)?)
+}
+
+#[tauri::command]
+fn set_update_proxy(app: AppHandle, proxy: String) -> Result<Option<String>, String> {
+    write_update_proxy_file(&update_proxy_path(&app)?, &proxy)
+}
+
+#[tauri::command]
 fn get_edupi_root_status(app: AppHandle) -> Result<EduPiRootStatus, String> {
     edupi_launch_roots(&app)
         .map(|roots| roots.status)
@@ -634,6 +644,14 @@ fn ui_prefs_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("ui-prefs.json"))
 }
 
+fn update_proxy_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    Ok(dir.join("updater-proxy.json"))
+}
+
 fn normalize_theme(theme: &str) -> Option<&'static str> {
     match theme {
         "light" => Some("light"),
@@ -659,6 +677,119 @@ fn write_ui_prefs(app: &AppHandle, prefs: &serde_json::Value) -> Result<(), Stri
     }
     let raw = serde_json::to_string_pretty(prefs).map_err(|error| error.to_string())?;
     fs::write(path, raw).map_err(|error| error.to_string())
+}
+
+fn normalize_update_proxy(raw: &str) -> Result<Option<String>, String> {
+    let value = raw.trim();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    let url = Url::parse(value).map_err(|_| "更新代理地址无效".to_string())?;
+    let port = url.port().filter(|port| *port > 0);
+    if url.scheme() != "http"
+        || url.host_str() != Some("127.0.0.1")
+        || port.is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("只支持不含凭据的本机 HTTP 代理地址".into());
+    }
+    Ok(Some(format!("http://127.0.0.1:{}", port.unwrap())))
+}
+
+fn read_update_proxy_from_path(path: &Path) -> Result<Option<String>, String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() => {
+            return Err("更新代理设置文件无效".into());
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err("更新代理设置不可读取".into()),
+        _ => {}
+    }
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err("更新代理设置不可读取".into()),
+    };
+    let prefs: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|_| "更新代理设置文件无效".to_string())?;
+    let object = prefs
+        .as_object()
+        .ok_or_else(|| "更新代理设置文件无效".to_string())?;
+    match object.get("updateProxy") {
+        Some(serde_json::Value::String(value)) => normalize_update_proxy(value)?
+            .ok_or_else(|| "更新代理设置文件无效".to_string())
+            .map(Some),
+        _ => Err("更新代理设置文件无效".into()),
+    }
+}
+
+fn write_update_proxy_file(path: &Path, raw: &str) -> Result<Option<String>, String> {
+    let proxy = normalize_update_proxy(raw)?;
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() => {
+            return Err("更新代理设置文件无效".into());
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(_) => return Err("更新代理设置不可读取".into()),
+        _ => {}
+    }
+    if proxy.is_none() {
+        return match fs::remove_file(path) {
+            Ok(()) => Ok(None),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err("更新代理设置不可清除".into()),
+        };
+    }
+    let mut prefs = match fs::read_to_string(path) {
+        Ok(raw) => serde_json::from_str::<serde_json::Value>(&raw)
+            .map_err(|_| "更新代理设置文件无效".to_string())?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => serde_json::json!({}),
+        Err(_) => return Err("更新代理设置不可读取".into()),
+    };
+    let object = prefs
+        .as_object_mut()
+        .ok_or_else(|| "更新代理设置文件无效".to_string())?;
+    if let Some(value) = &proxy {
+        object.insert(
+            "updateProxy".into(),
+            serde_json::Value::String(value.clone()),
+        );
+    } else {
+        object.remove("updateProxy");
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|_| "更新代理设置不可保存".to_string())?;
+    }
+    let bytes =
+        serde_json::to_vec_pretty(&prefs).map_err(|_| "更新代理设置不可保存".to_string())?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "更新代理设置不可保存".to_string())?
+        .as_nanos();
+    let temporary =
+        path.with_file_name(format!(".updater-proxy-{}-{nonce}.tmp", std::process::id()));
+    let write_result = (|| -> Result<(), String> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .map_err(|_| "更新代理设置不可保存".to_string())?;
+        file.write_all(&bytes)
+            .map_err(|_| "更新代理设置不可保存".to_string())?;
+        file.sync_all()
+            .map_err(|_| "更新代理设置不可保存".to_string())?;
+        drop(file);
+        fs::rename(&temporary, path).map_err(|_| "更新代理设置不可保存".to_string())
+    })();
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    write_result?;
+    Ok(proxy)
 }
 
 /// Source adaptation: abcwyc/pi-agent-desktop@deee754.
@@ -1687,6 +1818,7 @@ mod tests {
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root, mobile_gateway_reachable,
         args_request_safe_mode,
+        normalize_update_proxy, read_update_proxy_from_path, write_update_proxy_file,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
         response_has_instance_id, resume_gap_detected, should_reconcile_webview_cache,
         update_server_port_in_prefs, validate_selected_data_root, write_last_version_to_path,
@@ -2053,6 +2185,62 @@ mod tests {
     }
 
     #[test]
+    fn update_proxy_accepts_only_local_http_without_credentials_or_paths() {
+        assert_eq!(normalize_update_proxy("").unwrap(), None);
+        assert_eq!(
+            normalize_update_proxy(" http://127.0.0.1:7897 ").unwrap(),
+            Some("http://127.0.0.1:7897".into())
+        );
+        for invalid in [
+            "https://127.0.0.1:7897",
+            "http://localhost:7897",
+            "http://127.0.0.1",
+            "http://127.0.0.1:0",
+            "http://127.0.0.1:7897/path",
+            "http://127.0.0.1:7897/?token=x",
+            "http://user:pass@127.0.0.1:7897",
+            "http://192.168.1.2:7897",
+        ] {
+            assert!(normalize_update_proxy(invalid).is_err(), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn update_proxy_file_never_rewrites_teacher_prefs_and_preserves_corrupt_files() {
+        let temp = TempRoot::new("updater-proxy-prefs");
+        let teacher_prefs = temp.path().join("ui-prefs.json");
+        let teacher_bytes = serde_json::json!({ "edupiDataRoot": "/teacher/data", "theme": "dark", "serverPort": 38471 }).to_string();
+        fs::write(&teacher_prefs, &teacher_bytes).unwrap();
+        let proxy_file = temp.path().join("updater-proxy.json");
+        assert_eq!(read_update_proxy_from_path(&proxy_file).unwrap(), None);
+        assert_eq!(
+            write_update_proxy_file(&proxy_file, "http://127.0.0.1:7897").unwrap(),
+            Some("http://127.0.0.1:7897".into())
+        );
+        assert_eq!(
+            read_update_proxy_from_path(&proxy_file).unwrap(),
+            Some("http://127.0.0.1:7897".into())
+        );
+        assert_eq!(
+            write_update_proxy_file(&proxy_file, "http://127.0.0.1:7898").unwrap(),
+            Some("http://127.0.0.1:7898".into())
+        );
+        assert_eq!(write_update_proxy_file(&proxy_file, "").unwrap(), None);
+        assert_eq!(read_update_proxy_from_path(&proxy_file).unwrap(), None);
+        assert_eq!(fs::read_to_string(&teacher_prefs).unwrap(), teacher_bytes);
+        for invalid in ["{}", "{\"updateProxy\":\"\"}"] {
+            fs::write(&proxy_file, invalid).unwrap();
+            assert!(read_update_proxy_from_path(&proxy_file).is_err());
+        }
+        fs::write(&proxy_file, b"{broken").unwrap();
+        assert!(write_update_proxy_file(&proxy_file, "http://127.0.0.1:7897").is_err());
+        assert_eq!(fs::read(&proxy_file).unwrap(), b"{broken");
+        assert_eq!(write_update_proxy_file(&proxy_file, "").unwrap(), None);
+        assert_eq!(read_update_proxy_from_path(&proxy_file).unwrap(), None);
+        assert_eq!(fs::read_to_string(&teacher_prefs).unwrap(), teacher_bytes);
+    }
+
+    #[test]
     fn passive_startup_distinguishes_unconfigured_prefs_from_a_missing_configured_root() {
         let temp = TempRoot::new("startup-order-prefs");
         let absent = temp.path().join("absent").join("ui-prefs.json");
@@ -2321,6 +2509,8 @@ pub fn run() {
             quit_app,
             show_main_window_cmd,
             set_ui_theme,
+            get_update_proxy,
+            set_update_proxy,
             get_edupi_root_status,
             set_edupi_data_root,
             reset_edupi_data_root,

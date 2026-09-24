@@ -24,6 +24,8 @@
     "allow-quit-app",
     "allow-show-main-window-cmd",
     "allow-set-ui-theme",
+    "allow-get-update-proxy",
+    "allow-set-update-proxy",
     "allow-get-edupi-root-status",
     "allow-set-edupi-data-root",
     "allow-reset-edupi-data-root",

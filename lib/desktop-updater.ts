@@ -1,3 +1,5 @@
+import { getUpdateProxyNative } from "./update-proxy-native";
+
 export type DesktopUpgradePhase = "checking" | "downloading" | "verifying" | "installing";
 
 export type DesktopUpgradeErrorStage = "manifest" | "download" | "signature" | "install" | "unknown";
@@ -145,6 +147,10 @@ export async function downloadVerifiedUpdate(
   }
 }
 
+export function updaterCheckOptions(proxy: string | null): { timeout: number; proxy?: string } {
+  return proxy ? { timeout: 30_000, proxy } : { timeout: 30_000 };
+}
+
 export async function installLatestDesktopRelease(
   onProgress: (progress: DesktopUpgradeProgress) => void,
 ): Promise<DesktopUpgradeResult> {
@@ -153,13 +159,23 @@ export async function installLatestDesktopRelease(
   }
 
   onProgress({ phase: "checking", retryCount: 0 });
+  let proxy: string | null;
+  try {
+    proxy = await getUpdateProxyNative();
+  } catch {
+    throw new DesktopUpgradeError("更新代理设置不可用", {
+      stage: "manifest",
+      phase: "checking",
+      host: "local",
+    });
+  }
   const [{ check }, { relaunch }] = await Promise.all([
     import("@tauri-apps/plugin-updater"),
     import("@tauri-apps/plugin-process"),
   ]);
   let update;
   try {
-    update = await check({ timeout: 30_000 });
+    update = await check(updaterCheckOptions(proxy));
   } catch (error) {
     throw new DesktopUpgradeError(errorText(error), {
       stage: "manifest",

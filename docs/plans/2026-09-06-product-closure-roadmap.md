@@ -1,26 +1,28 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-24 v0.3.38 签名版准备（未构建、未发布）
+## 2026-09-24 v0.3.38 公开签名版与安装验收
 
-- Desktop 版本、组件清单、Cargo 锁文件和 Release 说明已准备为 `0.3.38`，Core 继续固定 `68004b2`。目标是把已合并的 R23 生产 Action 隔离、受限只读目录以及真实教师价值/漏报反馈通道带入正式三平台包。
-- 当前只完成版本准备，公开 Latest 仍是 v0.3.37；尚无 v0.3.38 签名资产、公证、安装或升级证据。回滚仍是保持 v0.3.37 feed/资产，不因版本号变化宣称发布完成。
+- Desktop `v0.3.38` 固定 Core `68004b2`，正式 run [`35967579321`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35967579321) 的 macOS、Windows、Linux 和 manifest 全部成功。Release [`v0.3.38`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.38) 固定 `8871a1b`，非草稿、非预发布，含 11 项资产和 7 个签名 updater 平台键；三条 feed 均返回 `0.3.38`，`latest.json` SHA-256 为 `eadbc4db…`。
+- macOS runner 完成签名 runtime 启动、updater 公钥、公证、staple 与 Gatekeeper；独立下载公开 DMG 的 SHA-256 为 `f58462f5…`，挂载后的 `.app` 通过严格签名校验，Gatekeeper 为 `Notarized Developer ID` 且 ticket 已装订。Linux [`35973841908`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841908) 与 Windows [`35973841420`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841420) 均完成公开安装、包内只读目录和原生/Core readiness 验收。
+- 首轮 Linux/Windows 公网验收暴露的是稀疏 checkout 脚本顶层依赖开发包 `jiti`，没有进入已安装应用。Desktop [#250](https://github.com/Intellinfinity/edupi-desktop/pull/250) 合并为 `f7349df`，让公开安装 smoke 不依赖 `node_modules`，并保留仓库态 `--managed` 验证；同一批已发布资产随后重跑，未重发或替换 Release。
+- 本版已公开 R23 生产 Action 隔离、按需只读目录、教师价值与六领域漏报反馈。它不等于 L4 建立：本机 0.3.37→0.3.38 原位升级、Windows/Linux 旧版原位升级、真实睡眠/通知点击、真实教师连续试用与正式模型语义盲测仍分别保留为 Unverified。完整边界见 [v0.3.38 发布验收](../acceptance/2026-09-24-v0.3.38-signed-release.md)。
 
-## 2026-09-24 L4 真实教师价值与漏报反馈通道（开发态，待发布）
+## 2026-09-24 L4 真实教师价值与漏报反馈通道（已发布，待真人证据）
 
 - G1 决策后的评价不再只写“有用性”：教师可按需记录是否实际使用、下次是否复用、原流程预计分钟、本次实际投入分钟和补充说明；时间必须成对且在 1–1440 分钟内，接受/调整之外的决定不能伪装为“已使用”。Core 当前目标的 revision、fingerprint、领域、scope 和 evidence 仍在写入前重查，失败保留同一 command 供幂等重试。
 - 管理中心“自动运行”增加默认折叠的六领域漏报入口，绑定当前 Core 候选班级/学科；教师可以报告系统本应主动提示但未提示的事项。漏报使用独立 `missed_opportunity` 合同，不伪造已有目标，也不填写有用性或时间节省。
 - 隔离真实 Core `68004b2` 的 HTTP 路径已完成：价值反馈首次写入、同 command replay、当前目标汇总为 30 分钟基线 / 6 分钟投入 / 24 分钟节省；漏报首次写入与 replay 后仅 1 条，`teacher_reported_missed=1`。停止并重启后两条记录仍可读，旧 Goal 反馈按来源重查降为 historical，不再计入当前价值；均 `external_send=false`。这些是明确标记的隔离工程数据，不是实际教师价值。1280 与 360 像素组件浏览器验收无横向溢出，表单控件均有可访问名称。详见 [教师价值反馈验收](../acceptance/2026-09-24-teacher-value-feedback.md)。
-- Unverified：真实教师仍须按用户安排完成连续试用并提供真实决定/时间；当前签名版未包含此 UI。Tauri 的 Next dev WebView 存在独立 React interop 失败，因此本批没有把静态组件浏览器验收冒充为原生集成验收；下一签名包须在 macOS/Windows/Linux 原生管理中心补验。
+- Unverified：真实教师仍须按用户安排完成连续试用并提供真实决定/时间；v0.3.38 已包含该 UI 与持久合同，但尚未在三平台签名安装版中实际提交评价/漏报并重启回读。Tauri 的 Next dev WebView 存在独立 React interop 失败，静态组件浏览器验收不能替代原生操作证据。
 
-## 2026-09-24 R23 未受管 Action 生产隔离（开发态，待发布）
+## 2026-09-24 R23 未受管 Action 生产隔离（已发布）
 
 - 生产 AgentSession 不再读取环境变量注册 `edupi_external_connector`；即使同时提供 enable、runtime/admin token、URL 与 capability policy，工具仍不存在。服务端在扩展和 Agent 资源加载前删除 OpenConnector runtime/admin token，避免旧配置把凭据留给同用户子进程或扩展。
 - `OpenConnectorProvider` 默认只允许目录搜索与 inspect；执行、连接管理和审计回读在网络前返回稳定的 `core_authority_required`。只有隔离合同测试可显式开启旧 HTTP Adapter 的假 Provider 副作用路径；环境工厂已移除。只读 staged catalog host 的 `blockedActions:["*"]` / `blockedProxies:["*"]` 双重门继续保留。
-- 此项关闭了“仅凭环境配置即可让 Agent 触发真实 Action”的当前高风险路径，不代表 R23 完成。Core WorkCase/一次性 grant/Receipt、受管 Action runtime、可信人工确认和跨平台 OS 隔离尚未实现，真实 `no_auth`、API Key、OAuth Action 继续为零。证据见 [R23 生产隔离验收](../acceptance/2026-09-24-r23-action-quarantine.md)。
+- 此项已进入 v0.3.38，关闭了“仅凭环境配置即可让 Agent 触发真实 Action”的当前高风险路径，不代表 R23 完成。Core WorkCase/一次性 grant/Receipt、受管 Action runtime、可信人工确认和跨平台 OS 隔离尚未实现，真实 `no_auth`、API Key、OAuth Action 继续为零。证据见 [R23 生产隔离验收](../acceptance/2026-09-24-r23-action-quarantine.md)。
 
-## 2026-09-24 R23 OpenConnector 只读目录按需查询（开发态，未发布）
+## 2026-09-24 R23 OpenConnector 只读目录按需查询（已发布）
 
-- 基于已合并的只读目录资源，桌面设置新增折叠的 OpenConnector 目录搜索与参数查看；打包服务器只在桌面令牌授权后按请求启动包内 Node/host，使用私有临时数据目录、12 秒截止、最小子进程环境和单进程并发门，请求完成即退出。重叠请求返回 429；inspect 失败先清空旧 schema。API 只允许 `search/inspect`，不会重新注册 Agent Action 工具、管理账户、传凭据、POST Action 或授予 Core capability；R23 仍“部分实现”。隔离 staged 资源与包内 Node 的目录查询、800×900 模拟桌面页面搜索/失败/焦点回退和质量门通过，尚未在签名安装版或 Windows/Linux 安装后验收。证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。
+- 基于已合并的只读目录资源，桌面设置新增折叠的 OpenConnector 目录搜索与参数查看；打包服务器只在桌面令牌授权后按请求启动包内 Node/host，使用私有临时数据目录、12 秒截止、最小子进程环境和单进程并发门，请求完成即退出。重叠请求返回 429；inspect 失败先清空旧 schema。API 只允许 `search/inspect`，不会重新注册 Agent Action 工具、管理账户、传凭据、POST Action 或授予 Core capability；R23 仍“部分实现”。v0.3.38 的 macOS 签名 runtime、Linux 公开安装和 Windows 公开安装流程均包含目录 smoke；正式安装版 UI 的人工搜索/inspect 仍未操作。证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。
 
 ## 2026-09-24 R18/R20 AI 入口漏项修正（开发态，待发布）
 
@@ -38,7 +40,7 @@
 ## 2026-09-24 R23 OpenConnector 授权止血（历史；生产执行入口现已隔离）
 
 - 当前 Desktop 分支 `feat/jev-openconnector-integration` 将所有外部 Action 执行收敛到教师可见确认；`operationType=read`、未知元数据与 Action 名称均不再免确认。弹窗和执行使用同一 JSON 快照，不能完整展示的输入拒绝执行；授权绑定运行时幂等键。Agent/用户 bash 子进程环境移除 OpenConnector runtime/admin token 和 JEV 密钥。
-- 授权止血已进入 v0.3.37；上方开发态隔离进一步移除了生产 Agent 工具和环境凭据，但尚未发布。R23 仍为部分实现，下一步须建立受管进程生命周期 + Core WorkCase 权威 grant/Receipt 合同，并让 runtime 原子验证一次性授权。JEV 受管浏览器与实服执行也未完成。下方 2026-09-20 的 Adapter 验收是历史状态，由较新的安全边界覆盖。
+- 授权止血已进入 v0.3.37；上方更严格的生产隔离已进入 v0.3.38，进一步移除了生产 Agent 工具和环境凭据。R23 仍为部分实现，下一步须建立受管进程生命周期 + Core WorkCase 权威 grant/Receipt 合同，并让 runtime 原子验证一次性授权。JEV 受管浏览器与实服执行也未完成。下方 2026-09-20 的 Adapter 验收是历史状态，由较新的安全边界覆盖。
 - 合同约束与安全负测已列于 [R23 外部 Action 权限规格](../architecture/R23-external-action-authority-spec.md)；文档本身不代表实现或验收。
 
 ## 2026-09-24 L4 课表材料来源别名（已发布，真实材料未验）
@@ -72,15 +74,15 @@
 
 - Desktop `3c146fe` 及 PR #227 后续修正将“找 AI 继续聊 / AI 协作”的固定长模板改为可移除的事项参考；老师输入框留空且自由编辑，原草稿不被入口覆盖。页面参考与教师本次要求分开传给模型，历史消息默认显示老师原话，参考按需展开；工作台新要求遇旧草稿时必须明确选择。各模块改为传入对象事实，删除旧的“在这里输入”模板。
 - 隔离 Core `b2c2bb8` 与本地合成模型的实际页面完成教学、成长、工作台和真实到期任务提醒续聊：异步项目就绪、切换事项、草稿恢复、发送、会话绑定、离开再进入及普通会话不串任务均回读通过；运行期排队/收回保留老师原话与参考，遇旧草稿先等待明确选择。清远端队列前同步保存本地副本，服务端精确快照后以私有恢复记录和请求 ID 处理并发/丢响应，完整落盘后 ACK 并清除明文。合入 Core `c1edefd` 对应的 Desktop 主线 #228–#230 后，全量 1590 tests 中 1564 passed / 26 skipped / 0 failed，TypeScript 与 lint 通过；AI 对话的页面 E2 仍是旧隔离 Core pin，不能替代新 pin 安装版验收。完整证据见 [AI 协作输入验收](../acceptance/2026-09-23-ai-collaboration-composer.md)。
-- 此段记录的是当时的源码与隔离开发版验收；当时公开 Latest 为 v0.3.36，现由顶部 v0.3.37 发布记录取代。签名安装版的 AI 输入交互、窄原生窗口、真实模型语义和系统通知点击仍需另验，不能把提醒续聊局部通过等同 R21 全部完成。
+- 此段记录的是当时的源码与隔离开发版验收；当时公开 Latest 为 v0.3.36，现由顶部 v0.3.38 发布记录取代。签名安装版的 AI 输入交互、窄原生窗口、真实模型语义和系统通知点击仍需另验，不能把提醒续聊局部通过等同 R21 全部完成。
 
 ## 2026-09-23 未完成计划与手机端目标（当前优先级）
 
 | 顺序 | 原任务 | 尚未完成的交付 | 状态 |
 | --- | --- | --- | --- |
-| 近期 | L4 | 扫描 PDF/图片 OCR、同名多项配对与课表来源别名的正式安装/真实材料验收；六领域内容逐域核对 | v0.3.37 三平台已发布且 macOS 原位升级与数据保持、Linux/Windows 干净安装启动通过；真实材料和教师决议仍未核对，文档遗漏不自动撤回 |
-| 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 安装版 runtime；Core WorkCase capability 与 Receipt 落账 | Adapter/JEV 独立设置已实现；OpenConnector 只读目录 host 已在本机 staged，尚未作为产品进程启动或经三平台正式安装验收；实服、权威落账与同用户 shell 隔离未完成，JEV 不用于对话 |
-| 当前验收 | R22 / R15 | 从公开 v0.3.37 升级已安装 0.3.36，核对 Core `68004b2`、教师数据与模型配置 | 本机原位替换/自动重启、Core 和 51/240/43/9 与配置摘要保持通过；中途锁屏未逐帧观察下载/验签 UI。Windows/Linux 旧版原位升级仍未验 |
+| 近期 | L4 | 扫描 PDF/图片 OCR、同名多项配对与课表来源别名的真实材料验收；六领域内容逐域核对与真人反馈 | v0.3.38 三平台已发布，公开 Linux/Windows 干净安装与 macOS 签名/公证链通过；真实材料、教师决议、原生反馈表单和真实睡眠/通知仍未核对，文档遗漏不自动撤回 |
+| 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 受管 Action runtime；Core WorkCase capability 与 Receipt 落账 | v0.3.38 已隔离旧生产执行面并公开只读目录，包内目录进程经三平台构建及 Linux/Windows 公网 smoke；实服 Action、权威落账、人工授权与 OS 隔离未实现，JEV 不用于对话 |
+| 当前验收 | R22 / R15 | 从已安装 v0.3.37 原位升级到公开 v0.3.38，核对 Core `68004b2`、教师数据与模型配置 | v0.3.38 公共资产和干净安装已验；本机 Mac 锁屏，原位更新尚未执行。此前 0.3.36→0.3.37 的自动重启、Core、51/240/43/9 与配置保持证据继续有效；Windows/Linux 旧版原位升级仍未验 |
 | 验收批 | R21 / R22 / R25 | 通知点击回到事项、真实睡眠补跑、安装版故障插件 Safe Mode 恢复；Windows/Linux 旧版应用内升级 | 功能或源码回归已有，所列真实流程未验收 |
 | 部署批 | R16 / L4 | 真实外部账号、学校隔离与备份恢复、正式盲测和教师连续试用 | 依赖目标环境、账号与真人参与，不计入本地工程通过 |
 | 最后 | R26 | 手机离开局域网，经服务器安全访问同一教师会话与提醒 | 局域网桥接只是原型，远程服务尚未设计和实现 |

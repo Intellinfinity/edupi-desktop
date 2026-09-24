@@ -1,19 +1,21 @@
 # 自动下载安装
 
-## 2026-09-24 v0.3.38 发布准备（未构建、未发布）
+## 2026-09-24 v0.3.38 公开发布与公网安装
 
-- Desktop 已将版本元数据、组件清单、Cargo 锁文件和发布说明同步为 `0.3.38`，Core 仍固定 `68004b2`。本版候选包含 R23 未受管 Action 生产隔离、只读 OpenConnector 目录和教师价值/六领域漏报反馈。
-- 发布前门禁：全量、TypeScript、lint、audit、release verify、Cargo、staged Desktop/feedback/catalog 全部重跑；正式三平台签名、公证、公开资产与应用内升级尚未执行。v0.3.37 保持 Latest 和可回滚版本。
+- 正式 run [`35967579321`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35967579321) 在 `8871a1b` 上完成 macOS、Windows、Linux 与 manifest；Release [`v0.3.38`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.38) 为公开 Latest，非草稿/非预发布，11 项资产、7 个签名平台键，Core 固定 `68004b2`。`latest.json` SHA-256 为 `eadbc4db…`，公开 DMG 为 `f58462f5…`。
+- macOS runner 的签名 packaged runtime、updater key、公证、staple 和 Gatekeeper 通过；独立下载 DMG 后挂载的 `.app` 同样为有效严格签名、`Notarized Developer ID`、stapled ticket。本机 `stapler validate` 仍因 Apple CloudKit TLS `-1200` 无结论，不覆盖 runner 和 Gatekeeper 的成功证据。
+- 首轮 Linux [`35972371818`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35972371818) 与 Windows [`35972383389`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35972383389) 公网 smoke 在进入应用前因稀疏 checkout 缺开发包 `jiti` 失败。[#250](https://github.com/Intellinfinity/edupi-desktop/pull/250) 合并 `f7349df` 后，公开 smoke 不再依赖 `node_modules`；Linux [`35973841908`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841908) 与 Windows [`35973841420`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841420) 已对未改变的 v0.3.38 资产完成安装、目录和 Core/原生检查。完整边界见 [v0.3.38 验收](../acceptance/2026-09-24-v0.3.38-signed-release.md)。
+- 本机已安装 0.3.37→0.3.38 原位升级因 Mac 锁屏尚未执行；v0.3.37 仍保留为可回滚版本。干净公网安装不替代 Windows/Linux 旧版原位升级。
 
-## 2026-09-24 教师价值与漏报反馈（开发态，待发布）
+## 2026-09-24 教师价值与漏报反馈（已发布，待真人）
 
 - 教师反馈现可记录真实使用、复用意愿和成对时间，并能从管理中心报告六领域漏报；隔离 Core 写入/重放/汇总与 360 像素组件浏览器验收通过，工程数据不计入真人价值。
-- 尚未进入公开签名版。下一发布须补 macOS/Windows/Linux 原生评价表单、漏报写入与重启回读；Tauri Next dev WebView 的既有 React interop 失败使本轮原生开发窗口无结论，不能由静态浏览器 harness 代替。
+- v0.3.38 已包含该表单和 Core 合同；macOS/Windows/Linux 签名安装版的实际评价/漏报提交与重启回读仍未执行。Tauri Next dev WebView 的既有 React interop 失败使开发窗口无结论，不能由静态浏览器 harness 或发布构建替代真人操作。
 
-## 2026-09-24 R23 未受管 Action 隔离（开发态，待发布）
+## 2026-09-24 R23 未受管 Action 隔离（已发布）
 
 - 环境变量不再能向生产 AgentSession 注册 OpenConnector Action 工具；runtime/admin token 在扩展加载前从服务端环境清除。Provider 默认目录只读，执行、连接管理和审计回读均在网络前拒绝，旧副作用路径只允许隔离合同测试显式开启。
-- 此改动尚未进入公开签名版；v0.3.37 仍只有此前的确认止血。下一签名包必须复验“配置全部旧环境变量后工具仍不存在”，并保持只读 catalog host 的 Action/proxy 全阻断。Core grant/Receipt 和受管 runtime 未实现，R23 继续部分实现。
+- 此改动已进入 v0.3.38；签名构建与公开安装保持只读 catalog host 的 Action/proxy 全阻断，生产 Agent 不再暴露旧工具。Core grant/Receipt 和受管 runtime 未实现，R23 继续部分实现，不能以“目录可查”冒充“Action 可执行”。
 
 ## 2026-09-24 v0.3.37 公开发布与本机原位升级
 

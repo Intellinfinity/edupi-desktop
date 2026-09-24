@@ -2,7 +2,7 @@
 
 ## 状态
 
-- 结论：开发态合同、隔离 Core 写入/回读和组件浏览器布局通过；尚未发布或获得真实教师价值证据。
+- 结论：合同、隔离 Core 写入/回读和组件浏览器布局通过，已进入公开 v0.3.38；尚未获得真实教师价值或签名安装版表单操作证据。
 - 分支：`codex/l4-teacher-feedback-value-20260924`，基于 Desktop `main` merge `97fa5c4`，Core `68004b2`。
 - 范围：反馈通道本身；不扩展主动运行授权，不调用模型，不自动外发。
 
@@ -29,4 +29,4 @@
 ## Unverified
 
 - 真实教师连续试用、真实使用/耗时、主动机会 precision/recall 和六领域内容价值仍由用户组织人员验证。
-- 当前公开 v0.3.37 不含本批。Tauri Next dev WebView 在全新 `.next` 与独立 bundle identifier 下仍出现既有 React interop 失败，故原生开发窗口无结论；生产 staged bundle 已通过，下一签名安装版仍须在三平台操作并重启回读。
+- 公开 v0.3.38 已包含本批。Tauri Next dev WebView 在全新 `.next` 与独立 bundle identifier 下仍出现既有 React interop 失败，故原生开发窗口无结论；macOS/Windows/Linux 签名安装版仍须实际提交评价/漏报并重启回读。

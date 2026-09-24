@@ -1,9 +1,8 @@
-EduPi Desktop 0.3.38。
+EduPi Desktop 0.3.39。
 
-- OpenConnector 外部 Action 继续关闭：生产 Agent 不再注册旧执行工具，旧 runtime/admin 环境令牌会在扩展加载前清除，HTTP Adapter 默认只读并在所有副作用前要求尚未实现的 Core 权威授权。
-- 设置中新增 OpenConnector 只读目录，可搜索 Action 名称并查看输入字段。每次查询使用隔离临时目录和最小环境，同时只允许一个目录进程；不能配置账号、传入凭据或执行 Action。
-- 课前准备决定后可记录是否实际使用、下次是否复用，以及原流程预计时间和本次投入时间。管理中心可以按班级、学科和六个领域报告系统漏掉的主动事项。
-- 教师反馈继续由 Core 绑定当前 revision、fingerprint、领域、scope 和 evidence；失败重试复用同一 command，过期来源不会计入当前价值。
-- Core 仍固定到 `68004b2`，主动运行默认关闭，所有新增路径保持 `external_send=false`。
+- 桌面设置新增可持久保存的本机 HTTP 更新代理。保存 `http://127.0.0.1:7897` 后，版本检查、更新清单和安装包下载走该代理；Core 与模型对话网络不受影响。
+- 代理设置只接受本机无凭据地址；配置损坏时停止更新检查，可在设置中显式恢复系统网络。保存代理不会修改教师数据。
+- v0.3.38 及更早的已安装客户端没有此设置，首次取得 v0.3.39 仍依赖其现有更新链路，或经核验的一次手动安装。保存的代理用于此后的升级。
+- Core 仍固定到 `68004b2`，OpenConnector 外部 Action 保持关闭，只读目录可用；主动运行默认关闭，`external_send=false`。
 - macOS Apple Silicon DMG 使用 Developer ID 签名与公证；Windows x64 为 NSIS 安装程序；Linux x64 提供 Debian 包与 AppImage。
 - 带 updater 插件的旧版可在应用内检查、下载、验签、安装并重启。v0.3.29 仍需一次手动安装新版。

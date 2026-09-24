@@ -1,6 +1,6 @@
 # 更新代理一次保存验收
 
-状态：更新代理随 Desktop #251 与 Windows 覆盖修复 #255 进入公开签名 v0.3.39；安装版入口已观察，原生保存/重启回读及经 7897 的后续升级仍未验证。Core 固定 `68004b2c0294159eef4f88bcbf4a921ef6978037`，本改动不修改教师数据。
+状态：更新代理随 Desktop #251 与 Windows 覆盖修复 #255 进入公开签名 v0.3.39；macOS 安装版已完成原生保存、退出重启回读，并经 7897 查询 GitHub Release。经代理下载、验签、安装后续版本仍待 v0.3.40 公开后验证。Core 固定 `68004b2c0294159eef4f88bcbf4a921ef6978037`，本改动不修改教师数据。
 
 ## 合同与边界
 
@@ -20,9 +20,10 @@
 | 无签名安装包预览 [35973703981](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973703981) | 精确实现提交 `4e2b7af` 的质量、macOS `.app`/DMG 与 Windows NSIS 包任务全部成功；macOS 最终 `.app` 中用包内 Node 启动只读目录，Windows staged 目录与 exe 版本门禁通过，预览资产分别约 208 MB / 126 MB。预览构建不等于签名/公证、安装后的代理设置可用。 |
 | Windows runner [`35976790629`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35976790629) | 安装/启动公开 v0.3.38 后，以公共资源夹具执行修复分支 `cargo check --lib --locked`；包含 `MoveFileExW` 的 Windows 原生代码编译成功。 |
 | v0.3.39 正式发布与安装 | [35979258168](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 三平台、Mac 公证、签名 feed 全绿；Linux [35984333853](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984333853) 和 Windows [35986226781](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35986226781) 公网安装通过。本机 v0.3.37→v0.3.39 经原生更新重启、Core 与 51/240/43/9 保持；这次使用旧链路而非保存后的代理。详见 [v0.3.39 验收](2026-09-24-v0.3.39-signed-release.md)。 |
-| v0.3.39 安装版设置 | 展开“更新代理”后字段为空，显示“留空使用系统网络”；辅助功能输入未获回读后停止，专用 `updater-proxy.json` 仍不存在。没有把原生保存或重启持久化记为通过。 |
+| v0.3.39 安装版保存与重启回读 | 在 7897 对 GitHub API 实际返回 200 后，原生页面保存 `http://127.0.0.1:7897`，界面显示“已保存”；专用文件为 44 字节、SHA-256 `c8eefffd…`。退出并重启后，字段仍回读同一地址，Core/投影/Kernel ready，51/240/43/9、`external_send=false` 与模型/认证/设置三份摘要保持。 |
+| v0.3.39 安装版经代理查询版本 | 重启后强制调用 `/api/updates?refresh=1`，返回当前/最新均为 `0.3.39`、无可用更新；同时 Clash Verge/mihomo 日志记录 `127.0.0.1 -> api.github.com:443` 走境外代理规则。这证明已安装服务器的 Release 查询读取了专用代理；当时还没有新资产，不证明 Tauri 下载/安装。 |
 
 ## 尚未验证
 
-- v0.3.39 已通过旧客户端链路安装，但本机验收时 7897 无监听；保存一次代理、关闭重开后回读以及下一版实际经代理下载/验签/安装仍未完成。若代理未运行时保存 7897，后续更新检查会失败，因此未留下该配置。
+- v0.3.39 已通过旧客户端链路安装；7897 原生保存、关闭重开回读和 GitHub Release 查询已通过。下一版的签名清单、安装包下载、验签、覆盖安装与自动重启仍未完成；只有这一跳能证明 Tauri updater 的全链路也使用了该配置。
 - v0.3.38 及更早版本没有此设置；本机首次取得支持版的升级已验证，不能回溯证明旧包支持代理。Windows/Linux 原生设置的实际持久化和旧版应用内升级未实测；公开干净安装不能替代。现有 `ui-prefs.json` 其他写入路径的非原子性是历史问题，本新设置通过独立文件避免扩大其影响。

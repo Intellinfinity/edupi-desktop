@@ -18,6 +18,15 @@ test("settings exposes manual update checks and the signed installer action", ()
   assert.match(source, /appSettings\.update/);
 });
 
+test("an older release check cannot overwrite a newer proxy-backed refresh", () => {
+  const check = source.slice(source.indexOf("const checkForUpdates = useCallback"), source.indexOf("useEffect(() => {", source.indexOf("const checkForUpdates = useCallback")));
+  assert.match(source, /const updateCheckSequenceRef = useRef\(0\)/);
+  assert.match(check, /const requestId = \+\+updateCheckSequenceRef\.current/);
+  assert.match(check, /const isCurrent = \(\) => requestId === updateCheckSequenceRef\.current && !signal\?\.aborted/);
+  assert.match(check, /if \(!isCurrent\(\)\) return;[\s\S]*setComponents/);
+  assert.match(check, /finally \{\s*if \(isCurrent\(\)\) setLoading\(false\)/);
+});
+
 test("settings keeps its header separate from the scrollable content", () => {
   assert.match(source, /height: "min\(720px, calc\(100vh - 36px\)\)"/);
   assert.match(source, /className="native-modal-header" style=\{\{ display: "flex", flexShrink: 0/);

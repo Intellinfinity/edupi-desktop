@@ -179,8 +179,14 @@ export async function getLatestAppRelease(
       signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
     },
   );
-  if (response.status === 404) return unpublishedRelease(project);
-  if (!response.ok) throw new Error(`GitHub request failed with HTTP ${response.status}.`);
+  if (response.status === 404) {
+    await response.body?.cancel();
+    return unpublishedRelease(project);
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`GitHub request failed with HTTP ${response.status}.`);
+  }
   return parseRelease(project, await response.json() as GitHubRelease);
 }
 

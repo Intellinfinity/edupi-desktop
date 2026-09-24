@@ -52,6 +52,7 @@ import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { EduPiHelpPanel } from "./EduPiHelpPanel";
 import { JevSettingsCard } from "./JevSettingsCard";
 import { OpenConnectorCatalogCard } from "./OpenConnectorCatalogCard";
+import { UpdateProxySettingsCard } from "./UpdateProxySettingsCard";
 import { announceComputerUseChanged, COMPUTER_USE_CHANGED_EVENT } from "./EduPiComputerUseStop";
 import { MobileBridgeSettingsCard } from "./MobileBridgeSettingsCard";
 
@@ -443,6 +444,7 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
   const [notificationTest, setNotificationTest] = useState("");
   const [testingNotification, setTestingNotification] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<NotificationPermissionStatus | null>(null);
+  const updateCheckSequenceRef = useRef(0);
 
   const refreshNotificationStatus = useCallback(async () => {
     if (!desktop) return;
@@ -458,19 +460,22 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
   }, [refreshNotificationStatus]);
 
   const checkForUpdates = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++updateCheckSequenceRef.current;
+    const isCurrent = () => requestId === updateCheckSequenceRef.current && !signal?.aborted;
     setLoading(true);
     setLoadError(null);
     try {
       const response = await fetch("/api/updates?refresh=1", { cache: "no-store", signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json() as AppUpdatesResponse;
+      if (!isCurrent()) return;
       setComponents(Array.isArray(data.components) ? data.components : []);
       setLoadError(hasAppUpdateCheckError(data, "edupi-desktop") ? "checkFailed" : null);
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (!isCurrent() || (error instanceof DOMException && error.name === "AbortError")) return;
       setLoadError("checkFailed");
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 
@@ -697,6 +702,7 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
         </header>
 
         <div style={{ minHeight: 0, flex: 1, overflowY: "auto", padding: "18px 22px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {desktop && <UpdateProxySettingsCard onSaved={() => void checkForUpdates()} />}
           <TeacherContextSettingsCard />
           <div className="native-settings-card" style={sectionCardStyle}>
             <div style={sectionTitleStyle}>{t("appSettings.languageSection")}</div>

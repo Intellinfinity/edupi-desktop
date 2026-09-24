@@ -44,6 +44,16 @@ description = "Allows the UI to persist light/dark theme for the next cold start
 commands.allow = ["set_ui_theme"]
 
 [[permission]]
+identifier = "allow-get-update-proxy"
+description = "Allows the trusted desktop WebView to read the saved update proxy."
+commands.allow = ["get_update_proxy"]
+
+[[permission]]
+identifier = "allow-set-update-proxy"
+description = "Allows the trusted desktop WebView to save a loopback update proxy."
+commands.allow = ["set_update_proxy"]
+
+[[permission]]
 identifier = "allow-get-edupi-root-status"
 description = "Allows the trusted EduPi WebView to inspect the effective Core and data roots."
 commands.allow = ["get_edupi_root_status"]

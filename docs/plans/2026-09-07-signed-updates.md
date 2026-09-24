@@ -13,7 +13,7 @@
 
 ## 2026-09-24 v0.3.38 公开发布与公网安装
 
-- 正式 run [`35967579321`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35967579321) 在 `8871a1b` 上完成 macOS、Windows、Linux 与 manifest；Release [`v0.3.38`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.38) 为公开 Latest，非草稿/非预发布，11 项资产、7 个签名平台键，Core 固定 `68004b2`。`latest.json` SHA-256 为 `eadbc4db…`，公开 DMG 为 `f58462f5…`。
+- 正式 run [`35967579321`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35967579321) 在 `8871a1b` 上完成 macOS、Windows、Linux 与 manifest；Release [`v0.3.38`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.38) 当时为公开 Latest，非草稿/非预发布，11 项资产、7 个签名平台键，Core 固定 `68004b2`。`latest.json` SHA-256 为 `eadbc4db…`，公开 DMG 为 `f58462f5…`。
 - macOS runner 的签名 packaged runtime、updater key、公证、staple 和 Gatekeeper 通过；独立下载 DMG 后挂载的 `.app` 同样为有效严格签名、`Notarized Developer ID`、stapled ticket。本机 `stapler validate` 仍因 Apple CloudKit TLS `-1200` 无结论，不覆盖 runner 和 Gatekeeper 的成功证据。
 - 首轮 Linux [`35972371818`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35972371818) 与 Windows [`35972383389`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35972383389) 公网 smoke 在进入应用前因稀疏 checkout 缺开发包 `jiti` 失败。[#250](https://github.com/Intellinfinity/edupi-desktop/pull/250) 合并 `f7349df` 后，公开 smoke 不再依赖 `node_modules`；Linux [`35973841908`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841908) 与 Windows [`35973841420`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841420) 已对未改变的 v0.3.38 资产完成安装、目录和 Core/原生检查。完整边界见 [v0.3.38 验收](../acceptance/2026-09-24-v0.3.38-signed-release.md)。
 - 本机未单独执行 v0.3.37→v0.3.38；后来直接完成 v0.3.37→v0.3.39 原位升级，旧 v0.3.37 `.app` 有独立临时备份。干净公网安装仍不替代 Windows/Linux 旧版原位升级。

@@ -1,19 +1,19 @@
 # 自动下载安装
 
-## 2026-09-24 v0.3.40 发布准备（未构建、未发布）
+## 2026-09-24 v0.3.40 公开发布（本机升级待验）
 
-- Desktop 版本元数据、组件清单、Cargo 锁和 Release 说明已同步为 `0.3.40`；候选变更是 Today 每列默认 4 项的注意力预算，Core 仍固定 `68004b2`。
-- 正式三平台签名、公证、7 键 feed、公开安装和本机原位升级均未执行；v0.3.39 保持公开 Latest 与回退资产。
+- 正式 run [`35993787607`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35993787607) 的 Linux、Windows、macOS、公证/装订和 manifest 全部成功；公开 Release [`v0.3.40`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.40) 含 11 项资产和 7 个签名平台键，Core 固定 `68004b2`，三条 feed SHA-256 均为 `b3605f88…`。
+- Linux [`35998790991`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998790991) 公网安装通过；Windows [`35998805393`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998805393) 的公网安装和 diagnose 全绿。公开 DMG 经 7897 下载并核对摘要、版本、严格签名和 Gatekeeper 公证。本机原位升级与升级后 Today 默认折叠仍待验，完整边界见 [v0.3.40 验收](../acceptance/2026-09-24-v0.3.40-signed-release.md)。
 
 ## 2026-09-24 v0.3.39 公开发布与本机原位升级
 
 - 正式 run [`35979258168`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 在 `acd7ae4` 上完成 Linux、Windows、macOS、公证/装订和 manifest；公开 Release [`v0.3.39`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.39) 含 11 项资产和 7 个签名平台键，Core 固定 `68004b2`，三条 feed SHA-256 均为 `758e0d10…`。
 - Linux [`35984248531`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984248531) 公开干净安装通过；Windows 首轮 public install 通过，diagnose 的 Core 字节恢复漏项由 #258 修复，完整重跑 [`35986226781`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35986226781) 全绿。本机后来由 v0.3.37 经原生更新到 v0.3.39、自动重启，同路径 Core/投影/Kernel ready，51/240/43/9、模型/认证/设置和桌面偏好摘要保持，唯一安装副本签名有效；完整过程边界见 [v0.3.39 验收](../acceptance/2026-09-24-v0.3.39-signed-release.md)。
 
-## 2026-09-24 更新代理一次保存（已发布，保存后的更新待验）
+## 2026-09-24 更新代理一次保存（已发布，资产安装待验）
 
 - 桌面设置可保存本机 HTTP 更新代理，例如 `http://127.0.0.1:7897`；配置在独立原生文件中持久化，不写 `ui-prefs.json` 的教师数据根。Tauri 签名更新的清单/资产和 `/api/updates` 的 GitHub Release 查询均使用它，后者只设置单请求 dispatcher，不影响 Core 或模型网络。设置后立即刷新版本；并发旧结果不可覆盖新结果。缺失配置沿用系统网络，损坏配置 fail closed，可显式恢复系统网络。
-- 隔离代理 CONNECT、失败缓存/重试、800×900 页面、Rust/TypeScript 门禁、`35973703981` 预览、`35976790629` Windows 编译和 v0.3.39 正式构建已有证据，见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。安装版代理入口可见，默认留空使用系统网络；验收时 7897 无监听，原生保存/重载与代理下载尚未验，不能用本次旧链路升级替代。
+- 隔离代理 CONNECT、失败缓存/重试、800×900 页面、Rust/TypeScript 门禁、`35973703981` 预览、`35976790629` Windows 编译和 v0.3.39 正式构建已有证据，见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。安装版已保存 7897，退出重启后回读一致；强制 Release 检查与 Clash 日志共同证明 `api.github.com` 查询走该代理。后续版本的清单/资产下载、验签、安装和重启仍待验。
 - v0.3.38 及更早版本不含此设置；本机首次取得 v0.3.39 已走旧更新链路。保存后的代理只会影响后续检查与版本升级，不对旧包提供追溯能力。
 
 ## 2026-09-24 v0.3.38 公开发布与公网安装

@@ -1,15 +1,15 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-24 v0.3.40 Today 注意力预算签名版准备（未构建、未发布）
+## 2026-09-24 v0.3.40 Today 注意力预算签名版（已发布，本机升级待验）
 
-- Desktop 版本、Cargo 锁、组件清单和 Release 说明已准备为 `0.3.40`，目标是把已合并的 Today 默认注意力预算带入三平台安装版；Core 继续固定 `68004b2`，不改变候选状态或教师数据。
-- 公开 Latest 仍是 v0.3.39。签名、公证、公开资产、安装后折叠交互和从 v0.3.37 原位升级尚未执行；v0.3.39 保持可回退版本。
+- 正式 run [`35993787607`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35993787607) 在 `c5460ce` 上完成三平台、macOS 公证/装订和 manifest；Release [`v0.3.40`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.40) 已公开，11 项资产、7 个签名平台键，Core 固定 `68004b2`。三条 feed 摘要均为 `b3605f88…`。
+- Linux 公网安装 [`35998790991`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998790991) 通过；Windows 完整公网安装与 diagnose [`35998805393`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998805393) 全绿。公开 DMG 经 7897 下载后摘要与 GitHub 一致，挂载应用为 v0.3.40、严格签名和 Gatekeeper 公证通过。本机 v0.3.39→0.3.40 原位升级及升级后折叠交互待验；v0.3.39 保持可回退资产。证据见 [v0.3.40 验收](../acceptance/2026-09-24-v0.3.40-signed-release.md)。
 
 ## 2026-09-24 L4 Today 注意力预算（源码与 packaged 验收，未发布）
 
 - 真实工作区只读副本暴露了主动体验风险：43 个候选中 31 个待判断、12 个 held、27 个已过日期、26 个因来源更新重开；全部默认展开会把主动协作变成积压噪音。
 - Desktop 不改 Core 状态或总数，只按 Core 截止日期距当天的距离排列“待你决定”，每列默认显示 4 项，其余通过原生 disclosure 展开。packaged 页面实际显示“查看其余 27 项”与“查看其余 8 项”，展开/收起通过；390×844 无横向溢出，`external_send=false`。证据见 [Today 注意力预算验收](../acceptance/2026-09-24-today-attention-budget.md)。
-- 此项尚未进入签名安装版，也不自动处置旧候选；真实教师是否更无感仍须由反馈通道测量。整体状态保持“L4 功能收敛中”。
+- 此项已进入公开签名安装包，但本机安装后交互尚未操作，也不自动处置旧候选；真实教师是否更无感仍须由反馈通道测量。整体状态保持“L4 功能收敛中”。
 
 ## 2026-09-24 v0.3.39 更新代理公开签名版
 
@@ -17,9 +17,9 @@
 - Linux 公开干净安装通过；Windows 首轮 public install 通过、后置 diagnose 暴露 Core checkout 字节恢复漏项，#258 修复后完整重跑 [`35986226781`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35986226781) 全绿。本机随后从 v0.3.37 原位升级到 v0.3.39，同路径 Core/投影/Kernel ready、51/240/43/9 与模型/认证/设置保持、唯一安装副本 Gatekeeper 通过；完整边界见 [v0.3.39 验收](../acceptance/2026-09-24-v0.3.39-signed-release.md)。
 - 本版包含本机更新代理和 Windows 覆盖替换修复；首次升级仍走旧链路，稍后合并的 #256 Today 注意力预算不在此安装包中。
 
-## 2026-09-24 R15/R22 更新代理一次保存（已发布，原生持久化待验）
+## 2026-09-24 R15/R22 更新代理一次保存（已发布，资产安装待验）
 
-- 桌面原生设置只接受无凭据本机 HTTP 地址，独立持久化、损坏配置保守失败；Tauri updater 和服务端 Release 检查使用同一设置而不改全局网络。v0.3.39 安装版已显示入口，但验收时 7897 无监听，原生输入未获得可验证回读、专用配置文件仍不存在；旧链路成功升级不等于保存代理后的升级。证据见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。
+- 桌面原生设置只接受无凭据本机 HTTP 地址，独立持久化、损坏配置保守失败；Tauri updater 和服务端 Release 检查使用同一设置而不改全局网络。v0.3.39 安装版已保存 7897，退出重启后原生字段与专用文件均保持；强制 Release 检查返回当前/最新 `0.3.39`，Clash 同时记录到 `api.github.com:443` 的代理连接。经代理下载、验签、安装并重启到后续版本仍待验；证据见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。
 
 ## 2026-09-24 v0.3.38 公开签名版与安装验收
 

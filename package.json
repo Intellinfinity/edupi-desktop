@@ -60,7 +60,7 @@
     "test:staged-desktop-runtime": "node scripts/test-staged-desktop-runtime.mjs",
     "test:staged-ocr": "node scripts/test-staged-ocr.mjs",
     "test:staged-docx": "node scripts/test-staged-docx.mjs",
-    "test:staged-openconnector": "node scripts/test-staged-openconnector.mjs",
+    "test:staged-openconnector": "node scripts/test-staged-openconnector.mjs --managed",
     "test:staged-feedback-runtime": "node scripts/test-staged-feedback-runtime.mjs",
     "test:edupi-c6-e2": "node scripts/test-edupi-c6-e2.mjs",
     "test:edupi-c6-recognition-e2": "node scripts/test-edupi-c6-recognition-e2.mjs",

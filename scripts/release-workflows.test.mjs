@@ -517,6 +517,12 @@ test("release and preview verify the bundled read-only OpenConnector catalog", a
   const windows = await readFile(join(root, "scripts", "test-windows-installed-release.ps1"), "utf8");
   assert.match(windows, /Installed OpenConnector catalog smoke failed/u);
   assert.match(windows, /Installed executable version does not match release tag/u);
+  const stagedSmoke = await readFile(join(root, "scripts", "test-staged-openconnector.mjs"), "utf8");
+  assert.doesNotMatch(stagedSmoke, /^import .* from "jiti";$/mu);
+  assert.match(stagedSmoke, /const managedMode = process\.argv\.includes\("--managed"\)/u);
+  const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  assert.match(packageJson.scripts["test:staged-openconnector"], /--managed$/u);
+  assert.doesNotMatch(linux, /npm (?:ci|install)/u);
 });
 
 test("preview installs Desktop dependencies before the paired Core runtime test", async () => {

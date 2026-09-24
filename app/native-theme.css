@@ -1430,6 +1430,28 @@ html.dark .sidebar-view-switcher-thumb {
   background: color-mix(in srgb, var(--surface) 60%, transparent) !important;
 }
 
+.openconnector-catalog-card { padding: 13px 14px; border: 1px solid var(--border); }
+.openconnector-catalog-card > summary { cursor: pointer; font-size: 12px; font-weight: 700; }
+.openconnector-catalog-card > p { margin: 9px 0 0; color: var(--text-muted); font-size: 11px; }
+.openconnector-catalog-card > form { display: flex; align-items: end; gap: 8px; margin-top: 12px; }
+.openconnector-catalog-card > form > label { flex: 1; }
+.openconnector-catalog-card > form > button { flex: none; }
+.openconnector-catalog-count { margin-top: 12px; color: var(--text-muted); font-size: 11px; }
+.openconnector-catalog-results { max-height: 240px; margin: 8px 0 0; padding: 0; overflow: auto; list-style: none; }
+.openconnector-catalog-results li + li { border-top: 1px solid var(--border); }
+.openconnector-catalog-results button { width: 100%; padding: 8px 2px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.openconnector-catalog-results button[aria-pressed="true"] { color: var(--accent); }
+.openconnector-catalog-results strong, .openconnector-catalog-results small { display: block; overflow-wrap: anywhere; }
+.openconnector-catalog-results strong { font-size: 12px; }
+.openconnector-catalog-results small { margin-top: 3px; color: var(--text-muted); font-size: 11px; }
+.openconnector-catalog-inspect { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.openconnector-catalog-inspect h4 { margin: 0 0 8px; font-size: 12px; }
+.openconnector-catalog-inspect dl { max-height: 220px; margin: 0; overflow: auto; }
+.openconnector-catalog-inspect dl > div { padding: 6px 0; border-top: 1px solid var(--border); }
+.openconnector-catalog-inspect dt { font-size: 11px; font-weight: 650; overflow-wrap: anywhere; }
+.openconnector-catalog-inspect dd, .openconnector-catalog-inspect p { margin: 3px 0 0; color: var(--text-muted); font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .openconnector-catalog-card > form { align-items: stretch; flex-direction: column; } }
+
 .native-field {
   display: flex;
   min-width: 0;

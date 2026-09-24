@@ -12,6 +12,7 @@ test("preview installers are manual, unsigned, non-release artifacts for Mac and
   assert.match(workflow, /aarch64-apple-darwin/);
   assert.match(workflow, /bundle:\s*app,dmg/);
   assert.match(workflow, /artifact_path:\s*src-tauri\/target\/aarch64-apple-darwin\/release\/bundle\/dmg\/\*\.dmg/);
+  assert.match(workflow, /Verify preview macOS application catalog[\s\S]*EDUPI_STAGED_NODE:.*Pi Agent Server\.app\/Contents\/MacOS\/node/);
   assert.match(workflow, /x86_64-pc-windows-msvc/);
   assert.match(workflow, /bundle:\s*nsis/);
   assert.doesNotMatch(packageJob, /ubuntu|linux|x86_64-unknown-linux-gnu|bundle:\s*(?:deb|rpm|appimage)|\.AppImage/);

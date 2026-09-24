@@ -11,7 +11,11 @@
 
 - 生产 AgentSession 不再读取环境变量注册 `edupi_external_connector`；即使同时提供 enable、runtime/admin token、URL 与 capability policy，工具仍不存在。服务端在扩展和 Agent 资源加载前删除 OpenConnector runtime/admin token，避免旧配置把凭据留给同用户子进程或扩展。
 - `OpenConnectorProvider` 默认只允许目录搜索与 inspect；执行、连接管理和审计回读在网络前返回稳定的 `core_authority_required`。只有隔离合同测试可显式开启旧 HTTP Adapter 的假 Provider 副作用路径；环境工厂已移除。只读 staged catalog host 的 `blockedActions:["*"]` / `blockedProxies:["*"]` 双重门继续保留。
-- 此项关闭了“仅凭环境配置即可让 Agent 触发真实 Action”的当前高风险路径，不代表 R23 完成。Core WorkCase/一次性 grant/Receipt、受管 runtime、可信人工确认和跨平台 OS 隔离尚未实现，真实 `no_auth`、API Key、OAuth Action 继续为零。证据见 [R23 生产隔离验收](../acceptance/2026-09-24-r23-action-quarantine.md)。
+- 此项关闭了“仅凭环境配置即可让 Agent 触发真实 Action”的当前高风险路径，不代表 R23 完成。Core WorkCase/一次性 grant/Receipt、受管 Action runtime、可信人工确认和跨平台 OS 隔离尚未实现，真实 `no_auth`、API Key、OAuth Action 继续为零。证据见 [R23 生产隔离验收](../acceptance/2026-09-24-r23-action-quarantine.md)。
+
+## 2026-09-24 R23 OpenConnector 只读目录按需查询（开发态，未发布）
+
+- 基于已合并的只读目录资源，桌面设置新增折叠的 OpenConnector 目录搜索与参数查看；打包服务器只在桌面令牌授权后按请求启动包内 Node/host，使用私有临时数据目录、12 秒截止、最小子进程环境和单进程并发门，请求完成即退出。重叠请求返回 429；inspect 失败先清空旧 schema。API 只允许 `search/inspect`，不会重新注册 Agent Action 工具、管理账户、传凭据、POST Action 或授予 Core capability；R23 仍“部分实现”。隔离 staged 资源与包内 Node 的目录查询、800×900 模拟桌面页面搜索/失败/焦点回退和质量门通过，尚未在签名安装版或 Windows/Linux 安装后验收。证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。
 
 ## 2026-09-24 R18/R20 AI 入口漏项修正（开发态，待发布）
 
@@ -20,7 +24,7 @@
 ## 2026-09-24 R23 OpenConnector 只读目录资源（staged，未发布）
 
 - OpenConnector `1.6.5` 的 headless package、许可与只读 catalog host 已单独 staged 到 `resources/open-connector`，不监听 HTTP；只允许 `providers/search/inspect`，全部真实 Action 与代理由 host 协议和 runtime policy 双层阻断。本机 staged bundle 约 245 MB，实际包内 Node 启动返回 1554 个 Provider、10 个 calendar 搜索结果和 `npm.get_package` schema，执行请求被拒。macOS/Windows 无签名预览包已构建；macOS 最终 `.app` 内目录 host 运行通过，Windows staged 目录与 exe 版本门禁通过；Linux/Windows 公开安装版的后续验收门禁已准备，仍须下一正式包实测。当前证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。
-- 这不是可供老师使用的连接器：当前应用没有启动/管理这个目录进程，没有账户凭据、Core grant/Receipt 或真实 Action 执行。R23 继续“部分实现”，手机异地服务仍排最后。
+- 此段记录打包目录资源时的状态；上方开发态已加入按需只读查询，但正式安装版尚未发布，也没有账户凭据、Core grant/Receipt 或真实 Action 执行。R23 继续“部分实现”，手机异地服务仍排最后。
 
 ## 2026-09-24 v0.3.37 公开签名版与本机原位升级
 

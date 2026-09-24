@@ -51,6 +51,7 @@ import {
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { EduPiHelpPanel } from "./EduPiHelpPanel";
 import { JevSettingsCard } from "./JevSettingsCard";
+import { OpenConnectorCatalogCard } from "./OpenConnectorCatalogCard";
 import { announceComputerUseChanged, COMPUTER_USE_CHANGED_EVENT } from "./EduPiComputerUseStop";
 import { MobileBridgeSettingsCard } from "./MobileBridgeSettingsCard";
 
@@ -733,6 +734,8 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
           {desktop && <MobileBridgeSettingsCard />}
 
           <JevSettingsCard />
+
+          {desktop && <OpenConnectorCatalogCard />}
 
           {desktop && (
             <ComputerUseSettingsCard />

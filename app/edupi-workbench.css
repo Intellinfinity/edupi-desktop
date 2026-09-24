@@ -1383,8 +1383,19 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-today-work__feedback { margin: 10px 12px 0; padding: 8px 10px; border-radius: 6px; font-size: 11px; line-height: 1.5; }
 .edupi-today-work__notice { background: var(--ep-surface-soft); color: var(--ep-muted); }
 .edupi-today-work__feedback { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.edupi-today-work__rating { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
-.edupi-today-work__rating select { max-width: 100%; min-height: 30px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); font: inherit; }
+.edupi-today-work__rating { display: grid; width: 100%; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.edupi-today-work__rating label { display: grid; min-width: 0; gap: 4px; color: var(--ep-muted); font-size: 10px; }
+.edupi-today-work__rating label.is-check { display: flex; align-items: center; align-self: end; min-height: 30px; gap: 6px; }
+.edupi-today-work__rating label.is-check input { margin: 0; }
+.edupi-today-work__rating label.is-wide,
+.edupi-today-work__rating-times,
+.edupi-today-work__rating-actions { grid-column: 1 / -1; }
+.edupi-today-work__rating-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.edupi-today-work__rating select,
+.edupi-today-work__rating input[type="number"],
+.edupi-today-work__rating textarea { width: 100%; max-width: 100%; min-height: 30px; padding: 5px 7px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); font: inherit; box-sizing: border-box; }
+.edupi-today-work__rating textarea { min-height: 48px; resize: vertical; }
+.edupi-today-work__rating-actions { display: flex; gap: 6px; }
 .edupi-today-work__feedback.is-success { background: var(--ep-green-soft); color: var(--ep-green); }
 .edupi-today-work__feedback.is-error { background: var(--ep-red-soft); color: var(--ep-red); }
 .edupi-today-work__feedback button { flex: 0 0 auto; min-height: 24px; padding: 0 8px; border: 1px solid currentColor; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; font-size: 10px; }

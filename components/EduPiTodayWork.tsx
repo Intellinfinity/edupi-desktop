@@ -54,6 +54,10 @@ type ReviewRetry = {
 type Submission = { candidateId: string; decision: EducationWorkCandidateDecision } | null;
 type RatedUsefulness = Exclude<TeacherFeedbackUsefulness, "not_observed">;
 type PendingFeedback = { candidate: EducationWorkCandidate; task: TeacherTask; decision: EducationWorkCandidateDecision; note?: string };
+export type TeacherValueAssessment = { used: boolean; wouldUseAgain: boolean | null; baselineMinutes: number | null; reviewMinutes: number | null; note: string | null };
+export type TeacherValueDraft = { usefulness: RatedUsefulness | ""; used: boolean; wouldUseAgain: "" | "yes" | "no"; baselineMinutes: string; reviewMinutes: string; note: string };
+
+const EMPTY_TEACHER_VALUE: TeacherValueDraft = { usefulness: "", used: false, wouldUseAgain: "", baselineMinutes: "", reviewMinutes: "", note: "" };
 
 const USEFULNESS_OPTIONS: Array<{ value: RatedUsefulness; label: string }> = [
   { value: "very_useful", label: "非常有帮助" },
@@ -70,7 +74,7 @@ function feedbackDecision(decision: EducationWorkCandidateDecision): TeacherFeed
   return decision;
 }
 
-export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, usefulness: RatedUsefulness, note?: string, occurredAt = new Date().toISOString()): TeacherFeedbackCapture | null {
+export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: TeacherTask | null, decision: EducationWorkCandidateDecision, usefulness: RatedUsefulness, note?: string, occurredAt = new Date().toISOString(), assessment?: TeacherValueAssessment): TeacherFeedbackCapture | null {
   if (task?.trigger !== "teaching_before_class" || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
   return {
     commandId: `desktop-feedback-${globalThis.crypto.randomUUID()}`,
@@ -81,15 +85,39 @@ export function feedbackCaptureFor(candidate: EducationWorkCandidate, task: Teac
     reviewedRevision: candidate.revision,
     decision: feedbackDecision(decision),
     usefulness,
-    used: false,
-    wouldUseAgain: null,
-    baselineMinutes: null,
-    reviewMinutes: null,
+    used: assessment?.used === true && (decision === "accept" || decision === "modify"),
+    wouldUseAgain: assessment?.wouldUseAgain ?? null,
+    baselineMinutes: assessment?.baselineMinutes ?? null,
+    reviewMinutes: assessment?.reviewMinutes ?? null,
     issueCodes: usefulness === "unsafe" ? ["safety"] : usefulness === "incorrect" ? ["incorrect_content"] : [],
-    note: note || null,
+    note: assessment?.note || note || null,
     evidenceIds: candidate.evidenceIds.length > 0 ? candidate.evidenceIds : candidate.sourceIds,
     occurredAt,
   };
+}
+
+export function EduPiTeacherValueForm({ draft, allowUsed, busy, onChange, onSubmit, onCancel }: {
+  draft: TeacherValueDraft;
+  allowUsed: boolean;
+  busy: boolean;
+  onChange: (next: TeacherValueDraft) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return <form className="edupi-today-work__rating" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+    <label><span>有用性</span><select aria-label="有用性" value={draft.usefulness} disabled={busy} onChange={(event) => onChange({ ...draft, usefulness: event.target.value as TeacherValueDraft["usefulness"] })}>
+      <option value="">选择评价</option>
+      {USEFULNESS_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+    </select></label>
+    {allowUsed ? <label className="is-check"><input type="checkbox" checked={draft.used} disabled={busy} onChange={(event) => onChange({ ...draft, used: event.target.checked })} /><span>实际使用</span></label> : null}
+    <label><span>下次会再用</span><select aria-label="下次会再用" value={draft.wouldUseAgain} disabled={busy} onChange={(event) => onChange({ ...draft, wouldUseAgain: event.target.value as TeacherValueDraft["wouldUseAgain"] })}><option value="">未填写</option><option value="yes">会</option><option value="no">不会</option></select></label>
+    <div className="edupi-today-work__rating-times">
+      <label><span>原来预计分钟</span><input type="number" min="1" max="1440" step="1" inputMode="numeric" value={draft.baselineMinutes} disabled={busy} onChange={(event) => onChange({ ...draft, baselineMinutes: event.target.value })} /></label>
+      <label><span>本次投入分钟</span><input type="number" min="1" max="1440" step="1" inputMode="numeric" value={draft.reviewMinutes} disabled={busy} onChange={(event) => onChange({ ...draft, reviewMinutes: event.target.value })} /></label>
+    </div>
+    <label className="is-wide"><span>补充说明</span><textarea rows={2} maxLength={2000} value={draft.note} disabled={busy} onChange={(event) => onChange({ ...draft, note: event.target.value })} /></label>
+    <div className="edupi-today-work__rating-actions"><button type="submit" disabled={!draft.usefulness || busy}>{busy ? "记录中…" : "记录评价"}</button><button type="button" disabled={busy} onClick={onCancel}>取消</button></div>
+  </form>;
 }
 
 export function teacherFeedbackRetryMessage(error: unknown, retrying = false): string {
@@ -246,7 +274,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const [eligibilityRetry, setEligibilityRetry] = useState<PendingFeedback | null>(null);
   const [eligibilityBusy, setEligibilityBusy] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
-  const [selectedRating, setSelectedRating] = useState<RatedUsefulness | "">("");
+  const [valueDraft, setValueDraft] = useState<TeacherValueDraft>(EMPTY_TEACHER_VALUE);
   const [feedbackRetry, setFeedbackRetry] = useState<TeacherFeedbackCapture | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const feedbackReviewSequence = useRef(0);
@@ -315,7 +343,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       const reviewed = result.data.workCandidates.find((item) => item.candidateId === candidate.candidateId);
       setPendingFeedback(null);
       setRatingOpen(false);
-      setSelectedRating("");
+      setValueDraft(EMPTY_TEACHER_VALUE);
       setFeedbackRetry(null);
       setFeedback({ kind: "success", text: actionSuccess(decision) });
       if (feedbackReady && task && reviewed && feedbackCaptureFor(reviewed, task, decision, "useful")) {
@@ -346,8 +374,26 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   };
 
   const submitTeacherRating = async () => {
-    if (!pendingFeedback || !selectedRating || feedbackBusy) return;
-    const capture = feedbackCaptureFor(pendingFeedback.candidate, pendingFeedback.task, pendingFeedback.decision, selectedRating, pendingFeedback.note);
+    if (!pendingFeedback || !valueDraft.usefulness || feedbackBusy) return;
+    const baselineText = valueDraft.baselineMinutes.trim();
+    const reviewText = valueDraft.reviewMinutes.trim();
+    const baselineMinutes = baselineText ? Number(baselineText) : null;
+    const reviewMinutes = reviewText ? Number(reviewText) : null;
+    if ((baselineMinutes === null) !== (reviewMinutes === null)
+      || baselineMinutes !== null && (!Number.isFinite(baselineMinutes) || baselineMinutes <= 0 || baselineMinutes > 1440)
+      || reviewMinutes !== null && (!Number.isFinite(reviewMinutes) || reviewMinutes <= 0 || reviewMinutes > 1440)) {
+      setFeedback({ kind: "error", text: "请同时填写 1–1440 分钟的预计与实际投入。" });
+      return;
+    }
+    const assessment: TeacherValueAssessment = {
+      used: valueDraft.used,
+      wouldUseAgain: valueDraft.wouldUseAgain === "" ? null : valueDraft.wouldUseAgain === "yes",
+      baselineMinutes,
+      reviewMinutes,
+      note: valueDraft.note.trim() || null,
+    };
+    const capture = feedbackCaptureFor(pendingFeedback.candidate, pendingFeedback.task, pendingFeedback.decision,
+      valueDraft.usefulness, pendingFeedback.note, new Date().toISOString(), assessment);
     if (!capture) return;
     setPendingFeedback(null);
     setRatingOpen(false);
@@ -358,6 +404,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       setFeedbackRetry(bound);
       await recordTeacherFeedback(bound);
       setFeedbackRetry(null);
+      setValueDraft(EMPTY_TEACHER_VALUE);
       setFeedback({ kind: "success", text: "评价已记录。" });
     } catch (error) {
       if (!canRetryFeedbackEligibility(error)) {
@@ -545,15 +592,15 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
         : eligibilityRetry ? <button type="button" disabled={eligibilityBusy} onClick={() => void retryFeedbackEligibility()}>{eligibilityBusy ? "核对中…" : "重试评价"}</button>
         : feedback.kind === "error" && retryReview ? <button type="button" disabled={busy} onClick={() => void review(retryReview.candidate, retryReview.decision, retryReview.patch, retryReview.note)}>重试</button>
           : feedback.action === "refresh" ? <button type="button" disabled={busy} onClick={refreshEducation}>刷新待办</button>
-            : pendingFeedback && !ratingOpen ? <button type="button" onClick={() => setRatingOpen(true)}>评价</button> : null}
-      {pendingFeedback && ratingOpen ? <div className="edupi-today-work__rating">
-        <select aria-label="有用性" value={selectedRating} onChange={(event) => setSelectedRating(event.target.value as RatedUsefulness | "")}>
-          <option value="">选择评价</option>
-          {USEFULNESS_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <button type="button" disabled={!selectedRating || feedbackBusy} onClick={() => void submitTeacherRating()}>记录评价</button>
-        <button type="button" onClick={() => setRatingOpen(false)}>取消</button>
-      </div> : null}
+            : pendingFeedback && !ratingOpen ? <button type="button" onClick={() => { setValueDraft(EMPTY_TEACHER_VALUE); setRatingOpen(true); }}>评价</button> : null}
+      {pendingFeedback && ratingOpen ? <EduPiTeacherValueForm
+        draft={valueDraft}
+        allowUsed={pendingFeedback.decision === "accept" || pendingFeedback.decision === "modify"}
+        busy={feedbackBusy}
+        onChange={setValueDraft}
+        onSubmit={() => void submitTeacherRating()}
+        onCancel={() => { setRatingOpen(false); setValueDraft(EMPTY_TEACHER_VALUE); }}
+      /> : null}
     </div> : null}
     <div className="edupi-today-work__groups">{(["now", "later", "done"] as const).map(renderGroup)}</div>
   </section>;

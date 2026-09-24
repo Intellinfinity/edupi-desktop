@@ -2,10 +2,10 @@ import { desktopApiHeaders } from "@/lib/desktop-native";
 import { DEFAULT_FETCH_RETRY_TIMEOUT_MS } from "@/lib/fetch-timeout";
 
 export type TeacherFeedbackDomain = "teaching_preparation" | "student_followup" | "lesson_reflection" | "calendar_administration" | "parent_communication" | "safety_privacy";
-export type TeacherFeedbackDecision = "accept" | "modify" | "reject" | "hold" | "withdraw";
+export type TeacherFeedbackDecision = "accept" | "modify" | "reject" | "hold" | "withdraw" | "missed";
 export type TeacherFeedbackUsefulness = "very_useful" | "useful" | "partial" | "not_useful" | "incorrect" | "unsafe" | "not_observed";
 export type TeacherFeedbackIssueCode = "incorrect_content" | "incomplete" | "stale_source" | "duplicate" | "wrong_identity" | "poor_timing" | "privacy" | "safety" | "too_much_work" | "other";
-export type TeacherFeedbackTargetKind = "goal" | "opportunity" | "work_candidate" | "follow_up" | "capability_work" | "artifact" | "schedule_conflict";
+export type TeacherFeedbackTargetKind = "goal" | "opportunity" | "work_candidate" | "follow_up" | "capability_work" | "artifact" | "schedule_conflict" | "missed_opportunity";
 
 export type TeacherFeedbackCapture = {
   commandId: string;
@@ -13,7 +13,8 @@ export type TeacherFeedbackCapture = {
   evidenceLevel?: "real_teacher" | "synthetic";
   domain: TeacherFeedbackDomain;
   scope: { classId: string; subject: string } | null;
-  target: { kind: TeacherFeedbackTargetKind; targetId: string; expectedRevision?: number; expectedFingerprint?: string };
+  signal?: "surfaced" | "missed";
+  target: { kind: TeacherFeedbackTargetKind; targetId: string; expectedRevision?: number; expectedFingerprint?: string | null };
   reviewedRevision?: number;
   decision: TeacherFeedbackDecision;
   usefulness: TeacherFeedbackUsefulness;
@@ -30,6 +31,12 @@ export type TeacherFeedbackCapture = {
 
 export type TeacherFeedbackRecordResult = { feedbackId: string; replayed: boolean; current: boolean };
 export type TeacherFeedbackFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+const DOMAINS = new Set<TeacherFeedbackDomain>(["teaching_preparation", "student_followup", "lesson_reflection", "calendar_administration", "parent_communication", "safety_privacy"]);
+const DECISIONS = new Set<TeacherFeedbackDecision>(["accept", "modify", "reject", "hold", "withdraw", "missed"]);
+const USEFULNESS = new Set<TeacherFeedbackUsefulness>(["very_useful", "useful", "partial", "not_useful", "incorrect", "unsafe", "not_observed"]);
+const ISSUE_CODES = new Set<TeacherFeedbackIssueCode>(["incorrect_content", "incomplete", "stale_source", "duplicate", "wrong_identity", "poor_timing", "privacy", "safety", "too_much_work", "other"]);
+const TARGET_KINDS = new Set<TeacherFeedbackTargetKind>(["goal", "opportunity", "work_candidate", "follow_up", "capability_work", "artifact", "schedule_conflict", "missed_opportunity"]);
 
 export class TeacherFeedbackError extends Error {
   constructor(readonly code: string, message: string) {
@@ -57,6 +64,46 @@ function text(value: unknown, field: string, maxLength: number): string {
   return normalized;
 }
 
+function minutes(value: unknown, field: string): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 1440) {
+    throw new TeacherFeedbackError("invalid_feedback", `${field} is invalid`);
+  }
+  return value;
+}
+
+export function createMissedTeacherFeedbackCapture(input: {
+  domain: TeacherFeedbackDomain;
+  scope: { classId: string; subject: string };
+  note: string;
+  occurredAt?: string;
+  issueCodes?: TeacherFeedbackIssueCode[];
+  randomId?: string;
+}): TeacherFeedbackCapture {
+  if (!DOMAINS.has(input.domain)) throw new TeacherFeedbackError("invalid_feedback", "domain is invalid");
+  const reportId = id(input.randomId ?? globalThis.crypto.randomUUID(), "randomId", 80);
+  const note = text(input.note, "note", 2000);
+  return {
+    commandId: `feedback-missed-${reportId}`,
+    sessionId: "desktop-trial-feedback",
+    evidenceLevel: "real_teacher",
+    domain: input.domain,
+    scope: input.scope,
+    signal: "missed",
+    target: { kind: "missed_opportunity", targetId: `missed_opportunity:${reportId}`, expectedRevision: 0, expectedFingerprint: null },
+    decision: "missed",
+    usefulness: "not_observed",
+    used: false,
+    wouldUseAgain: null,
+    baselineMinutes: null,
+    reviewMinutes: null,
+    issueCodes: input.issueCodes ?? [],
+    note,
+    evidenceIds: [`teacher_report:${reportId}`],
+    occurredAt: input.occurredAt ?? new Date().toISOString(),
+  };
+}
+
 export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Record<string, unknown> {
   const occurredAt = text(input.occurredAt, "occurredAt", 24);
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(occurredAt)
@@ -65,27 +112,58 @@ export function buildTeacherFeedbackRecord(input: TeacherFeedbackCapture): Recor
   }
   const evidenceIds = [...new Set(input.evidenceIds.map((value) => id(value, "evidenceId", 240)))].slice(0, 50);
   if (evidenceIds.length === 0) throw new TeacherFeedbackError("invalid_feedback", "evidenceIds is required");
-  if (!Number.isSafeInteger(input.target.expectedRevision) || (input.target.expectedRevision ?? -1) < 0
-    || typeof input.target.expectedFingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/.test(input.target.expectedFingerprint)) {
+  if (!DOMAINS.has(input.domain) || !DECISIONS.has(input.decision) || !USEFULNESS.has(input.usefulness)
+    || !TARGET_KINDS.has(input.target.kind)) throw new TeacherFeedbackError("invalid_feedback", "feedback classification is invalid");
+  if (!input.scope) throw new TeacherFeedbackError("invalid_feedback", "verified scope is required");
+  const signal = input.signal ?? "surfaced";
+  if (signal !== "surfaced" && signal !== "missed") throw new TeacherFeedbackError("invalid_feedback", "signal is invalid");
+  const missed = signal === "missed";
+  if (missed) {
+    if (input.target.kind !== "missed_opportunity" || input.target.expectedRevision !== 0 || input.target.expectedFingerprint !== null
+      || input.decision !== "missed" || input.usefulness !== "not_observed" || input.used
+      || input.wouldUseAgain !== null && input.wouldUseAgain !== undefined
+      || input.baselineMinutes !== null && input.baselineMinutes !== undefined
+      || input.reviewMinutes !== null && input.reviewMinutes !== undefined) {
+      throw new TeacherFeedbackError("invalid_feedback", "missed feedback is invalid");
+    }
+  } else if (input.target.kind === "missed_opportunity" || !Number.isSafeInteger(input.target.expectedRevision)
+    || (input.target.expectedRevision ?? -1) < 0 || typeof input.target.expectedFingerprint !== "string"
+    || !/^sha256:[a-f0-9]{64}$/.test(input.target.expectedFingerprint)) {
     throw new TeacherFeedbackError("invalid_feedback", "target binding is required");
   }
-  if (!input.scope) throw new TeacherFeedbackError("invalid_feedback", "verified scope is required");
+  const baselineMinutes = minutes(input.baselineMinutes, "baselineMinutes");
+  const reviewMinutes = minutes(input.reviewMinutes, "reviewMinutes");
+  if ((baselineMinutes === null) !== (reviewMinutes === null) || input.used && !["accept", "modify"].includes(input.decision)
+    || input.usefulness === "not_observed" && (input.used || input.wouldUseAgain !== null && input.wouldUseAgain !== undefined
+      || baselineMinutes !== null || reviewMinutes !== null)
+    || input.wouldUseAgain !== null && input.wouldUseAgain !== undefined && typeof input.wouldUseAgain !== "boolean") {
+    throw new TeacherFeedbackError("invalid_feedback", "feedback value is invalid");
+  }
+  const issueCodes = [...new Set(input.issueCodes || [])];
+  if (issueCodes.some((value) => !ISSUE_CODES.has(value))
+    || input.usefulness === "unsafe" && !issueCodes.some((value) => value === "privacy" || value === "safety")) {
+    throw new TeacherFeedbackError("invalid_feedback", "issueCodes is invalid");
+  }
+  const note = input.note?.trim() || null;
+  if (note !== null && (note.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(note))) {
+    throw new TeacherFeedbackError("invalid_feedback", "note is invalid");
+  }
   const record: Record<string, unknown> = {
     command_id: id(input.commandId, "commandId"),
     session_id: id(input.sessionId, "sessionId"),
     evidence_level: input.evidenceLevel || "real_teacher",
     domain: input.domain,
     scope: { class_id: id(input.scope.classId, "scope.classId"), subject: text(input.scope.subject, "scope.subject", 128) },
-    signal: "surfaced",
+    signal,
     target: { kind: input.target.kind, target_id: id(input.target.targetId, "target.targetId", 300), expected_revision: input.target.expectedRevision, expected_fingerprint: input.target.expectedFingerprint },
     decision: input.decision,
     usefulness: input.usefulness,
     used: input.used,
     would_use_again: input.wouldUseAgain ?? null,
-    baseline_minutes: input.baselineMinutes ?? null,
-    review_minutes: input.reviewMinutes ?? null,
-    issue_codes: [...new Set(input.issueCodes || [])],
-    note: input.note?.trim() || null,
+    baseline_minutes: baselineMinutes,
+    review_minutes: reviewMinutes,
+    issue_codes: issueCodes,
+    note,
     evidence_ids: evidenceIds,
     occurred_at: occurredAt,
     supersedes_feedback_id: input.supersedesFeedbackId ?? null,

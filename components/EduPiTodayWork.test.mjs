@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } });
 const React = await jiti.import("react");
-const { EduPiTodayWork, feedbackCaptureFor, teacherFeedbackRetryMessage } = await jiti.import("./EduPiTodayWork.tsx");
+const { EduPiTeacherValueForm, EduPiTodayWork, feedbackCaptureFor, teacherFeedbackRetryMessage } = await jiti.import("./EduPiTodayWork.tsx");
 const { TeacherFeedbackError } = await jiti.import("../lib/edupi-teacher-feedback.ts");
 const { buildEducationContract } = await jiti.import("../lib/edupi-education-contract.ts");
 
@@ -78,6 +78,34 @@ test("Today does not invent scope or value from a work candidate", () => {
   assert.equal(feedbackCaptureFor({ ...candidate, evidenceIds: [], sourceIds: [] }, task, "accept", "useful"), null);
   assert.match(capture.commandId, /^desktop-feedback-[a-f0-9-]{36}$/);
   assert.equal(feedbackCaptureFor(candidate, task, "accept", "unsafe")?.issueCodes?.[0], "safety");
+  const measured = feedbackCaptureFor(candidate, task, "accept", "useful", undefined, "2026-09-22T01:02:03.000Z", {
+    used: true,
+    wouldUseAgain: true,
+    baselineMinutes: 30,
+    reviewMinutes: 6,
+    note: "已用于课堂。",
+  });
+  assert.equal(measured.used, true);
+  assert.equal(measured.wouldUseAgain, true);
+  assert.equal(measured.baselineMinutes, 30);
+  assert.equal(measured.reviewMinutes, 6);
+  assert.equal(measured.note, "已用于课堂。");
+});
+
+test("teacher value form collects usage, reuse intent, paired time and an optional note", () => {
+  const html = renderToStaticMarkup(React.createElement(EduPiTeacherValueForm, {
+    draft: { usefulness: "useful", used: true, wouldUseAgain: "yes", baselineMinutes: "30", reviewMinutes: "6", note: "已用于课堂。" },
+    allowUsed: true,
+    busy: false,
+    onChange() {},
+    onSubmit() {},
+    onCancel() {},
+  }));
+  for (const label of ["有用性", "实际使用", "下次会再用", "原来预计分钟", "本次投入分钟", "补充说明", "记录评价"]) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.match(html, /value="30"/);
+  assert.match(html, /value="6"/);
 });
 
 test("owner credential recovery keeps the bound teacher rating retryable", () => {

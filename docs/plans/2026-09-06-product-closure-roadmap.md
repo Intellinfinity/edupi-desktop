@@ -1,5 +1,12 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-24 L4 真实教师价值与漏报反馈通道（开发态，待发布）
+
+- G1 决策后的评价不再只写“有用性”：教师可按需记录是否实际使用、下次是否复用、原流程预计分钟、本次实际投入分钟和补充说明；时间必须成对且在 1–1440 分钟内，接受/调整之外的决定不能伪装为“已使用”。Core 当前目标的 revision、fingerprint、领域、scope 和 evidence 仍在写入前重查，失败保留同一 command 供幂等重试。
+- 管理中心“自动运行”增加默认折叠的六领域漏报入口，绑定当前 Core 候选班级/学科；教师可以报告系统本应主动提示但未提示的事项。漏报使用独立 `missed_opportunity` 合同，不伪造已有目标，也不填写有用性或时间节省。
+- 隔离真实 Core `68004b2` 的 HTTP 路径已完成：价值反馈首次写入、同 command replay、当前目标汇总为 30 分钟基线 / 6 分钟投入 / 24 分钟节省；漏报首次写入与 replay 后仅 1 条，`teacher_reported_missed=1`。停止并重启后两条记录仍可读，旧 Goal 反馈按来源重查降为 historical，不再计入当前价值；均 `external_send=false`。这些是明确标记的隔离工程数据，不是实际教师价值。1280 与 360 像素组件浏览器验收无横向溢出，表单控件均有可访问名称。详见 [教师价值反馈验收](../acceptance/2026-09-24-teacher-value-feedback.md)。
+- Unverified：真实教师仍须按用户安排完成连续试用并提供真实决定/时间；当前签名版未包含此 UI。Tauri 的 Next dev WebView 存在独立 React interop 失败，因此本批没有把静态组件浏览器验收冒充为原生集成验收；下一签名包须在 macOS/Windows/Linux 原生管理中心补验。
+
 ## 2026-09-24 R23 未受管 Action 生产隔离（开发态，待发布）
 
 - 生产 AgentSession 不再读取环境变量注册 `edupi_external_connector`；即使同时提供 enable、runtime/admin token、URL 与 capability policy，工具仍不存在。服务端在扩展和 Agent 资源加载前删除 OpenConnector runtime/admin token，避免旧配置把凭据留给同用户子进程或扩展。

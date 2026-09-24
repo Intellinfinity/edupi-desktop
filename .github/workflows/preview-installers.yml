@@ -120,6 +120,11 @@ jobs:
           --target "${{ matrix.target }}"
           --bundles "${{ matrix.bundle }}"
           --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Verify preview macOS application catalog
+        if: runner.os == 'macOS'
+        env:
+          EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app/Contents/Resources/resources
+        run: npm run test:staged-openconnector
       - name: Upload preview installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

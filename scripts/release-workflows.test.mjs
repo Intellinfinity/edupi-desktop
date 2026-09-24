@@ -503,6 +503,8 @@ test("release and preview verify the bundled read-only OpenConnector catalog", a
     const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
     assert.match(workflow, /name: Verify bundled OpenConnector catalog[\s\S]*?run: npm run test:staged-openconnector/u);
   }
+  const preview = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
+  assert.match(preview, /name: Build unsigned preview installer[\s\S]*?name: Verify preview macOS application catalog[\s\S]*?run: npm run test:staged-openconnector/u);
   const prepare = await readFile(join(root, "scripts", "prepare-desktop.mjs"), "utf8");
   assert.match(prepare, /copyPackageClosure\(rootDir, openConnectorResourcesDir, "@oomol-lab\/open-connector"\)/u);
   const release = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");

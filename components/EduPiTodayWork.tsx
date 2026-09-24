@@ -175,6 +175,7 @@ const GROUP_HINTS: Record<keyof WorkCandidateGroups, string> = {
   later: "已暂缓或安排了日期",
   done: "决定已写入，可修改",
 };
+const DEFAULT_VISIBLE_CANDIDATES = 4;
 
 const SUPPRESSION_SCOPE_LABELS = {
   this_candidate: "只停止这条",
@@ -261,7 +262,7 @@ function capabilityCopy(capability: WorkCandidateReviewCapability): string | nul
 }
 
 export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
-  const groups = groupWorkCandidates(data.workCandidates);
+  const groups = groupWorkCandidates(data.workCandidates, localIsoDate());
   const activeTasks = useMemo(() => todayActiveTasks(data), [data]);
   const taskById = useMemo(() => new Map(data.tasks.filter((task) => task.id).map((task) => [task.id!, task])), [data.tasks]);
   const capability = data.capabilities.workCandidateReview;
@@ -551,9 +552,12 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
 
   const renderGroup = (group: keyof WorkCandidateGroups) => {
     const candidates = groups[group];
+    const visible = candidates.slice(0, DEFAULT_VISIBLE_CANDIDATES);
+    const remaining = candidates.slice(DEFAULT_VISIBLE_CANDIDATES);
     return <section className={`edupi-today-work__group is-${group}`} aria-labelledby={`edupi-today-work-${group}`} key={group}>
       <header><div><h3 id={`edupi-today-work-${group}`}>{GROUP_LABELS[group]}</h3><p>{GROUP_HINTS[group]}</p></div><span>{candidates.length} 项</span></header>
-      <div className="edupi-today-work__items">{candidates.map((candidate) => renderCandidate(candidate, true))}</div>
+      <div className="edupi-today-work__items">{visible.map((candidate) => renderCandidate(candidate, true))}</div>
+      {remaining.length > 0 ? <details className="edupi-today-work__more"><summary>查看其余 {remaining.length} 项</summary><div>{remaining.map((candidate) => renderCandidate(candidate, true))}</div></details> : null}
       {candidates.length === 0 ? <p className="edupi-today-work__empty">这里暂时没有事项</p> : null}
     </section>;
   };

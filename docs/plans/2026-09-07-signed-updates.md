@@ -3,7 +3,7 @@
 ## 2026-09-24 v0.3.39 公开发布与公网安装
 
 - 正式 run [`35979258168`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 在 `acd7ae4` 上完成 Linux、Windows、macOS、公证/装订和 manifest；公开 Release [`v0.3.39`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.39) 含 11 项资产和 7 个签名平台键，Core 固定 `68004b2`，三条 feed SHA-256 均为 `758e0d10…`。
-- Linux [`35984248531`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984248531) 与 Windows [`35984248332`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984248332) 公开干净安装通过。v0.3.38 保留为可回退资产；本机 v0.3.37 原位升级仍待明确安装确认。
+- Linux [`35984248531`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984248531) 公开干净安装通过；Windows 首轮 public install 通过，diagnose 的 Core 字节恢复漏项由 #258 修复，完整重跑 [`35986226781`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35986226781) 全绿。v0.3.38 保留为可回退资产；本机 v0.3.37 原位升级仍待明确安装确认。
 
 ## 2026-09-24 更新代理一次保存（已发布，待本机持久化验收）
 

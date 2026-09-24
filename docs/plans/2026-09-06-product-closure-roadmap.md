@@ -9,7 +9,7 @@
 ## 2026-09-24 v0.3.39 更新代理公开签名版
 
 - 正式 run [`35979258168`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 在 `acd7ae4` 上完成三平台、macOS 公证/装订和 manifest；Release [`v0.3.39`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.39) 已公开，11 项资产、7 个签名平台键，Core 固定 `68004b2`。三条 feed 的 `latest.json` SHA-256 均为 `758e0d10…`。
-- Linux `35984248531` 和 Windows `35984248332` 的公开干净安装通过。v0.3.39 包含本机更新代理和 Windows 覆盖替换修复；旧包不能追溯获得代理设置，首次升级仍走旧链路。完整边界见 [v0.3.39 验收](../acceptance/2026-09-24-v0.3.39-signed-release.md)。
+- Linux `35984248531` 公开干净安装通过；Windows 首轮的 public install 通过、后置 diagnose 暴露 Core checkout 字节恢复漏项，#258 修复后完整重跑 `35986226781` 全绿。v0.3.39 包含本机更新代理和 Windows 覆盖替换修复；旧包不能追溯获得代理设置，首次升级仍走旧链路。完整边界见 [v0.3.39 验收](../acceptance/2026-09-24-v0.3.39-signed-release.md)。
 
 ## 2026-09-24 R15/R22 更新代理一次保存（已发布，待本机持久化验收）
 

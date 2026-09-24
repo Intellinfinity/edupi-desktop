@@ -39,3 +39,23 @@ test("a fenced stop failure keeps one recovery action instead of permitting anot
   assert.doesNotMatch(html, /<select/);
   assert.equal((html.match(/<button/g) || []).length, 1);
 });
+
+test("missed-opportunity feedback covers every L4 domain with one scoped report action", () => {
+  const html = renderToStaticMarkup(component.EduPiMissedOpportunityFeedbackView({
+    scopes: [scope],
+    selectedKey: JSON.stringify([scope.classId, scope.subject]),
+    domain: "calendar_administration",
+    note: "系统没有提醒本周五前提交材料。",
+    busy: false,
+    message: null,
+    onSelect() {},
+    onDomain() {},
+    onNote() {},
+    onSubmit() {},
+  }));
+  for (const label of ["报告漏掉的事项", "教学准备", "学生跟进", "课后复盘", "校历与行政", "家长沟通", "安全与隐私", "七一班 · 数学", "记录漏报"]) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.equal((html.match(/<button/g) || []).length, 1);
+  assert.doesNotMatch(html, /<button[^>]*disabled/);
+});

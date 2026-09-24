@@ -1639,6 +1639,7 @@ fn start_packaged_server(
         .env("EDUPI_CORE_VALIDATION_MODE", roots.core_validation_mode)
         .env("EDUPI_CORE_ALLOWED_ROOT", &roots.core_allowed_root)
         .env("EDUPI_DATA_ALLOWED_ROOT", &roots.data_allowed_root)
+        .env("EDUPI_OPENCONNECTOR_CATALOG_ROOT", resource_dir.join("resources/open-connector"))
         .env("PI_DESKTOP_STATE_DIR", &desktop_state_dir)
         .env("PI_WEB_PARENT_PID", std::process::id().to_string())
         .env("EDUPI_SAFE_MODE", if safe_mode_requested() { "1" } else { "0" })

@@ -18,7 +18,13 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::process::CommandExt as _;
 #[cfg(windows)]
+use std::os::windows::ffi::OsStrExt as _;
+#[cfg(windows)]
 use std::os::windows::process::CommandExt as _;
+#[cfg(windows)]
+use windows_sys::Win32::Storage::FileSystem::{
+    MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+};
 
 use serde::Serialize;
 use tauri::{
@@ -727,6 +733,39 @@ fn read_update_proxy_from_path(path: &Path) -> Result<Option<String>, String> {
     }
 }
 
+#[cfg(not(windows))]
+fn replace_file_atomically(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::rename(source, destination)
+}
+
+#[cfg(windows)]
+fn replace_file_atomically(source: &Path, destination: &Path) -> io::Result<()> {
+    let source_wide: Vec<u16> = source
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let destination_wide: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    // SAFETY: both buffers are owned, stable, NUL-terminated UTF-16 paths for
+    // the duration of the call; source and destination live in one directory.
+    let result = unsafe {
+        MoveFileExW(
+            source_wide.as_ptr(),
+            destination_wide.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
 fn write_update_proxy_file(path: &Path, raw: &str) -> Result<Option<String>, String> {
     let proxy = normalize_update_proxy(raw)?;
     match fs::symlink_metadata(path) {
@@ -783,7 +822,8 @@ fn write_update_proxy_file(path: &Path, raw: &str) -> Result<Option<String>, Str
         file.sync_all()
             .map_err(|_| "更新代理设置不可保存".to_string())?;
         drop(file);
-        fs::rename(&temporary, path).map_err(|_| "更新代理设置不可保存".to_string())
+        replace_file_atomically(&temporary, path)
+            .map_err(|_| "更新代理设置不可保存".to_string())
     })();
     if write_result.is_err() {
         let _ = fs::remove_file(&temporary);

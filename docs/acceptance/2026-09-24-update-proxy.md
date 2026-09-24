@@ -17,6 +17,7 @@
 | 隔离 `PI_CODING_AGENT_DIR`、`PI_DESKTOP_STATE_DIR`；强制刷新先遇代理失败，再改为无代理的本地模拟成功，随后代理再次失败 | 首次失败不写 `lastCheckedAt`；成功写入新版并可见；后续失败保留已缓存更新且不改上次成功检查时间。无请求写入正式 Pi 目录。 |
 | 隔离 800×900 Next 页面、模拟 Tauri 原生命令；先模拟读取失败，再“重试读取 → 恢复系统网络 → 保存 7897”，重载页面 | 错误在折叠卡片标题可见；恢复后输入可用；非法远端地址禁保存并用 `aria-invalid` 指向错误；`http://127.0.0.1:7897` 恢复显示，无整页横向溢出。模拟旧直连请求晚失败、新代理请求先成功，最终仍显示新版。此模拟不等于真实原生配置文件验收。 |
 | Rust 配置测试与发布静态门 | 拒绝远端、凭据、空端口、路径和参数；独立配置文件保存/更改/清除/损坏恢复均不改 `ui-prefs.json`。`cargo test --locked` 30/30；`npm test` 1735 tests、1709 passed / 26 skipped / 0 failed；TypeScript、lint、npm audit（0 漏洞）、release verify 通过。 |
+| Windows runner [`35976790629`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35976790629) | 从分支 checkout 后先安装/启动公开 v0.3.38，再以公共资源夹具执行 `cargo check --lib --locked`；包含 `MoveFileExW` 的 Windows 原生代码编译成功，run 全绿。 |
 
 ## 尚未验证
 

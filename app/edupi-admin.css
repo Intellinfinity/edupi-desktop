@@ -263,6 +263,19 @@
 .edupi-proactivity-canary > button:disabled { cursor: not-allowed; opacity: .5; }
 .edupi-proactivity-canary > p,
 .edupi-proactivity-canary__loading { margin: 0; padding: 0 18px 12px; color: var(--text-muted); font-size: 11px; }
+.edupi-missed-feedback { margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); }
+.edupi-missed-feedback > summary { padding: 12px 18px; color: var(--text-muted); cursor: pointer; font-size: 11px; }
+.edupi-missed-feedback[open] > summary { border-bottom: 1px solid var(--border); color: var(--text); }
+.edupi-missed-feedback > form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px 18px; }
+.edupi-missed-feedback label { display: grid; min-width: 0; gap: 5px; color: var(--text-muted); font-size: 11px; }
+.edupi-missed-feedback label.is-wide,
+.edupi-missed-feedback form > p { grid-column: 1 / -1; }
+.edupi-missed-feedback select,
+.edupi-missed-feedback textarea { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text); font: inherit; box-sizing: border-box; }
+.edupi-missed-feedback textarea { resize: vertical; }
+.edupi-missed-feedback button { min-height: 34px; padding: 7px 12px; justify-self: start; border: 1px solid var(--accent); border-radius: 5px; background: transparent; color: var(--accent); cursor: pointer; }
+.edupi-missed-feedback button:disabled { cursor: not-allowed; opacity: .5; }
+.edupi-missed-feedback form > p { margin: 0; color: var(--text-muted); font-size: 11px; }
 
 .edupi-admin-recycle {
   overflow: hidden;
@@ -448,6 +461,7 @@
   .edupi-proactivity-canary > label { align-items: stretch; flex-direction: column; }
   .edupi-proactivity-canary select { width: 100%; min-width: 0; max-width: none; }
   .edupi-proactivity-canary > button { justify-self: stretch; }
+  .edupi-missed-feedback > form { grid-template-columns: 1fr; }
   .edupi-background-job-row > span,
   .edupi-background-job-actions { width: 100%; max-width: none; }
   .edupi-core-compatibility__identity { grid-template-columns: 1fr; }

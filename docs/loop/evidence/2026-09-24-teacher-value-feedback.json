@@ -1,0 +1,80 @@
+{
+  "status": "passed_development",
+  "recorded_at": "2026-09-24T14:25:00+08:00",
+  "desktop_base": "97fa5c494cb5673f06119d4eaea7033a9a971d50",
+  "core_commit": "68004b2c0294159eef4f88bcbf4a921ef6978037",
+  "branch": "codex/l4-teacher-feedback-value-20260924",
+  "focused_tests": {
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0,
+    "typescript": "passed",
+    "lint": "passed"
+  },
+  "full_tests": {
+    "total": 1708,
+    "passed": 1682,
+    "failed": 0,
+    "skipped": 26,
+    "npm_audit_high": "0 vulnerabilities",
+    "cargo_metadata": "passed"
+  },
+  "isolated_core_http": {
+    "scope": { "class_id": "class-7-1", "subject": "数学" },
+    "goal_created_from_owner_message": true,
+    "target_domain_verified": "teaching_preparation",
+    "target_scope_verified": true,
+    "first_record_replayed": false,
+    "second_record_replayed": true,
+    "value_summary": {
+      "real_teacher_current": 1,
+      "surfaced_useful": 1,
+      "used": 1,
+      "timed_runs": 1,
+      "baseline_minutes": 30,
+      "review_minutes": 6,
+      "time_saved_minutes": 24
+    },
+    "teacher_reported_missed": 1,
+    "missed_exact_replay_single_record": true,
+    "restart_read": {
+      "records": 2,
+      "historical_records": 1,
+      "unverified_records": 1,
+      "real_teacher_current": 0,
+      "stale_goal_value_excluded": true
+    },
+    "canary_restored_disabled": true,
+    "external_send": false,
+    "actual_teacher_evidence": false
+  },
+  "browser_component_check": {
+    "desktop_rendered": true,
+    "narrow_width_px": 360,
+    "narrow_scroll_width_px": 360,
+    "horizontal_overflow": false,
+    "accessible_controls_present": true
+  },
+  "staged": {
+    "production_next_bundle": "passed",
+    "core_commit": "68004b2c0294159eef4f88bcbf4a921ef6978037",
+    "desktop_runtime": "passed",
+    "feedback_runtime": "passed",
+    "owner_bootstrap": true,
+    "target_recheck": true,
+    "wrong_scope_rejected": true,
+    "bound_replay": true,
+    "surfaced_and_missed_readback": true,
+    "openconnector_execute_blocked": true,
+    "external_send": false
+  },
+  "release_state": "not_published",
+  "native_dev_window": "inconclusive_existing_next_webkit_react_interop_failure",
+  "l4_state": "功能收敛中",
+  "unverified": [
+    "real teacher decisions and value",
+    "signed native UI on macOS, Windows and Linux",
+    "G2-G5 ambient conversation wiring",
+    "formal blind evaluation"
+  ]
+}

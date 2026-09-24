@@ -1,5 +1,12 @@
 # 提醒工作台验收
 
+## 2026-09-25 首次读取状态修正（源码与隔离页面，未发布）
+
+- 在 v0.3.40 包内 server、隔离 Core `68004b2` 中先创建两条到期任务并回读提醒存储 `2` 条，页面初次打开却短暂显示“没有待处理提醒 / 0 条”，下一次可访问状态才变为 `2`。这是首次异步 GET 前把初始空数组当作真实空结果，非 Core 丢数据。
+- Desktop `4536d03` 增加首次加载状态：未收到首个提醒响应且没有旧列表时，队列只显示“正在读取提醒”，不显示虚假的空结果或 `0` 计数；成功/失败后结束加载。提醒路由判断改用稳定布尔依赖，避免重渲染让加载态反复出现。先添加行为回归并确认旧实现失败，修复后 `components/EduPiReminderInbox.test.mjs` 4/4 通过。
+- 使用相同隔离根另起当前源码 Next 服务 `127.0.0.1:30243`，只拦截该标签页 `/api/edupi/reminders` 的 Fetch/XHR 请求：响应暂停期间可访问树显示“正在读取提醒”且无错误 `0` 计数，放行后显示 `2 条待处理`。800×900 实际页面 `scrollWidth=clientWidth=800`，控制台 error/warn 为 0。全量 `npm test` 为 1738 total / 1712 passed / 26 skipped / 0 failed；TypeScript、lint、`git diff --check` 通过。
+- 提醒续聊的发送、Core 会话绑定、离开再进入和两种草稿隔离证据见 [AI 协作输入验收](2026-09-23-ai-collaboration-composer.md)。本修正尚未进入公开 v0.3.40 签名安装包；真实 macOS 系统通知点击、睡眠唤醒与 Windows/Linux 原位升级仍未验证。
+
 ## 范围
 
 - Desktop PR [#196](https://github.com/PIGU-PPPgu/edupi-desktop/pull/196)，实现提交 `40bdd5f`；发布 PR [#197](https://github.com/PIGU-PPPgu/edupi-desktop/pull/197)，主线发布提交 `d3b96f96f9344a98dfba1cc145c84309c9dbf08d`。

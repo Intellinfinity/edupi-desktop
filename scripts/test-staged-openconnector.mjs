@@ -46,6 +46,24 @@ async function request(value) {
   return nextLine();
 }
 
+async function waitForExit() {
+  if (child.exitCode !== null || child.signalCode !== null) return child.exitCode;
+  let timer;
+  try {
+    return await Promise.race([
+      new Promise((resolveExit, rejectExit) => {
+        child.once("error", rejectExit);
+        child.once("exit", resolveExit);
+      }),
+      new Promise((_, rejectExit) => {
+        timer = setTimeout(() => rejectExit(new Error("catalog host did not close")), 5_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 try {
   assert.deepEqual(await nextLine(), { type: "ready", version: 1 });
   const providers = await request({ id: "providers", op: "providers" });
@@ -61,10 +79,7 @@ try {
     id: null, ok: false, code: "invalid_catalog_request",
   });
   child.stdin.end();
-  const exitCode = child.exitCode !== null || child.signalCode !== null ? child.exitCode : await new Promise((resolveExit, rejectExit) => {
-    child.once("error", rejectExit);
-    child.once("exit", resolveExit);
-  });
+  const exitCode = await waitForExit();
   assert.equal(exitCode, 0, errorTail);
   console.log(JSON.stringify({ status: "passed", catalog: true, inspect: true, execute_blocked: true }));
 } finally {

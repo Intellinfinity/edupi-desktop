@@ -78,9 +78,18 @@ jobs:
         run: npm ci --ignore-scripts --prefix .edupi-core-runtime
       - run: npm ci
       - name: Verify paired Core runtime
+        if: runner.os != 'Windows'
         env:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run test:edupi-ambient-today-runtime
+      - name: Verify paired Core bundle on Windows
+        if: runner.os == 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: >
+          node --test --test-name-pattern
+          "bundled validation rejects|external mode still requires"
+          scripts/packaged-core-bundle.test.mjs
       - name: Verify paired timetable source alias
         if: runner.os != 'Windows'
         env:

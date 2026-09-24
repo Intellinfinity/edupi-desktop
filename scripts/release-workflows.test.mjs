@@ -506,6 +506,7 @@ test("release and preview verify the bundled read-only OpenConnector catalog", a
   const prepare = await readFile(join(root, "scripts", "prepare-desktop.mjs"), "utf8");
   assert.match(prepare, /copyPackageClosure\(rootDir, openConnectorResourcesDir, "@oomol-lab\/open-connector"\)/u);
   const release = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  assert.match(release, /name: Verify signed macOS packaged runtime[\s\S]*?EDUPI_STAGED_RESOURCES: \$\{\{ github\.workspace \}\}\/src-tauri\/target/u);
   assert.match(release, /name: Verify signed macOS packaged runtime[\s\S]*?EDUPI_STAGED_NODE="\$helper" npm run test:staged-openconnector/u);
   const linux = await readFile(join(root, ".github", "workflows", "linux-published-install.yml"), "utf8");
   assert.match(linux, /name: Verify installed OpenConnector catalog[\s\S]*?test-staged-openconnector\.mjs/u);
@@ -517,4 +518,6 @@ test("preview installs Desktop dependencies before the paired Core runtime test"
   const workflow = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
   const packageJob = workflow.slice(workflow.indexOf("  package:"));
   assert.match(packageJob, /Install Core runtime dependencies[\s\S]*?- run: npm ci[\s\S]*?Verify paired Core runtime/u);
+  assert.match(packageJob, /name: Verify paired Core runtime\s+if: runner\.os != 'Windows'/u);
+  assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
 });

@@ -22,8 +22,9 @@
 | v0.3.39 正式发布与安装 | [35979258168](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 三平台、Mac 公证、签名 feed 全绿；Linux [35984333853](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984333853) 和 Windows [35986226781](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35986226781) 公网安装通过。本机 v0.3.37→v0.3.39 经原生更新重启、Core 与 51/240/43/9 保持；这次使用旧链路而非保存后的代理。详见 [v0.3.39 验收](2026-09-24-v0.3.39-signed-release.md)。 |
 | v0.3.39 安装版保存与重启回读 | 在 7897 对 GitHub API 实际返回 200 后，原生页面保存 `http://127.0.0.1:7897`，界面显示“已保存”；专用文件为 44 字节、SHA-256 `c8eefffd…`。退出并重启后，字段仍回读同一地址，Core/投影/Kernel ready，51/240/43/9、`external_send=false` 与模型/认证/设置三份摘要保持。 |
 | v0.3.39 安装版经代理查询版本 | 重启后强制调用 `/api/updates?refresh=1`，返回当前/最新均为 `0.3.39`、无可用更新；同时 Clash Verge/mihomo 日志记录 `127.0.0.1 -> api.github.com:443` 走境外代理规则。这证明已安装服务器的 Release 查询读取了专用代理；当时还没有新资产，不证明 Tauri 下载/安装。 |
+| v0.3.40 公开大资产经 7897 下载 | 公开 DMG 在一次 partial transfer 后以 byte-range 续传完成；最终大小 209,955,075 字节，SHA-256 `52463d58…` 与 GitHub 资产声明完全一致。挂载后为 v0.3.40，严格签名和 Gatekeeper 公证通过。这是同一代理的公开下载证据，但不替代 Tauri updater 本身的验签/安装。 |
 
 ## 尚未验证
 
-- v0.3.39 已通过旧客户端链路安装；7897 原生保存、关闭重开回读和 GitHub Release 查询已通过。下一版的签名清单、安装包下载、验签、覆盖安装与自动重启仍未完成；只有这一跳能证明 Tauri updater 的全链路也使用了该配置。
+- v0.3.39 已通过旧客户端链路安装；7897 原生保存、关闭重开回读、GitHub Release 查询与公开 DMG 下载已通过。Tauri updater 自身的签名清单、资产下载、验签、覆盖安装与自动重启仍未完成；只有这一跳能证明应用内全链路也使用了该配置。
 - v0.3.38 及更早版本没有此设置；本机首次取得支持版的升级已验证，不能回溯证明旧包支持代理。Windows/Linux 原生设置的实际持久化和旧版应用内升级未实测；公开干净安装不能替代。现有 `ui-prefs.json` 其他写入路径的非原子性是历史问题，本新设置通过独立文件避免扩大其影响。

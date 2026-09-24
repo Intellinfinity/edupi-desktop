@@ -1,9 +1,9 @@
 # 自动下载安装
 
-## 2026-09-24 v0.3.40 发布准备（未构建、未发布）
+## 2026-09-24 v0.3.40 公开发布（本机升级待验）
 
-- Desktop 版本元数据、组件清单、Cargo 锁和 Release 说明已同步为 `0.3.40`；候选变更是 Today 每列默认 4 项的注意力预算，Core 仍固定 `68004b2`。
-- 正式三平台签名、公证、7 键 feed、公开安装和本机原位升级均未执行；v0.3.39 保持公开 Latest 与回退资产。
+- 正式 run [`35993787607`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35993787607) 的 Linux、Windows、macOS、公证/装订和 manifest 全部成功；公开 Release [`v0.3.40`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.40) 含 11 项资产和 7 个签名平台键，Core 固定 `68004b2`，三条 feed SHA-256 均为 `b3605f88…`。
+- Linux [`35998790991`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998790991) 公网安装通过；Windows [`35998805393`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998805393) 的公网安装和 diagnose 全绿。公开 DMG 经 7897 下载并核对摘要、版本、严格签名和 Gatekeeper 公证。本机原位升级与升级后 Today 默认折叠仍待验，完整边界见 [v0.3.40 验收](../acceptance/2026-09-24-v0.3.40-signed-release.md)。
 
 ## 2026-09-24 v0.3.39 公开发布与本机原位升级
 

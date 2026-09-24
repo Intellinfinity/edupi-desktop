@@ -1,15 +1,15 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-24 v0.3.40 Today 注意力预算签名版准备（未构建、未发布）
+## 2026-09-24 v0.3.40 Today 注意力预算签名版（已发布，本机升级待验）
 
-- Desktop 版本、Cargo 锁、组件清单和 Release 说明已准备为 `0.3.40`，目标是把已合并的 Today 默认注意力预算带入三平台安装版；Core 继续固定 `68004b2`，不改变候选状态或教师数据。
-- 公开 Latest 仍是 v0.3.39。签名、公证、公开资产、安装后折叠交互和从 v0.3.37 原位升级尚未执行；v0.3.39 保持可回退版本。
+- 正式 run [`35993787607`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35993787607) 在 `c5460ce` 上完成三平台、macOS 公证/装订和 manifest；Release [`v0.3.40`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.40) 已公开，11 项资产、7 个签名平台键，Core 固定 `68004b2`。三条 feed 摘要均为 `b3605f88…`。
+- Linux 公网安装 [`35998790991`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998790991) 通过；Windows 完整公网安装与 diagnose [`35998805393`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35998805393) 全绿。公开 DMG 经 7897 下载后摘要与 GitHub 一致，挂载应用为 v0.3.40、严格签名和 Gatekeeper 公证通过。本机 v0.3.39→0.3.40 原位升级及升级后折叠交互待验；v0.3.39 保持可回退资产。证据见 [v0.3.40 验收](../acceptance/2026-09-24-v0.3.40-signed-release.md)。
 
 ## 2026-09-24 L4 Today 注意力预算（源码与 packaged 验收，未发布）
 
 - 真实工作区只读副本暴露了主动体验风险：43 个候选中 31 个待判断、12 个 held、27 个已过日期、26 个因来源更新重开；全部默认展开会把主动协作变成积压噪音。
 - Desktop 不改 Core 状态或总数，只按 Core 截止日期距当天的距离排列“待你决定”，每列默认显示 4 项，其余通过原生 disclosure 展开。packaged 页面实际显示“查看其余 27 项”与“查看其余 8 项”，展开/收起通过；390×844 无横向溢出，`external_send=false`。证据见 [Today 注意力预算验收](../acceptance/2026-09-24-today-attention-budget.md)。
-- 此项尚未进入签名安装版，也不自动处置旧候选；真实教师是否更无感仍须由反馈通道测量。整体状态保持“L4 功能收敛中”。
+- 此项已进入公开签名安装包，但本机安装后交互尚未操作，也不自动处置旧候选；真实教师是否更无感仍须由反馈通道测量。整体状态保持“L4 功能收敛中”。
 
 ## 2026-09-24 v0.3.39 更新代理公开签名版
 

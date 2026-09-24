@@ -1,5 +1,11 @@
 # JEV / OpenConnector Adapter 验收记录
 
+## 2026-09-24 v0.3.39 当前边界
+
+- 已安装 v0.3.39/Core `68004b2` 的 JEV 设置回读 `enabled=true`、`active=true`、`keyConfigured=true`、`environmentManaged=false`；只用于浏览器下一步决策，未进入聊天模型选择器。通过本机 loopback `POST /api/integrations/jev` 调用一次现成的 WAIT/no-op 连接测试，10.7 秒后返回 HTTP 502、脱敏码 `service_unavailable`，没有执行浏览器操作。无密钥的 HEAD 请求得到 HTTP 405，证明域名当时可连接，但不能判断有密钥 POST 究竟遇到网络错误还是服务端 429/503/529；未重复付费调用。
+- v0.3.39 的 OpenConnector 为只读目录，生产 Agent Action 执行面已隔离；打包目录可 search/inspect、execute 阻断，Linux/Windows 公开安装 smoke 已通过。此状态取代下方早期 `1.6.1` Adapter 可执行实验的生产解释；受管 Action runtime、可信教师确认、Core 一次性 grant/Receipt 和 JEV 受管浏览器执行器仍未实现。
+- 这次只验证了 JEV 配置可读取、真实服务调用安全失败和安装版只读目录边界；不能把 `service_unavailable` 记为 JEV 实服可用，也不能把目录查询记为外部 Action 闭环。
+
 ## 2026-09-24 安全边界更新
 
 原记录中的“读取类 Action 自动执行”只描述当时的 Adapter 行为，已被本次规则取代。OpenConnector 元数据检查和执行是分开的请求，不能证明 `operationType=read` 在执行时仍成立；当前所有 `execute` 都需要教师可见确认，缺少 UI、拒绝确认、未知类型、输入无法完整显示时不发送执行 POST。弹窗与执行使用同一输入快照，授权绑定幂等键；Agent/用户 bash 子进程环境移除了连接器令牌。`search` / `inspect` 仍可不经确认查询目录。同用户无限制 shell 可尝试从父进程或本地凭据取得令牌，runtime 尚无强制的一次性教师确认验证，因此此更新仍只是 Adapter 防线，未完成受管 runtime、Core capability/Receipt 或正式安装验收。
@@ -62,10 +68,10 @@ git diff --check
 
 ## 未验证边界
 
-- 当前环境没有 `EDUPI_JEV_API_KEY`，未调用付费 JEV 服务。
+- 本节旧隔离环境当时没有 `EDUPI_JEV_API_KEY`，未调用付费 JEV 服务；上方 v0.3.39 安装版已配置真实密钥，但单次连接测试返回 `service_unavailable`。
 - Desktop 目前没有受管理浏览器执行器，尚不能做 DOM 采集 → JEV → policy → Browser Executor → 页面结果核对的端到端操作。
 - 未使用 Gmail/GitHub 等真实 OAuth 或 API Key 账号；没有发送、删除、发布或修改任何外部数据。
-- OpenConnector 尚未作为安装版受管 sidecar 或进程内 runtime 打包；本批验证的是 Adapter 与官方 headless runtime 合同。
+- 本节旧批次尚未打包 OpenConnector；v0.3.39 后已打包只读目录资源，但仍不是可执行 Action 的受管 sidecar/runtime。本节验证的是历史 Adapter 与官方 headless runtime 合同。
 - capability 标签尚未由 Core WorkCase 签发；当前 Agent 只能在部署配置和 runtime token 的交集内选标签，Core 级任务绑定仍待配对合同。
 - 外部执行回执尚未写入 Core WorkCase/Evidence/Receipt；当前证据在 Pi 会话与 OpenConnector 审计中。
 

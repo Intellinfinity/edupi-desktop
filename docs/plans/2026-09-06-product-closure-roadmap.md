@@ -10,6 +10,7 @@
 - macOS runner 完成签名 runtime 启动、updater 公钥、公证、staple 与 Gatekeeper；独立下载公开 DMG 的 SHA-256 为 `f58462f5…`，挂载后的 `.app` 通过严格签名校验，Gatekeeper 为 `Notarized Developer ID` 且 ticket 已装订。Linux [`35973841908`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841908) 与 Windows [`35973841420`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973841420) 均完成公开安装、包内只读目录和原生/Core readiness 验收。
 - 首轮 Linux/Windows 公网验收暴露的是稀疏 checkout 脚本顶层依赖开发包 `jiti`，没有进入已安装应用。Desktop [#250](https://github.com/Intellinfinity/edupi-desktop/pull/250) 合并为 `f7349df`，让公开安装 smoke 不依赖 `node_modules`，并保留仓库态 `--managed` 验证；同一批已发布资产随后重跑，未重发或替换 Release。
 - 本版已公开 R23 生产 Action 隔离、按需只读目录、教师价值与六领域漏报反馈。它不等于 L4 建立：本机 0.3.37→0.3.38 原位升级、Windows/Linux 旧版原位升级、真实睡眠/通知点击、真实教师连续试用与正式模型语义盲测仍分别保留为 Unverified。完整边界见 [v0.3.38 发布验收](../acceptance/2026-09-24-v0.3.38-signed-release.md)。
+- 旧 Desktop PR #71、#74 已按既定方案关闭为 superseded，没有在落后分支上解冲突或整批覆盖主线；旧依赖 PR #32 对应的 `decode-uri-component` 0.5.0 已在主线且 `npm audit` 为 0，亦已关闭。
 
 ## 2026-09-24 L4 真实教师价值与漏报反馈通道（已发布，待真人证据）
 
@@ -86,7 +87,7 @@
 | --- | --- | --- | --- |
 | 近期 | L4 | 扫描 PDF/图片 OCR、同名多项配对与课表来源别名的真实材料验收；六领域内容逐域核对与真人反馈 | v0.3.38 三平台已发布，公开 Linux/Windows 干净安装与 macOS 签名/公证链通过；真实材料、教师决议、原生反馈表单和真实睡眠/通知仍未核对，文档遗漏不自动撤回 |
 | 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 受管 Action runtime；Core WorkCase capability 与 Receipt 落账 | v0.3.38 已隔离旧生产执行面并公开只读目录，包内目录进程经三平台构建及 Linux/Windows 公网 smoke；实服 Action、权威落账、人工授权与 OS 隔离未实现，JEV 不用于对话 |
-| 当前验收 | R22 / R15 | 从已安装 v0.3.37 原位升级到公开 v0.3.38，核对 Core `68004b2`、教师数据与模型配置 | v0.3.38 公共资产和干净安装已验；本机 Mac 锁屏，原位更新尚未执行。此前 0.3.36→0.3.37 的自动重启、Core、51/240/43/9 与配置保持证据继续有效；Windows/Linux 旧版原位升级仍未验 |
+| 当前验收 | R22 / R15 | 从已安装 v0.3.37 原位升级到公开 v0.3.38，核对 Core `68004b2`、教师数据与模型配置 | v0.3.38 公共资产和干净安装已验；本机 v0.3.37 已检测到 0.3.38 并停在“更新”按钮前，待明确确认安装。此前 0.3.36→0.3.37 的自动重启、Core、51/240/43/9 与配置保持证据继续有效；Windows/Linux 旧版原位升级仍未验 |
 | 验收批 | R21 / R22 / R25 | 通知点击回到事项、真实睡眠补跑、安装版故障插件 Safe Mode 恢复；Windows/Linux 旧版应用内升级 | 功能或源码回归已有，所列真实流程未验收 |
 | 部署批 | R16 / L4 | 真实外部账号、学校隔离与备份恢复、正式盲测和教师连续试用 | 依赖目标环境、账号与真人参与，不计入本地工程通过 |
 | 最后 | R26 | 手机离开局域网，经服务器安全访问同一教师会话与提醒 | 局域网桥接只是原型，远程服务尚未设计和实现 |

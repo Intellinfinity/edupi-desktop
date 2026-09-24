@@ -512,3 +512,9 @@ test("release and preview verify the bundled read-only OpenConnector catalog", a
   const windows = await readFile(join(root, "scripts", "test-windows-installed-release.ps1"), "utf8");
   assert.match(windows, /Installed OpenConnector catalog smoke failed/u);
 });
+
+test("preview installs Desktop dependencies before the paired Core runtime test", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
+  const packageJob = workflow.slice(workflow.indexOf("  package:"));
+  assert.match(packageJob, /Install Core runtime dependencies[\s\S]*?- run: npm ci[\s\S]*?Verify paired Core runtime/u);
+});

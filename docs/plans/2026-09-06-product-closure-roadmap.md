@@ -6,14 +6,15 @@
 - Desktop 不改 Core 状态或总数，只按 Core 截止日期距当天的距离排列“待你决定”，每列默认显示 4 项，其余通过原生 disclosure 展开。packaged 页面实际显示“查看其余 27 项”与“查看其余 8 项”，展开/收起通过；390×844 无横向溢出，`external_send=false`。证据见 [Today 注意力预算验收](../acceptance/2026-09-24-today-attention-budget.md)。
 - 此项尚未进入签名安装版，也不自动处置旧候选；真实教师是否更无感仍须由反馈通道测量。整体状态保持“L4 功能收敛中”。
 
-## 2026-09-24 v0.3.39 更新代理签名版（公开安装通过，代理路径待验）
+## 2026-09-24 v0.3.39 更新代理公开签名版
 
-- Desktop [#255](https://github.com/Intellinfinity/edupi-desktop/pull/255) 将 Windows 已有代理文件的原子覆盖修复合入 `acd7ae4`；正式 [run 35979258168](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 完成三平台签名构建、Apple 公证及 7 键 feed，公开 Latest 已是 v0.3.39。Linux/Windows 公网安装通过；本机 v0.3.37→v0.3.39 原位升级、Core `68004b2`、51/240/43/9、模型/认证/设置保持和唯一安装副本已回读。详见 [v0.3.39 验收](../acceptance/2026-09-24-v0.3.39-signed-update-proxy.md)。
-- 首次升级来自旧客户端链路；安装版代理入口可见但尚未保存 7897，故真实代理下载/验签仍未验。稍后合并的 #256 Today 注意力预算不在此版，R15/R22 整体继续部分验收。
+- 正式 run [`35979258168`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 在 `acd7ae4` 上完成三平台、macOS 公证/装订和 manifest；Release [`v0.3.39`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.39) 已公开，11 项资产、7 个签名平台键，Core 固定 `68004b2`。三条 feed 的 `latest.json` SHA-256 均为 `758e0d10…`。
+- Linux 公开干净安装通过；Windows 首轮 public install 通过、后置 diagnose 暴露 Core checkout 字节恢复漏项，#258 修复后完整重跑 [`35986226781`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35986226781) 全绿。本机随后从 v0.3.37 原位升级到 v0.3.39，同路径 Core/投影/Kernel ready、51/240/43/9 与模型/认证/设置保持、唯一安装副本 Gatekeeper 通过；完整边界见 [v0.3.39 验收](../acceptance/2026-09-24-v0.3.39-signed-release.md)。
+- 本版包含本机更新代理和 Windows 覆盖替换修复；首次升级仍走旧链路，稍后合并的 #256 Today 注意力预算不在此安装包中。
 
 ## 2026-09-24 R15/R22 更新代理一次保存（已发布，原生持久化待验）
 
-- 桌面原生设置新增只接受无凭据本机 HTTP 地址的更新代理，独立持久化、损坏配置保守失败；Tauri updater 和设置/启动提醒的 Release 检查都使用同一代理，版本刷新有迟到结果栅栏。隔离 CONNECT、失败缓存/重试、800×900 模拟设置和 Windows 原生覆盖编译通过；v0.3.39 安装版已显示该入口。验收时 7897 无监听，原生输入未获得可验证回读、专用配置文件仍不存在；不能把旧链路成功升级 v0.3.39 当成保存代理后的升级。证据见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。
+- 桌面原生设置只接受无凭据本机 HTTP 地址，独立持久化、损坏配置保守失败；Tauri updater 和服务端 Release 检查使用同一设置而不改全局网络。v0.3.39 安装版已显示入口，但验收时 7897 无监听，原生输入未获得可验证回读、专用配置文件仍不存在；旧链路成功升级不等于保存代理后的升级。证据见 [更新代理验收](../acceptance/2026-09-24-update-proxy.md)。
 
 ## 2026-09-24 v0.3.38 公开签名版与安装验收
 

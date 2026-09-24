@@ -1,6 +1,6 @@
 # 更新代理一次保存验收
 
-状态：更新代理随 Desktop #251 和 Windows 覆盖修复 #255 进入公开 v0.3.39；安装版入口已观察，原生保存/重启回读及经 7897 的后续升级仍未验证。Core 仍固定 `68004b2c0294159eef4f88bcbf4a921ef6978037`，本改动不修改教师数据。
+状态：更新代理随 Desktop #251 与 Windows 覆盖修复 #255 进入公开签名 v0.3.39；安装版入口已观察，原生保存/重启回读及经 7897 的后续升级仍未验证。Core 固定 `68004b2c0294159eef4f88bcbf4a921ef6978037`，本改动不修改教师数据。
 
 ## 合同与边界
 
@@ -19,7 +19,7 @@
 | Rust 配置测试与发布静态门 | 拒绝远端、凭据、空端口、路径和参数；独立配置文件保存/更改/清除/损坏恢复均不改 `ui-prefs.json`。`cargo test --locked` 30/30；`npm test` 1735 tests、1709 passed / 26 skipped / 0 failed；TypeScript、lint、npm audit（0 漏洞）、release verify 通过。 |
 | 无签名安装包预览 [35973703981](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35973703981) | 精确实现提交 `4e2b7af` 的质量、macOS `.app`/DMG 与 Windows NSIS 包任务全部成功；macOS 最终 `.app` 中用包内 Node 启动只读目录，Windows staged 目录与 exe 版本门禁通过，预览资产分别约 208 MB / 126 MB。预览构建不等于签名/公证、安装后的代理设置可用。 |
 | Windows runner [`35976790629`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35976790629) | 安装/启动公开 v0.3.38 后，以公共资源夹具执行修复分支 `cargo check --lib --locked`；包含 `MoveFileExW` 的 Windows 原生代码编译成功。 |
-| v0.3.39 正式发布与安装 | [35979258168](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 三平台、Mac 公证、签名 feed 全绿；Linux [35984333853](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984333853) 和 Windows [35984333534](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984333534) 公网安装通过。本机 v0.3.37→v0.3.39 经原生更新重启、Core 与 51/240/43/9 保持；这次使用旧链路而非保存后的代理。详见 [v0.3.39 验收](2026-09-24-v0.3.39-signed-update-proxy.md)。 |
+| v0.3.39 正式发布与安装 | [35979258168](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35979258168) 三平台、Mac 公证、签名 feed 全绿；Linux [35984333853](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35984333853) 和 Windows [35986226781](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35986226781) 公网安装通过。本机 v0.3.37→v0.3.39 经原生更新重启、Core 与 51/240/43/9 保持；这次使用旧链路而非保存后的代理。详见 [v0.3.39 验收](2026-09-24-v0.3.39-signed-release.md)。 |
 | v0.3.39 安装版设置 | 展开“更新代理”后字段为空，显示“留空使用系统网络”；辅助功能输入未获回读后停止，专用 `updater-proxy.json` 仍不存在。没有把原生保存或重启持久化记为通过。 |
 
 ## 尚未验证

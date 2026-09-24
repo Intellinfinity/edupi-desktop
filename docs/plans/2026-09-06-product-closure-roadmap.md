@@ -2,7 +2,7 @@
 
 ## 2026-09-24 R23 OpenConnector 只读目录资源（staged，未发布）
 
-- OpenConnector `1.6.5` 的 headless package、许可与只读 catalog host 已单独 staged 到 `resources/open-connector`，不监听 HTTP；只允许 `providers/search/inspect`，全部真实 Action 与代理由 host 协议和 runtime policy 双层阻断。本机 staged bundle 约 245 MB，实际包内 Node 启动返回 1554 个 Provider、10 个 calendar 搜索结果和 `npm.get_package` schema，执行请求被拒。发布/预览在打包前验证，macOS 最终 `.app` 及 Linux/Windows 公开安装版的后续验收门禁已准备；后两项尚需下一正式包实测。
+- OpenConnector `1.6.5` 的 headless package、许可与只读 catalog host 已单独 staged 到 `resources/open-connector`，不监听 HTTP；只允许 `providers/search/inspect`，全部真实 Action 与代理由 host 协议和 runtime policy 双层阻断。本机 staged bundle 约 245 MB，实际包内 Node 启动返回 1554 个 Provider、10 个 calendar 搜索结果和 `npm.get_package` schema，执行请求被拒。macOS/Windows 无签名预览包已构建；macOS 最终 `.app` 内目录 host 运行通过，Windows staged 目录与 exe 版本门禁通过；Linux/Windows 公开安装版的后续验收门禁已准备，仍须下一正式包实测。当前证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。
 - 这不是可供老师使用的连接器：当前应用没有启动/管理这个目录进程，没有账户凭据、Core grant/Receipt 或真实 Action 执行。R23 继续“部分实现”，手机异地服务仍排最后。
 
 ## 2026-09-24 v0.3.37 公开签名版与本机原位升级

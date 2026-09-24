@@ -151,17 +151,28 @@ export type WorkCandidateGroups = {
   done: EducationWorkCandidate[];
 };
 
-export function groupWorkCandidates(candidates: EducationWorkCandidate[]): WorkCandidateGroups {
+export function groupWorkCandidates(candidates: EducationWorkCandidate[], todayIso?: string): WorkCandidateGroups {
   const identityOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
     left.candidateId.localeCompare(right.candidateId) || left.title.localeCompare(right.title);
   const dueOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
     String(left.dueAt).localeCompare(String(right.dueAt)) || identityOrder(left, right);
+  const todayTime = todayIso ? Date.parse(`${todayIso}T00:00:00.000Z`) : Number.NaN;
+  const attentionOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number => {
+    if (!Number.isFinite(todayTime)) return dueOrder(left, right);
+    const leftTime = Date.parse(`${left.dueAt}T00:00:00.000Z`);
+    const rightTime = Date.parse(`${right.dueAt}T00:00:00.000Z`);
+    if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return dueOrder(left, right);
+    const distance = Math.abs(leftTime - todayTime) - Math.abs(rightTime - todayTime);
+    if (distance !== 0) return distance;
+    const side = Number(leftTime < todayTime) - Number(rightTime < todayTime);
+    return side || leftTime - rightTime || identityOrder(left, right);
+  };
   const laterOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
     String(left.snoozeUntil ?? left.dueAt ?? "9999-12-31").localeCompare(String(right.snoozeUntil ?? right.dueAt ?? "9999-12-31")) || identityOrder(left, right);
   const doneOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
     String(right.teacherReview.reviewedAt ?? "").localeCompare(String(left.teacherReview.reviewedAt ?? "")) || identityOrder(left, right);
   return {
-    now: candidates.filter((candidate) => candidate.status === "pending_review").slice().sort(dueOrder),
+    now: candidates.filter((candidate) => candidate.status === "pending_review").slice().sort(attentionOrder),
     later: candidates.filter((candidate) => candidate.status === "held" || candidate.status === "snoozed").slice().sort(laterOrder),
     done: candidates.filter((candidate) => candidate.status === "accepted" || candidate.status === "modified" || candidate.status === "rejected" || candidate.status === "suppressed").slice().sort(doneOrder),
   };

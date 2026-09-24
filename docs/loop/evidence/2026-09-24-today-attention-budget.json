@@ -1,0 +1,39 @@
+{
+  "recorded_at": "2026-09-24T09:20:00+08:00",
+  "evidence_level": "installed-data-readonly-copy_packaged-ui",
+  "core_commit": "68004b2c0294159eef4f88bcbf4a921ef6978037",
+  "candidate_counts": {
+    "total": 43,
+    "pending_review": 31,
+    "held": 12,
+    "overdue_before_2026_09_24": 27,
+    "due_today_or_future": 4,
+    "undated": 12,
+    "reopened_source_changed": 26,
+    "external_send_true": 0
+  },
+  "default_surface": {
+    "visible_per_group": 4,
+    "pending_total": 31,
+    "pending_collapsed": 27,
+    "held_total": 12,
+    "held_collapsed": 8,
+    "lifecycle_state_changed": false,
+    "candidate_removed": false
+  },
+  "responsive_check": {
+    "viewport": "390x844",
+    "client_width": 390,
+    "scroll_width": 390,
+    "visible_pending": 4,
+    "total_pending": 31,
+    "disclosure_open_by_default": false
+  },
+  "interaction": {
+    "expand_remaining_pending": "passed",
+    "collapse_remaining_pending": "passed"
+  },
+  "external_send": false,
+  "real_teacher_value_verified": false,
+  "overall_l4": "not_established"
+}

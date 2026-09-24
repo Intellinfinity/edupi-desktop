@@ -60,6 +60,37 @@ test("renders Core ambient preparation without exposing decision authority contr
   assert.doesNotMatch(html, /sha256:ready/);
 });
 
+test("keeps large review queues behind progressive disclosure", () => {
+  const data = buildEducationContract({ workspace: "/tmp/today-attention-budget" });
+  data.workCandidates = Array.from({ length: 6 }, (_, index) => ({
+    candidateId: `candidate-${index}`,
+    taskId: `task-${index}`,
+    snapshotId: `snapshot-${index}`,
+    stateHash: `sha256:state-${index}`,
+    revision: 0,
+    title: `待判断 ${index}`,
+    summary: `说明 ${index}`,
+    dueAt: `2099-01-${String(index + 1).padStart(2, "0")}`,
+    reason: "教师内部准备",
+    sourceIds: [`source-${index}`],
+    evidenceIds: [`evidence-${index}`],
+    status: "pending_review",
+    snoozeUntil: null,
+    suppressionScope: null,
+    nextCycleState: "awaiting_teacher",
+    teacherReview: { state: "pending_review", reviewerId: null, reviewedAt: null, note: null, revision: 0 },
+    externalSend: false,
+  }));
+  const html = renderToStaticMarkup(React.createElement(EduPiTodayWork, {
+    data,
+    onEducation: () => {},
+    onTaskDetail: () => {},
+  }));
+  assert.match(html, /查看其余 2 项/);
+  assert.doesNotMatch(html, /edupi-today-work__more" open/u);
+  for (let index = 0; index < 6; index += 1) assert.match(html, new RegExp(`待判断 ${index}`));
+});
+
 test("Today does not invent scope or value from a work candidate", () => {
   const candidate = { candidateId: "candidate-1", taskId: "task-1", revision: 0, evidenceIds: ["evidence-1"], sourceIds: ["source-1"], reason: "calendar_review" };
   const task = { id: "task-1", trigger: "teaching_before_class", topic: null, evidence: { class_id: "class-wrong", subject: "math" } };

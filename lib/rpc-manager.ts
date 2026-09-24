@@ -33,14 +33,18 @@ import { createMemoryForgetTool } from "./edupi-memory-forget-tool";
 import { createPrepareTaskTool } from "./edupi-prepare-task-tool";
 import type { DesktopControlInput } from "./edupi-desktop-control";
 import { createEduPiComputerUseTool } from "./edupi-computer-tool";
-import { createEduPiExternalConnectorTool } from "./edupi-external-connector-tool";
 import { parseComputerUseBridgeResult, type ComputerUseBridgeResult, type ComputerUseInput } from "./edupi-computer-use";
-import { createOpenConnectorProviderFromEnv } from "./integrations/open-connector";
-import { createDesktopSafeBashOperations, redactDesktopSpawnContext } from "./desktop-shell-security";
+import { createDesktopSafeBashOperations, quarantineUnmanagedOpenConnectorEnvironment, redactDesktopSpawnContext } from "./desktop-shell-security";
 import { createEduPiTeacherContextAppendSystemPromptOverride } from "./edupi-teacher-context-prompt";
 import { withEducationModel } from "./edupi-model-context";
 import { ensureLoopbackModelAuth } from "./loopback-model-auth";
 import type { PermissionMode } from "./tool-presets";
+
+// The legacy HTTP adapter is intentionally not a production authority. Until
+// Core owns one-shot grants and receipts, do not retain connector credentials in
+// the server environment where extensions or same-user child processes could
+// recover them.
+quarantineUnmanagedOpenConnectorEnvironment();
 
 // ============================================================================
 // Types
@@ -1493,7 +1497,6 @@ export async function startRpcSession(
       services.modelRuntime,
       services.settingsManager.getEnabledModels(),
     );
-    const openConnectorProvider = sessionIsEduPiDataRoot ? createOpenConnectorProviderFromEnv() : null;
     const hasExistingMessages = sessionManager.getBranch().some((entry) => entry.type === "message");
     const initial = hasExistingMessages
       ? { scopedModels: [...scope.scopedModels] }
@@ -1519,11 +1522,7 @@ export async function startRpcSession(
         }), createEduPiComputerUseTool({
           projectRoot: EDUPI_ROOT,
           requestAction: (action, signal) => requestEduPiComputerAction(action, signal),
-        }),
-        ...(openConnectorProvider ? [createEduPiExternalConnectorTool({
-          projectRoot: EDUPI_ROOT,
-          provider: openConnectorProvider,
-        })] : [])] : []),
+        })] : []),
         ...(sessionIsEduPiCoreRoot && !sessionIsEduPiDataRoot ? [createStudentEventTool(EDUPI_CODE_ROOT), createMemoryWriteTool(EDUPI_CODE_ROOT), createMemoryForgetTool(EDUPI_CODE_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_CODE_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_CODE_ROOT })] : []),
       ],
     });

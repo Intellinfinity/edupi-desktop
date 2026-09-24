@@ -1,6 +1,6 @@
 # R23 外部 Action 权限与受管 Runtime 规格
 
-状态：设计约束；尚未实现或验收。唯一任务账本仍是 [产品闭环路线图](../plans/2026-09-06-product-closure-roadmap.md)。
+状态：设计约束；真实 Action 权威合同尚未实现。生产 Agent 的旧环境变量执行入口已隔离，唯一任务账本仍是 [产品闭环路线图](../plans/2026-09-06-product-closure-roadmap.md)。
 
 ## 目标与假设
 
@@ -20,7 +20,8 @@
 
 ## 安全边界
 
-- 当前 `edupi_external_connector` 的 UI 确认和 bash 子进程环境过滤只是止血。只要同用户无限制 shell 能读父进程环境、凭据文件或进程管道，就不能宣称“外部写入必须确认”。
+- 当前生产 AgentSession 不注册 `edupi_external_connector`，环境变量也不能重新打开；OpenConnector runtime/admin token 在扩展加载前从服务端环境删除。`OpenConnectorProvider` 默认只允许目录搜索与 inspect，所有执行、连接管理和审计回读都在网络前返回 `core_authority_required`；旧副作用代码只供隔离合同测试显式启用。这是启用真实 Action 前的隔离门，不是权威执行实现。
+- 历史 UI 确认与 bash 子进程环境过滤只作为原型测试保留。只要同用户无限制 shell 能读凭据文件或进程管道，就不能宣称“外部写入必须确认”，因此未来受管 runtime 不得复用环境令牌重新注册旧工具。
 - 私有 pipe/socket 不等于权限边界。启用有凭据 Action 前，必须在三平台证明 Agent 运行在独立 OS principal/可验证的沙箱，且不能读写 Core WorkCase/授权/Receipt store 或 runtime 凭据；或者在连接器开启的整个进程生命周期内移除所有模型 shell、`read/edit/write/grep/find/ls`、computer-use、第三方等价工具及并发无限制会话。仅从子进程环境删 token 不算通过。
 - 原生确认弹窗也不等于人手确认：Agent 可能通过桌面自动化合成点击。确认凭证不得返回 WebView 或 Agent 工具；必须实测合成输入无法签发授权，否则有凭据执行保持关闭。
 - 不把现有 G3 内部草稿 grant 的 `external_send=false` 改成 true，也不把 v1.1 的 unsupported command 偷换为外部执行。

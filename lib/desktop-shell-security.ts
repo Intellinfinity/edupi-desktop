@@ -9,6 +9,17 @@ const DESKTOP_SECRET_KEYS = [
   "EDUPI_JEV_TEXT_MODEL_API_KEY",
 ] as const;
 
+const UNMANAGED_OPENCONNECTOR_SECRET_KEYS = [
+  "EDUPI_OPENCONNECTOR_RUNTIME_TOKEN",
+  "EDUPI_OPENCONNECTOR_ADMIN_TOKEN",
+] as const;
+
+export function quarantineUnmanagedOpenConnectorEnvironment(
+  env: Record<string, string | undefined> = process.env,
+): void {
+  for (const key of UNMANAGED_OPENCONNECTOR_SECRET_KEYS) delete env[key];
+}
+
 export function redactDesktopSecrets(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const sanitized = { ...env };
   for (const key of DESKTOP_SECRET_KEYS) delete sanitized[key];

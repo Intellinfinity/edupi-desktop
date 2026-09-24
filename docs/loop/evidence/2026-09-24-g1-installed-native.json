@@ -1,0 +1,54 @@
+{
+  "status": "passed",
+  "recorded_at": "2026-09-24T13:37:00+08:00",
+  "platform": "macOS",
+  "application": {
+    "version": "0.3.37",
+    "path": "/Applications/EduPi.app",
+    "signed_release": true
+  },
+  "isolation": {
+    "real_teacher_data_mutated": false,
+    "temporary_data_root": true,
+    "temporary_agent_directory": true,
+    "temporary_app_config": true,
+    "isolated_server_port": 38472
+  },
+  "scope": {
+    "class_id": "class-7-1",
+    "subject": "数学"
+  },
+  "native_flow": {
+    "scope_visible": true,
+    "enable_clicked": true,
+    "running_visible": true,
+    "stop_clicked": true,
+    "disabled_visible": true,
+    "restart_preserved_disabled": true
+  },
+  "runtime": {
+    "core": "ready",
+    "projection": "ready",
+    "activation_source": "desktop_canary",
+    "configuration_status": "ready",
+    "external_send": false
+  },
+  "restore": {
+    "real_app_config_restored": true,
+    "real_server_port": 38471,
+    "core_commit": "68004b2c0294159eef4f88bcbf4a921ef6978037",
+    "core": "ready",
+    "projection": "ready",
+    "kernel": "ready",
+    "proactivity": "disabled",
+    "students": 51,
+    "tasks": 240,
+    "calendar_events": 43,
+    "timetable_slots": 9
+  },
+  "unverified": [
+    "Windows and Linux native G1 controls",
+    "real-provider teaching content quality",
+    "real teacher trial and formal blind evaluation"
+  ]
+}

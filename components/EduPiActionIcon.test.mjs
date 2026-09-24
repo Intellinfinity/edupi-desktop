@@ -50,7 +50,7 @@ test("calendar, task, and inspector drawers keep only semantic decisions as text
   for (const action of [/icon="edit" label="编辑"/, /icon="delete" label=\{deleteBusy \? "正在删除" : "删除"\}/, /icon="close" label="关闭详情"/]) assert.match(calendar, action);
   for (const action of [/icon="open" label="打开产物"/, /icon="delete" label=\{deleteBusy \? "正在删除任务" : "删除任务"\}/, /icon="close" label="关闭任务详情"/]) assert.match(task, action);
   assert.match(task, />进入任务<\/button>/);
-  assert.match(task, />继续让 EduPi 做<\/button>/);
+  assert.match(task, /agentBusy \? "正在准备" : "继续让 EduPi 做"/);
   assert.match(inspector, /icon="close" label="隐藏任务检查"/);
   assert.match(workspaceCss, /button\.is-delete \{[^}]*var\(--ep-red\)/);
   assert.match(workbenchCss, /\.edupi-task-detail-drawer__footer \.edupi-icon-action\.is-delete/);

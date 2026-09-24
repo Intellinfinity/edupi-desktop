@@ -466,7 +466,8 @@ export function AppShell() {
 
   const askEduPiToUpdateStudents = useCallback(() => {
     openEducationView("chat");
-    requestAnimationFrame(() => chatInputRef.current?.replaceText("请根据我接下来提供的班级名单、课堂记录或作业材料，整理学生档案更新候选；保留来源，先让我审核，不要直接写入或外发。"));
+    setPendingEduPiContext({ context: createComposerContext("学生档案更新", "学生档案更新"), openId: crypto.randomUUID() });
+    requestAnimationFrame(() => chatInputRef.current?.focus());
   }, [openEducationView]);
 
   const openQuickEntry = useCallback(() => {
@@ -784,13 +785,12 @@ export function AppShell() {
         params.set("task", taskId);
         params.set("stage", stage);
         params.set("session", session.id);
+        params.delete("taskDetail");
         router.replace(`/?${params.toString()}`, { scroll: false });
         return "existing";
       }
     }
 
-    throwIfStale();
-    resetNewSessionDraft(`new:${cwd}`);
     throwIfStale();
     setSelectedSession(null);
     setNewSessionCwd(cwd);
@@ -810,6 +810,7 @@ export function AppShell() {
     params.set("task", taskId);
     params.set("stage", stage);
     params.delete("session");
+    params.delete("taskDetail");
     router.replace(`/?${params.toString()}`, { scroll: false });
     return "new";
   }, [router, searchParams]);

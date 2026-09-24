@@ -428,7 +428,7 @@ export function EduPiContextEditor({ initial, candidate = null, capability = nul
       </div> : null}
 
       {chatDraftOpen ? <div className="edupi-context-editor__modify" aria-label="起草教师上下文更新">
-        <div className="edupi-context-editor__modify-heading"><strong>起草更新</strong><span>放入对话后由 EduPi 生成待确认提案</span></div>
+        <div className="edupi-context-editor__modify-heading"><strong>起草更新</strong><span>字段作参考，要求由你填写</span></div>
         <div className="edupi-context-editor__fields">{TEACHER_CONTEXT_FIELDS.map((field) => <label key={field.key}>{field.label}<input maxLength={120} disabled={busy} value={draft[field.key] || ""} onChange={(event) => updateDraft(field.key, event.target.value)} /></label>)}</div>
         <div className="edupi-context-editor__modify-actions"><button type="button" className="edupi-entry-secondary" disabled={busy} onClick={() => setChatDraftOpen(false)}>取消</button><button type="button" className="edupi-entry-primary" disabled={busy || !onAgentRequest} onClick={submitDraft}>放入对话</button></div>
       </div> : null}

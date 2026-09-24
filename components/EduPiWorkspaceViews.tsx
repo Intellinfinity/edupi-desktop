@@ -149,7 +149,7 @@ function CommandCenter({ runningAgentCount, onStartAgent }: { runningAgentCount:
       <form onSubmit={submit}>
         <textarea value={command} onChange={(event) => setCommand(event.target.value)} onKeyDown={keyDown} rows={2} placeholder="描述一件教学工作，或把材料拖进来…" aria-label="交给 EduPi 的教学工作" />
         <footer>
-          <div>{quickPrompts.map((item) => <button key={item.label} type="button" onClick={() => setCommand(item.prompt)}>{item.label}</button>)}</div>
+          <div>{quickPrompts.map((item) => <button key={item.label} type="button" disabled={Boolean(command.trim())} onClick={() => setCommand(current => current.trim() ? current : item.prompt)}>{item.label}</button>)}</div>
           <button type="submit" className="is-primary" disabled={!command.trim()}>开始协作 <span aria-hidden="true">↗</span></button>
         </footer>
       </form>

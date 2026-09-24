@@ -25,3 +25,30 @@ test("revision actions carry object facts without prewriting the teacher request
   assert.match(materials, /onStartAgent\(prompt, "replace"\)/);
   assert.match(students, /onStartAgent\(prompt, "replace"\)/);
 });
+
+test("the generic student-profile entry leaves the teacher draft untouched", async () => {
+  const appShell = await read("./AppShell.tsx");
+  const handoff = appShell.slice(appShell.indexOf("const askEduPiToUpdateStudents"), appShell.indexOf("const openQuickEntry"));
+  assert.match(handoff, /openEducationView\("chat"\)/);
+  assert.match(handoff, /setPendingEduPiContext\(\{ context: createComposerContext\("学生档案更新", "学生档案更新"\), openId: crypto\.randomUUID\(\) \}\)/);
+  assert.doesNotMatch(handoff, /replaceText|offerTeacherDraft|resetNewSessionDraft/);
+});
+
+test("quick suggestions cannot replace a drafted home command", async () => {
+  const workspace = await read("./EduPiWorkspaceViews.tsx");
+  const commandCenter = workspace.slice(workspace.indexOf("function CommandCenter"), workspace.indexOf("function SectionHeader"));
+  assert.match(commandCenter, /setCommand\(current => current\.trim\(\) \? current : item\.prompt\)/);
+  assert.match(commandCenter, /disabled=\{Boolean\(command\.trim\(\)\)\}/);
+});
+
+test("task detail handoff closes after activation without a competing route update", async () => {
+  const [drawer, panel] = await Promise.all([read("./EduPiTaskDetailDrawer.tsx"), read("./EduPiEducationPanel.tsx")]);
+  assert.match(drawer, /onClick=\{\(\) => onOpenAgent\(task\)\}>\{agentBusy \? "正在准备" : "继续让 EduPi 做"\}/);
+  const activation = panel.slice(panel.indexOf("const activateAgent"), panel.indexOf("const openAgentForTask"));
+  assert.match(activation, /setTaskDetailTask\(null\)/);
+  assert.match(activation, /if \(!task\.id \|\| !education\) \{[\s\S]*updateTaskDetailLocation\(null\)/);
+  assert.match(panel, /if \(drawer === "file" \|\| drawer === "agent"\) return/);
+  assert.match(panel, /agentBusy=\{taskSessionBusy\}/);
+  const openDetail = panel.slice(panel.indexOf("const openTaskDetail"), panel.indexOf("const selectQuickEntry"));
+  assert.match(openDetail, /setTaskSessionError\(null\)/);
+});

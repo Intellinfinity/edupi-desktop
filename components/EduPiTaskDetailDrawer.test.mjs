@@ -21,3 +21,12 @@ test("an indexed unavailable artifact is not revived by the work-case fallback",
   assert.match(html, /<button[^>]*disabled=""[^>]*><strong>教案<\/strong><small>文件不可用<\/small><\/button>/);
   assert.match(html, /<button[^>]*><strong>学案<\/strong><small>候选<\/small><\/button>/);
 });
+
+test("task handoff stays visibly pending and reports a retryable activation error", () => {
+  const props = { task, workCase, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} };
+  const pending = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { ...props, agentBusy: true }));
+  assert.match(pending, /disabled=""[^>]*>正在准备<\/button>/);
+  const failed = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { ...props, agentError: "会话暂不可用" }));
+  assert.match(failed, /role="alert"[^>]*>会话暂不可用<\/p>/);
+  assert.match(failed, />继续让 EduPi 做<\/button>/);
+});

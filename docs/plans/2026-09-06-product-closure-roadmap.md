@@ -1,5 +1,9 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-24 R18/R20 AI 入口漏项修正（开发态，待发布）
+
+- 回查发现管理中心“让 EduPi 更新档案”仍用固定句覆盖输入、无绑定 Session 的任务协作清除通用草稿、任务详情关闭与会话激活竞相覆盖 URL、教师上下文“放入对话”预填固定指令，以及首页快捷建议覆盖未提交命令。现分别改为可移除的事项参考、保留通用草稿并原子切到任务 URL、五字段事实参考及已有命令时禁用快捷建议。800×900 隔离页面操作已证明管理中心原话保留、教师上下文输入空白、快捷建议不覆盖；隔离合成任务页面核对了任务 URL 与独立空输入、返回普通对话后原草稿恢复。无真实模型发送或 Core 写入，当前签名安装版仍是旧行为。证据见 [AI 协作输入验收](../acceptance/2026-09-23-ai-collaboration-composer.md)。
+
 ## 2026-09-24 R23 OpenConnector 只读目录资源（staged，未发布）
 
 - OpenConnector `1.6.5` 的 headless package、许可与只读 catalog host 已单独 staged 到 `resources/open-connector`，不监听 HTTP；只允许 `providers/search/inspect`，全部真实 Action 与代理由 host 协议和 runtime policy 双层阻断。本机 staged bundle 约 245 MB，实际包内 Node 启动返回 1554 个 Provider、10 个 calendar 搜索结果和 `npm.get_package` schema，执行请求被拒。macOS/Windows 无签名预览包已构建；macOS 最终 `.app` 内目录 host 运行通过，Windows staged 目录与 exe 版本门禁通过；Linux/Windows 公开安装版的后续验收门禁已准备，仍须下一正式包实测。当前证据见 [只读目录资源验收](../acceptance/2026-09-24-r23-openconnector-catalog.md)。

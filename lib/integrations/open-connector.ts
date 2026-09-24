@@ -100,15 +100,6 @@ export type ExternalConnectorProvider = {
 
 export type OpenConnectorCapabilityPolicy = Record<string, string[]>;
 
-export type OpenConnectorConfig = {
-  enabled: boolean;
-  baseUrl: string;
-  runtimeToken: string;
-  adminToken: string;
-  capabilities: OpenConnectorCapabilityPolicy;
-  timeoutMs: number;
-};
-
 export type OpenConnectorProviderOptions = {
   baseUrl: string;
   runtimeToken: string;
@@ -116,6 +107,8 @@ export type OpenConnectorProviderOptions = {
   capabilities?: OpenConnectorCapabilityPolicy;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
+  /** Isolated contract tests only. Production execution requires Core grants. */
+  allowUnmanagedActionsForTesting?: boolean;
 };
 
 export class ExternalConnectorError extends Error {
@@ -150,61 +143,6 @@ const DEFAULT_CAPABILITIES: OpenConnectorCapabilityPolicy = {
 
 const SENSITIVE_KEY = /(authorization|credential|secret|password|passcode|token|api[-_]?key|access[-_]?key|refresh[-_]?key|cookie)/iu;
 const CONNECTION_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/u;
-
-function envFlag(value: string | undefined): boolean {
-  return value === "1" || value?.toLowerCase() === "true" || value?.toLowerCase() === "yes" || value?.toLowerCase() === "on";
-}
-
-function isSecureServiceUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    if (url.username || url.password || url.search || url.hash || !url.hostname) return false;
-    if (url.protocol === "https:") return true;
-    return url.protocol === "http:"
-      && (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]" || url.hostname === "::1");
-  } catch {
-    return false;
-  }
-}
-
-function parseCapabilityPolicy(value: string | undefined): OpenConnectorCapabilityPolicy {
-  if (!value) return DEFAULT_CAPABILITIES;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new ExternalConnectorError("invalid_configuration", "EDUPI_OPENCONNECTOR_CAPABILITY_ACTIONS must be a JSON object");
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new ExternalConnectorError("invalid_configuration", "capability policy must be an object");
-  }
-  const result: OpenConnectorCapabilityPolicy = {};
-  for (const [capability, patterns] of Object.entries(parsed as Record<string, unknown>)) {
-    if (!/^[a-z][a-z0-9_-]{0,63}$/iu.test(capability) || !Array.isArray(patterns)
-      || patterns.length === 0 || patterns.length > 100
-      || patterns.some((pattern) => typeof pattern !== "string" || pattern.length > 200 || !/^[A-Za-z0-9_.:-]+[*]?$/.test(pattern))) {
-      throw new ExternalConnectorError("invalid_configuration", "capability policy is invalid");
-    }
-    result[capability] = patterns as string[];
-  }
-  return result;
-}
-
-export function resolveOpenConnectorConfig(env: Record<string, string | undefined> = process.env): OpenConnectorConfig {
-  const baseUrl = env.EDUPI_OPENCONNECTOR_BASE_URL || "";
-  const runtimeToken = env.EDUPI_OPENCONNECTOR_RUNTIME_TOKEN || "";
-  const validUrl = isSecureServiceUrl(baseUrl);
-  const timeout = Number(env.EDUPI_OPENCONNECTOR_TIMEOUT_MS);
-  const enabled = envFlag(env.EDUPI_OPENCONNECTOR_ENABLED) && validUrl && runtimeToken.length >= 16;
-  return {
-    enabled,
-    baseUrl,
-    runtimeToken,
-    adminToken: env.EDUPI_OPENCONNECTOR_ADMIN_TOKEN || "",
-    capabilities: enabled ? parseCapabilityPolicy(env.EDUPI_OPENCONNECTOR_CAPABILITY_ACTIONS) : DEFAULT_CAPABILITIES,
-    timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 10_000,
-  };
-}
 
 const REGEX_SPECIAL = [".", "*", "+", "?", "^", "$", "(", ")", "[", "]", "{", "}", "|", "\\"];
 
@@ -350,6 +288,7 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
   private readonly capabilities: OpenConnectorCapabilityPolicy;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly allowUnmanagedActionsForTesting: boolean;
 
   constructor(options: OpenConnectorProviderOptions) {
     this.baseUrl = new URL(options.baseUrl);
@@ -358,6 +297,7 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
     this.capabilities = options.capabilities ?? DEFAULT_CAPABILITIES;
     this.timeoutMs = options.timeoutMs ?? 10_000;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.allowUnmanagedActionsForTesting = options.allowUnmanagedActionsForTesting === true;
   }
 
   private url(path: string, query?: Record<string, string>): string {
@@ -416,6 +356,15 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
     }
   }
 
+  private ensureCoreAuthority(): void {
+    if (!this.allowUnmanagedActionsForTesting) {
+      throw new ExternalConnectorError(
+        "core_authority_required",
+        "External actions remain disabled until Core grants and receipts are available",
+      );
+    }
+  }
+
   async listProviders(): Promise<ExternalProviderSummary[]> {
     const { data } = await this.request<Array<Record<string, unknown>>>("/v1/providers", { method: "GET", auth: "runtime" });
     return (Array.isArray(data) ? data : []).flatMap((provider) => {
@@ -428,6 +377,7 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
   }
 
   async listConnections(): Promise<ExternalConnectionSummary[]> {
+    this.ensureCoreAuthority();
     const { data } = await this.request<ExternalConnectionSummary[]>("/v1/connections", { method: "GET", auth: "admin" });
     return Array.isArray(data) ? data : [];
   }
@@ -481,6 +431,7 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
     idempotencyKey?: string;
     authorization?: ExternalActionAuthorization;
   }): Promise<ExternalExecutionReceipt> {
+    this.ensureCoreAuthority();
     const action = requireText(actionId, "actionId");
     this.ensureAllowed(action, requireText(capability, "capability", 64));
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new ExternalConnectorError("invalid_input", "action input must be an object");
@@ -540,6 +491,7 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
   }
 
   async connect({ service, authType, values, appId, returnUri }: Parameters<ExternalConnectorProvider["connect"]>[0]): Promise<ExternalConnectionResult> {
+    this.ensureCoreAuthority();
     const selectedService = requireText(service, "service", 100);
     const body = authType === "oauth"
       ? { ...(returnUri ? { returnUri } : {}) }
@@ -560,6 +512,7 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
   }
 
   async disconnect({ service, connectionName }: { service: string; connectionName?: string }): Promise<{ disconnected: boolean }> {
+    this.ensureCoreAuthority();
     const selectedService = requireText(service, "service", 100);
     const selectedConnection = connectionName ? normalizeConnectionName(connectionName) : undefined;
     const query = selectedConnection && selectedConnection !== "default" ? { alias: selectedConnection } : undefined;
@@ -568,6 +521,7 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
   }
 
   async getExecutionReceipt(executionId: string, capability: string): Promise<ExternalExecutionReceipt> {
+    this.ensureCoreAuthority();
     const id = requireText(executionId, "executionId", 200);
     const data = await this.requestRaw<Record<string, unknown>>("/api/runs/" + encodeURIComponent(id), { method: "GET", auth: "admin" });
     const actionId = typeof data.actionId === "string" ? data.actionId : "";
@@ -596,20 +550,4 @@ export class OpenConnectorProvider implements ExternalConnectorProvider {
       auditPersisted: true,
     });
   }
-}
-
-export function createOpenConnectorProviderFromEnv(
-  env: Record<string, string | undefined> = process.env,
-  fetchImpl?: typeof fetch,
-): OpenConnectorProvider | null {
-  const config = resolveOpenConnectorConfig(env);
-  if (!config.enabled) return null;
-  return new OpenConnectorProvider({
-    baseUrl: config.baseUrl,
-    runtimeToken: config.runtimeToken,
-    ...(config.adminToken ? { adminToken: config.adminToken } : {}),
-    capabilities: config.capabilities,
-    timeoutMs: config.timeoutMs,
-    ...(fetchImpl ? { fetchImpl } : {}),
-  });
 }

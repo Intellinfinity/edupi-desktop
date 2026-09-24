@@ -38,11 +38,11 @@ EduPi 需要两类新能力：浏览器操作前的快速结构化决策，以�
 
 最初的 Adapter 阶段不把 `@oomol-lab/open-connector` 加入生产依赖，只通过官方 `/v1` runtime API 与本地 `/api` 审计端点连接外部自托管 runtime；`baseUrl` 支持 `publicOrigin` 挂载前缀。这个决定现由 R23 目录资源试点局部取代：Desktop 固定 `@oomol-lab/open-connector@1.6.5`，在独立 `resources/open-connector` 中打包约 245 MB 的 package closure、许可与只读 catalog host。host 无 HTTP 监听，只接受 `providers/search/inspect` 的有界 GET IPC，runtime 部署策略禁止全部 Action 与代理；安装包启动管理、教师连接与 Core 授权仍未接入。旧 HTTP Adapter 保持默认关闭，不因目录资源存在而获得新权限。
 
-OpenConnector 负责 Provider/Action 目录、OAuth/API Key、凭据存储、连接、执行和脱敏运行日志。Agent 只得到 `search`、`inspect`、`execute`、`receipt` 四个动作，不得到连接或凭据管理能力。连接管理方法留在服务端 Provider 接口，要求管理员 token。
+OpenConnector 原型负责 Provider/Action 目录、OAuth/API Key、凭据存储、连接、执行和脱敏运行日志。2026-09-24 的风险收敛已从生产 AgentSession 移除该工具；`search`、`inspect`、`execute`、`receipt` 四动作仅保留为隔离合同测试代码。正式产品当前只有尚未接入生命周期的只读 staged catalog host。
 
 Action 必须同时通过 capability 白名单与 runtime token 自身策略。当前 capability 标签由 Agent 工具参数选择，但只能命中管理员配置的 Action 子集；把该标签绑定到 Core WorkCase 的权威 capability grant 仍需配对 Core 合同。搜索结果在 capability 过滤后最多返回 50 项。`search` 与 `inspect` 不执行 Action；当前每次 `execute` 均视为高风险并要求教师可见确认。runtime `operationType` 只作描述，不能授权自动执行：metadata GET 与执行 POST 分离，运行时字段可能改变，且没有原子版本约束。未知字段值不展示为已识别类型。确认绑定 action id、不可变输入快照的哈希、连接名、幂等键、确认标识和十分钟时限；超过 16 KiB、含敏感字段或无法完整预览的输入拒绝执行。无 UI、拒绝确认或确认内容变化均不执行。只有受管 runtime 与 Core grant 提供原子策略证据后，才能重新评估只读 Action 的免确认路径。
 
-Agent 与显式用户 bash 的子进程环境会移除 OpenConnector runtime/admin token 和 JEV API Key，但这只是紧急防泄露措施，不是同用户进程/文件访问的完整隔离。同一用户的无限制 shell 仍可能从父进程或本地凭据取得令牌，再直连 runtime 绕过工具确认。因此当前 Agent 工具不能视为具备强制外部执行授权边界；R23 的发布收口需要把模型可调用的本地执行环境与 runtime 凭据隔离，并在受管 sidecar/Core 权威 grant 处验证一次性确认。
+Agent 与显式用户 bash 的子进程环境继续移除桌面秘密。OpenConnector runtime/admin token 还会在任何扩展和 Agent 资源加载前从服务端环境删除，旧环境工厂已移除，Provider 默认拒绝所有非目录操作。未来 R23 的发布收口仍需把模型可调用的本地执行环境与受管 runtime 凭据隔离，并在 sidecar/Core 权威 grant 处验证一次性确认；不得把旧环境令牌路径重新打开。
 
 后续权威合同与验收门禁见 [R23 外部 Action 权限与受管 Runtime 规格](R23-external-action-authority-spec.md)。
 
@@ -50,7 +50,7 @@ Agent 与显式用户 bash 的子进程环境会移除 OpenConnector runtime/adm
 
 ### 默认关闭
 
-未显式启用或缺少必要密钥时，两项能力都不注册、不发网络请求、不改变现有会话工具和执行链。OpenConnector 仅在 EduPi 数据根会话注册。
+JEV 未显式启用或缺少必要密钥时不注册、不发网络请求。OpenConnector 旧 Agent 工具在所有会话中保持不注册，不再存在环境变量启用路径；只读 catalog host 也尚未接入应用生命周期。
 
 JEV 设置通过普通设置窗口中的“快速浏览器决策”卡片维护，不进入聊天模型 Provider 或模型选择器。非秘密配置原子写入 `~/.pi/agent/edupi-desktop/jev.json`；API Key 复用 Pi 的 `auth.json` 锁定凭据存储，Provider ID 为 `edupi-jev`。GET、PUT、DELETE 和测试接口只接受受信 Host 与同源请求，公开响应只包含 `keyConfigured`。环境变量优先于文件设置，存在环境覆盖时界面只读。
 
@@ -68,20 +68,15 @@ JEV 设置通过普通设置窗口中的“快速浏览器决策”卡片维护�
 | `EDUPI_JEV_TEXT_MODEL_BASE_URL` | `TYPE_TEXT` 小模型 OpenAI-compatible 地址 |
 | `EDUPI_JEV_TEXT_MODEL_API_KEY` | 文本模型密钥 |
 | `EDUPI_JEV_TEXT_MODEL` | 文本模型 ID |
-| `EDUPI_OPENCONNECTOR_ENABLED` | 显式启用 OpenConnector Agent 工具 |
-| `EDUPI_OPENCONNECTOR_BASE_URL` | 自托管 runtime 的 `publicOrigin`，可带挂载前缀 |
-| `EDUPI_OPENCONNECTOR_RUNTIME_TOKEN` | `/v1` 执行 token |
-| `EDUPI_OPENCONNECTOR_ADMIN_TOKEN` | 连接管理与审计回读 token |
-| `EDUPI_OPENCONNECTOR_CAPABILITY_ACTIONS` | capability 到 Action glob 数组的 JSON 对象 |
-| `EDUPI_OPENCONNECTOR_TIMEOUT_MS` | runtime 请求超时 |
+| `EDUPI_OPENCONNECTOR_*` | 旧 HTTP Adapter 原型变量；生产 AgentSession 忽略，runtime/admin token 会被主动清除，不构成启用入口 |
 
-推荐由 OpenConnector persistent runtime token 继续收窄 `allowedActions` 与 `allowedConnections`。Desktop capability 白名单是额外一层，不替代 runtime 策略。
+历史 persistent runtime token 与 Desktop capability 白名单只保留为原型合同，不得用于生产授权。未来由 Core grant 与受管 runtime 同时约束 Action 和连接。
 
 ## 后果
 
 - 未配置环境保持原行为，JEV 或 OpenConnector 故障不会让已有 Browser/Computer Executor 消失。
 - JEV 和 OpenConnector 互不调用，统一等待 Core/Capability Runtime 编排。
-- OpenConnector 能在不把 Provider 凭据交给 Agent 的情况下执行外部 Action。
+- OpenConnector 目录可以在不向 Agent 暴露 Provider 凭据的前提下做只读 staged 验证；真实 Action 目前全部关闭。
 - JEV 实际浏览器闭环、OAuth 真实账号、Core 回执落账和安装版 sidecar 生命周期仍需后续配对验收，不能由本批单元测试代替。
 
 ## 依据

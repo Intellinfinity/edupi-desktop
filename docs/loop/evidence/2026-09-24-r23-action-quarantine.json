@@ -1,0 +1,40 @@
+{
+  "status": "passed_development",
+  "recorded_at": "2026-09-24T16:20:00+08:00",
+  "desktop_base": "cad68d9",
+  "branch": "codex/l4-risk-unverified-20260924",
+  "production_boundary": {
+    "agent_tool_registered_with_environment_credentials": false,
+    "environment_factory_present": false,
+    "runtime_token_retained_before_extension_load": false,
+    "admin_token_retained_before_extension_load": false,
+    "provider_default_mode": "catalog_only",
+    "unmanaged_action_network_calls": 0,
+    "real_provider_calls": 0
+  },
+  "focused_tests": {
+    "passed": 43,
+    "failed": 0,
+    "skipped": 0
+  },
+  "full_tests": {
+    "total": 1705,
+    "passed": 1679,
+    "failed": 0,
+    "skipped": 26
+  },
+  "static_checks": {
+    "typescript": "passed",
+    "eslint_branding": "passed",
+    "cargo_metadata": "passed",
+    "npm_audit_high": "0 vulnerabilities"
+  },
+  "release_state": "not_published",
+  "l4_state": "功能收敛中",
+  "unverified": [
+    "Core external WorkCase, grant and Receipt",
+    "managed runtime lifecycle and credential isolation",
+    "trusted human confirmation",
+    "signed installation verification on macOS, Windows and Linux"
+  ]
+}

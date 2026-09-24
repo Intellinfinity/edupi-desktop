@@ -103,7 +103,7 @@ type FileWorkspaceDrawerProps = {
 
 const FileWorkspaceDrawer = EduPiWorkspaceDrawer as unknown as (props: FileWorkspaceDrawerProps) => ReactElement | null;
 
-type AgentPromptMode = "insert" | "replace" | "teacher" | "teacher-main";
+type AgentPromptMode = "insert" | "replace" | "teacher";
 
 type EducationIntakeApiResult = {
   error?: string;
@@ -628,7 +628,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [router, searchParams]);
 
   useEffect(() => {
-    if (drawer === "file") return;
+    if (drawer === "file" || drawer === "agent") return;
     const requested = searchParams.get("taskDetail");
     if (!requested) { setTaskDetailTask(null); return; }
     const selected = tasks.find((task) => taskKey(task) === requested) || null;
@@ -940,6 +940,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
 
   const openTaskDetail = useCallback((task: TeacherTask) => {
     cancelActivation();
+    setTaskSessionError(null);
     setDrawer(null);
     setFileReturnTaskKey(null);
     setAgentTask(null);
@@ -983,10 +984,12 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [taskDetailTask]);
 
   const closeTaskDetail = useCallback(() => {
+    cancelActivation();
+    setTaskSessionError(null);
     setFileReturnTaskKey(null);
     setTaskDetailTask(null);
     updateTaskDetailLocation(null);
-  }, [updateTaskDetailLocation]);
+  }, [cancelActivation, updateTaskDetailLocation]);
 
   const createBoardTask = useCallback(async (input: CreateTeacherTaskInput): Promise<CreateTeacherTaskOutcome> => {
     const response = await fetch("/api/edupi/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
@@ -1055,6 +1058,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (taskSessionOpeningRef.current) return;
     if (!task.id || !education) {
       setFileReturnTaskKey(null);
+      setTaskDetailTask(null);
+      updateTaskDetailLocation(null);
       setAgentTask(task || null);
       setDrawer("agent");
       return;
@@ -1074,6 +1079,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     void onActivateAgentSession({ taskId: task.id, sessionId: reusableSessionId, cwd: education.workspace, view, stage, signal: request.signal })
       .then((mode) => {
         if (!activationRequestsRef.current.isCurrent(request)) return;
+        setTaskDetailTask(null);
         setAgentTask(task);
         setPendingTaskBinding(mode === "new" ? { taskId: task.id!, previousSessionId: activeAgentSessionId } : null);
         setPendingAgentPromptMode("replace");
@@ -1090,7 +1096,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
         taskSessionOpeningRef.current = false;
         setTaskSessionBusy(false);
       });
-  }, [activeAgentSessionId, education, onActivateAgentSession]);
+  }, [activeAgentSessionId, education, onActivateAgentSession, updateTaskDetailLocation]);
 
   const openAgentForTask = useCallback((task: TeacherTask) => {
     activateAgent(task, "tasks", "run");
@@ -1112,13 +1118,13 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setFileReturnTaskKey(null);
     setAgentTask(null);
     setPendingAgentPromptMode(mode);
-    setPendingAgentPrompt(mode === "replace" || mode === "teacher" || mode === "teacher-main" ? prompt.trim() : [
+    setPendingAgentPrompt(mode === "replace" || mode === "teacher" ? prompt.trim() : [
       prompt.trim(),
       "",
       `教学上下文：${teacherContextLabel}`,
       "边界：仅在教师内部处理，保留来源，不外发；写回事实或产物前等待教师确认。",
     ].join("\n"));
-    if (mode === "replace" || mode === "teacher-main") {
+    if (mode === "replace") {
       selectView("chat");
       return;
     }
@@ -1160,7 +1166,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     if (!pendingAgentPrompt || (drawer !== "agent" && activeView !== "chat")) return;
     const mode = pendingAgentPromptMode;
     const frame = requestAnimationFrame(() => {
-      if (mode === "teacher" || mode === "teacher-main") onPrepareTeacherDraft(pendingAgentPrompt);
+      if (mode === "teacher") onPrepareTeacherDraft(pendingAgentPrompt);
       else if (mode === "replace") onReplaceAgentPrompt(pendingAgentPrompt);
       else onPrepareAgentPrompt(pendingAgentPrompt);
       setPendingAgentPrompt(null);
@@ -1218,13 +1224,13 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
           {inspectorAvailable ? <EduPiInspector open={inspectorOpen} data={education} task={activeTask} onClose={toggleInspector} onOpenAgent={openAgent} onStage={selectStage} /> : null}
         </div>
       </div>
-      {taskDetail ? <EduPiTaskDetailDrawer task={taskDetail} workCase={workCaseForTask(education, taskDetail.id)} files={education.generatedArtifacts} workspace={education.workspace} onClose={closeTaskDetail} onOpenFile={openTaskFile} onOpenTask={selectTask} onOpenAgent={openAgentForTask} onDelete={(task) => { if (task.id) void deleteEntity("task", task.id, task.title).catch(() => {}); }} deleteBusy={deleteBusy === `task:${taskDetail.id}`} /> : null}
+      {taskDetail ? <EduPiTaskDetailDrawer task={taskDetail} workCase={workCaseForTask(education, taskDetail.id)} files={education.generatedArtifacts} workspace={education.workspace} onClose={closeTaskDetail} onOpenFile={openTaskFile} onOpenTask={selectTask} onOpenAgent={openAgentForTask} onDelete={(task) => { if (task.id) void deleteEntity("task", task.id, task.title).catch(() => {}); }} deleteBusy={deleteBusy === `task:${taskDetail.id}`} agentBusy={taskSessionBusy} agentError={taskSessionError ? "会话暂不可用，请重试" : null} /> : null}
       <EduPiQuickEntry open={quickEntryOpen} education={education} onClose={onCloseQuickEntry} onSelect={selectQuickEntry} />
       {deleteLabel ? <EduPiDeleteConfirmation label={deleteLabel} onResolve={resolveDeleteConfirmation} /> : null}
       {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? (() => { const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation" && file.available !== false && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === previewPath.replaceAll("\\", "/")); const preview = renderFilePreview(previewPath); return artifact ? <EduPiPreparationArtifactEditor key={artifact.artifact_id} artifactId={artifact.artifact_id} preview={preview} onSaved={value => { setPreviewPath(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }} onAgent={prompt => { closeDrawer(false); startAgent(prompt, "replace"); }} /> : preview; })() : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}
       <input ref={materialUploadInputRef} type="file" multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.ics" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void stageBrowserFiles(files); }} />
       {materialStagingMessage && activeView !== "materials" ? <div className={`edupi-material-staging-toast is-${materialStagingMessage.tone}`} role={materialStagingMessage.tone === "error" ? "alert" : "status"} aria-live="polite"><span>{materialStagingMessage.text}</span>{materialStagingMessage.sticky ? <button type="button" onClick={() => setMaterialStagingMessage(null)} aria-label="关闭提示" title="关闭提示">×</button> : null}</div> : null}
-      {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button data-autofocus type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} history={education?.teacherContextReviewHistory ?? []} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => await loadWorkspace() ?? education} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "teacher-main"); } }} /></div></div> : null}
+      {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button data-autofocus type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} history={education?.teacherContextReviewHistory ?? []} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => await loadWorkspace() ?? education} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}
     </section>
   );
 }

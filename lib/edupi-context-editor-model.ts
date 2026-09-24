@@ -161,12 +161,12 @@ export function contextStatusLabel(
   return capability?.enabled === true ? base : `${base} · 只读`;
 }
 
-/** Build the single-line-separated prompt used by the existing Chat composer. */
+/** Build a facts-only page reference; the teacher writes the actual request in Chat. */
 export function buildTeacherContextPrompt(values: unknown): string {
   const normalized = normalizeDraftValues(values, "prompt");
   if (Object.keys(normalized).length === 0) throw new Error("教师上下文草稿至少需要一项");
   return [
-    "请根据以下教师上下文草稿生成一条待教师确认的教师上下文提案，不要直接写入任何文件：",
+    "教师上下文草稿",
     ...TEACHER_CONTEXT_FIELDS
       .filter((field) => normalized[field.key])
       .map((field) => `${field.label}：${normalized[field.key]}`),

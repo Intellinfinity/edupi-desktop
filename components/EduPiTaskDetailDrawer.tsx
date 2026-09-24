@@ -29,6 +29,8 @@ type Props = {
   onOpenAgent: (task: TeacherTask) => void;
   onDelete: (task: TeacherTask) => void;
   deleteBusy?: boolean;
+  agentBusy?: boolean;
+  agentError?: string | null;
 };
 
 function fileName(path: string): string {
@@ -56,7 +58,7 @@ function flowTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, onClose, onOpenFile, onOpenTask, onOpenAgent, onDelete, deleteBusy = false }: Props) {
+export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, onClose, onOpenFile, onOpenTask, onOpenAgent, onDelete, deleteBusy = false, agentBusy = false, agentError = null }: Props) {
   const drawerRef = useModalDismiss<HTMLElement>(onClose);
   const title = taskDisplayTitle(task);
   const source = taskSourceLabel(task);
@@ -127,7 +129,8 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
             <dl className="edupi-task-detail-feedback">{feedbackRows.map((row) => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>
           </section> : null}
         </div>
-        <footer className="edupi-task-detail-drawer__footer"><EduPiIconButton type="button" icon="delete" label={deleteBusy ? "正在删除任务" : "删除任务"} className="is-delete" busy={deleteBusy} disabled={deleteBusy || !task.id} onClick={() => onDelete(task)}/><button type="button" onClick={() => onOpenTask(task)}>进入任务</button><button type="button" className="is-primary" onClick={() => { onOpenAgent(task); onClose(); }}>继续让 EduPi 做</button></footer>
+        {agentError ? <p className="edupi-task-detail-handoff-error" role="alert">{agentError}</p> : null}
+        <footer className="edupi-task-detail-drawer__footer"><EduPiIconButton type="button" icon="delete" label={deleteBusy ? "正在删除任务" : "删除任务"} className="is-delete" busy={deleteBusy} disabled={deleteBusy || !task.id} onClick={() => onDelete(task)}/><button type="button" onClick={() => onOpenTask(task)}>进入任务</button><button type="button" className="is-primary" disabled={agentBusy} onClick={() => onOpenAgent(task)}>{agentBusy ? "正在准备" : "继续让 EduPi 做"}</button></footer>
       </aside>
     </div>
   );

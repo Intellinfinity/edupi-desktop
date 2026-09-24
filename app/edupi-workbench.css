@@ -1978,6 +1978,7 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-task-detail-feedback dd { margin: 0; overflow-wrap: anywhere; color: var(--ep-text); font-size: 11px; line-height: 1.45; }
 .edupi-task-detail-empty { margin: 0; padding: 0 16px 14px; color: var(--ep-muted); font-size: 11px; }
 .edupi-task-detail-drawer__footer { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 7px; padding: 11px 16px; border-top: 1px solid var(--ep-border); background: var(--ep-surface); }
+.edupi-task-detail-handoff-error { margin: 0; padding: 8px 16px; color: var(--ep-red); font-size: 12px; }
 .edupi-task-detail-drawer__footer button { height: 34px; padding: 0 12px; border: 1px solid var(--ep-border-strong); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 12px; font-weight: 600; }
 .edupi-task-detail-drawer__footer button.is-delete { border-color: color-mix(in srgb, var(--ep-red) 35%, var(--ep-border)); color: var(--ep-red); }
 .edupi-task-detail-drawer__footer .edupi-icon-action.is-delete { width: 34px; min-width: 34px; padding: 0; }

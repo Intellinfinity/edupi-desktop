@@ -71,7 +71,8 @@ try {
   assert.ok(Array.isArray(providers.data) && providers.data.length > 100);
   const search = await request({ id: "search", op: "search", query: "calendar" });
   assert.equal(search.ok, true);
-  assert.ok(Array.isArray(search.data));
+  assert.ok(Array.isArray(search.data) && search.data.length > 0);
+  assert.ok(search.data.every((action) => typeof action.id === "string" && action.id.includes(".")));
   const inspect = await request({ id: "inspect", op: "inspect", actionId: "npm.get_package" });
   assert.equal(inspect.ok, true);
   assert.equal(inspect.data.id, "npm.get_package");

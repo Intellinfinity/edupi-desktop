@@ -33,7 +33,7 @@ jobs:
         include:
           - runner: macos-15
             target: aarch64-apple-darwin
-            bundle: dmg
+            bundle: app,dmg
             artifact_name: EduPi-macOS-Apple-Silicon
             artifact_path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             apple_signing_identity: "-"
@@ -125,6 +125,16 @@ jobs:
         env:
           EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/target/${{ matrix.target }}/release/bundle/macos/EduPi.app/Contents/Resources/resources
         run: npm run test:staged-openconnector
+      - name: Verify preview Windows executable version
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $expected = (Get-Content src-tauri/pi-agent-desktop-package.json -Raw | ConvertFrom-Json).version
+          $binary = "src-tauri/target/${{ matrix.target }}/release/pi-agent-desktop.exe"
+          $actual = (Get-Item $binary).VersionInfo.ProductVersion
+          if ($actual -notmatch '^(\d+)\.(\d+)\.(\d+)' -or "$($Matches[1]).$($Matches[2]).$($Matches[3])" -ne $expected) {
+            throw "Preview executable version does not match package version"
+          }
       - name: Upload preview installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

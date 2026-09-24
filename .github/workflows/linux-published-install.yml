@@ -9,7 +9,6 @@ on:
       tag:
         description: Published Linux version to install
         required: true
-        default: v0.3.7
 
 permissions:
   contents: read

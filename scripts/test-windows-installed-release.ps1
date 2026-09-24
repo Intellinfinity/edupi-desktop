@@ -74,7 +74,13 @@ try {
     $versionParts = [regex]::Match($tag, '^v(\d+)\.(\d+)\.(\d+)')
     $releaseVersion = [version]::new([int]$versionParts.Groups[1].Value, [int]$versionParts.Groups[2].Value, [int]$versionParts.Groups[3].Value)
     if ($releaseVersion -ge [version]::new(0, 3, 38)) {
+        $exeVersionText = (Get-Item $executable).VersionInfo.ProductVersion
+        if ($exeVersionText -notmatch '^(\d+)\.(\d+)\.(\d+)') { throw "Installed executable version is unavailable" }
+        $exeVersion = [version]::new([int]$Matches[1], [int]$Matches[2], [int]$Matches[3])
+        if ($exeVersion -ne $releaseVersion) { throw "Installed executable version does not match release tag" }
         $resources = Join-Path $destination "resources"
+        $componentManifest = Get-Content (Join-Path $resources "component-versions.json") -Raw | ConvertFrom-Json
+        if ($componentManifest.appVersion -ne $tag.Substring(1)) { throw "Installed component version does not match release tag" }
         $catalogHost = Join-Path $resources "open-connector/host.mjs"
         $bundledNode = Join-Path $resources "node/node.exe"
         if (!(Test-Path $catalogHost) -or !(Test-Path $bundledNode)) { throw "Installed OpenConnector catalog or Node runtime missing" }

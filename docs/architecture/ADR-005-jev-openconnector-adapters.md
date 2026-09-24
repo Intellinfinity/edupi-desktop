@@ -36,7 +36,7 @@ EduPi 需要两类新能力：浏览器操作前的快速结构化决策，以�
 
 `ExternalConnectorProvider` 与 `OpenConnectorProvider` 位于 `lib/integrations/open-connector.ts`。本批连接本地或自托管 OpenConnector runtime，不依赖第三方托管业务控制面。
 
-不把 `@oomol-lab/open-connector` 直接加入 Desktop 生产依赖。该包当前解包约 102 MB、每进程只允许一个 runtime，还需要持有数据目录、加密密钥、迁移、关闭和打包资产生命周期。Desktop 先通过官方 `/v1` runtime API 与本地 `/api` 审计端点接入；独立 runtime 或未来受管 sidecar 都可复用同一 Adapter。`baseUrl` 支持 OpenConnector `publicOrigin` 的挂载前缀。
+最初的 Adapter 阶段不把 `@oomol-lab/open-connector` 加入生产依赖，只通过官方 `/v1` runtime API 与本地 `/api` 审计端点连接外部自托管 runtime；`baseUrl` 支持 `publicOrigin` 挂载前缀。这个决定现由 R23 目录资源试点局部取代：Desktop 固定 `@oomol-lab/open-connector@1.6.5`，在独立 `resources/open-connector` 中打包约 245 MB 的 package closure、许可与只读 catalog host。host 无 HTTP 监听，只接受 `providers/search/inspect` 的有界 GET IPC，runtime 部署策略禁止全部 Action 与代理；安装包启动管理、教师连接与 Core 授权仍未接入。旧 HTTP Adapter 保持默认关闭，不因目录资源存在而获得新权限。
 
 OpenConnector 负责 Provider/Action 目录、OAuth/API Key、凭据存储、连接、执行和脱敏运行日志。Agent 只得到 `search`、`inspect`、`execute`、`receipt` 四个动作，不得到连接或凭据管理能力。连接管理方法留在服务端 Provider 接口，要求管理员 token。
 

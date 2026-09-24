@@ -28,7 +28,7 @@
       "icons/128x128@2x.png",
       "icons/icon.icns"
     ],
-    "resources": ["resources/server", "resources/Pi Agent Server.app", "resources/component-versions.json", "resources/third-party", "resources/edupi-core"],
+    "resources": ["resources/server", "resources/Pi Agent Server.app", "resources/component-versions.json", "resources/third-party", "resources/edupi-core", "resources/open-connector"],
     "createUpdaterArtifacts": true,
     "macOS": {
       "minimumSystemVersion": "11.0"

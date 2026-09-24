@@ -52,7 +52,7 @@ test("Linux and Windows packaging include the bundled Node runtime", async () =>
   assert.ok(windowsConfig.bundle.resources.includes("resources/node"));
 });
 
-test("packaged resource arrays include the exact Core bundle while dev stays empty", async () => {
+test("packaged resource arrays include Core and OpenConnector while dev stays empty", async () => {
   const [baseSource, linuxSource, windowsSource, devSource] = await Promise.all([
     readFile(join(root, "src-tauri", "tauri.conf.json"), "utf8"),
     readFile(join(root, "src-tauri", "tauri.linux.conf.json"), "utf8"),
@@ -61,6 +61,7 @@ test("packaged resource arrays include the exact Core bundle while dev stays emp
   ]);
   for (const source of [baseSource, linuxSource, windowsSource]) {
     assert.match(source, /resources\/edupi-core/);
+    assert.match(source, /resources\/open-connector/);
   }
   assert.deepEqual(JSON.parse(devSource).bundle.resources, []);
 });

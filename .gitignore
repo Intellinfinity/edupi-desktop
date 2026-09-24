@@ -56,6 +56,7 @@ next-env.d.ts
 /src-tauri/resources/server/
 /src-tauri/resources/edupi-core/
 /src-tauri/resources/node/
+/src-tauri/resources/open-connector/
 /src-tauri/target/
 
 # pi agent local state

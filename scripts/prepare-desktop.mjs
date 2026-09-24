@@ -19,6 +19,7 @@ const standaloneDir = join(desktopBuildDir, "standalone");
 const serverResourcesDir = join(rootDir, "src-tauri", "resources", "server");
 const serverHelperDir = join(rootDir, "src-tauri", "resources", "Pi Agent Server.app");
 const nodeResourcesDir = join(rootDir, "src-tauri", "resources", "node");
+const openConnectorResourcesDir = join(rootDir, "src-tauri", "resources", "open-connector");
 
 async function copySymlinkedStandaloneDependencies(standaloneRoot, destinationRoot) {
   const standaloneNodeModules = join(standaloneRoot, "node_modules");
@@ -155,6 +156,13 @@ async function assembleServer() {
   }
 }
 
+async function assembleOpenConnectorCatalog() {
+  await rm(openConnectorResourcesDir, { recursive: true, force: true });
+  await mkdir(openConnectorResourcesDir, { recursive: true });
+  await copyFile(join(rootDir, "desktop", "open-connector-catalog-host.mjs"), join(openConnectorResourcesDir, "host.mjs"));
+  await copyPackageClosure(rootDir, openConnectorResourcesDir, "@oomol-lab/open-connector");
+}
+
 async function readPackageVersion(packageDir) {
   try {
     return JSON.parse(await readFile(join(packageDir, "package.json"), "utf8")).version ?? null;
@@ -236,22 +244,23 @@ async function dedupeNestedPackages() {
 async function findOverlongPaths() {
   // Mirrors the checkout location on a windows-latest runner. Measured even on
   // macOS so a long path fails the build here instead of inside makensis.
-  const windowsPrefix = "D:\\a\\pi-agent-desktop\\pi-agent-desktop\\src-tauri\\resources\\server";
+  const resourcesPrefix = "D:\\a\\pi-agent-desktop\\pi-agent-desktop\\src-tauri\\resources";
   const overlong = [];
 
-  async function walk(dir, relative) {
+  async function walk(dir, relative, resourceName) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const childRelative = relative ? `${relative}\\${entry.name}` : entry.name;
       if (entry.isDirectory()) {
-        await walk(join(dir, entry.name), childRelative);
+        await walk(join(dir, entry.name), childRelative, resourceName);
         continue;
       }
-      const full = `${windowsPrefix}\\${childRelative}`;
-      if (full.length > 260) overlong.push({ length: full.length, path: childRelative });
+      const full = `${resourcesPrefix}\\${resourceName}\\${childRelative}`;
+      if (full.length > 260) overlong.push({ length: full.length, path: `${resourceName}\\${childRelative}` });
     }
   }
 
-  await walk(serverResourcesDir, "");
+  await walk(serverResourcesDir, "", "server");
+  await walk(openConnectorResourcesDir, "", "open-connector");
   return overlong;
 }
 
@@ -319,6 +328,7 @@ try {
   await cleanupStandaloneTraceLeak(traceLeakCleanup);
 }
 await assembleServer();
+await assembleOpenConnectorCatalog();
 await removeUnusedMuslNativePackages(serverResourcesDir);
 
 const deduped = await dedupeNestedPackages();

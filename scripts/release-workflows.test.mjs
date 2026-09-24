@@ -497,3 +497,18 @@ test("release and preview refuse a packaged OCR runtime without offline language
     assert.match(workflow, /name: Verify bundled DOCX extraction[\s\S]*?run: npm run test:staged-docx/u);
   }
 });
+
+test("release and preview verify the bundled read-only OpenConnector catalog", async () => {
+  for (const name of ["release.yml", "preview-installers.yml"]) {
+    const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
+    assert.match(workflow, /name: Verify bundled OpenConnector catalog[\s\S]*?run: npm run test:staged-openconnector/u);
+  }
+  const prepare = await readFile(join(root, "scripts", "prepare-desktop.mjs"), "utf8");
+  assert.match(prepare, /copyPackageClosure\(rootDir, openConnectorResourcesDir, "@oomol-lab\/open-connector"\)/u);
+  const release = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  assert.match(release, /name: Verify signed macOS packaged runtime[\s\S]*?EDUPI_STAGED_NODE="\$helper" npm run test:staged-openconnector/u);
+  const linux = await readFile(join(root, ".github", "workflows", "linux-published-install.yml"), "utf8");
+  assert.match(linux, /name: Verify installed OpenConnector catalog[\s\S]*?test-staged-openconnector\.mjs/u);
+  const windows = await readFile(join(root, "scripts", "test-windows-installed-release.ps1"), "utf8");
+  assert.match(windows, /Installed OpenConnector catalog smoke failed/u);
+});

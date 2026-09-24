@@ -1,19 +1,24 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-24 v0.3.37 公开签名版（安装验收部分完成）
+## 2026-09-24 R23 OpenConnector 只读目录资源（staged，未发布）
 
-- Desktop `0.3.37` 固定 Core `68004b2`，公开三平台签名资产和 7 个 updater 平台键已发布；Linux/Windows 公开安装启动、macOS DMG 的 runner 公证及本机 Gatekeeper 核对通过。已安装 0.3.36 检测到 0.3.37，但 Mac 锁屏使原位升级/数据保持未验；L4 和 AI 协作的签名版真实老师材料与模型质量也未核对。R23 仍默认关闭且未完成受管执行/权威落账。详见 [v0.3.37 发布验收](../acceptance/2026-09-24-v0.3.37-signed-release.md)。
+- OpenConnector `1.6.5` 的 headless package、许可与只读 catalog host 已单独 staged 到 `resources/open-connector`，不监听 HTTP；只允许 `providers/search/inspect`，全部真实 Action 与代理由 host 协议和 runtime policy 双层阻断。本机 staged bundle 约 245 MB，实际包内 Node 启动返回 1554 个 Provider、10 个 calendar 搜索结果和 `npm.get_package` schema，执行请求被拒。发布/预览在打包前验证，macOS 最终 `.app` 及 Linux/Windows 公开安装版的后续验收门禁已准备；后两项尚需下一正式包实测。
+- 这不是可供老师使用的连接器：当前应用没有启动/管理这个目录进程，没有账户凭据、Core grant/Receipt 或真实 Action 执行。R23 继续“部分实现”，手机异地服务仍排最后。
 
-## 2026-09-24 R23 OpenConnector 授权止血（源码阶段，未发布）
+## 2026-09-24 v0.3.37 公开签名版与本机原位升级
+
+- Desktop `0.3.37` 固定 Core `68004b2`，公开三平台签名资产和 7 个 updater 平台键已发布；Linux/Windows 公开安装启动、macOS DMG 的 runner 公证及本机 Gatekeeper 核对通过。本机从 0.3.36 设置页发起更新后原位替换、重启、Core ready，51/240/43/9 教师数据及模型/认证/设置摘要保持；签名版教学 AI 入口的空输入与独立参考已操作，但真实模型内容和提醒续聊未核对。R23 仍默认关闭且未完成受管执行/权威落账。详见 [v0.3.37 发布验收](../acceptance/2026-09-24-v0.3.37-signed-release.md)。
+
+## 2026-09-24 R23 OpenConnector 授权止血（已随 v0.3.37 发布，权威执行未完成）
 
 - 当前 Desktop 分支 `feat/jev-openconnector-integration` 将所有外部 Action 执行收敛到教师可见确认；`operationType=read`、未知元数据与 Action 名称均不再免确认。弹窗和执行使用同一 JSON 快照，不能完整展示的输入拒绝执行；授权绑定运行时幂等键。Agent/用户 bash 子进程环境移除 OpenConnector runtime/admin token 和 JEV 密钥。
-- 该代码尚未发布；R23 仍为部分实现。同用户无限制 shell 与服务端令牌之间没有强隔离，不能宣称外部执行不可绕过。下一步须建立受管 sidecar + Core WorkCase 权威 grant/Receipt 合同，并让 runtime 原子验证一次性授权。JEV 受管浏览器与实服执行也未完成。下方 2026-09-20 的 Adapter 验收是历史状态，由本节安全边界覆盖。
+- 授权止血已进入 v0.3.37，但 R23 仍为部分实现。同用户无限制 shell 与服务端令牌之间没有强隔离，不能宣称外部执行不可绕过。下一步须建立受管进程生命周期 + Core WorkCase 权威 grant/Receipt 合同，并让 runtime 原子验证一次性授权。JEV 受管浏览器与实服执行也未完成。下方 2026-09-20 的 Adapter 验收是历史状态，由本节安全边界覆盖。
 - 合同约束与安全负测已列于 [R23 外部 Action 权限规格](../architecture/R23-external-action-authority-spec.md)；文档本身不代表实现或验收。
 
-## 2026-09-24 L4 课表材料来源别名（源码与 staged 验收，未发布）
+## 2026-09-24 L4 课表材料来源别名（已发布，真实材料未验）
 
 - Core [#182](https://github.com/Intellinfinity/edupi/pull/182) 与 [#184](https://github.com/Intellinfinity/edupi/pull/184) 已合并；Desktop `0f2c75d` 固定 Core `68004b2`，将权威课表来源/证据用于 PDF/DOCX 的纯课表与混合材料保守别名。重复导入、增量新增、旧材料删除和快照竞争均由隔离 Core 真写入回读；缺失、歧义、已删除或被教师更正的证据不自动绑来源。教师可显式选当前课表来源，选项及提交均按指纹与独占锚点核对。详见 [课表来源别名验收](../acceptance/2026-09-24-l4-timetable-source-alias.md)。
-- staged bundle 的 Core/投影/Kernel ready、来源只读 API、DOCX/OCR smoke 与隔离浏览器 800×900 通过；课表来源 503 或悬挂时 PDF 禁提交且可重试，日历来源独立可用。正式签名安装包、真实材料与真实模型语义未验；整体 L4 仍未完成。本节取代下方历史记录中“slot alias 未实现”的状态，OCR 与多项日程配对的旧证据继续有效。
+- staged bundle 的 Core/投影/Kernel ready、来源只读 API、DOCX/OCR smoke 与隔离浏览器 800×900 通过；课表来源 503 或悬挂时 PDF 禁提交且可重试，日历来源独立可用。v0.3.37 已正式安装并回读新 Core，但当前教师课表来源列表为 0；真实材料、来源配对与真实模型语义仍未验，整体 L4 不能勾选完成。本节取代下方历史记录中“slot alias 未实现”的状态，OCR 与多项日程配对的旧证据继续有效。
 
 ## 2026-09-24 L4 G1 主动运行风险收敛（源码与 staged 验收，未发布）
 
@@ -46,9 +51,9 @@
 
 | 顺序 | 原任务 | 尚未完成的交付 | 状态 |
 | --- | --- | --- | --- |
-| 近期 | L4 | 扫描 PDF/图片 OCR、同名多项配对与课表来源别名的正式安装/真实材料验收；六领域内容逐域核对 | v0.3.37 已发布且 Linux/Windows 干净安装启动通过；macOS 原位升级、真实材料和教师决议仍未核对，文档遗漏不自动撤回 |
-| 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 安装版 runtime；Core WorkCase capability 与 Receipt 落账 | Adapter 和 JEV 独立设置已实现，实服/安装版/权威落账未完成；同用户 shell 授权隔离仍是门禁，JEV 不用于对话 |
-| 当前验收 | R22 / R15 | 从公开 v0.3.37 升级已安装 0.3.36，核对 Core `68004b2`、教师数据与模型配置 | 三平台已发布，Linux/Windows 干净安装启动通过，macOS DMG 公证与 Gatekeeper 通过；本机原位更新受锁屏阻断，Windows/Linux 旧版原位升级也未验 |
+| 近期 | L4 | 扫描 PDF/图片 OCR、同名多项配对与课表来源别名的正式安装/真实材料验收；六领域内容逐域核对 | v0.3.37 三平台已发布且 macOS 原位升级与数据保持、Linux/Windows 干净安装启动通过；真实材料和教师决议仍未核对，文档遗漏不自动撤回 |
+| 近期 | R23 | JEV 受管理浏览器闭环；OpenConnector 安装版 runtime；Core WorkCase capability 与 Receipt 落账 | Adapter/JEV 独立设置已实现；OpenConnector 只读目录 host 已在本机 staged，尚未作为产品进程启动或经三平台正式安装验收；实服、权威落账与同用户 shell 隔离未完成，JEV 不用于对话 |
+| 当前验收 | R22 / R15 | 从公开 v0.3.37 升级已安装 0.3.36，核对 Core `68004b2`、教师数据与模型配置 | 本机原位替换/自动重启、Core 和 51/240/43/9 与配置摘要保持通过；中途锁屏未逐帧观察下载/验签 UI。Windows/Linux 旧版原位升级仍未验 |
 | 验收批 | R21 / R22 / R25 | 通知点击回到事项、真实睡眠补跑、安装版故障插件 Safe Mode 恢复；Windows/Linux 旧版应用内升级 | 功能或源码回归已有，所列真实流程未验收 |
 | 部署批 | R16 / L4 | 真实外部账号、学校隔离与备份恢复、正式盲测和教师连续试用 | 依赖目标环境、账号与真人参与，不计入本地工程通过 |
 | 最后 | R26 | 手机离开局域网，经服务器安全访问同一教师会话与提醒 | 局域网桥接只是原型，远程服务尚未设计和实现 |

@@ -1,5 +1,9 @@
 # 自动下载安装
 
+## 2026-09-25 提醒首次读取状态（源码待发布）
+
+- Desktop `4536d03` 修正首次提醒请求返回前短暂显示“0 条/暂无提醒”的错误空状态；隔离当前源码页面与全量门禁已通过，证据见 [提醒工作台验收](../acceptance/2026-09-20-reminder-workbench.md)。公开 Latest 和本机安装版仍为 v0.3.40，均不含该提交；没有因此生成新安装包，也不宣称原生通知点击已验收。
+
 ## 2026-09-24 v0.3.40 公开发布与本机原位升级
 
 - 正式 run [`35993787607`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/35993787607) 的 Linux、Windows、macOS、公证/装订和 manifest 全部成功；公开 Release [`v0.3.40`](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.40) 含 11 项资产和 7 个签名平台键，Core 固定 `68004b2`，三条 feed SHA-256 均为 `b3605f88…`。

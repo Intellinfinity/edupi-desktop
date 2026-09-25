@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { lstat, mkdir } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -134,6 +135,6 @@ async function main() {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url))) {
   main().catch(() => { process.stderr.write("OpenConnector catalog host failed\n"); process.exitCode = 1; });
 }

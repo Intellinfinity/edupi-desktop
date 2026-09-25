@@ -1,35 +1,35 @@
 {
-  "version": "0.3.44",
-  "notes": "EduPi Desktop 0.3.44。\n\n- OpenConnector 在管理中心有独立页面：浏览服务、查看操作列表、按范围搜索和查看参数。它仍是只读目录；账号连接和外部 Action 没有开放。\n- JEV 增加离线可复核的教师意图预检工具；只使用合成短句，不作为聊天模型，也不改变 Core 决策。正式教师语义盲测仍待进行。\n- Core 固定 `86a49de`；G2 与共享执行器仍待接入，`external_send=false`。\n- macOS Apple Silicon DMG 使用 Developer ID 签名与公证；Windows x64 提供 NSIS 安装程序，Linux x64 提供 Debian 包与 AppImage。\n- 带 updater 插件的旧版可在应用内检查、下载、验签、安装并重启。v0.3.29 仍需一次手动安装新版。",
-  "pub_date": "2026-09-25T14:01:48.238Z",
+  "version": "0.3.45",
+  "notes": "EduPi Desktop 0.3.45。\n\n- OpenConnector 改为上游 v1.6.5 Console 的独立桌面窗口，可查看 Overview、Providers、Actions 与 Runs；不再以 EduPi 自建目录页充当官方界面。账号连接、OAuth 与外部 Action 仍未开放。\n- Console 只使用独立 loopback 只读服务，窗口不继承 EduPi 主窗口的 Tauri 权限；官方源码与构建差异、许可和资产摘要随包记录。\n- Core 固定 `86a49de`；G2 与共享执行器仍待接入，`external_send=false`。\n- macOS Apple Silicon DMG 使用 Developer ID 签名与公证；Windows x64 提供 NSIS 安装程序，Linux x64 提供 Debian 包与 AppImage。\n- 带 updater 插件的旧版可在应用内检查、下载、验签、安装并重启。v0.3.29 仍需一次手动安装新版。",
+  "pub_date": "2026-09-25T22:04:15.781Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2Rsc2h1Q3dsVG9PdUxXRUlQRjRuTisreHN1WXJPelZneFFmRDUvai96M2hEWDJoZlpYdTRoQnNmTkhadFlKaUZNNW0veDBKSUtKUGUyZHZFR213dWdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzQ0NDU2CWZpbGU6RWR1UGkuYXBwLnRhci5negpGczUzcktpVWxZWjZ3K3pHWmV1THVmKzBhcm1udlNMUEFleWFLc1A2d0xJQWdNdUFRdGN6OXo3QnhtYzFEN2pCbkZhN3dGaS8vYkZCS0xGWDBpYVhBQT09Cg==",
-      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/588469233"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM1FBVjd6NkY2eTF5M1NXdW5RRXM5UmMyOENxeG9WeWx5NXZTa1ZGVnNveTFZQ2tBYjNjN1BrU2hybjJvNG9mT3lXeGZtaWdLdVVYQlZOaFJqSnppOWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzczMzYxCWZpbGU6RWR1UGkuYXBwLnRhci5nego0aWJVNEs0eGxUY0Q4R0NrdkRZL21jNC92akpMdCtZOU10dlBnaFc5bFRubEl6UzZ6eUdid09mdmU3dUh5VkpTWGVOR1IwTGhxcGIvN2lLYm1QdExCUT09Cg==",
+      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/589331562"
     },
     "darwin-aarch64-app": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2Rsc2h1Q3dsVG9PdUxXRUlQRjRuTisreHN1WXJPelZneFFmRDUvai96M2hEWDJoZlpYdTRoQnNmTkhadFlKaUZNNW0veDBKSUtKUGUyZHZFR213dWdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzQ0NDU2CWZpbGU6RWR1UGkuYXBwLnRhci5negpGczUzcktpVWxZWjZ3K3pHWmV1THVmKzBhcm1udlNMUEFleWFLc1A2d0xJQWdNdUFRdGN6OXo3QnhtYzFEN2pCbkZhN3dGaS8vYkZCS0xGWDBpYVhBQT09Cg==",
-      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/588469233"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM1FBVjd6NkY2eTF5M1NXdW5RRXM5UmMyOENxeG9WeWx5NXZTa1ZGVnNveTFZQ2tBYjNjN1BrU2hybjJvNG9mT3lXeGZtaWdLdVVYQlZOaFJqSnppOWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzczMzYxCWZpbGU6RWR1UGkuYXBwLnRhci5nego0aWJVNEs0eGxUY0Q4R0NrdkRZL21jNC92akpMdCtZOU10dlBnaFc5bFRubEl6UzZ6eUdid09mdmU3dUh5VkpTWGVOR1IwTGhxcGIvN2lLYm1QdExCUT09Cg==",
+      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/589331562"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2NoZHlIVnF3eUpocjMwcVNYNjdndTVkVC9ieVg3aVRMZmsxTHlpd2ZWcllHSHltSFVwcWxFOGdOcWZHYjdqVFVCYUZWcXhzR2NJYXpZeGxVNm0xbFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzQzNTc3CWZpbGU6RWR1UGlfMC4zLjQ0X2FtZDY0LkFwcEltYWdlClowWjU2cUJvSmdKZDZPTzhSRGZ1UEhGZGZiOE4vMkdpNnF2KzdmeEVpaXFibWhxZ0lCemZZLzVnUjRIYVRSN0ZFLyt4V0VIRkhqdllUVlFDQzZEYURBPT0K",
-      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/588439577"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM1VJNHB2dmJKNVY1MGNZYVhMZHREbk9OR21KZlNicXNROWovWU5DbGNzRzJYNWRkTitobnZIMVRBWkswYVhqeFF0aHkrQjJvT2RtMGl2ak5RRHJlRVF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzcyMDg1CWZpbGU6RWR1UGlfMC4zLjQ1X2FtZDY0LkFwcEltYWdlCkc5b3ZSQVFoT3M3WFBKNTBRb0ZuWFBpejU2YWIvQkMxNHZzSWNleThvejN2a3VLWCsrWWRsRzc3bmlaMUx4Mm9iYXhYZG53LzdUdW5IMDhWVGlhZ0RnPT0K",
+      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/589293873"
     },
     "linux-x86_64-appimage": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2NoZHlIVnF3eUpocjMwcVNYNjdndTVkVC9ieVg3aVRMZmsxTHlpd2ZWcllHSHltSFVwcWxFOGdOcWZHYjdqVFVCYUZWcXhzR2NJYXpZeGxVNm0xbFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzQzNTc3CWZpbGU6RWR1UGlfMC4zLjQ0X2FtZDY0LkFwcEltYWdlClowWjU2cUJvSmdKZDZPTzhSRGZ1UEhGZGZiOE4vMkdpNnF2KzdmeEVpaXFibWhxZ0lCemZZLzVnUjRIYVRSN0ZFLyt4V0VIRkhqdllUVlFDQzZEYURBPT0K",
-      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/588439577"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM1VJNHB2dmJKNVY1MGNZYVhMZHREbk9OR21KZlNicXNROWovWU5DbGNzRzJYNWRkTitobnZIMVRBWkswYVhqeFF0aHkrQjJvT2RtMGl2ak5RRHJlRVF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzcyMDg1CWZpbGU6RWR1UGlfMC4zLjQ1X2FtZDY0LkFwcEltYWdlCkc5b3ZSQVFoT3M3WFBKNTBRb0ZuWFBpejU2YWIvQkMxNHZzSWNleThvejN2a3VLWCsrWWRsRzc3bmlaMUx4Mm9iYXhYZG53LzdUdW5IMDhWVGlhZ0RnPT0K",
+      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/589293873"
     },
     "linux-x86_64-deb": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2M2WHJTaE9iZ201NkFQMUczd1FFQmF4ZzVxUE9lNnFsUHFRZjZHRjZwMTBOUmhyMHVIVzJteGdrM2RYdGJ5WVpLTkRiTnNkWi8rTHcvazFZa29HNVFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzQzNTc3CWZpbGU6RWR1UGlfMC4zLjQ0X2FtZDY0LmRlYgpRTVNLNGRzMVFNVEFYdjV0ek9JeGJHWDF6V2dqN3FWdWNWVnlUWThIYXZaQXlKdHlvMHdDV2tpamlLQXdkZSt1NEo1S09kc253U3VHYjBGSWZWQ3NEZz09Cg==",
-      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/588439302"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2Z4N2JzckwycERLeVI4N1pITHp5andwRU9aSkdMWTR1RkplTHprTkdIaWpaMjJaZ1Y3MGl4R2prSEFqYUlhMjBuZmh1RXE1TWhIVnhhb3NNaVFLTlFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzcyMDg1CWZpbGU6RWR1UGlfMC4zLjQ1X2FtZDY0LmRlYgo1bmEyNElEQ0ljR2lIN0VPUzRkNXhpZTl0YkQvcXZMYXVTeFYrK28vcHUwL3RRN05Uczd1a3QvWkROMExPNDZOQWE2K2RCOEUyc0lVaUVjd0pDeWFBQT09Cg==",
+      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/589293637"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2YrUnovdXByR0JGOHZ0L0hNMTB0cUxnM2MxdFFaODJiWnVkZndwZVVlWkVuVHh1L2J5Q2orY1BJdXFMS2tMblJ2bXV6eHhNQVNNMGRrRUduRHdRR1FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzQ0MTI2CWZpbGU6RWR1UGlfMC4zLjQ0X3g2NC1zZXR1cC5leGUKbkNVcThwWEhoS2RhbG1keS9sdStHdHcyemY5NC9iMkJRZEZOWU9MZ1RNcDlGQ1dQY2U1NUJhcHk2WnJOcDA5TUR1UjNFZUlpRHM1MDdOOEV4N3dNRFE9PQo=",
-      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/588457519"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2JxclVERkw1QWpCOFYrNEk4czViUmhXQnJaZWd3V2h0WjJzNy8zZ1dIR2dybjFyM2YzZ01Ld2pQcDVjTUgrTG9RT1VIang5Y2ZKWGRWakI0WUREZUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzcyODIwCWZpbGU6RWR1UGlfMC4zLjQ1X3g2NC1zZXR1cC5leGUKSTE1MjZaVE1kY0FlbTYxZnFUQU0wUXh2dWw3TGlyNkZxbS85TG1mTnViQXdWckpzejlzV1BlZWh0QW5QSFVjNmJDdFk0Y3pPckdJb3k5M0JoVUdNRFE9PQo=",
+      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/589315490"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2YrUnovdXByR0JGOHZ0L0hNMTB0cUxnM2MxdFFaODJiWnVkZndwZVVlWkVuVHh1L2J5Q2orY1BJdXFMS2tMblJ2bXV6eHhNQVNNMGRrRUduRHdRR1FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzQ0MTI2CWZpbGU6RWR1UGlfMC4zLjQ0X3g2NC1zZXR1cC5leGUKbkNVcThwWEhoS2RhbG1keS9sdStHdHcyemY5NC9iMkJRZEZOWU9MZ1RNcDlGQ1dQY2U1NUJhcHk2WnJOcDA5TUR1UjNFZUlpRHM1MDdOOEV4N3dNRFE9PQo=",
-      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/588457519"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTkrdyt6Q3MvM2JxclVERkw1QWpCOFYrNEk4czViUmhXQnJaZWd3V2h0WjJzNy8zZ1dIR2dybjFyM2YzZ01Ld2pQcDVjTUgrTG9RT1VIang5Y2ZKWGRWakI0WUREZUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzcyODIwCWZpbGU6RWR1UGlfMC4zLjQ1X3g2NC1zZXR1cC5leGUKSTE1MjZaVE1kY0FlbTYxZnFUQU0wUXh2dWw3TGlyNkZxbS85TG1mTnViQXdWckpzejlzV1BlZWh0QW5QSFVjNmJDdFk0Y3pPckdJb3k5M0JoVUdNRFE9PQo=",
+      "url": "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/assets/589315490"
     }
   }
 }

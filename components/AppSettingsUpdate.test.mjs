@@ -28,7 +28,8 @@ test("an older release check cannot overwrite a newer proxy-backed refresh", () 
 });
 
 test("settings keeps its header separate from the scrollable content", () => {
-  assert.match(source, /height: "min\(720px, calc\(100vh - 36px\)\)"/);
+  assert.match(source, /height: "auto"/);
+  assert.match(source, /maxHeight: "min\(720px, calc\(100vh - 36px\)\)"/);
   assert.match(source, /className="native-modal-header" style=\{\{ display: "flex", flexShrink: 0/);
   assert.match(source, /<div style=\{\{ minHeight: 0, flex: 1, overflowY: "auto"/);
   assert.doesNotMatch(source, /appSettings\.taglineDetails/);

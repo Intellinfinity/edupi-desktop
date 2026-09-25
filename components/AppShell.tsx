@@ -2055,6 +2055,7 @@ export function AppShell() {
               activeAgentSessionId={selectedSession?.id ?? null}
               onActivateAgentSession={handleActivateEducationAgentSession}
               onOpenAdmin={() => openEduPiAdmin()}
+              onOpenSettings={() => setAppSettingsOpen(true)}
               onOpenProactive={openEduPiProactive}
               onOpenGuide={() => setFirstRunGuideOpen(true)}
               onOpenPhoneControl={openPhoneControl}

@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   if (!query) return reply({ ok: false, code: "invalid_catalog_request" }, 400);
 
   try {
-    return reply({ ok: true, data: await runCatalogQuery(query) }, 200);
+    return reply({ ok: true, data: await runCatalogQuery(query, { signal: request.signal }) }, 200);
   } catch (error) {
     const code = error instanceof CatalogProcessError ? error.code : "catalog_unavailable";
     return reply({ ok: false, code }, errorStatus(code));

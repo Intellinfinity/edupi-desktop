@@ -15,7 +15,7 @@ export class CatalogProcessError extends Error {
   }
 }
 
-type CatalogProcessOptions = { root?: string; hostFile?: string; nodeExecutable?: string; timeoutMs?: number };
+type CatalogProcessOptions = { root?: string; hostFile?: string; nodeExecutable?: string; timeoutMs?: number; signal?: AbortSignal };
 
 declare global {
   var __edupiOpenConnectorCatalogActive: boolean | undefined;
@@ -46,10 +46,11 @@ export async function runCatalogQuery(query: CatalogQuery, options: CatalogProce
 
 async function runCatalogQueryOnce(
   query: CatalogQuery,
-  { root = process.env.EDUPI_OPENCONNECTOR_CATALOG_ROOT, hostFile = "host.mjs", nodeExecutable = process.execPath, timeoutMs = 12_000 }: CatalogProcessOptions = {},
+  { root = process.env.EDUPI_OPENCONNECTOR_CATALOG_ROOT, hostFile = "host.mjs", nodeExecutable = process.execPath, timeoutMs = 12_000, signal }: CatalogProcessOptions = {},
 ): Promise<CatalogResult> {
   const normalized = parseCatalogQuery(query);
   if (!normalized) throw new CatalogProcessError("invalid_catalog_request");
+  if (signal?.aborted) throw new CatalogProcessError("catalog_unavailable");
   if (!root || !path.isAbsolute(root) || !HOST_FILE.test(hostFile) || !path.isAbsolute(nodeExecutable) || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 20_000) {
     throw new CatalogProcessError("catalog_unavailable");
   }
@@ -75,6 +76,7 @@ async function runCatalogQueryOnce(
   let buffer = Buffer.alloc(0);
   let outputBytes = 0;
   let closed = false;
+  let abortListener: (() => void) | undefined;
   const closedPromise = new Promise<void>((resolveClosed) => child.once("close", () => { closed = true; resolveClosed(); }));
   const response = new Promise<CatalogResult>((resolveResponse, rejectResponse) => {
     let settled = false;
@@ -84,6 +86,13 @@ async function runCatalogQueryOnce(
       rejectResponse(new CatalogProcessError(code));
     };
     child.once("error", () => fail("catalog_unavailable"));
+    abortListener = () => {
+      if (settled) return;
+      fail("catalog_unavailable");
+      child.kill("SIGKILL");
+    };
+    signal?.addEventListener("abort", abortListener, { once: true });
+    if (signal?.aborted) abortListener();
     child.stdout.on("error", () => fail("catalog_unavailable"));
     child.stdout.on("data", (chunk: Buffer) => {
       if (settled) return;
@@ -129,6 +138,7 @@ async function runCatalogQueryOnce(
     return await response;
   } finally {
     if (timer) clearTimeout(timer);
+    if (abortListener) signal?.removeEventListener("abort", abortListener);
     if (!closed) {
       child.kill("SIGKILL");
       let waitTimer: ReturnType<typeof setTimeout> | undefined;

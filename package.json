@@ -61,6 +61,8 @@
     "test:staged-ocr": "node scripts/test-staged-ocr.mjs",
     "test:staged-docx": "node scripts/test-staged-docx.mjs",
     "test:staged-openconnector": "node scripts/test-staged-openconnector.mjs --managed",
+    "test:jev-intent-preflight": "node scripts/jev-intent-preflight.mjs --check && node --test scripts/jev-intent-preflight.test.mjs",
+    "run:jev-intent-preflight": "node scripts/jev-intent-preflight.mjs --live",
     "test:staged-feedback-runtime": "node scripts/test-staged-feedback-runtime.mjs",
     "test:edupi-c6-e2": "node scripts/test-edupi-c6-e2.mjs",
     "test:edupi-c6-recognition-e2": "node scripts/test-edupi-c6-recognition-e2.mjs",

@@ -8,12 +8,16 @@ const MAX_REQUEST_BYTES = 8 * 1024;
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,64}$/u;
 const ACTION_ID = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$/u;
+const SERVICE_ID = /^[a-z0-9][a-z0-9_-]{0,119}$/u;
 
 function validRequest(value) {
   if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.id !== "string" || !ID.test(value.id)) return false;
   const keys = Object.keys(value).sort().join(",");
   if (value.op === "providers") return keys === "id,op";
-  if (value.op === "search") return keys === "id,op,query" && typeof value.query === "string" && value.query.length <= 200;
+  if (value.op === "actions") return keys === "id,op,service" && typeof value.service === "string" && SERVICE_ID.test(value.service);
+  if (value.op === "search") return (keys === "id,op,query" || keys === "id,op,query,service")
+    && typeof value.query === "string" && value.query.length <= 200
+    && (value.service === undefined || typeof value.service === "string" && SERVICE_ID.test(value.service));
   if (value.op === "inspect") return keys === "actionId,id,op" && ACTION_ID.test(value.actionId);
   return false;
 }
@@ -79,8 +83,11 @@ export async function handleCatalogLine(runtime, line, { timeoutMs = 8_000 } = {
   }
 
   const url = new URL(request.op === "providers" ? "/v1/providers"
-    : request.op === "search" ? "/v1/actions/search" : `/v1/actions/${encodeURIComponent(request.actionId)}`, ORIGIN);
+    : request.op === "actions" ? "/v1/actions"
+      : request.op === "search" ? "/v1/actions/search" : `/v1/actions/${encodeURIComponent(request.actionId)}`, ORIGIN);
+  if (request.op === "actions") url.searchParams.set("service", request.service);
   if (request.op === "search") url.searchParams.set("query", request.query);
+  if (request.op === "search" && request.service) url.searchParams.set("service", request.service);
   const controller = new AbortController();
   let timer;
   try {

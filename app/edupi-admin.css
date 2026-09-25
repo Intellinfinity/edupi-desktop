@@ -122,6 +122,46 @@
 }
 
 .edupi-admin-section.is-models { width: min(1260px, 100%); }
+.edupi-admin-section.is-openconnector { width: min(1280px, 100%); }
+
+.openconnector-admin { min-width: 0; }
+.openconnector-admin__header { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.openconnector-admin__header > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; }
+.openconnector-admin__header h1 { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: -.03em; }
+.openconnector-admin__header span,
+.openconnector-admin__header em { color: var(--text-muted); font-size: 11px; font-style: normal; }
+.openconnector-admin > .native-inline-alert { margin-top: 14px; }
+.openconnector-admin > .native-inline-alert button { margin-left: 10px; }
+.openconnector-admin__browser { display: grid; min-width: 0; min-height: 520px; grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.7fr); gap: 1px; margin-top: 18px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--border); }
+.openconnector-admin__browser.has-inspect { grid-template-columns: minmax(190px, .8fr) minmax(260px, 1.1fr) minmax(260px, 1fr); }
+.openconnector-admin__browser > section { min-width: 0; padding: 16px; background: var(--bg-panel); }
+.openconnector-admin__browser label { display: grid; min-width: 0; gap: 6px; color: var(--text-muted); font-size: 11px; }
+.openconnector-admin__browser input { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; }
+.openconnector-admin__browser input:disabled { opacity: .55; }
+.openconnector-admin__count { min-height: 28px; padding: 10px 0 4px; color: var(--text-muted); font-size: 11px; }
+.openconnector-admin__browser ul { max-height: min(56vh, 520px); margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.openconnector-admin__browser li + li { border-top: 1px solid var(--border); }
+.openconnector-admin__browser li button { display: grid; width: 100%; min-height: 48px; align-content: center; gap: 3px; padding: 8px 10px; border: 0; border-radius: 0; background: transparent; text-align: left; }
+.openconnector-admin__browser li button:hover { background: var(--bg-hover); }
+.openconnector-admin__browser li button[aria-pressed="true"] { background: var(--bg-selected); }
+.openconnector-admin__browser li strong { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.openconnector-admin__browser li small { overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.openconnector-admin__more { width: 100%; margin-top: 8px; }
+.openconnector-admin__actions > header { display: grid; min-height: 50px; align-content: start; gap: 4px; }
+.openconnector-admin__actions h2,
+.openconnector-admin__inspect h2 { margin: 0; font-size: 16px; font-weight: 650; }
+.openconnector-admin__actions > header span,
+.openconnector-admin__inspect > span { overflow-wrap: anywhere; color: var(--text-muted); font-size: 11px; }
+.openconnector-admin__actions form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.openconnector-admin__actions form button { height: 36px; }
+.openconnector-admin__inspect dl { max-height: min(56vh, 520px); margin: 18px 0 0; overflow-y: auto; }
+.openconnector-admin__inspect dl > div { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--border); }
+.openconnector-admin__inspect dt { overflow-wrap: anywhere; font-size: 11px; font-weight: 600; }
+.openconnector-admin__inspect dd,
+.openconnector-admin__inspect > small { margin: 0; overflow-wrap: anywhere; color: var(--text-muted); font-size: 11px; }
+@media (max-width: 1100px) { .openconnector-admin__browser.has-inspect { grid-template-columns: repeat(2, minmax(0, 1fr)); } .openconnector-admin__browser.has-inspect > .openconnector-admin__inspect { grid-column: 1 / -1; } }
+@media (max-width: 650px) { .openconnector-admin__header { align-items: flex-start; flex-direction: column; gap: 4px; } .openconnector-admin__header h1 { font-size: 20px; } .openconnector-admin__browser,
+  .openconnector-admin__browser.has-inspect { grid-template-columns: minmax(0, 1fr); } .openconnector-admin__browser.has-inspect > .openconnector-admin__inspect { grid-column: auto; } .openconnector-admin__browser ul { max-height: 240px; } }
 
 .edupi-admin-section__header {
   display: flex;

@@ -8,7 +8,7 @@ import test from "node:test";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function trackedFiles(...patterns) {
-  return execFileSync("git", ["ls-files", ...patterns], {
+  return execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", ...patterns], {
     cwd: root,
     encoding: "utf8",
   })
@@ -28,7 +28,11 @@ test("public source contains no maintainer workstation path", async () => {
   );
 
   for (const path of textFiles) {
-    const source = await readFile(join(root, path), "utf8");
+    const source = await readFile(join(root, path), "utf8").catch((error) => {
+      if (error?.code === "ENOENT") return null; // A tracked file may be deleted in the current diff.
+      throw error;
+    });
+    if (source === null) continue;
     assert.doesNotMatch(source, /\/Users\/iguppp|\.openclaw\/workspace\/edupi/);
   }
 });

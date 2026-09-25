@@ -21,13 +21,15 @@ test("admin accepts only bounded projected provider, action and inspect results"
 test("separate OpenConnector admin exposes provider browsing and action search without execution", async () => {
   const html = renderToStaticMarkup(React.createElement(OpenConnectorAdminPanel));
   const admin = await readFile(new URL("./EduPiAdminPanel.tsx", import.meta.url), "utf8");
+  const consolePanel = await readFile(new URL("./OpenConnectorConsolePanel.tsx", import.meta.url), "utf8");
   assert.match(html, /aria-label="OpenConnector 管理后台"/);
   assert.match(html, /搜索服务/);
   assert.match(html, /搜索操作/);
   assert.match(html, /账号与执行未接入/);
   assert.doesNotMatch(html, /<button[^>]*>执行<\/button>/);
   assert.match(admin, /\{ id: "openconnector", label: "OpenConnector" \}/);
-  assert.match(admin, /<OpenConnectorAdminPanel \/>/);
+  assert.match(consolePanel, /<OpenConnectorAdminPanel \/>/);
+  assert.match(admin, /<OpenConnectorConsolePanel onBack=/);
   assert.doesNotMatch(admin, /OpenConnectorCatalogCard/);
 });
 

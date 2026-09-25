@@ -15,8 +15,9 @@ const resources = process.env.EDUPI_STAGED_RESOURCES;
 if (!resources || !path.isAbsolute(resources)) throw new Error("EDUPI_STAGED_RESOURCES must be an absolute path");
 const catalogRoot = path.join(resources, "open-connector");
 const host = path.join(catalogRoot, "host.mjs");
+const consoleHost = path.join(catalogRoot, "console-host.mjs");
 const packageRoot = path.join(catalogRoot, "node_modules", "@oomol-lab", "open-connector");
-for (const file of [host, path.join(packageRoot, "package.json"), path.join(packageRoot, "LICENSE.txt"), path.join(packageRoot, "NOTICE.md")]) {
+for (const file of [host, consoleHost, path.join(catalogRoot, "web", "index.html"), path.join(catalogRoot, "web", "manifest.json"), path.join(catalogRoot, "web", "LICENSE.txt"), path.join(catalogRoot, "web", "NOTICE.md"), path.join(packageRoot, "package.json"), path.join(packageRoot, "LICENSE.txt"), path.join(packageRoot, "NOTICE.md")]) {
   await access(file);
 }
 
@@ -117,7 +118,47 @@ try {
     assert.equal(actionList.kind, "actions");
     assert.ok(actionList.actions.some((action) => action.id === "npm.get_package"));
   }
-  console.log(JSON.stringify({ status: "passed", catalog: true, providers: true, actions: true, inspect: true, execute_blocked: true, managed: managedMode }));
+  const consoleChild = spawn(nodeExecutable, [consoleHost], {
+    cwd: catalogRoot,
+    env: { NODE_ENV: "production", PATH: process.env.PATH },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let consoleErrorTail = "";
+  consoleChild.stderr.setEncoding("utf8");
+  consoleChild.stderr.on("data", (chunk) => { consoleErrorTail = (consoleErrorTail + chunk).slice(-1000); });
+  const consoleLines = createInterface({ input: consoleChild.stdout, crlfDelay: Infinity })[Symbol.asyncIterator]();
+  try {
+    let readyTimer;
+    const ready = await Promise.race([
+      consoleLines.next(),
+      new Promise((_, reject) => { readyTimer = setTimeout(() => reject(new Error("console host timed out")), 15_000); }),
+    ]).finally(() => clearTimeout(readyTimer));
+    assert.equal(ready.done, false, consoleErrorTail);
+    const message = JSON.parse(ready.value);
+    assert.equal(message.type, "ready");
+    assert.equal(message.version, 1);
+    assert.match(message.url, /^http:\/\/127\.0\.0\.1:[1-9][0-9]*\/$/u);
+    const page = await fetch(message.url);
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /EduPi Connect/u);
+    assert.match(page.headers.get("content-security-policy") || "", /connect-src 'self'/u);
+    assert.deepEqual(await (await fetch(new URL("api/auth/session", message.url))).json(), { adminAuthConfigured: false, authenticated: true });
+    const providers = await (await fetch(new URL("api/providers", message.url))).json();
+    assert.ok(Array.isArray(providers) && providers.length > 1_000);
+    const action = await (await fetch(new URL("api/actions/npm.get_package", message.url))).json();
+    assert.equal(action.id, "npm.get_package");
+    assert.equal((await fetch(new URL("api/connections/github", message.url), { method: "PUT", body: "{}" })).status, 403);
+    assert.equal((await fetch(new URL("v1/actions/npm.get_package", message.url), { method: "POST", body: "{}" })).status, 403);
+    consoleChild.stdin.end();
+    const exitCode = consoleChild.exitCode !== null ? consoleChild.exitCode : await new Promise((resolveExit, rejectExit) => {
+      const timer = setTimeout(() => rejectExit(new Error("console host did not close")), 5_000);
+      consoleChild.once("exit", (code) => { clearTimeout(timer); resolveExit(code); });
+    });
+    assert.equal(exitCode, 0, consoleErrorTail);
+  } finally {
+    if (consoleChild.exitCode === null && consoleChild.signalCode === null) consoleChild.kill("SIGKILL");
+  }
+  console.log(JSON.stringify({ status: "passed", catalog: true, providers: true, actions: true, inspect: true, execute_blocked: true, console: true, managed: managedMode }));
 } finally {
   if (child.exitCode === null && child.signalCode === null) {
     await new Promise((resolveExit) => {

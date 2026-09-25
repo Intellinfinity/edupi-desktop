@@ -23,6 +23,7 @@
     "allow-set-close-quits",
     "allow-quit-app",
     "allow-show-main-window-cmd",
+    "allow-show-openconnector-console",
     "allow-set-ui-theme",
     "allow-get-update-proxy",
     "allow-set-update-proxy",

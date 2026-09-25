@@ -39,6 +39,7 @@ mod computer_use;
 mod reminder_notification;
 
 const WINDOW_LABEL: &str = "main";
+const OPENCONNECTOR_WINDOW_LABEL: &str = "openconnector-console";
 const DESKTOP_API_TOKEN_ENV: &str = "PI_DESKTOP_API_TOKEN";
 const DESKTOP_INSTANCE_ID_ENV: &str = "PI_DESKTOP_INSTANCE_ID";
 const DESKTOP_INSTANCE_ID_HEADER: &str = "x-pi-desktop-instance";
@@ -581,6 +582,55 @@ fn quit_app(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn show_main_window_cmd(app: AppHandle) -> Result<(), String> {
     show_main_window(&app);
+    Ok(())
+}
+
+fn connector_console_url(port: u16) -> Result<Url, String> {
+    if port == 0 {
+        return Err("invalid_console_port".to_string());
+    }
+    Url::parse(&format!("http://127.0.0.1:{port}/"))
+        .map_err(|_| "invalid_console_port".to_string())
+}
+
+#[tauri::command]
+fn show_openconnector_console(app: AppHandle, port: u16) -> Result<(), String> {
+    let url = connector_console_url(port)?;
+    let label = format!("{OPENCONNECTOR_WINDOW_LABEL}-{port}");
+    if let Some(window) = app.get_webview_window(&label) {
+        if window.url().is_ok_and(|current| same_origin(&current, &url)) {
+            window.show().map_err(|_| "console_window_unavailable".to_string())?;
+            window.set_focus().map_err(|_| "console_window_unavailable".to_string())?;
+            return Ok(());
+        }
+        window.close().map_err(|_| "console_window_unavailable".to_string())?;
+        return Err("console_window_unavailable".to_string());
+    }
+    for (existing_label, window) in app.webview_windows() {
+        if existing_label.starts_with(OPENCONNECTOR_WINDOW_LABEL) {
+            let _ = window.close();
+        }
+    }
+    let navigation_origin = url.clone();
+    WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
+        .title("OpenConnector · EduPi")
+        .inner_size(1200.0, 800.0)
+        .min_inner_size(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+        .resizable(true)
+        .on_navigation(move |target| {
+            if same_origin(target, &navigation_origin) {
+                true
+            } else {
+                let _ = open_external(target);
+                false
+            }
+        })
+        .on_new_window(|target, _features| {
+            let _ = open_external(&target);
+            NewWindowResponse::Deny
+        })
+        .build()
+        .map_err(|_| "console_window_unavailable".to_string())?;
     Ok(())
 }
 
@@ -1882,6 +1932,15 @@ mod tests {
     }
 
     #[test]
+    fn connector_console_url_accepts_only_a_nonzero_loopback_port() {
+        assert!(super::connector_console_url(0).is_err());
+        assert_eq!(
+            super::connector_console_url(32_999).unwrap().as_str(),
+            "http://127.0.0.1:32999/"
+        );
+    }
+
+    #[test]
     fn safe_mode_argument_is_explicit_and_does_not_match_similar_flags() {
         assert!(args_request_safe_mode(["edupi", "--safe-mode"]));
         assert!(!args_request_safe_mode(["edupi", "--safe-mode=1"]));
@@ -2548,6 +2607,7 @@ pub fn run() {
             set_close_quits,
             quit_app,
             show_main_window_cmd,
+            show_openconnector_console,
             set_ui_theme,
             get_update_proxy,
             set_update_proxy,

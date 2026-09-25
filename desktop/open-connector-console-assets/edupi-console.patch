@@ -1,0 +1,498 @@
+--- a/web/vite.config.ts
++++ b/web/vite.config.ts
+@@ -5,7 +5,7 @@
+ import { providerIconsPlugin } from "./provider-icons-plugin";
+ 
+ export default defineConfig({
+-  plugins: [react(), tailwindcss(), providerIconsPlugin()],
++  plugins: [react(), tailwindcss(), providerIconsPlugin({ iconUrls: {} })],
+   resolve: {
+     alias: {
+       "@": fileURLToPath(new URL("./src", import.meta.url)),
+--- a/web/index.html
++++ b/web/index.html
+@@ -3,8 +3,7 @@
+   <head>
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <link rel="icon" type="image/png" href="/favicon.png" />
+-    <title>OOMOL Connect</title>
++    <title>EduPi Connect</title>
+   </head>
+   <body>
+     <div id="root"></div>
+--- a/web/src/ui.tsx
++++ b/web/src/ui.tsx
+@@ -14,14 +14,10 @@
+ import { useI18n, useLang, useTranslate } from "@embra/i18n/react";
+ import {
+   Activity,
+-  BookOpen,
+   Cable,
+-  Fingerprint,
+   Home,
+-  KeyRound,
+   Loader2,
+   Monitor,
+-  Store,
+   Moon,
+   RefreshCw,
+   Sun,
+@@ -29,19 +25,12 @@
+ } from "lucide-react";
+ import { useEffect, useRef, useState } from "react";
+ import { Navigate, NavLink, Route, Routes, useLocation } from "react-router";
+-import { defaultMarketplaceDiscoveryUrl, isDefaultMarketplace } from "../../src/marketplace/default-marketplace";
+-import { AccessPage } from "./access-page";
+ import { ActionsPage } from "./actions-page";
+ import { ApiError, apiGet, apiPost } from "./api";
+-import oomolConnectLogoUrl from "./assets/oomol-connect-logo.png";
+-import { HostedServicePromo } from "./hosted-service-promo";
+ import { persistLang, supportedLangs } from "./i18n";
+-import { MarketplacePage } from "./marketplace-page";
+ import { emptyData } from "./model";
+-import { OAuthAppsPage } from "./oauth-apps-page";
+ import { OverviewPage } from "./overview-page";
+ import { ProvidersPage } from "./providers-page";
+-import { ResourcesPage } from "./resources-page";
+ import { RunsPage } from "./runs-page";
+ import { InlineError, StatusDot } from "./shared-ui";
+ import { useThemeMode } from "./theme";
+@@ -53,12 +42,8 @@
+ const navItems = [
+   { path: "/overview", labelKey: "nav.overview", icon: Home },
+   { path: "/providers", labelKey: "nav.providers", icon: Cable },
+-  { path: "/marketplace", labelKey: "nav.marketplace", icon: Store },
+-  { path: "/oauth-apps", labelKey: "nav.oauthApps", icon: Fingerprint },
+   { path: "/actions", labelKey: "nav.actions", icon: TerminalSquare },
+   { path: "/runs", labelKey: "nav.runs", icon: Activity },
+-  { path: "/access", labelKey: "nav.access", icon: KeyRound },
+-  { path: "/resources", labelKey: "nav.docs", icon: BookOpen },
+ ] as const;
+ 
+ const oauthCompletionChannelName = "oomol-connect-oauth";
+@@ -359,9 +344,9 @@
+     <div className="app-shell">
+       <aside className="sidebar">
+         <div className="brand">
+-          <img className="brand-mark" src={oomolConnectLogoUrl} alt="" />
++          <span className="brand-mark" aria-hidden="true">π</span>
+           <div>
+-            <div className="brand-name">OOMOL Connect</div>
++            <div className="brand-name">EduPi Connect</div>
+             <div className="brand-subtitle">{t("brand.subtitle")}</div>
+           </div>
+         </div>
+@@ -382,9 +367,6 @@
+               );
+             })}
+           </nav>
+-          {isDefaultMarketplace(props.data.marketplace?.discoveryUrl ?? defaultMarketplaceDiscoveryUrl) ? (
+-            <HostedServicePromo />
+-          ) : null}
+         </div>
+ 
+         <div className="sidebar-footer">
+@@ -428,31 +410,16 @@
+             <Route index element={<Navigate to="/overview" replace />} />
+             <Route path="/overview" element={<OverviewPage data={props.data} onRefresh={props.onRefresh} />} />
+             <Route path="/providers" element={<ProvidersPage data={props.data} onRefresh={props.onRefresh} />} />
+-            <Route path="/marketplace" element={<MarketplacePage data={props.data} onRefresh={props.onRefresh} />} />
+             <Route
+               path="/providers/:service"
+               element={<ProvidersPage data={props.data} onRefresh={props.onRefresh} />}
+             />
+-            <Route path="/oauth-apps" element={<OAuthAppsPage data={props.data} onRefresh={props.onRefresh} />} />
+             <Route path="/actions" element={<ActionsPage data={props.data} onRefresh={props.onRefresh} />} />
+             <Route path="/actions/:actionId" element={<ActionsPage data={props.data} onRefresh={props.onRefresh} />} />
+             <Route
+               path="/runs"
+               element={<RunsPage initialRuns={props.data.runs} nextCursor={props.data.runsNextCursor} />}
+             />
+-            <Route
+-              path="/access"
+-              element={
+-                <AccessPage
+-                  providers={props.data.providers}
+-                  connections={props.data.connections}
+-                  tokens={props.data.runtimeTokens}
+-                  policy={props.data.runtimePolicy ?? emptyData.runtimePolicy!}
+-                  onRefresh={props.onRefresh}
+-                />
+-              }
+-            />
+-            <Route path="/resources" element={<ResourcesPage />} />
+             <Route path="*" element={<Navigate to="/overview" replace />} />
+           </Routes>
+         </main>
+@@ -482,9 +449,9 @@
+     <main className="unlock-screen">
+       <section className="unlock-panel">
+         <div className="brand">
+-          <img className="brand-mark" src={oomolConnectLogoUrl} alt="" />
++          <span className="brand-mark" aria-hidden="true">π</span>
+           <div>
+-            <div className="brand-name">OOMOL Connect</div>
++            <div className="brand-name">EduPi Connect</div>
+             <div className="brand-subtitle">{t("brand.adminAccess")}</div>
+           </div>
+         </div>
+--- a/web/src/providers-page.tsx
++++ b/web/src/providers-page.tsx
+@@ -378,9 +378,6 @@
+       <TabsContent value="discover" className="provider-browser-tab-content flex flex-col gap-6">
+         {view === "discover" ? (
+           <>
+-            {!query.trim() ? (
+-              <ProviderScenarioGrid counts={scenarioCounts} providers={sortedProviders} onSelect={selectScenario} />
+-            ) : null}
+             <ProviderCatalog
+               categoryFilter={categoryFilter}
+               categoryOptions={categoryOptions}
+@@ -603,8 +600,6 @@
+         </div>
+       </div>
+ 
+-      <p className="provider-brand-notice">{t("providers.brandNotice")}</p>
+-
+       {props.providers.length === 0 ? (
+         <div className="provider-empty-row">
+           <EmptyState title={t("providers.noProvidersTitle")} description={t("providers.noProvidersDescription")} />
+@@ -649,15 +644,7 @@
+   const t = useTranslate();
+   const to = `/providers/${encodeURIComponent(props.provider.service)}`;
+   const locallyAvailable = isProviderLocallyAvailable(props.provider) || Boolean(props.status.marketplaceConnection);
+-  const actionLabel = !locallyAvailable
+-    ? t("providers.buttons.details")
+-    : props.status.noSetupRequired
+-      ? t("providers.buttons.details")
+-      : props.status.connected
+-        ? t("providers.buttons.manageConnection")
+-        : props.status.oauthClientRequired
+-          ? t("providers.buttons.configureOAuthClient")
+-          : t("providers.buttons.connect");
++  const actionLabel = t("providers.buttons.details");
+ 
+   return (
+     <div className="provider-card" style={providerCardStyle}>
+@@ -924,6 +911,11 @@
+ 
+       <div className="provider-detail-layout">
+         <section className="detail-panel provider-detail-card provider-connection-card">
++          <h3>连接账号</h3>
++          <p>暂未开放</p>
++        </section>
++        {import.meta.env.VITE_EDUPI_READ_ONLY === "false" && (
++        <section className="detail-panel provider-detail-card provider-connection-card">
+           <div className="provider-panel-title-row">
+             <div>
+               <h3>{t("providers.connection")}</h3>
+@@ -1017,6 +1009,7 @@
+             />
+           )}
+         </section>
++        )}
+ 
+         <section className="detail-panel provider-detail-card">
+           <div className="provider-panel-title-row">
+@@ -1048,11 +1041,7 @@
+                     <strong>{action.name}</strong>
+                     <small>{action.id}</small>
+                   </span>
+-                  <Badge tone={action.execution.locallyExecutable ? "success" : undefined}>
+-                    {action.execution.locallyExecutable
+-                      ? t("providers.execution.executable")
+-                      : t("providers.execution.catalogOnly")}
+-                  </Badge>
++                  <Badge>{t("providers.execution.catalogOnly")}</Badge>
+                 </Link>
+               ))}
+             </div>
+--- a/web/src/actions-page.tsx
++++ b/web/src/actions-page.tsx
+@@ -109,8 +109,7 @@
+           <small>{action.id}</small>
+           <small className="action-row-meta">
+             {providerNames.get(action.service) ?? action.service} ·{" "}
+-            {action.execution.locallyExecutable ? t("common.local") : t("common.catalogOnly")} ·{" "}
+-            {action.execution.noAuthRunnable ? t("common.noAuth") : t("common.credential")}
++            {t("common.catalogOnly")} · {action.execution.noAuthRunnable ? t("common.noAuth") : t("common.credential")}
+           </small>
+         </span>
+         <ChevronRight size={16} />
+@@ -242,11 +241,6 @@
+       cancelled = true;
+     };
+   }, [actionId]);
+-
+-  const examples = useMemo(
+-    () => (fullAction ? buildActionExamples(fullAction, window.location.origin) : null),
+-    [fullAction],
+-  );
+ 
+   return (
+     <>
+@@ -261,25 +255,13 @@
+           </div>
+         </div>
+         <div className="button-row action-status-row">
+-          <Badge tone={props.action.execution.locallyExecutable ? "success" : undefined}>
+-            {props.action.execution.locallyExecutable ? t("actions.locallyExecutable") : t("common.catalogOnly")}
+-          </Badge>
++          <Badge>{t("common.catalogOnly")}</Badge>
+           <Badge>{props.action.execution.noAuthRunnable ? t("common.noAuth") : t("actions.needsCredential")}</Badge>
+           <Badge>{props.providerName}</Badge>
+         </div>
+       </div>
+       <p className="detail-description">{props.action.description}</p>
+       <div className="button-row action-command-row">
+-        <Button disabled={!props.action.execution.locallyExecutable || !fullAction} onClick={() => setDebugOpen(true)}>
+-          <Play size={16} />
+-          {t("actions.debugAction")}
+-        </Button>
+-        <Button asChild variant="outline" size="sm">
+-          <a href={`/api/actions/${props.action.id}/agent.md`} target="_blank" rel="noreferrer">
+-            <ExternalLink size={15} />
+-            Agent.md
+-          </a>
+-        </Button>
+         <Button asChild variant="outline" size="sm">
+           <Link to={`/providers/${props.action.service}`}>{t("actions.provider")}</Link>
+         </Button>
+@@ -288,11 +270,8 @@
+         <h3>{t("actions.requiredScopes")}</h3>
+         <TagList values={props.action.requiredScopes} empty={t("providers.noScopes")} />
+       </div>
+-      {fullAction && examples ? (
+-        <>
+-          <ParameterList schema={fullAction.inputSchema} />
+-          <ExampleTabs action={fullAction} examples={examples} />
+-        </>
++      {fullAction ? (
++        <ParameterList schema={fullAction.inputSchema} />
+       ) : schemaError ? (
+         <p className="detail-description">{schemaError}</p>
+       ) : (
+--- a/web/src/overview-page.tsx
++++ b/web/src/overview-page.tsx
+@@ -61,10 +61,10 @@
+     {
+       icon: TerminalSquare,
+       label: t("overview.metrics.executable"),
+-      value: String(summary.locallyExecutableActionCount),
++      value: "0",
+       meta: t("overview.localActions"),
+-      badgeLabel: summary.locallyExecutableActionCount > 0 ? t("overview.ready") : t("overview.unavailable"),
+-      badgeTone: summary.locallyExecutableActionCount > 0 ? "success" : "warning",
++      badgeLabel: t("overview.unavailable"),
++      badgeTone: "warning",
+       to: "/actions",
+     },
+     {
+--- a/web/src/theme.ts
++++ b/web/src/theme.ts
+@@ -3,9 +3,9 @@
+ export type ThemeMode = "auto" | "light" | "dark";
+ export type ResolvedThemeMode = "light" | "dark";
+ 
+-const themeStorageKey = "oomol-connect.theme-mode";
++const themeStorageKey = "edupi-connect.theme-mode";
+ const darkSchemeQuery = "(prefers-color-scheme: dark)";
+-const fallbackSnapshot: ThemeSnapshot = { theme: "auto", resolvedTheme: "light" };
++const fallbackSnapshot: ThemeSnapshot = { theme: "light", resolvedTheme: "light" };
+ 
+ interface ThemeSnapshot {
+   theme: ThemeMode;
+@@ -18,14 +18,14 @@
+ 
+ function getInitialTheme(): ThemeMode {
+   if (typeof window === "undefined") {
+-    return "auto";
++    return "light";
+   }
+ 
+   const stored = window.localStorage.getItem(themeStorageKey);
+   if (stored === "auto" || stored === "light" || stored === "dark") {
+     return stored;
+   }
+-  return "auto";
++  return "light";
+ }
+ 
+ function getSystemTheme(): ResolvedThemeMode {
+--- a/web/src/locales/zh-CN.json
++++ b/web/src/locales/zh-CN.json
+@@ -12,13 +12,13 @@
+     "local": "本地",
+     "noAuth": "无需鉴权",
+     "refresh": "刷新",
+-    "runtimeReady": "运行时就绪",
++    "runtimeReady": "目录就绪",
+     "showMore": "显示更多",
+     "showing": "显示 {{shown}} / {{total}}",
+     "success": "成功"
+   },
+   "brand": {
+-    "subtitle": "本地运行时控制台",
++    "subtitle": "服务与操作目录",
+     "adminAccess": "管理员访问"
+   },
+   "language": {
+@@ -83,7 +83,7 @@
+     "unlockConsole": "解锁控制台"
+   },
+   "overview": {
+-    "runtimeReady": "运行时就绪",
++    "runtimeReady": "目录就绪",
+     "connectedProviders": "{{count}} 个已连接提供商",
+     "capabilityStatus": "能力状态",
+     "metrics": {
+@@ -101,13 +101,13 @@
+     "callTrend": "工具调用趋势",
+     "callTrendLegend": "服务",
+     "noCallTrendTitle": "暂无调用趋势",
+-    "noCallTrendDescription": "运行一个操作后会显示每日服务调用量。",
++    "noCallTrendDescription": "执行尚未开放。",
+     "recentCalls": "最近调用",
+     "viewRuns": "查看",
+     "callCountOne": "{{count}} 次调用",
+     "callCountMany": "{{count}} 次调用",
+     "noRecentCallsTitle": "暂无最近调用",
+-    "noRecentCallsDescription": "运行一个操作后会显示提供商调用次数。"
++    "noRecentCallsDescription": "执行尚未开放。"
+   },
+   "marketplace": {
+     "default": {
+@@ -257,10 +257,10 @@
+     },
+     "noConnectionMethodTitle": "没有连接方式",
+     "noConnectionMethodDescription": "这个提供商不需要本地凭证。",
+-    "scopes": "Scopes",
+-    "scopesDescription": "这个提供商的本地操作需要的 scopes。",
++    "scopes": "权限范围",
++    "scopesDescription": "这些操作请求的权限范围。",
+     "actions": "操作",
+-    "actionsDescription": "目录中有 {{count}} 个本地运行时操作。",
++    "actionsDescription": "目录中有 {{count}} 项操作。",
+     "noScopes": "没有 scopes",
+     "noActions": "没有操作。",
+     "authLabels": {
+@@ -357,7 +357,7 @@
+     "actionNotFoundTitle": "未找到操作",
+     "noActionSelectedTitle": "未选择操作",
+     "actionNotFoundDescription": "当前目录中没有匹配这个操作路由。",
+-    "selectActionDescription": "选择一个操作来检查并运行。",
++    "selectActionDescription": "选择一个操作查看参数。",
+     "locallyExecutable": "本地可执行",
+     "needsCredential": "需要凭证",
+     "debugAction": "调试操作",
+@@ -381,7 +381,7 @@
+   },
+   "runs": {
+     "noRunsTitle": "暂无运行记录",
+-    "noRunsDescription": "运行一个操作后会显示最近执行历史。",
++    "noRunsDescription": "执行尚未开放。",
+     "action": "操作",
+     "actionPlaceholder": "按操作 ID 筛选",
+     "applyActionFilter": "应用操作筛选",
+--- a/web/src/locales/en.json
++++ b/web/src/locales/en.json
+@@ -12,13 +12,13 @@
+     "local": "Local",
+     "noAuth": "No auth",
+     "refresh": "Refresh",
+-    "runtimeReady": "Runtime ready",
++    "runtimeReady": "Catalog ready",
+     "showMore": "Show more",
+     "showing": "Showing {{shown}} of {{total}}",
+     "success": "Success"
+   },
+   "brand": {
+-    "subtitle": "Local runtime console",
++    "subtitle": "Provider and Action catalog",
+     "adminAccess": "Admin access"
+   },
+   "language": {
+@@ -83,7 +83,7 @@
+     "unlockConsole": "Unlock console"
+   },
+   "overview": {
+-    "runtimeReady": "Runtime ready",
++    "runtimeReady": "Catalog ready",
+     "connectedProviders": "{{count}} connected providers",
+     "capabilityStatus": "Capability Status",
+     "metrics": {
+@@ -101,13 +101,13 @@
+     "callTrend": "Tool Call Trend",
+     "callTrendLegend": "Services",
+     "noCallTrendTitle": "No call trend yet",
+-    "noCallTrendDescription": "Run an action to see daily service call volume.",
++    "noCallTrendDescription": "Execution is not available.",
+     "recentCalls": "Recent Calls",
+     "viewRuns": "View",
+     "callCountOne": "{{count}} call",
+     "callCountMany": "{{count}} calls",
+     "noRecentCallsTitle": "No recent calls",
+-    "noRecentCallsDescription": "Run an action to see provider call counts."
++    "noRecentCallsDescription": "Execution is not available."
+   },
+   "marketplace": {
+     "default": {
+@@ -277,7 +277,7 @@
+     "scopes": "Scopes",
+     "scopesDescription": "Scopes requested by this provider's local actions.",
+     "actions": "Actions",
+-    "actionsDescription": "{{count}} local runtime actions in the catalog.",
++    "actionsDescription": "{{count}} Actions in the catalog.",
+     "noScopes": "No scopes",
+     "noActions": "No actions.",
+     "authLabels": {
+@@ -374,7 +374,7 @@
+     "actionNotFoundTitle": "Action not found",
+     "noActionSelectedTitle": "No action selected",
+     "actionNotFoundDescription": "The action route does not match the current catalog.",
+-    "selectActionDescription": "Select an action to inspect and run it.",
++    "selectActionDescription": "Select an Action to inspect its parameters.",
+     "locallyExecutable": "Locally executable",
+     "needsCredential": "Needs credential",
+     "debugAction": "Debug Action",
+@@ -398,7 +398,7 @@
+   },
+   "runs": {
+     "noRunsTitle": "No runs yet",
+-    "noRunsDescription": "Run an action to see recent execution history.",
++    "noRunsDescription": "Execution is not available.",
+     "action": "Action",
+     "actionPlaceholder": "Filter by action ID",
+     "applyActionFilter": "Apply action filter",
+--- a/web/src/styles/providers.css
++++ b/web/src/styles/providers.css
+@@ -4,8 +4,7 @@
+ }
+ 
+ .provider-browser-tabs-list {
+-  width: 100%;
+-  justify-content: flex-start;
++  display: none;
+ }
+ 
+ .provider-browser-tab-content {
+@@ -621,6 +620,18 @@
+   }
+ }
+ 
++@media (max-width: 900px) {
++  .provider-collection-bar {
++    flex-wrap: wrap;
++  }
++
++  .provider-filter-list {
++    flex: 1 1 100%;
++    flex-wrap: wrap;
++    overflow: visible;
++  }
++}
++
+ @media (max-width: 640px) {
+   .provider-browser-header,
+   .provider-collection-bar {

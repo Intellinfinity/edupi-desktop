@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-25 v0.3.43 公开签名版与本机更新边界
+
+- [#272](https://github.com/Intellinfinity/edupi-desktop/pull/272) 的管理与设置归位已进入公开 v0.3.43。正式 run [`36125163938`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36125163938) 三平台、Apple 公证装订及 7 键 feed 全绿；Release 非草稿、11 项资产。Linux [`36130963967`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36130963967) 与 Windows [`36130964060`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36130964060) 的公开安装和后置诊断均通过。公开 DMG 经 API/7897 独立下载后摘要与 Release 一致，严格签名及应用/镜像 Gatekeeper 公证通过。
+- 本机唯一 EduPi 仍为 v0.3.42，Core #191、51/240/43/9 和五份配置摘要已记录，并有可回退应用副本。Mac 锁屏时桌面控制因实体输入暂停，已请求教师手动解锁；未执行 0.3.42→0.3.43 应用内升级，不能把源码预览当作签名安装版视觉验收。详见 [v0.3.43 验收](../acceptance/2026-09-25-v0.3.43-signed-release.md)。
+
 ## 2026-09-25 v0.3.42 公开签名版与本机原位升级
 
 - Desktop [#270](https://github.com/Intellinfinity/edupi-desktop/pull/270) 与 [#271](https://github.com/Intellinfinity/edupi-desktop/pull/271) 已合并。正式 run [`36110749260`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36110749260) 三平台及 manifest 全绿，Release v0.3.42 非草稿、11 项资产、7 个带签名平台键。Apple runner 公证/装订与 Gatekeeper 通过；本机独立下载公开 DMG 摘要一致、严格签名与 Gatekeeper 公证通过。本机 `stapler validate` 因 Apple CloudKit TLS `-1200` 无结论，不能记为本地装订检查通过。

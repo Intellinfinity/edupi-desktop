@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "dabbee7baec95f56dc19d99edae4207cc53a2c55",
+    "core_commit": "86a49de9278704b3b64ad637c13acc03f21d34b5",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
     "component_manifest_hash": "sha256:d878f2fb5127f0874636975172ae0630b67b6b42957e7718b1983309e3e9632f",
-    "runtime_component_manifest_hash": "sha256:6cf9a3e80d4ec80c48f9dab69431bc1dc65f98536c18201cce2349eb0e4418f3",
+    "runtime_component_manifest_hash": "sha256:e2790002f558026ddf316ba259ffb3626468e63469a4ec05023c75dc67a56452",
     "runtime_schema_hash": "sha256:9c8c287a8d8eeaea2905fb83b64742a5841e664d766cfa58b0791bf17caf88dc"
   },
   "contract_identities": [
@@ -160,7 +160,8 @@
     "https://github.com/Intellinfinity/edupi/pull/187",
     "https://github.com/Intellinfinity/edupi/pull/188",
     "https://github.com/Intellinfinity/edupi/pull/189",
-    "https://github.com/Intellinfinity/edupi/pull/190"
+    "https://github.com/Intellinfinity/edupi/pull/190",
+    "https://github.com/Intellinfinity/edupi/pull/191"
   ],
-  "change_note": "Desktop pin to merged Core dabbee7: retains the v1.1 bridge identity while pairing new runtime schema/component hashes for owner intent routing, G2 intent enqueue, inactive-processor admission, and G1 wake catch-up. G2 and shared capability execution remain activation_pending in the packaged host; external_send=false remains unchanged."
+  "change_note": "Desktop pin to merged Core 86a49de: retains the v1.1 bridge identity while pairing owner intent routing, G1 wake catch-up, and an explicitly gated G2 live bootstrap. The packaged host does not enable G2 or shared capability execution; both remain activation_pending, and external_send=false remains unchanged."
 }

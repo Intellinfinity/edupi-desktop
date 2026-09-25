@@ -2,11 +2,11 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "68004b2c0294159eef4f88bcbf4a921ef6978037",
+    "core_commit": "86a49de9278704b3b64ad637c13acc03f21d34b5",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
     "component_manifest_hash": "sha256:d878f2fb5127f0874636975172ae0630b67b6b42957e7718b1983309e3e9632f",
-    "runtime_component_manifest_hash": "sha256:87d742475908524522328869f7c4d402e06b6fc61f4f196989d7b174a13b1183",
-    "runtime_schema_hash": "sha256:815f827e4a1d87c3e42c5a301b34c5eda5520b8bfbf79686f4c910f0a8dae700"
+    "runtime_component_manifest_hash": "sha256:e2790002f558026ddf316ba259ffb3626468e63469a4ec05023c75dc67a56452",
+    "runtime_schema_hash": "sha256:9c8c287a8d8eeaea2905fb83b64742a5841e664d766cfa58b0791bf17caf88dc"
   },
   "contract_identities": [
     {
@@ -154,7 +154,14 @@
     "https://github.com/Intellinfinity/edupi/pull/181",
     "https://github.com/Intellinfinity/edupi/pull/182",
     "https://github.com/Intellinfinity/edupi/pull/183",
-    "https://github.com/Intellinfinity/edupi/pull/184"
+    "https://github.com/Intellinfinity/edupi/pull/184",
+    "https://github.com/Intellinfinity/edupi/pull/185",
+    "https://github.com/Intellinfinity/edupi/pull/186",
+    "https://github.com/Intellinfinity/edupi/pull/187",
+    "https://github.com/Intellinfinity/edupi/pull/188",
+    "https://github.com/Intellinfinity/edupi/pull/189",
+    "https://github.com/Intellinfinity/edupi/pull/190",
+    "https://github.com/Intellinfinity/edupi/pull/191"
   ],
-  "change_note": "Desktop pin to merged Core 68004b2: projects canonical timetable provenance, preserves owner-message withdrawal and intent-scoped planning isolation, fences partially deleted shared sources, and replays exact all-duplicate or mixed duplicate/new timetable imports. The v1.2 occurrence contract and external_send=false remain unchanged."
+  "change_note": "Desktop pin to merged Core 86a49de: retains the v1.1 bridge identity while pairing owner intent routing, G1 wake catch-up, and an explicitly gated G2 live bootstrap. The packaged host does not enable G2 or shared capability execution; both remain activation_pending, and external_send=false remains unchanged."
 }

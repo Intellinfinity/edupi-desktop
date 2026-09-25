@@ -2,6 +2,11 @@
 
 状态：源码、本机 staged、预览打包与公开 v0.3.38 发布通过；macOS 签名 runtime、Linux/Windows 公网安装 smoke 已运行目录。此子项不等于 R23 Action 执行完成。
 
+## 2026-09-25 资源路径别名启动修正（源码与隔离 staged，未发布）
+
+- 独立 Desktop 打包检出位于 macOS `/tmp`，Node 将脚本入口实路径解析为 `/private/tmp`；目录 host 原来用字符串比较入口路径与 `import.meta.url`，进程因此以退出码 0 静默结束，目录 smoke 报 `catalog host exited`。使用 canonical `/private/tmp` 资源路径则立即通过，定位为路径别名而非 Core #191、Connector 包或执行权限故障。
+- host 改为比较两个路径的 `realpathSync`；非 Windows staged smoke 经独立 symlink 路径启动以守住回归，先 RED 后 GREEN。最终从源码重新生成的 staged 资源以 symlink 入口完成 Provider/search/inspect，`execute` 仍为 `invalid_catalog_request`，受管查询也通过。未放开 Provider Action、凭据或代理；v0.3.41 签名包尚不含修正。
+
 ## 2026-09-24 按需查询与桌面入口（基于 `cad68d9`，已合入 #245 生产 Action 隔离）
 
 - Tauri 在打包服务器启动时只传目录资源绝对路径。服务器的桌面令牌鉴权路由只接受严格的 `search/inspect` 查询，最多 1 KiB 请求体；每次请求启动包内 Node 与已打包 host，使用新建的私有临时目录、最小 `NODE_ENV/PATH` 环境、512 KiB 输出上限与 12 秒截止，结束后退出并清理。未知操作、附加字段、无令牌、跨站来源及缺失资源在进程启动前拒绝。查询结果只投影 Action 名称/描述及输入字段，不回传执行策略、账户或凭据。

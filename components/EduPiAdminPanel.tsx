@@ -11,7 +11,7 @@ import { CONNECTOR_SETUP_IDS, EduPiConnectorSetup } from "./EduPiConnectorSetup"
 import { EduPiBackgroundJobs } from "./EduPiBackgroundJobs";
 import { startWindowDragging } from "@/lib/desktop-window";
 import { formatCoreSchedulerStatus } from "@/lib/edupi-schedule-display";
-import type { CoreRuntimeScheduler } from "@/lib/edupi-runtime-health";
+import { coreExecutionReadinessLabel, type CoreRuntimeHealth, type CoreRuntimeScheduler } from "@/lib/edupi-runtime-health";
 import { EduPiCoreCompatibility, type CoreCompatibilitySnapshot } from "./EduPiCoreCompatibility";
 import { reconnectEduPiCore, repairEduPiCore } from "@/lib/edupi-runtime-client";
 import { kernelRunAction, kernelRunDetail, kernelRunTitle, type KernelRunDisplayInput } from "@/lib/edupi-kernel-display";
@@ -23,7 +23,7 @@ type AdminSnapshot = {
   context: TeacherContextSnapshot | null;
   education: EducationContract | null;
   status: {
-    core?: { status?: string; reason?: string | null; lifecycle?: string; coreCommit?: string; validationMode?: string; componentManifestHash?: string; runtimeComponentManifestHash?: string; contractVersion?: string; schemaHash?: string; fixtureManifestHash?: string; supportedCommands?: string[]; supportedProjections?: string[]; scheduler?: CoreRuntimeScheduler | null };
+    core?: { status?: string; reason?: string | null; lifecycle?: string; coreCommit?: string; validationMode?: string; componentManifestHash?: string; runtimeComponentManifestHash?: string; contractVersion?: string; schemaHash?: string; fixtureManifestHash?: string; supportedCommands?: string[]; supportedProjections?: string[]; capabilities?: CoreRuntimeHealth["capabilities"]; scheduler?: CoreRuntimeScheduler | null };
     projection?: { status?: string; reason?: string | null };
     kernel?: {
       status?: string;
@@ -197,6 +197,9 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
   const kernel = snapshot.status?.kernel;
   const kernelSummary = kernel?.summary;
   const kernelRuns = kernel?.runs ?? [];
+  const automationStatus = kernel?.reason
+    || (!coreConnected ? snapshot.status?.core?.reason || systemStatusLabel(snapshot.status?.core?.status) : null)
+    || (kernel?.status === "ready" ? coreExecutionReadinessLabel(snapshot.status?.core?.capabilities) : systemStatusLabel(kernel?.status));
   const defaultModel = snapshot.models?.defaultModel;
   const refresh = () => setRefreshKey((value) => value + 1);
   const restoreDeletedEntity = useCallback(async (kind: EducationEntityDeleteKind, id: string, restoreRequestId: string): Promise<void> => {
@@ -353,7 +356,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
           <button type="button" disabled={coreReconnecting || coreRepairing} onClick={coreConnected ? refresh : () => void reconnectCore()} aria-label={coreConnected ? "检查 Core 状态" : "重新连接 Core"}><span><strong>EduPi Core</strong><small aria-live="polite">{coreReconnectMessage || snapshot.status?.core?.reason || systemStatusLabel(snapshot.status?.core?.lifecycle || snapshot.status?.core?.status)}</small></span><em className={coreConnected ? "is-ready" : ""}>{coreReconnecting ? "连接中" : coreRepairing ? "修复中" : loading ? "检查中" : coreConnected ? "已连接" : "重新连接"}</em></button>
           {desktopChrome.isDesktop && ["runtime_root_invalid", "runtime_state_invalid", "runtime_writer_unavailable"].some((code) => snapshot.status?.core?.reason?.includes(code)) ? <button type="button" disabled={coreRepairing || coreReconnecting} onClick={() => void repairCore()}><span><strong>修复 Core Runtime</strong><small>只清理运行状态绑定，保留教师数据</small></span><em>{coreRepairing ? "处理中" : "修复"}</em></button> : null}
           <div><span><strong>教育投影</strong><small>{snapshot.status?.projection?.reason || systemStatusLabel(snapshot.status?.projection?.status)}</small></span><em className={projectionConnected ? "is-ready" : ""}>{projectionConnected ? "已连接" : "检查"}</em></div>
-          <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{kernel?.reason || systemStatusLabel(kernel?.status)}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
+          <button type="button" onClick={() => setActiveSection("automation")}><span><strong>自动运行内核</strong><small>{automationStatus}</small></span><em>{kernelSummary?.running ? `${kernelSummary.running} 项运行中` : "查看"}</em></button>
           <button type="button" onClick={onOpenSettings}><span><strong>应用更新</strong><small>检查、下载并安装新版本</small></span><em>检查更新</em></button>
         </div>
         <EduPiCoreCompatibility value={snapshot.compatibility} onNavigate={onNavigate} onOpenContext={onOpenContext} />

@@ -17,6 +17,7 @@ export type CoreRuntimeHealth = {
   capabilities: {
     internal_timer: "activation_pending" | "active";
     g1_processor: "activation_pending" | "active";
+    g2_processor: "activation_pending" | "active";
     g3_processor: "activation_pending" | "active";
   };
   scheduler: CoreRuntimeScheduler | null;
@@ -28,6 +29,13 @@ export type ProjectedCoreRuntimeHealth = CoreRuntimeHealth & {
 };
 
 const lifecycles = new Set(["starting", "ready", "degraded", "draining", "failed", "stopped"]);
+
+export function coreExecutionReadinessLabel(capabilities: CoreRuntimeHealth["capabilities"] | null | undefined): string {
+  if (!capabilities || ![capabilities.g1_processor, capabilities.g2_processor, capabilities.g3_processor]
+    .every(status => status === "active" || status === "activation_pending")) return "执行状态暂不可用";
+  const label = (status: "active" | "activation_pending") => status === "active" ? "可运行" : "待接入";
+  return `课前准备${label(capabilities.g1_processor)} · 学生跟进${label(capabilities.g2_processor)} · 其他任务${label(capabilities.g3_processor)}`;
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -42,7 +50,7 @@ export function projectCoreRuntimeHealth(response: unknown, expectedCoreCommit: 
   if (envelope?.ok !== true || envelope.operation !== "health" || !health || !capabilities || !queue
     || !lifecycles.has(String(health.lifecycle)) || health.core_commit !== expectedCoreCommit
     || health.component_manifest_hash !== expectedComponentManifestHash
-    || !["internal_timer", "g1_processor", "g3_processor"].every(key => ["active", "activation_pending"].includes(String(capabilities[key])))
+    || !["internal_timer", "g1_processor", "g2_processor", "g3_processor"].every(key => ["active", "activation_pending"].includes(String(capabilities[key])))
     || !["total", "queued", "claimed", "completed", "failed", "cancelled"].every(key => Number.isInteger(queue[key]))) {
     throw new Error("Core Runtime health is invalid");
   }

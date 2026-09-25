@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-25 L4 Core #191 Desktop 配对（源码/staged，未发布）
+
+- Desktop 已精确配对 Core `86a49de`（[#191](https://github.com/Intellinfinity/edupi/pull/191)），桥接 v1.1 保持，Runtime schema/组件哈希更新。隔离 C1、G1 canary、slot alias、课前准备与 staged server/occurrence/feedback 均通过；全量 1732 passed / 9 skipped / 0 failed，TypeScript、lint、audit、release verify、Cargo metadata 通过。管理中心实际显示 G1 可运行、G2/共享能力待接入；新 Core 启动补扫的单项目 `binding_incomplete` 不再误报整机自动检查异常。见 [#191 配对验收](../acceptance/2026-09-25-core-191-desktop-pairing.md)。
+- G2 live Core 入口已存在，但 Desktop 尚无默认关闭的受信任模型主机/单教师 canary，因此生产仍 `activation_pending`；G3–G5 同样未启用。只读 OpenConnector host 的 `/tmp` 路径别名静默退出已在隔离 staged 修正并守住 Action 全拒绝。公开 v0.3.41/Core `68004b2` 未包含本批，不提前称安装版或 L4 established。
+- 教师已明确把系统通知手动点击与真实材料模型盲评放到后续，不让两项外部验收阻塞当前 Desktop/Core 配对；二者仍保持未验收，不从路线图删除。
+
 ## 2026-09-25 v0.3.41 签名发布与提醒修复安装验收
 
 - Desktop [#266](https://github.com/Intellinfinity/edupi-desktop/pull/266) 合并后，正式 run [`36088969006`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36088969006) 完成三平台、公证装订和 feed，Linux/Windows 公网安装全绿；本机由 v0.3.40 经保存的 7897 代理原位升级到 v0.3.41，Core、51/240/43/9 与五份配置摘要保持。见 [v0.3.41 验收](../acceptance/2026-09-25-v0.3.41-signed-release.md)。

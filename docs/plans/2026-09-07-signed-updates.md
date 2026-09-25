@@ -1,5 +1,9 @@
 # 自动下载安装
 
+## 2026-09-25 Core #191 下一版候选（未发布）
+
+- 源码/staged 已配对 Core `86a49de`，准确展示 G1 active 与 G2/共享能力 pending，修复 G1 启动补扫项目错误分类及 OpenConnector 只读 host 的路径别名启动；全量与隔离 packaged smoke 证据见 [配对验收](../acceptance/2026-09-25-core-191-desktop-pairing.md)。当前公开 Latest 与本机安装仍为 v0.3.41/Core `68004b2`；未生成新版签名资产、清单或原位升级结果。
+
 ## 2026-09-25 v0.3.41 公开签名版与本机原位升级
 
 - Desktop `4536d03` 与 `04ab688` 的提醒加载/失败状态修正已进入公开 Latest v0.3.41。正式三平台签名构建、macOS 公证装订、7 键 feed、Linux/Windows 公网安装和本机 v0.3.40→0.3.41 原位升级均通过；Core `68004b2`、51/240/43/9 与五份配置摘要保持，安装版提醒页实际可打开。完整证据见 [v0.3.41 验收](../acceptance/2026-09-25-v0.3.41-signed-release.md)。

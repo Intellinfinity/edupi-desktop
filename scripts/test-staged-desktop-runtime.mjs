@@ -124,6 +124,9 @@ try {
     assert.equal(status.compatibility.actual.supportedCommands.includes("review_follow_up"), true);
     assert.equal(status.core.status, "ready");
     assert.equal(status.projection.status, "ready");
+    assert.equal(status.core.capabilities.g1_processor, "active");
+    assert.equal(status.core.capabilities.g2_processor, "activation_pending");
+    assert.equal(status.core.capabilities.g3_processor, "activation_pending");
     assert.equal(status.externalSend, false);
     const timetableSources = await fetch(`${baseUrl}/api/edupi/timetable-sources`, { signal: AbortSignal.timeout(10_000) });
     assert.equal(timetableSources.status, 200);
@@ -131,7 +134,9 @@ try {
     assert.deepEqual((await timetableSources.json()).sources, []);
     console.log(JSON.stringify({ status: "passed", coreCommit: status.compatibility.actual.coreCommit, coreStatus: status.core.status,
       projectionStatus: status.projection.status, occurrenceContract: occurrenceIdentity.contract_version,
-      proactivity: status.proactivity.status, externalSend: status.externalSend }, null, 2));
+      proactivity: status.proactivity.status,
+      processors: { g1: status.core.capabilities.g1_processor, g2: status.core.capabilities.g2_processor, sharedCapability: status.core.capabilities.g3_processor },
+      externalSend: status.externalSend }, null, 2));
   }
 } finally {
   await stop();

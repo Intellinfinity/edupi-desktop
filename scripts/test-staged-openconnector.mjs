@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
@@ -21,9 +21,12 @@ for (const file of [host, path.join(packageRoot, "package.json"), path.join(pack
 }
 
 const dataDir = await mkdtemp(path.join(os.tmpdir(), "edupi-openconnector-staged-"));
+const aliasRoot = process.platform === "win32" ? null : `${dataDir}-catalog-alias`;
+if (aliasRoot) await symlink(catalogRoot, aliasRoot, "dir");
+const entryHost = aliasRoot ? path.join(aliasRoot, "host.mjs") : host;
 const nodeExecutable = process.env.EDUPI_STAGED_NODE || process.execPath;
 await access(nodeExecutable);
-const child = spawn(nodeExecutable, [host, dataDir], {
+const child = spawn(nodeExecutable, [entryHost, dataDir], {
   cwd: catalogRoot,
   env: { NODE_ENV: "production", PATH: process.env.PATH },
   stdio: ["pipe", "pipe", "pipe"],
@@ -108,4 +111,5 @@ try {
     });
   }
   await rm(dataDir, { recursive: true, force: true });
+  if (aliasRoot) await rm(aliasRoot);
 }

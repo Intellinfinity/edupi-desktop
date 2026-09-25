@@ -1,9 +1,9 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-25 v0.3.44 独立管理页与意图预检签名版（公网验收通过，本机原位升级待验）
+## 2026-09-26 v0.3.44 独立管理页与意图预检签名版（本机原位升级通过）
 
 - Desktop [#274](https://github.com/Intellinfinity/edupi-desktop/pull/274) 合并为 `0af3f6e`；[正式发布 run 36139803358](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36139803358) 三平台、Apple 公证装订与 manifest 全绿。[公开 v0.3.44](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.44) 含 11 项资产和 7 个有签名的平台键；Linux/Windows 公网安装及诊断全绿。独立下载公开 DMG 的摘要、只读挂载版本、严格签名与 Gatekeeper 均通过；本机 stapler 因 Apple CloudKit TLS `-1200` 无结论，runner 装订验证通过。详见 [v0.3.44 发布验收](../acceptance/2026-09-25-v0.3.44-signed-release.md)。
-- 本机唯一 `/Applications/EduPi.app` 仍是 v0.3.42；Mac 锁屏和当前 7897 代理 TLS 超时使新签名版原位升级、实际管理页点击仍待验。公开 DMG 的 OpenConnector host 在压缩镜像冷启动超过 15 秒，复制同一资源到隔离普通目录后完整目录 smoke 通过；不把前者隐藏或把公网安装代替原位升级。正式教师语义盲测、受管外部 Action 和 Core grant/Receipt 继续部分实现或未验收。
+- 教师解锁后，本机唯一 `/Applications/EduPi.app` 从 v0.3.42 经应用内下载、替换、重启到 v0.3.44；Core `86a49de` 与 Core/投影/Kernel ready、`externalSend=false`、五份配置摘要保持。工作区在升级前已变为 51 学生/160 任务/24 校历/6 课表，前后保持；与前一日 51/240/43/9 的差异未归属，不拿旧数作本轮基线。1440×901、800×901 原生页实际完成服务选择、Action 搜索、参数查看和离开再进入；安装包 catalog smoke 仍阻断 execute。公开 DMG 的压缩镜像冷启动曾超 15 秒，复制资源与正式安装目录均通过。正式教师语义盲测、受管外部 Action 和 Core grant/Receipt 继续部分实现或未验收。
 
 ## 2026-09-25 OpenConnector 独立管理页与 JEV 意图预检（历史源码阶段，发布状态由上方取代）
 

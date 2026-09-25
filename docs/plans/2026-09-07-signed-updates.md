@@ -1,8 +1,13 @@
 # 自动下载安装
 
+## 2026-09-25 v0.3.42 公开签名版与本机原位升级
+
+- Desktop [#270](https://github.com/Intellinfinity/edupi-desktop/pull/270) 与 [#271](https://github.com/Intellinfinity/edupi-desktop/pull/271) 已合并。正式 run [`36110749260`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36110749260) 三平台及 manifest 全绿，Release v0.3.42 非草稿、11 项资产、7 个带签名平台键。Apple runner 公证/装订与 Gatekeeper 通过；本机独立下载公开 DMG 摘要一致、严格签名与 Gatekeeper 公证通过。本机 `stapler validate` 因 Apple CloudKit TLS `-1200` 无结论，不能记为本地装订检查通过。
+- Linux [`36118419926`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36118419926) 公网干净安装、Windows [`36118419829`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36118419829) 公网安装及原生诊断全绿。本机从唯一 v0.3.41 经保存的 7897 原位升级到 v0.3.42，版本、Core #191、51/240/43/9 与五份配置摘要保持；OpenConnector 安装版目录搜索通过，人工 inspect 未读到最终结果。详见 [v0.3.42 验收](../acceptance/2026-09-25-v0.3.42-signed-release.md)。Windows/Linux 旧版应用内原位升级依旧未验。
+
 ## 2026-09-25 Core #191 下一版候选（未发布）
 
-- 源码/staged 已配对 Core `86a49de`，准确展示 G1 active 与 G2/共享能力 pending，修复 G1 启动补扫项目错误分类及 OpenConnector 只读 host 的路径别名启动；全量与隔离 packaged smoke 证据见 [配对验收](../acceptance/2026-09-25-core-191-desktop-pairing.md)。当前公开 Latest 与本机安装仍为 v0.3.41/Core `68004b2`；未生成新版签名资产、清单或原位升级结果。
+- 此段为发布前状态：源码/staged 已配对 Core `86a49de`，准确展示 G1 active 与 G2/共享能力 pending，修复 G1 启动补扫项目错误分类及 OpenConnector 只读 host 的路径别名启动；全量与隔离 packaged smoke 证据见 [配对验收](../acceptance/2026-09-25-core-191-desktop-pairing.md)。当前发布和安装结果以上方 v0.3.42 记录为准。
 
 ## 2026-09-25 v0.3.41 公开签名版与本机原位升级
 

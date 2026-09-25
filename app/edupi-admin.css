@@ -61,9 +61,7 @@
   font-size: 19px;
 }
 
-.edupi-admin-sidebar > header div { display: grid; gap: 1px; }
 .edupi-admin-sidebar > header strong { font-size: 14px; font-weight: 650; }
-.edupi-admin-sidebar > header small { color: var(--text-muted); font-size: 11px; }
 
 .edupi-admin-sidebar nav {
   display: grid;
@@ -127,18 +125,39 @@
 
 .edupi-admin-section__header {
   display: flex;
-  min-height: 92px;
-  align-items: flex-start;
+  min-height: 58px;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding-bottom: 24px;
+  gap: 16px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
-.edupi-admin-section__header > div { display: grid; gap: 4px; }
-.edupi-admin-section__header span { color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .05em; }
-.edupi-admin-section__header h1 { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -.035em; }
-.edupi-admin-section__header small { max-width: 640px; overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-admin-section__header > div { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.edupi-admin-section__header h1 { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: -.03em; }
+.edupi-admin-section__header small { max-width: 420px; overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
+.edupi-admin-work-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.edupi-admin-work-grid article { display: grid; min-width: 0; min-height: 158px; align-content: start; gap: 5px; padding: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); }
+.edupi-admin-work-grid h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.edupi-admin-work-grid article > strong { font-size: 25px; font-weight: 600; line-height: 1; letter-spacing: -.04em; }
+.edupi-admin-work-grid article > span,
+.edupi-admin-work-grid article > small { color: var(--text-muted); font-size: 11px; }
+.edupi-admin-work-grid article > button,
+.edupi-admin-work-actions button { width: fit-content; min-height: 30px; margin-top: 8px; padding: 0 9px; }
+.edupi-admin-work-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.edupi-admin-work-student-ai { margin-top: 14px; }
+.edupi-admin-work-details { min-width: 0; margin-top: 8px; border-top: 1px solid var(--border); }
+.edupi-admin-work-details summary { padding-top: 9px; color: var(--accent); cursor: pointer; font-size: 11px; }
+.edupi-admin-work-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.edupi-admin-work-details ul { max-height: 280px; margin: 10px 0 0; padding: 0; overflow: auto; list-style: none; }
+.edupi-admin-work-details li { display: grid; gap: 3px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.edupi-admin-work-details li:last-child { border-bottom: 0; }
+.edupi-admin-work-details li strong { font-size: 11px; font-weight: 600; }
+.edupi-admin-work-details li span,
+.edupi-admin-work-details > small { color: var(--text-muted); font-size: 10px; }
+.edupi-admin-connection-title { margin: 24px 0 0; font-size: 13px; font-weight: 650; }
+.edupi-admin-connection-title + .edupi-admin-list { margin-top: 10px; }
 
 .edupi-admin-readiness {
   overflow: hidden;
@@ -450,8 +469,8 @@
   .edupi-admin-sidebar > header { padding-inline: 5px; }
   .edupi-admin-sidebar__mark { width: 30px; height: 30px; }
   .edupi-admin-section { padding: 24px 14px 36px; }
-  .edupi-admin-section__header { min-height: 82px; }
-  .edupi-admin-section__header h1 { font-size: 23px; }
+  .edupi-admin-section__header h1 { font-size: 21px; }
+  .edupi-admin-work-grid { grid-template-columns: 1fr; }
   .edupi-admin-readiness__items { grid-template-columns: 1fr; }
   .edupi-admin-metrics { grid-template-columns: 1fr; }
   .edupi-admin-metrics > div { min-height: 74px; border-right: 0; border-bottom: 1px solid var(--border); }
@@ -485,6 +504,6 @@
   .edupi-admin-sidebar nav button,
   .edupi-admin-sidebar__back { gap: 6px; padding-inline: 7px; font-size: 11px; }
   .edupi-admin-section__header { gap: 8px; }
-  .edupi-admin-section__header h1 { font-size: 21px; }
+  .edupi-admin-section__header h1 { font-size: 19px; }
   .edupi-admin-section__header small { max-width: 210px; }
 }

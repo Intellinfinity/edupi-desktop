@@ -7,7 +7,6 @@ import {
   APP_RELEASES_URL,
   APP_VERSION,
   APP_VERSION_DISPLAY,
-  PRODUCT_NAME,
 } from "@/lib/branding";
 import { compareAppVersions, hasAppUpdateCheckError } from "@/lib/app-updates";
 import { APP_PREF_KEYS, getPrefBool, setPrefBool } from "@/lib/app-prefs";
@@ -49,9 +48,6 @@ import {
   type ComputerUsePermissionFlow,
 } from "@/lib/computer-use-permissions";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
-import { EduPiHelpPanel } from "./EduPiHelpPanel";
-import { JevSettingsCard } from "./JevSettingsCard";
-import { OpenConnectorCatalogCard } from "./OpenConnectorCatalogCard";
 import { UpdateProxySettingsCard } from "./UpdateProxySettingsCard";
 import { announceComputerUseChanged, COMPUTER_USE_CHANGED_EVENT } from "./EduPiComputerUseStop";
 import { MobileBridgeSettingsCard } from "./MobileBridgeSettingsCard";
@@ -88,9 +84,8 @@ function notificationStatusLabel(status: NotificationPermissionStatus | null): s
 
 function TeacherContextSettingsCard() {
   const [context, setContext] = useState<TeacherContextSnapshot | null>(null);
-  const [helpOpen, setHelpOpen] = useState(false);
   useEffect(() => { fetch("/api/edupi/onboarding", { cache: "no-store" }).then((response) => response.json()).then(setContext).catch(() => undefined); }, []);
-  return <div className="native-settings-card" style={sectionCardStyle}><div style={sectionTitleStyle}>EduPi 教师上下文</div><div style={sectionHintStyle}>这是 EduPi 判断课程、校历和材料语境的基础；可随时回来更新。</div><div className="settings-context-summary"><strong>{context?.name || "尚未设置称呼"}</strong><span>{context?.school || "学校待设置"} · {context?.subject || "学科待设置"} · {context?.grade || "年级待设置"}</span></div><div style={{ display: "flex", gap: 8, marginTop: 10 }}><button type="button" className="native-button native-button-primary" onClick={() => setHelpOpen(true)}>查看初始化指引</button><button type="button" className="native-button" onClick={() => window.dispatchEvent(new CustomEvent("edupi-open-context"))}>编辑教育上下文</button></div>{helpOpen ? <EduPiHelpPanel onClose={() => setHelpOpen(false)} onStartSetup={() => { setHelpOpen(false); window.dispatchEvent(new CustomEvent("edupi-open-context")); }} onOpenContext={() => { setHelpOpen(false); window.dispatchEvent(new CustomEvent("edupi-open-context")); }} /> : null}</div>;
+  return <div className="native-settings-card app-settings-context" style={sectionCardStyle}><div><div style={sectionTitleStyle}>教师信息</div><div className="settings-context-summary"><strong>{context?.name || "尚未设置称呼"}</strong><span>{context?.school || "学校待设置"} · {context?.subject || "学科待设置"} · {context?.grade || "年级待设置"}</span></div></div><button type="button" className="native-button" onClick={() => window.dispatchEvent(new CustomEvent("edupi-open-context"))}>编辑</button></div>;
 }
 
 function ComputerUseSettingsCard() {
@@ -616,7 +611,7 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
         aria-labelledby="app-settings-title"
         style={{
           width: "min(620px, 100%)",
-          height: "min(720px, calc(100vh - 36px))",
+          height: "auto",
           maxHeight: "min(720px, calc(100vh - 36px))",
           display: "flex",
           flexDirection: "column",
@@ -631,11 +626,8 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
         <header className="native-modal-header" style={{ display: "flex", flexShrink: 0, alignItems: "flex-start", gap: 14, padding: "20px 22px 17px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <h2 className="native-modal-title" id="app-settings-title" style={{ margin: 0, fontSize: 18, lineHeight: 1.25 }}>
-              {PRODUCT_NAME}
+              设置
             </h2>
-            <div style={{ marginTop: 5, color: "var(--text-muted)", fontSize: 12, lineHeight: 1.6 }}>
-              {t("appSettings.tagline", { product: PRODUCT_NAME })}
-            </div>
             <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
               <VersionChip
                 currentValue={currentVersionText}
@@ -702,46 +694,29 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
         </header>
 
         <div style={{ minHeight: 0, flex: 1, overflowY: "auto", padding: "18px 22px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-          {desktop && <UpdateProxySettingsCard onSaved={() => void checkForUpdates()} />}
+          <div className="app-settings-quick">
+            <div className="native-settings-card" style={sectionCardStyle}>
+              <div style={sectionTitleStyle}>{t("appSettings.languageSection")}</div>
+              <div className="app-settings-quick__choices">
+                {supportedLocales.map((plugin) => <ChoiceButton key={plugin.id} active={locale === plugin.id} onClick={() => setLocale(plugin.id as typeof locale)}>{plugin.label}</ChoiceButton>)}
+              </div>
+            </div>
+            <div className="native-settings-card" style={sectionCardStyle}>
+              <div style={sectionTitleStyle}>{t("appSettings.appearanceSection")}</div>
+              <div className="app-settings-quick__choices">
+                <ChoiceButton active={theme === "light"} onClick={() => setTheme("light")}>{t("appSettings.themeLight")}</ChoiceButton>
+                <ChoiceButton active={theme === "dark"} onClick={() => setTheme("dark")}>{t("appSettings.themeDark")}</ChoiceButton>
+              </div>
+            </div>
+          </div>
           <TeacherContextSettingsCard />
-          <div className="native-settings-card" style={sectionCardStyle}>
-            <div style={sectionTitleStyle}>{t("appSettings.languageSection")}</div>
-            <div style={sectionHintStyle}>{t("appSettings.languageHint")}</div>
-            <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {supportedLocales.map((plugin) => (
-                <ChoiceButton
-                  key={plugin.id}
-                  active={locale === plugin.id}
-                  onClick={() => setLocale(plugin.id as typeof locale)}
-                >
-                  {plugin.label}
-                </ChoiceButton>
-              ))}
-            </div>
-          </div>
-
-          <div className="native-settings-card" style={sectionCardStyle}>
-            <div style={sectionTitleStyle}>{t("appSettings.appearanceSection")}</div>
-            <div style={sectionHintStyle}>{t("appSettings.appearanceHint")}</div>
-            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-              <ChoiceButton active={theme === "light"} onClick={() => setTheme("light")}>
-                {t("appSettings.themeLight")}
-              </ChoiceButton>
-              <ChoiceButton active={theme === "dark"} onClick={() => setTheme("dark")}>
-                {t("appSettings.themeDark")}
-              </ChoiceButton>
-            </div>
-          </div>
+          {desktop && <UpdateProxySettingsCard onSaved={() => void checkForUpdates()} />}
 
           {desktop && (
             <EduPiDataSettingsCard />
           )}
 
           {desktop && <MobileBridgeSettingsCard />}
-
-          <JevSettingsCard />
-
-          {desktop && <OpenConnectorCatalogCard />}
 
           {desktop && (
             <ComputerUseSettingsCard />

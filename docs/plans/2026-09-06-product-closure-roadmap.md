@@ -1,9 +1,18 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-25 管理中心与设置归位（源码/隔离页面，待发布）
+
+- 按教师截图，管理中心 12 个入口收为 7 个；原“教学能力、学校平台、上传内容、任务与产物”连同教师/日程整合在“工作与资源”同一页。OpenConnector 的只读目录与 JEV 设置移到“连接”，后台任务归“自动运行”；工作台新增“设置”直达，常用语言/外观和教师信息收紧到首屏。OpenConnector 官方 Console 的凭据/Action/审计能力没有因此启用。隔离页面在 1280×720 与 800×900 实际操作，800 像素无横向溢出；详见 [管理与设置归位验收](../acceptance/2026-09-25-admin-settings-consolidation.md)。当前安装版 v0.3.42 仍为旧界面，本批待下一版签名发布和安装验证。
+
+## 2026-09-25 v0.3.42 Core #191 配对签名版
+
+- Desktop [#270](https://github.com/Intellinfinity/edupi-desktop/pull/270) 与 [#271](https://github.com/Intellinfinity/edupi-desktop/pull/271) 已合并；正式 run [`36110749260`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36110749260) 在 `ad8ab76` 上三平台、公证装订与 manifest 全绿。Release v0.3.42 公开、11 项资产、7 个签名平台键；Linux/Windows 公开安装全绿，本机从 v0.3.41 经 7897 原位下载、验签、安装、重启，唯一副本/Core #191/51 学生、240 任务、43 校历、9 课表及五份配置摘要保持。公开 DMG 摘要、严格签名和 Gatekeeper 公证核对通过；本机 stapler 因 Apple CloudKit TLS `-1200` 无结论，runner 装订验证通过。见 [v0.3.42 验收](../acceptance/2026-09-25-v0.3.42-signed-release.md)。
+- 安装版管理中心准确显示 G1 可运行、G2 与共享能力待接入；OpenConnector 只读目录人工搜索返回 10 项，人工 inspect 因窗口切换未完成。G2 独立授权/受信任模型主机、R23 受管 Action 与 Core Receipt、Windows/Linux 旧版应用内升级均未因此完成。教师此前延后的系统通知手动点击和真实材料模型盲评仍未验收。
+
 ## 2026-09-25 L4 Core #191 Desktop 配对（源码/staged，未发布）
 
 - Desktop 已精确配对 Core `86a49de`（[#191](https://github.com/Intellinfinity/edupi/pull/191)），桥接 v1.1 保持，Runtime schema/组件哈希更新。隔离 C1、G1 canary、slot alias、课前准备与 staged server/occurrence/feedback 均通过；全量 1732 passed / 9 skipped / 0 failed，TypeScript、lint、audit、release verify、Cargo metadata 通过。管理中心实际显示 G1 可运行、G2/共享能力待接入；新 Core 启动补扫的单项目 `binding_incomplete` 不再误报整机自动检查异常。见 [#191 配对验收](../acceptance/2026-09-25-core-191-desktop-pairing.md)。
-- G2 live Core 入口已存在，但 Desktop 尚无默认关闭的受信任模型主机/单教师 canary，因此生产仍 `activation_pending`；G3–G5 同样未启用。只读 OpenConnector host 的 `/tmp` 路径别名静默退出已在隔离 staged 修正并守住 Action 全拒绝。公开 v0.3.41/Core `68004b2` 未包含本批，不提前称安装版或 L4 established。
+- G2 live Core 入口已存在，但 Desktop 尚无默认关闭的受信任模型主机/单教师 canary，因此生产仍 `activation_pending`；G3–G5 同样未启用。只读 OpenConnector host 的 `/tmp` 路径别名静默退出已在隔离 staged 修正并守住 Action 全拒绝。本段记录源码/staged 阶段，安装版状态由上方 v0.3.42 记录取代；仍不能称 L4 established。
 - 教师已明确把系统通知手动点击与真实材料模型盲评放到后续，不让两项外部验收阻塞当前 Desktop/Core 配对；二者仍保持未验收，不从路线图删除。
 
 ## 2026-09-25 v0.3.41 签名发布与提醒修复安装验收

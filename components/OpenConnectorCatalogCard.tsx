@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { fetchDesktopApi } from "@/lib/desktop-native";
+import { isTauriDesktop } from "@/lib/desktop-updater";
 import type { CatalogAction, CatalogQuery, CatalogResult } from "@/lib/openconnector-catalog-contract";
 
 type InspectResult = Extract<CatalogResult, { kind: "inspect" }>;
@@ -30,6 +31,7 @@ export function isCatalogResult(value: unknown): value is CatalogResult {
 }
 
 export function OpenConnectorCatalogCard() {
+  const [desktop, setDesktop] = useState(false);
   const [query, setQuery] = useState("");
   const [actions, setActions] = useState<CatalogAction[]>([]);
   const [selected, setSelected] = useState<InspectResult | null>(null);
@@ -41,9 +43,11 @@ export function OpenConnectorCatalogCard() {
   const inspectHeadingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => () => controllerRef.current?.abort(), []);
+  useEffect(() => setDesktop(isTauriDesktop()), []);
   useEffect(() => { if (selected) inspectHeadingRef.current?.focus(); }, [selected]);
 
   async function requestCatalog(input: CatalogQuery): Promise<CatalogResult> {
+    if (!isTauriDesktop()) throw new Error("目录只在桌面应用中可用");
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -97,16 +101,20 @@ export function OpenConnectorCatalogCard() {
     }
   }
 
-  return <details className="native-settings-card openconnector-catalog-card">
-    <summary>OpenConnector 目录</summary>
-    <p>只读预览，尚不能执行外部操作。</p>
-    <form onSubmit={(event) => void search(event)}>
-      <label className="native-field"><span className="native-field-label">搜索 Action</span><input className="native-input" value={query} readOnly={Boolean(busy)} maxLength={200} autoComplete="off" onChange={(event) => { setQuery(event.target.value); setActions([]); setSelected(null); setSearched(false); setLimited(false); setError(""); }} /></label>
-      <button className="native-button" type="submit" disabled={!query.trim() || Boolean(busy)} aria-disabled={Boolean(busy) || !query.trim()}>{busy === "search" ? "查找中…" : "查找"}</button>
+  return <section className="native-settings-card openconnector-catalog-card" aria-label="OpenConnector">
+    <header><h2>OpenConnector</h2><span>只读目录</span></header>
+    <form role="search" onSubmit={(event) => void search(event)}>
+      <label className="native-field"><span className="native-field-label">搜索连接器操作</span><input className="native-input" value={query} disabled={!desktop} readOnly={Boolean(busy)} maxLength={200} autoComplete="off" onChange={(event) => { setQuery(event.target.value); setActions([]); setSelected(null); setSearched(false); setLimited(false); setError(""); }} /></label>
+      <button className="native-button" type="submit" disabled={!desktop || !query.trim() || Boolean(busy)} aria-disabled={!desktop || Boolean(busy) || !query.trim()}>{busy === "search" ? "查找中…" : "查找"}</button>
     </form>
+    {!desktop ? <small className="openconnector-catalog-note">仅桌面应用可查询</small> : null}
     {error ? <div className="native-inline-alert is-error" role="alert">{error}</div> : null}
-    {searched && !error ? <div className="openconnector-catalog-count" role="status">{actions.length ? `${actions.length} 项` : "没有匹配项"}{limited ? " · 请缩小关键词" : ""}</div> : null}
-    {actions.length > 0 ? <ul className="openconnector-catalog-results">{actions.map((action) => <li key={action.id}><button type="button" disabled={Boolean(busy)} aria-pressed={selected?.action.id === action.id} aria-disabled={Boolean(busy)} onClick={() => void inspect(action.id)}><strong>{action.name}</strong><small>{action.service ? `${action.service} · ` : ""}{action.description || action.id}</small></button></li>)}</ul> : null}
-    {selected ? <section className="openconnector-catalog-inspect" aria-label={`${selected.action.name} 参数`}><h4 ref={inspectHeadingRef} tabIndex={-1}>{selected.action.name}</h4>{selected.fields.length ? <dl>{selected.fields.map((field) => <div key={field.name}><dt>{field.name}{field.required ? " · 必填" : ""}</dt><dd>{field.description || field.type}</dd></div>)}</dl> : <p>无需输入参数</p>}{selected.limited ? <p>仅显示前 30 项参数</p> : null}</section> : null}
-  </details>;
+    {searched ? <div className={`openconnector-catalog-browser${selected ? " has-inspect" : ""}`}>
+      <div className="openconnector-catalog-list">
+        {!error ? <div className="openconnector-catalog-count" role="status">{actions.length ? `${actions.length} 项` : "没有匹配项"}{limited ? " · 请缩小关键词" : ""}</div> : null}
+        {actions.length > 0 ? <ul className="openconnector-catalog-results" aria-label="连接器操作">{actions.map((action) => <li key={action.id}><button type="button" disabled={Boolean(busy)} aria-pressed={selected?.action.id === action.id} aria-disabled={Boolean(busy)} onClick={() => void inspect(action.id)}><strong>{action.name}</strong><small>{action.service ? `${action.service} · ` : ""}{action.description || action.id}</small></button></li>)}</ul> : null}
+      </div>
+      {selected ? <section className="openconnector-catalog-inspect" aria-label={`${selected.action.name} 参数`}><h4 ref={inspectHeadingRef} tabIndex={-1}>{selected.action.name}</h4>{selected.fields.length ? <dl>{selected.fields.map((field) => <div key={field.name}><dt>{field.name}{field.required ? " · 必填" : ""}</dt><dd>{field.description || field.type}</dd></div>)}</dl> : <p>无需输入参数</p>}{selected.limited ? <p>仅显示前 30 项参数</p> : null}</section> : null}
+    </div> : null}
+  </section>;
 }

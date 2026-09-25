@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-25 OpenConnector 独立管理页与 JEV 意图预检（源码/实服预检，待发布与安装验收）
+
+- 应教师要求，OpenConnector 从“连接”中的小卡片升级为管理中心独立入口；按服务浏览、服务内 Action 列表、全局/服务内搜索与参数详情使用包内 headless runtime，只读、令牌保护、`blockedActions/blockedProxies` 不变。上游 headless NPM 包不附带 Console，因此没有直接嵌入拥有凭据和执行能力的完整后台。Core grant/Receipt、可信授权与真实 Action 仍属 R23 部分实现。
+- 借鉴 `jev-chat-windows` 的固定候选意图评测，新增 21 条仅含合成教师短句的六领域 + 弃答预检。现有 JEV 实服 21 次请求中六领域各 3/3、模糊语句 3/3 弃答，21/21 与合成标签一致；正式双裁决语义盲测仍 `not_run`。隔离浏览器 1280×720、800×900 独立页面及 staged 官方包的 1554 Provider/Action/inspect/阻断执行已有证据；签名安装版尚未验证。见 [本批验收](../acceptance/2026-09-25-openconnector-admin-jev-intent-preflight.md)。
+
 ## 2026-09-25 v0.3.43 管理界面公开签名版（本机升级待验）
 
 - Desktop [#272](https://github.com/Intellinfinity/edupi-desktop/pull/272) 合并后，正式 run [`36125163938`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36125163938) 三平台、Apple 公证装订与 manifest 全绿；公开 Release v0.3.43 有 11 项资产、7 个签名平台键。Linux/Windows 公网安装与后置原生诊断全绿；本机独立下载公开 DMG 的摘要、严格签名、应用和镜像 Gatekeeper 均通过。Mac 因锁屏且检测到实体输入，桌面自动控制暂停，尚未从现有 v0.3.42 原位更新，不能把新布局算作安装版验收。见 [v0.3.43 发布验收](../acceptance/2026-09-25-v0.3.43-signed-release.md)。

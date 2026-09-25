@@ -78,10 +78,17 @@ try {
   const providers = await request({ id: "providers", op: "providers" });
   assert.equal(providers.ok, true);
   assert.ok(Array.isArray(providers.data) && providers.data.length > 100);
+  const actions = await request({ id: "actions", op: "actions", service: "npm" });
+  assert.equal(actions.ok, true);
+  assert.ok(Array.isArray(actions.data) && actions.data.some((action) => action.id === "npm.get_package"));
   const search = await request({ id: "search", op: "search", query: "calendar" });
   assert.equal(search.ok, true);
   assert.ok(Array.isArray(search.data) && search.data.length > 0);
   assert.ok(search.data.every((action) => typeof action.id === "string" && action.id.includes(".")));
+  const scopedSearch = await request({ id: "scoped", op: "search", query: "package", service: "npm" });
+  assert.equal(scopedSearch.ok, true);
+  assert.ok(Array.isArray(scopedSearch.data) && scopedSearch.data.some((action) => action.id === "npm.get_package"));
+  assert.ok(scopedSearch.data.every((action) => action.service === "npm"));
   const inspect = await request({ id: "inspect", op: "inspect", actionId: "npm.get_package" });
   assert.equal(inspect.ok, true);
   assert.equal(inspect.data.id, "npm.get_package");
@@ -97,11 +104,20 @@ try {
     const managed = await runCatalogQuery({ op: "search", query: "calendar" }, { root: catalogRoot, nodeExecutable });
     assert.equal(managed.kind, "search");
     assert.ok(managed.actions.length > 0);
+    const scoped = await runCatalogQuery({ op: "search", query: "package", service: "npm" }, { root: catalogRoot, nodeExecutable });
+    assert.equal(scoped.kind, "search");
+    assert.ok(scoped.actions.some((action) => action.id === "npm.get_package"));
     const inspected = await runCatalogQuery({ op: "inspect", actionId: "npm.get_package" }, { root: catalogRoot, nodeExecutable });
     assert.equal(inspected.kind, "inspect");
     assert.ok(inspected.fields.some((field) => field.name === "packageName" && field.required));
+    const providerList = await runCatalogQuery({ op: "providers" }, { root: catalogRoot, nodeExecutable });
+    assert.equal(providerList.kind, "providers");
+    assert.ok(providerList.providers.length > 100);
+    const actionList = await runCatalogQuery({ op: "actions", service: "npm" }, { root: catalogRoot, nodeExecutable });
+    assert.equal(actionList.kind, "actions");
+    assert.ok(actionList.actions.some((action) => action.id === "npm.get_package"));
   }
-  console.log(JSON.stringify({ status: "passed", catalog: true, inspect: true, execute_blocked: true, managed: managedMode }));
+  console.log(JSON.stringify({ status: "passed", catalog: true, providers: true, actions: true, inspect: true, execute_blocked: true, managed: managedMode }));
 } finally {
   if (child.exitCode === null && child.signalCode === null) {
     await new Promise((resolveExit) => {

@@ -19,7 +19,7 @@ import { EduPiDeletedEntities } from "./EduPiDeletedEntities";
 import { readEducationEntityDeletions, restoreEducationEntity } from "@/lib/edupi-entity-delete-client";
 import { EduPiProactivityCanary } from "./EduPiProactivityCanary";
 import { JevSettingsCard } from "./JevSettingsCard";
-import { OpenConnectorCatalogCard } from "./OpenConnectorCatalogCard";
+import { OpenConnectorAdminPanel } from "./OpenConnectorAdminPanel";
 
 type AdminSnapshot = {
   context: TeacherContextSnapshot | null;
@@ -52,7 +52,7 @@ type AdminSnapshot = {
   } | null;
 };
 
-export type AdminSectionId = "readiness" | "automation" | "workspace" | "teachingSkills" | "connections" | "platform" | "models" | "people" | "calendar" | "materials" | "tasks" | "deleted" | "system";
+export type AdminSectionId = "readiness" | "automation" | "workspace" | "teachingSkills" | "connections" | "openconnector" | "platform" | "models" | "people" | "calendar" | "materials" | "tasks" | "deleted" | "system";
 
 type Props = {
   onClose: () => void;
@@ -71,6 +71,7 @@ export const ADMIN_SECTIONS: Array<{ id: AdminSectionId; label: string }> = [
   { id: "automation", label: "自动运行" },
   { id: "workspace", label: "工作与资源" },
   { id: "connections", label: "连接" },
+  { id: "openconnector", label: "OpenConnector" },
   { id: "models", label: "AI 与模型" },
   { id: "system", label: "系统" },
   { id: "deleted", label: "回收站" },
@@ -326,7 +327,6 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
 
       {activeSection === "connections" ? <section className="edupi-admin-section">
         <AdminSectionHeader title="连接" onRefresh={refresh} />
-        <OpenConnectorCatalogCard />
         <JevSettingsCard />
         <h2 className="edupi-admin-connection-title">服务连接</h2>
         <div className="edupi-admin-list">{snapshot.platform?.connectors?.connectors?.map((connector) => {
@@ -339,6 +339,8 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         })}</div>
         {selectedConnector ? <EduPiConnectorSetup connectorId={selectedConnector} status={snapshot.platform?.connectors?.connectors?.find((item) => item.connector_id === selectedConnector)?.status || "not_configured"} onClose={() => setSelectedConnector(null)} onConfigured={refresh} /> : null}
       </section> : null}
+
+      {activeSection === "openconnector" ? <section className="edupi-admin-section is-openconnector"><OpenConnectorAdminPanel /></section> : null}
 
       {modelsMounted ? <section className="edupi-admin-section is-models" hidden={activeSection !== "models"}>
         <AdminSectionHeader title="AI 与模型" meta={snapshot.models === null ? "模型数据不可用" : defaultModel ? `${defaultModel.provider} / ${defaultModel.modelId}` : "默认模型待配置"} />

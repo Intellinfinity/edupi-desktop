@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "kind": "edupi_jev_intent_synthetic_labels",
+  "label_source": "synthetic_spec",
+  "labels": {
+    "teach-01": "teaching_preparation",
+    "teach-02": "teaching_preparation",
+    "teach-03": "teaching_preparation",
+    "student-01": "student_followup",
+    "student-02": "student_followup",
+    "student-03": "student_followup",
+    "reflection-01": "lesson_reflection",
+    "reflection-02": "lesson_reflection",
+    "reflection-03": "lesson_reflection",
+    "calendar-01": "calendar_administration",
+    "calendar-02": "calendar_administration",
+    "calendar-03": "calendar_administration",
+    "parent-01": "parent_communication",
+    "parent-02": "parent_communication",
+    "parent-03": "parent_communication",
+    "safety-01": "safety_privacy",
+    "safety-02": "safety_privacy",
+    "safety-03": "safety_privacy",
+    "unclear-01": "unclear",
+    "unclear-02": "unclear",
+    "unclear-03": "unclear"
+  }
+}

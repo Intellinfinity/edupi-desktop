@@ -1,9 +1,14 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-25 OpenConnector 独立管理页与 JEV 意图预检（源码/实服预检，待发布与安装验收）
+## 2026-09-25 v0.3.44 独立管理页与意图预检签名版（公网验收通过，本机原位升级待验）
+
+- Desktop [#274](https://github.com/Intellinfinity/edupi-desktop/pull/274) 合并为 `0af3f6e`；[正式发布 run 36139803358](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36139803358) 三平台、Apple 公证装订与 manifest 全绿。[公开 v0.3.44](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.44) 含 11 项资产和 7 个有签名的平台键；Linux/Windows 公网安装及诊断全绿。独立下载公开 DMG 的摘要、只读挂载版本、严格签名与 Gatekeeper 均通过；本机 stapler 因 Apple CloudKit TLS `-1200` 无结论，runner 装订验证通过。详见 [v0.3.44 发布验收](../acceptance/2026-09-25-v0.3.44-signed-release.md)。
+- 本机唯一 `/Applications/EduPi.app` 仍是 v0.3.42；Mac 锁屏和当前 7897 代理 TLS 超时使新签名版原位升级、实际管理页点击仍待验。公开 DMG 的 OpenConnector host 在压缩镜像冷启动超过 15 秒，复制同一资源到隔离普通目录后完整目录 smoke 通过；不把前者隐藏或把公网安装代替原位升级。正式教师语义盲测、受管外部 Action 和 Core grant/Receipt 继续部分实现或未验收。
+
+## 2026-09-25 OpenConnector 独立管理页与 JEV 意图预检（历史源码阶段，发布状态由上方取代）
 
 - 应教师要求，OpenConnector 从“连接”中的小卡片升级为管理中心独立入口；按服务浏览、服务内 Action 列表、全局/服务内搜索与参数详情使用包内 headless runtime，只读、令牌保护、`blockedActions/blockedProxies` 不变。上游 headless NPM 包不附带 Console，因此没有直接嵌入拥有凭据和执行能力的完整后台。Core grant/Receipt、可信授权与真实 Action 仍属 R23 部分实现。
-- 借鉴 `jev-chat-windows` 的固定候选意图评测，新增 21 条仅含合成教师短句的六领域 + 弃答预检。现有 JEV 实服 21 次请求中六领域各 3/3、模糊语句 3/3 弃答，21/21 与合成标签一致；正式双裁决语义盲测仍 `not_run`。隔离浏览器 1280×720、800×900 独立页面及 staged 官方包的 1554 Provider/Action/inspect/阻断执行已有证据；签名安装版尚未验证。见 [本批验收](../acceptance/2026-09-25-openconnector-admin-jev-intent-preflight.md)。
+- 借鉴 `jev-chat-windows` 的固定候选意图评测，新增 21 条仅含合成教师短句的六领域 + 弃答预检。现有 JEV 实服 21 次请求中六领域各 3/3、模糊语句 3/3 弃答，21/21 与合成标签一致；正式双裁决语义盲测仍 `not_run`。隔离浏览器 1280×720、800×900 独立页面及 staged 官方包的 1554 Provider/Action/inspect/阻断执行已有证据；本段源码状态已由上方 v0.3.44 公开发布取代，本机签名安装版仍待验证。见 [本批验收](../acceptance/2026-09-25-openconnector-admin-jev-intent-preflight.md)。
 
 ## 2026-09-25 v0.3.43 管理界面公开签名版（本机升级待验）
 

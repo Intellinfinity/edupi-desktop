@@ -52,7 +52,7 @@ $releaseHeaders = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "applicati
 try {
     $release = Invoke-RestMethod -Uri "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/tags/$tag" -Headers $releaseHeaders
 } finally {
-    Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+    Remove-Item Env:GH_TOKEN -ErrorAction Stop
     $releaseHeaders.Clear()
 }
 $assets = @($release.assets | Where-Object { $_.name -match '_x64-setup\.exe$' })

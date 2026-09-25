@@ -69,6 +69,13 @@ export async function fetchDesktopApi(apiPath: string, init: RequestInit = {}): 
   return fetch(apiPath, { ...init, headers: await desktopApiHeaders(init.headers) });
 }
 
+export async function showOpenConnectorConsole(port: number): Promise<void> {
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("invalid_console_port");
+  if (!isTauriDesktop()) throw new Error("desktop_only");
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("show_openconnector_console", { port });
+}
+
 async function readResponseBytesWithinLimit(
   response: Response,
   maxBytes: number,

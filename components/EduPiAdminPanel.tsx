@@ -19,7 +19,7 @@ import { EduPiDeletedEntities } from "./EduPiDeletedEntities";
 import { readEducationEntityDeletions, restoreEducationEntity } from "@/lib/edupi-entity-delete-client";
 import { EduPiProactivityCanary } from "./EduPiProactivityCanary";
 import { JevSettingsCard } from "./JevSettingsCard";
-import { OpenConnectorAdminPanel } from "./OpenConnectorAdminPanel";
+import { OpenConnectorConsolePanel } from "./OpenConnectorConsolePanel";
 
 type AdminSnapshot = {
   context: TeacherContextSnapshot | null;
@@ -139,6 +139,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
   const [coreRepairing, setCoreRepairing] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
   const firstNavRef = useRef<HTMLButtonElement>(null);
+  const connectionsNavRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
 
@@ -242,7 +243,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
     action();
   };
 
-  return <section className={`edupi-admin-panel${desktopChrome.isDesktop ? " has-desktop-drag-region" : ""}`} aria-label="EduPi 管理中心">
+  return <section className={`edupi-admin-panel${desktopChrome.isDesktop ? " has-desktop-drag-region" : ""}${activeSection === "openconnector" ? " is-console" : ""}`} aria-label="EduPi 管理中心">
     {desktopChrome.isDesktop ? <div className="edupi-window-drag-region" {...desktopChrome.dragRegionProps} onMouseDown={(event) => { if (event.button === 0 && event.target === event.currentTarget) void startWindowDragging(); }}><WindowControls /></div> : null}
     <aside className="edupi-admin-sidebar">
       <header><span className="edupi-admin-sidebar__mark" aria-hidden="true">π</span><strong>EduPi</strong></header>
@@ -250,7 +251,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         {ADMIN_SECTIONS.map((section) => <button
           type="button"
           key={section.id}
-          ref={section.id === "readiness" ? firstNavRef : undefined}
+          ref={section.id === "readiness" ? firstNavRef : section.id === "connections" ? connectionsNavRef : undefined}
           aria-current={activeSection === section.id ? "page" : undefined}
           onClick={() => setActiveSection(section.id)}
         ><span aria-hidden="true" />{section.label}</button>)}
@@ -340,7 +341,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         {selectedConnector ? <EduPiConnectorSetup connectorId={selectedConnector} status={snapshot.platform?.connectors?.connectors?.find((item) => item.connector_id === selectedConnector)?.status || "not_configured"} onClose={() => setSelectedConnector(null)} onConfigured={refresh} /> : null}
       </section> : null}
 
-      {activeSection === "openconnector" ? <section className="edupi-admin-section is-openconnector"><OpenConnectorAdminPanel /></section> : null}
+      {activeSection === "openconnector" ? <section className="edupi-admin-section is-openconnector"><OpenConnectorConsolePanel onBack={() => { setActiveSection("connections"); requestAnimationFrame(() => connectionsNavRef.current?.focus()); }} /></section> : null}
 
       {modelsMounted ? <section className="edupi-admin-section is-models" hidden={activeSection !== "models"}>
         <AdminSectionHeader title="AI 与模型" meta={snapshot.models === null ? "模型数据不可用" : defaultModel ? `${defaultModel.provider} / ${defaultModel.modelId}` : "默认模型待配置"} />

@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-26 R23 官方 OpenConnector Console 接入（v0.3.45 候选，待发布与安装验收）
+
+- 教师指出 v0.3.44 的独立目录页不是上游已有的连接器界面。Desktop 在固定的 OpenConnector v1.6.5 源码上构建官方 Console，保留 Overview、Providers、Actions、Runs；独立原生窗口不继承主窗口 Tauri capability。出处、许可、补丁和生成资产摘要可重建，见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。
+- 隔离浏览器已看到 1554 个服务、18010 个 Action、服务搜索、参数详情和运行记录，800 像素无横向溢出；staged Console 与旧目录 host 均保持写入/执行阻断。当前仅为只读界面，账号、OAuth、真实 Action 和 Core grant/Receipt 仍未实现，R23 继续“部分实现”。三平台发布、安装版原生窗口及真实教师数据保持待验，不用源码页面替代。
+
 ## 2026-09-26 v0.3.44 独立管理页与意图预检签名版（本机原位升级通过）
 
 - Desktop [#274](https://github.com/Intellinfinity/edupi-desktop/pull/274) 合并为 `0af3f6e`；[正式发布 run 36139803358](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36139803358) 三平台、Apple 公证装订与 manifest 全绿。[公开 v0.3.44](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.44) 含 11 项资产和 7 个有签名的平台键；Linux/Windows 公网安装及诊断全绿。独立下载公开 DMG 的摘要、只读挂载版本、严格签名与 Gatekeeper 均通过；本机 stapler 因 Apple CloudKit TLS `-1200` 无结论，runner 装订验证通过。详见 [v0.3.44 发布验收](../acceptance/2026-09-25-v0.3.44-signed-release.md)。

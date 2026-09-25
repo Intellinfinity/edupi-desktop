@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "oomol-lab/open-connector",
+    "tag": "v1.6.5",
+    "commit": "c6f55b58f98bae95c14d0848eb612dfa09b80291",
+    "archiveSha256": "3fcc6023729f38d99d0c83cab17bb695e5715ed2f06d135246338c1a9b867fe1"
+  },
+  "assets": {
+    "index.html": "b249abb8364b40ae8d5a01c44676105d17257ca111cb48e2db3de2bed7c6865a",
+    "assets/index-CmSINI-g.js": "0d1d86c8bcc622effc95ce7f83031921edca561a2776885e8b851a203a9de663",
+    "assets/index-BoJjgJmp.css": "9069e60ee1fe785e1352751ccdbfb866f5fe15007c840d8a29f2c6b51f479a42",
+    "assets/charts-CtZQ_77u.js": "4514f1ed554737cfe59327eeab3891b4428652a0afe54bb3526e5af0629da741",
+    "assets/rolldown-runtime-QTnfLwEv.js": "5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75",
+    "LICENSE.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "NOTICE.md": "d0890661bf25e7327808610f773b055cb87bf949ff6bba5943c7d62d94d1bf0f",
+    "edupi-console.patch": "ab82f6fe779c4a478abc729b15bfe54e1a98053a6e6f9589aaf15ac254cf524f",
+    "UPSTREAM.md": "a1298a705f7625f497d23921df9a1dd686eb87daf4ec93607e9dbf7edd1a44fb"
+  }
+}

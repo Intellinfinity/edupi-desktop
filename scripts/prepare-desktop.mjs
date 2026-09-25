@@ -12,6 +12,7 @@ import { removeUnusedMuslNativePackages } from "./packaged-sharp.mjs";
 import { copyPackageClosure, copyPreparationDependencies } from "./preparation-runtime.mjs";
 import { copyRuntimeModelHostFiles } from "./runtime-model-host-files.mjs";
 import { cleanupStandaloneTraceLeak, planStandaloneTraceLeakCleanup } from "./desktop-trace-leak.mjs";
+import { verifyConsoleAssets } from "./verify-openconnector-console-assets.mjs";
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const desktopBuildDir = join(rootDir, ".next-desktop");
@@ -157,9 +158,12 @@ async function assembleServer() {
 }
 
 async function assembleOpenConnectorCatalog() {
+  await verifyConsoleAssets();
   await rm(openConnectorResourcesDir, { recursive: true, force: true });
   await mkdir(openConnectorResourcesDir, { recursive: true });
   await copyFile(join(rootDir, "desktop", "open-connector-catalog-host.mjs"), join(openConnectorResourcesDir, "host.mjs"));
+  await copyFile(join(rootDir, "desktop", "open-connector-console-host.mjs"), join(openConnectorResourcesDir, "console-host.mjs"));
+  await cp(join(rootDir, "desktop", "open-connector-console-assets"), join(openConnectorResourcesDir, "web"), { recursive: true });
   await copyPackageClosure(rootDir, openConnectorResourcesDir, "@oomol-lab/open-connector");
 }
 

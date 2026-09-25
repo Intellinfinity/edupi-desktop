@@ -29,7 +29,8 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /skill\.can_reuse/);
   assert.match(admin, /tenant\.core_mode/);
   assert.match(admin, /tenant\.harness_count/);
-  assert.match(admin, /<OpenConnectorAdminPanel \/>/);
+  assert.match(admin, /<OpenConnectorConsolePanel onBack=/);
+  assert.match(admin, /activeSection === "openconnector" \? " is-console"/);
   assert.match(admin, /<JevSettingsCard \/>/);
   for (const label of ["运行中", "待确认", "已完成", "主动运行", "待交付", "教师反馈", "最近自动运行"]) assert.match(admin, new RegExp(label));
   assert.match(admin, /formatCoreSchedulerStatus/);

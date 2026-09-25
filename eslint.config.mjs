@@ -5,8 +5,10 @@ const eslintConfig = [
   {
     ignores: [
       "vendor/pptxgenjs/**",
+      "desktop/open-connector-console-assets/assets/**",
       ".next-desktop/**",
       "src-tauri/resources/server/**",
+      "src-tauri/resources/open-connector/**",
       "src-tauri/resources/edupi-core/**",
       "src-tauri/resources/edupi-core-test-*/**",
       "src-tauri/target/**",

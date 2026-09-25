@@ -1,5 +1,6 @@
 const PREPARATION_ISSUES: Record<string, { detail: string; summary: string }> = {
   source_unavailable: { detail: "缺少可用材料", summary: "有课前任务缺少可用材料" },
+  binding_incomplete: { detail: "课次与任务尚未关联", summary: "有课前任务缺少课次关联" },
   excerpt_unconfirmed: { detail: "材料正文待确认", summary: "有材料正文待确认" },
   stale_source: { detail: "课程或材料已变化", summary: "有课程或材料需要重新核对" },
   model_unavailable: { detail: "默认模型不可用", summary: "默认模型不可用" },

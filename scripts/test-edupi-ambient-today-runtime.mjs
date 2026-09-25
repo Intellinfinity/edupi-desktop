@@ -29,6 +29,7 @@ const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
 const { activeBridgeIdentity } = await jiti.import(path.join(desktopRoot, "lib", "edupi-bridge-manifest.ts"));
 const { resolveEduPiCoreRoot, resolveEduPiDataRoot } = await jiti.import(path.join(desktopRoot, "lib", "edupi-core-root.ts"));
 const { readEduPiEducationSnapshot } = await jiti.import(path.join(desktopRoot, "lib", "edupi-core-snapshot.ts"));
+const { projectCoreRuntimeHealth } = await jiti.import(path.join(desktopRoot, "lib", "edupi-runtime-health.ts"));
 const { ensureEduPiRuntime } = await jiti.import(path.join(desktopRoot, "lib", "edupi-runtime-supervisor.ts"));
 const { prepareCoreRuntimeRoot } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_root.mjs")));
 const { acquireCoreRuntimeWriterAdmission } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_writer_admission.mjs")));
@@ -85,6 +86,13 @@ try {
   const directSnapshot = await readEduPiEducationSnapshot();
   assert.equal(directSnapshot.workspace.l4_preparation.goals[0].id, goal.id);
   handle = await ensureEduPiRuntime({ runtime, dataRoot });
+  const runtimeHealth = projectCoreRuntimeHealth(
+    await handle.call("health", null), runtime.coreCommit, identity.runtime.runtime_component_manifest_hash,
+  );
+  assert.equal(runtimeHealth.status, "ready");
+  assert.equal(runtimeHealth.capabilities.g1_processor, "active");
+  assert.equal(runtimeHealth.capabilities.g2_processor, "activation_pending");
+  assert.equal(runtimeHealth.capabilities.g3_processor, "activation_pending");
   const response = await handle.callBridge({
     protocol: "edupi-desktop-bridge", protocol_version: 1, producer: "edupi-desktop",
     request_id: "ambient-today-runtime", operation: "snapshot",
@@ -99,7 +107,13 @@ try {
   assert.equal(preparation.external_send, false);
   console.log(JSON.stringify({
     status: "passed", core_commit: runtime.coreCommit, goals: preparation.goals.length,
-    opportunities: preparation.opportunities.length, external_send: false,
+    opportunities: preparation.opportunities.length,
+    processors: {
+      g1: runtimeHealth.capabilities.g1_processor,
+      g2: runtimeHealth.capabilities.g2_processor,
+      sharedCapability: runtimeHealth.capabilities.g3_processor,
+    },
+    external_send: false,
   }, null, 2));
 } finally {
   delete process.env.EDUPI_AMBIENT_PLANNING;

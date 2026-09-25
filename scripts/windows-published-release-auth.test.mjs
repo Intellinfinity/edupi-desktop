@@ -12,4 +12,9 @@ test("public Windows install authenticates its release metadata request with a r
   assert.match(script, /\$env:GH_TOKEN/u);
   assert.match(script, /Authorization\s*=\s*"Bearer \$env:GH_TOKEN"/u);
   assert.match(script, /Invoke-RestMethod[^\n]*-Headers \$releaseHeaders/u);
+  assert.match(script, /try\s*\{[^}]*Invoke-RestMethod[^}]*\}\s*finally\s*\{[^}]*Remove-Item Env:GH_TOKEN[^}]*\$releaseHeaders\.Clear\(\)/u);
+  const tokenCleanup = script.indexOf("Remove-Item Env:GH_TOKEN");
+  const installerLaunch = script.indexOf("$installation = Start-Process");
+  assert.ok(tokenCleanup > script.indexOf("Invoke-RestMethod") && tokenCleanup < installerLaunch,
+    "the token must leave the process environment before running downloaded code");
 });

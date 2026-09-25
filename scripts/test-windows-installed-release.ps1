@@ -49,7 +49,12 @@ $tag = $env:EDUPI_TEST_RELEASE
 if ($tag -notmatch '^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$') { throw "Invalid release tag" }
 if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) { throw "GH_TOKEN is required for release lookup" }
 $releaseHeaders = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
-$release = Invoke-RestMethod -Uri "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/tags/$tag" -Headers $releaseHeaders
+try {
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/tags/$tag" -Headers $releaseHeaders
+} finally {
+    Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+    $releaseHeaders.Clear()
+}
 $assets = @($release.assets | Where-Object { $_.name -match '_x64-setup\.exe$' })
 if ($assets.Count -ne 1) { throw "Expected one x64 NSIS installer" }
 $testDir = Join-Path $env:RUNNER_TEMP "edupi-install-check"

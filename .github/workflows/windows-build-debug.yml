@@ -55,6 +55,7 @@ jobs:
         shell: pwsh
         env:
           EDUPI_TEST_RELEASE: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/test-windows-installed-release.ps1
       - name: Check native source with public resource fixture
         shell: pwsh

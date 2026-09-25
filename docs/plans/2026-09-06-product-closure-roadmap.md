@@ -1,6 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-26 R23 官方 OpenConnector Console 接入（v0.3.45 候选，待发布与安装验收）
+## 2026-09-26 v0.3.45 官方 Console 签名版（已发布，安装验收进行中）
+
+- Desktop [#277](https://github.com/Intellinfinity/edupi-desktop/pull/277)、[#278](https://github.com/Intellinfinity/edupi-desktop/pull/278) 已合并；[三平台正式发布 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 与 Apple 公证装订全绿，[公开 v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 有 11 项资产和七个平台签名键。Linux 公网安装通过；公开 DMG 摘要、严格签名、Gatekeeper 与包内 Console 只读 smoke 通过。本机 stapler 查询被 CloudKit TLS 阻断；Windows 公开安装 job 在下载前遇匿名 GitHub API rate limit，修复和重跑中；本机 v0.3.44→v0.3.45 原位更新因锁屏待操作。详细证据见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。
+- 官方 Overview/Providers/Actions/Runs 已作为独立、无 Tauri capability 的窗口进入签名包；账号连接、OAuth、真实 Action 和 Core grant/Receipt 继续关闭。不能把只读 UI 发布写成 R23 完成。
+
+## 2026-09-26 R23 官方 OpenConnector Console 接入（历史源码阶段，发布状态由上方取代）
 
 - 教师指出 v0.3.44 的独立目录页不是上游已有的连接器界面。Desktop 在固定的 OpenConnector v1.6.5 源码上构建官方 Console，保留 Overview、Providers、Actions、Runs；独立原生窗口不继承主窗口 Tauri capability。出处、许可、补丁和生成资产摘要可重建，见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。
 - 隔离浏览器已看到 1554 个服务、18010 个 Action、服务搜索、参数详情和运行记录，800 像素无横向溢出；staged Console 与旧目录 host 均保持写入/执行阻断。当前仅为只读界面，账号、OAuth、真实 Action 和 Core grant/Receipt 仍未实现，R23 继续“部分实现”。三平台发布、安装版原生窗口及真实教师数据保持待验，不用源码页面替代。

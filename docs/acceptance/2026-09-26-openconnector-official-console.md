@@ -2,7 +2,7 @@
 
 ## 状态
 
-- 代码基线：Desktop `fca6c43` 上的 v0.3.45 候选改动；Core 仍固定 `86a49de9278704b3b64ad637c13acc03f21d34b5`。本记录先覆盖源码和隔离资源，合并、公开发布与安装版结果另行补记。
+- 代码基线：Desktop 发布提交 `7611f0d49bfa3ee4e5fa07919e2f17d7f631d89a`；Core 仍固定 `86a49de9278704b3b64ad637c13acc03f21d34b5`。下文分别记录源码、公开发布和安装验收，未完成项不算通过。
 - 来源为 `oomol-lab/open-connector` 的 v1.6.5 tag `c6f55b58f98bae95c14d0848eb612dfa09b80291`。官方源码包 SHA-256、Apache-2.0 许可、NOTICE、EduPi 源码差异及每个生成资产的摘要记录在 `desktop/open-connector-console-assets`；`node scripts/verify-openconnector-console-assets.mjs` 检测改动或额外资产。
 - 管理中心入口改为打开独立、无 Tauri capability 的原生控制台窗口。窗口内使用上游的 Overview、Providers、Actions、Runs 页面，而不再把自建目录页当作官方控制台。只保留服务识别文字，不分发 OOMOL 标志、favicon 或第三方 provider 图标。
 
@@ -21,3 +21,11 @@
 ## 首轮发布门禁
 
 - PR #277 合并为 `8bbd84b`。v0.3.45 的首轮发布 run `36188308476` 在 Windows `desktop:prepare` 的资产摘要校验报 `console_asset_drift`；Release 保持 draft，没有公开，已请求取消该失败流程。原因是文字许可、NOTICE、补丁和 HTML 未禁用 Windows Git CRLF checkout，校验的是上游构建原字节。现给整个固定资产目录设置 `-text`，并以 `core.autocrlf=true` 的隔离 checkout 实际重放 10 个文件，9 个被验资产摘要全部一致；新增跨平台回归测试。修正后 `npm test` 为 1766 total / 1740 passed / 26 skipped / 0 failed，lint 与 release verify 通过。修正版本须完整重跑三平台，不复用旧 draft 资产充当通过。
+
+## v0.3.45 公开发布与安装检查
+
+- PR #278 合并为 `7611f0d49bfa3ee4e5fa07919e2f17d7f631d89a` 后，[完整三平台发布 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 全绿；[公开 v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 非草稿、11 项资产，Raw feed 是 0.3.45 且七个平台键均有签名/API 资产 URL。Mac runner 的 DMG 公证、staple、严格签名和 Gatekeeper 步骤均成功。
+- Linux [公开安装 run 36194964574](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964574) 通过。独立下载公开 DMG 大小 210255357 字节、SHA-256 `54de27d5c9e0663b334afb7679e027072914ef43424d29233a821ef183f25160`，与 Release digest 相同；只读挂载版本为 0.3.45，严格 `codesign` 和 `.app`/DMG 的 Gatekeeper 均为 `accepted / Notarized Developer ID`。包内 Console 的资产 9/9 摘要、服务/Action/inspect、写入/执行阻断均通过；组件清单摘要 `d293c63408ebf3af1be18a02b258f55dc88e3752464f5ba4d0d359cf5efc5bdc` 与 Release 相同。镜像已卸载。本机 `stapler validate` 因 Apple CloudKit TLS `-1200` 无结论，不抹去 runner 通过记录，也不写成本机通过。
+- Windows [公开安装 run 36194964352](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964352) 的安装 job 在下载前调用匿名 Release API，遇到 runner 共享 IP 的 GitHub API 速率限制；没有安装或启动应用，不能算应用故障或安装成功。修复让该单步使用现有 `github.token` 的 Contents 只读权限，并通过环境变量传入 PowerShell Bearer 请求头，不记录令牌；结构回归先失败后通过，`npm test` 为 1767 total / 1741 passed / 26 skipped / 0 failed，TypeScript、lint 与 `actionlint` 通过。
+- 分支临时 [run 36195789626](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36195789626) 的日志记录到安装退出 0、应用保持运行、工作区 HTTP 200 和第二次启动复用原进程，但复审在它运行时发现 `GH_TOKEN` 仍可能被后续安装器及应用继承，已请求取消，run 最终为 cancelled，不能计为完整验收。脚本现把 Release GET 放入 `try/finally`，请求结束立即删除进程环境中的 token 并清空请求头，再启动下载的二进制；顺序回归先失败后通过。需在合并后对同一个已发布 v0.3.45 重新运行公开 Windows 安装与诊断，绝不重发包来掩盖验收脚本问题。
+- 本机 `/Applications/EduPi.app` 仍是 v0.3.44，升级前 Core/投影/Kernel ready、Core `86a49de`、教师数据 51 学生/160 任务/24 校历/6 课表，五份模型/认证/设置摘要与上次安装验收一致。严格签名的旧应用已备份到 `/tmp/edupi-before-045.60uv0l/EduPi.app`；当前 Mac 锁屏，尚未从旧版原位升级，也未在 v0.3.45 原生窗口点击四个 Console 页面。

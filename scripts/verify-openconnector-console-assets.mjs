@@ -30,7 +30,7 @@ export async function verifyConsoleAssets(root = defaultRoot) {
     const file = join(root, name);
     if (!(await lstat(file)).isFile() || !/^[a-f0-9]{64}$/u.test(manifest.assets[name])) throw new Error("console_asset_invalid");
     const digest = createHash("sha256").update(await readFile(file)).digest("hex");
-    if (digest !== manifest.assets[name]) throw new Error("console_asset_drift");
+    if (digest !== manifest.assets[name]) throw new Error(`console_asset_drift:${name}`);
   }
   const html = await readFile(join(root, "index.html"), "utf8");
   const refs = [...html.matchAll(/(?:src|href)="\/(assets\/[A-Za-z0-9_.-]+\.(?:js|css))"/gu)].map((match) => match[1]);

@@ -1,2 +1,2 @@
-desktop/open-connector-console-assets/* whitespace=-blank-at-eol
+desktop/open-connector-console-assets/* -text whitespace=-blank-at-eol
 desktop/open-connector-console-assets/assets/* -text whitespace=-blank-at-eol

@@ -17,3 +17,7 @@
 
 - 当前只接入官方 Console 的只读目录界面；没有账号连接、OAuth、API Key 写入或真实 Action。它不等于 OpenConnector 完整管理能力。原因是 Core WorkCase grant/Receipt、可信授权和受管进程隔离尚未完成；不能因有官方按钮就把外部写入开放给同用户 Agent 进程。
 - 用户真实教师目录未写入测试数据；发布后需核对升级前后版本、Core 身份、学生/任务/校历/课表数、模型与认证配置，以及唯一安装副本。Windows/Linux 公开安装需分别验证官方控制台窗口，不能由 macOS 结果推定。
+
+## 首轮发布门禁
+
+- PR #277 合并为 `8bbd84b`。v0.3.45 的首轮发布 run `36188308476` 在 Windows `desktop:prepare` 的资产摘要校验报 `console_asset_drift`；Release 保持 draft，没有公开，已请求取消该失败流程。原因是文字许可、NOTICE、补丁和 HTML 未禁用 Windows Git CRLF checkout，校验的是上游构建原字节。现给整个固定资产目录设置 `-text`，并以 `core.autocrlf=true` 的隔离 checkout 实际重放 10 个文件，9 个被验资产摘要全部一致；新增跨平台回归测试。修正后 `npm test` 为 1766 total / 1740 passed / 26 skipped / 0 failed，lint 与 release verify 通过。修正版本须完整重跑三平台，不复用旧 draft 资产充当通过。

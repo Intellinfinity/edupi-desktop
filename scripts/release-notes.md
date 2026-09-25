@@ -1,7 +1,7 @@
-EduPi Desktop 0.3.41。
+EduPi Desktop 0.3.42。
 
-- 提醒列表首次读取时显示“正在读取提醒”，不再短暂误报“0 条”或“暂无提醒”；读取失败时只显示“提醒暂不可用”。
-- 延续 v0.3.40 的 Today 注意力预算和 v0.3.39 的本机 HTTP 更新代理；已保存的 `http://127.0.0.1:7897` 可用于本次签名更新。
-- Core 仍固定到 `68004b2`，OpenConnector 外部 Action 保持关闭，只读目录可用；主动运行默认关闭，`external_send=false`。
-- macOS Apple Silicon DMG 使用 Developer ID 签名与公证；Windows x64 为 NSIS 安装程序；Linux x64 提供 Debian 包与 AppImage。
+- Core 精确配对到 `86a49de`。管理中心按实际执行器健康状态分别显示课前准备、学生跟进和其他任务；单个课次缺少关联时不再误报整机自动检查异常。
+- OpenConnector 只读目录修复打包路径别名导致的启动退出；外部 Action 仍隔离，JEV 不参与对话。
+- G2 学生跟进和共享能力尚未启用，主动运行默认关闭，`external_send=false`。本版不会自动发送学生资料或执行外部 Action。
+- macOS Apple Silicon DMG 使用 Developer ID 签名与公证；Windows x64 提供 NSIS 安装程序，Linux x64 提供 Debian 包与 AppImage。
 - 带 updater 插件的旧版可在应用内检查、下载、验签、安装并重启。v0.3.29 仍需一次手动安装新版。

@@ -5,7 +5,7 @@ use objc2::{
     AnyThread, DefinedClass,
 };
 #[cfg(target_os = "macos")]
-use objc2_foundation::NSString;
+use objc2_foundation::{NSDictionary, NSString};
 #[cfg(target_os = "macos")]
 use objc2_user_notifications::{
     UNNotification, UNNotificationDefaultActionIdentifier, UNNotificationPresentationOptions,
@@ -26,6 +26,13 @@ use tauri::{AppHandle, Emitter};
 
 const MAX_PENDING_NOTIFICATION_TARGETS: usize = 128;
 static NOTIFICATION_TARGETS: OnceLock<Mutex<VecDeque<(String, Option<Target>)>>> = OnceLock::new();
+static PENDING_NOTIFICATION_OPENS: OnceLock<Mutex<VecDeque<Option<Target>>>> = OnceLock::new();
+#[cfg(target_os = "macos")]
+const PERSISTED_TARGET_KEY: &str = "edupi.reminder.target.v1";
+#[cfg(target_os = "macos")]
+const MAX_PERSISTED_TARGET_BYTES: usize = 1024;
+#[cfg(target_os = "macos")]
+static OPENED_NOTIFICATION_IDS: OnceLock<Mutex<VecDeque<String>>> = OnceLock::new();
 
 fn pending_targets() -> &'static Mutex<VecDeque<(String, Option<Target>)>> {
     NOTIFICATION_TARGETS.get_or_init(|| Mutex::new(VecDeque::new()))
@@ -39,15 +46,45 @@ fn store_notification_target(id: String, target: Option<Target>) {
 }
 
 fn take_notification_target(id: &str) -> Option<Option<Target>> {
-    let index = {
-        let targets = pending_targets().lock().ok()?;
-        targets.iter().position(|(pending, _)| pending == id)
-    }?;
-    pending_targets()
+    let mut targets = pending_targets().lock().ok()?;
+    let index = targets.iter().position(|(pending, _)| pending == id)?;
+    targets.remove(index).map(|(_, target)| target)
+}
+
+fn pending_notification_opens() -> &'static Mutex<VecDeque<Option<Target>>> {
+    PENDING_NOTIFICATION_OPENS.get_or_init(|| Mutex::new(VecDeque::new()))
+}
+
+fn enqueue_notification_open(target: Option<Target>) {
+    let mut opens = pending_notification_opens()
         .lock()
-        .ok()?
-        .remove(index)
-        .map(|(_, target)| target)
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    opens.push_back(target);
+    while opens.len() > MAX_PENDING_NOTIFICATION_TARGETS {
+        opens.pop_front();
+    }
+}
+
+#[tauri::command]
+pub fn take_pending_reminder_open() -> Vec<Option<Target>> {
+    let mut opens = pending_notification_opens()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    opens.drain(..).collect()
+}
+
+#[cfg(target_os = "macos")]
+fn first_default_action_for_notification(id: &str) -> bool {
+    let opened = OPENED_NOTIFICATION_IDS.get_or_init(|| Mutex::new(VecDeque::new()));
+    let Ok(mut opened) = opened.lock() else {
+        return false;
+    };
+    if opened.iter().any(|previous| previous == id) {
+        return false;
+    }
+    opened.push_front(id.to_string());
+    opened.truncate(MAX_PENDING_NOTIFICATION_TARGETS);
+    true
 }
 
 #[cfg(target_os = "macos")]
@@ -94,13 +131,17 @@ define_class!(
             completion_handler: &block2::DynBlock<dyn Fn()>,
         ) {
             let request = response.notification().request();
-            let target = take_notification_target(&request.identifier().to_string());
             // SAFETY: Apple defines this static as an immutable NSString.
             let default_action = unsafe { UNNotificationDefaultActionIdentifier };
             if &*response.actionIdentifier() == default_action {
-                if let Some(app) = self.ivars().app.as_ref() {
-                    let target = target.unwrap_or(None);
-                    activate(app, &target);
+                let identifier = request.identifier().to_string();
+                if first_default_action_for_notification(&identifier) {
+                    let target = take_notification_target(&identifier).unwrap_or_else(|| {
+                        target_from_notification_user_info(&request.content(), &identifier)
+                    });
+                    if let Some(app) = self.ivars().app.as_ref() {
+                        activate(app, &target);
+                    }
                 }
             }
             completion_handler.call(());
@@ -218,8 +259,83 @@ pub struct Claim {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Target {
+    reminder_id: String,
     task_id: String,
     kind: String,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedTarget {
+    version: u8,
+    notification_id: String,
+    target: Target,
+}
+
+fn valid_target(target: &Target) -> bool {
+    !target.reminder_id.is_empty()
+        && target.reminder_id.len() <= 64
+        && !target.task_id.is_empty()
+        && target.task_id.len() <= 500
+        && matches!(target.kind.as_str(), "ready" | "failed" | "due" | "brief")
+}
+
+#[cfg(target_os = "macos")]
+fn encode_persisted_target(identifier: &str, target: &Target) -> Option<String> {
+    if identifier.is_empty() || identifier.len() > 128 || !valid_target(target) {
+        return None;
+    }
+    let encoded = serde_json::to_string(&PersistedTarget {
+        version: 1,
+        notification_id: identifier.to_string(),
+        target: target.clone(),
+    })
+    .ok()?;
+    (encoded.len() <= MAX_PERSISTED_TARGET_BYTES).then_some(encoded)
+}
+
+#[cfg(target_os = "macos")]
+fn decode_persisted_target(identifier: &str, encoded: &str) -> Option<Target> {
+    if encoded.len() > MAX_PERSISTED_TARGET_BYTES {
+        return None;
+    }
+    let persisted: PersistedTarget = serde_json::from_str(encoded).ok()?;
+    (persisted.version == 1
+        && persisted.notification_id == identifier
+        && valid_target(&persisted.target))
+    .then_some(persisted.target)
+}
+
+#[cfg(target_os = "macos")]
+fn set_persisted_target_user_info(
+    content: &objc2_user_notifications::UNMutableNotificationContent,
+    identifier: &str,
+    target: &Target,
+) -> Result<(), String> {
+    let encoded = encode_persisted_target(identifier, target)
+        .ok_or_else(|| "invalid_notification".to_string())?;
+    let key = NSString::from_str(PERSISTED_TARGET_KEY);
+    let value = NSString::from_str(&encoded);
+    let user_info = NSDictionary::from_slices(&[&*key], &[&*value]);
+    // SAFETY: Both the key and value are NSString objects, which are valid
+    // AnyObject dictionary entries. UserNotifications copies the dictionary.
+    unsafe { content.setUserInfo(user_info.cast_unchecked()) };
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn target_from_notification_user_info(
+    content: &objc2_user_notifications::UNNotificationContent,
+    identifier: &str,
+) -> Option<Target> {
+    let key = NSString::from_str(PERSISTED_TARGET_KEY);
+    let encoded = content
+        .userInfo()
+        .objectForKey(&key)?
+        .downcast::<NSString>()
+        .ok()?;
+    decode_persisted_target(identifier, &encoded.to_string())
 }
 
 #[derive(Clone, Deserialize)]
@@ -240,15 +356,15 @@ fn valid(request: &ReminderNotification) -> bool {
         && request.claims.iter().all(|claim| {
             !claim.id.is_empty() && claim.id.len() <= 64 && claim.attempted_at.len() <= 80
         })
-        && request.target.as_ref().map_or(true, |target| {
-            !target.task_id.is_empty()
-                && target.task_id.len() <= 500
-                && matches!(target.kind.as_str(), "ready" | "failed" | "due" | "brief")
-        })
+        && request.target.as_ref().map_or(true, valid_target)
 }
 
 fn activate(app: &AppHandle, target: &Option<Target>) {
     super::show_main_window(app);
+    // The WebView may not have installed its listener yet when a notification
+    // launches the application. The event wakes a live listener; the command
+    // is the single source of pending click targets for both paths.
+    enqueue_notification_open(target.clone());
     let _ = app.emit("edupi://reminder-open", target);
 }
 
@@ -315,6 +431,7 @@ fn deliver(app: &AppHandle, request: &ReminderNotification) -> Result<(), String
     store_notification_target(identifier.clone(), request.target.clone());
     let title = request.title.clone();
     let body = request.body.clone();
+    let target = request.target.clone();
     let (sender, receiver) = mpsc::channel::<bool>();
     app.run_on_main_thread(move || {
         let content = UNMutableNotificationContent::new();
@@ -322,6 +439,12 @@ fn deliver(app: &AppHandle, request: &ReminderNotification) -> Result<(), String
         content.setBody(&NSString::from_str(&body));
         content.setSound(Some(&UNNotificationSound::defaultSound()));
         content.setThreadIdentifier(&NSString::from_str("edupi-reminders"));
+        if let Some(target) = target.as_ref() {
+            if set_persisted_target_user_info(&content, &identifier, target).is_err() {
+                let _ = sender.send(false);
+                return;
+            }
+        }
         let notification_request = UNNotificationRequest::requestWithIdentifier_content_trigger(
             &NSString::from_str(&identifier),
             &content,
@@ -400,7 +523,26 @@ pub fn send_reminder_notification(
         return Ok(());
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("edupi-notification".into())
+            .spawn(move || {
+                let _waiting = waiting;
+                let result = deliver(&app, &request);
+                if result.is_err() {
+                    let _ = app.emit("edupi://reminder-failed", &request.claims);
+                }
+                let _ = sender.send(result);
+            })
+            .map_err(|_| "notification_failed".to_string())?;
+        return receiver
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .map_err(|_| "notification_failed".to_string())?;
+    }
+
+    #[cfg(target_os = "linux")]
     {
         std::thread::Builder::new()
             .name("edupi-notification".into())
@@ -457,6 +599,86 @@ mod tests {
         assert!(options.contains(objc2_user_notifications::UNAuthorizationOptions::Sound));
         assert!(!options.contains(objc2_user_notifications::UNAuthorizationOptions::CriticalAlert));
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn persisted_target_survives_process_memory_loss_and_rejects_tampering() {
+        let id = "edupi-r1-123456";
+        let target = Target {
+            reminder_id: "r1".into(),
+            task_id: "teacher-task-1".into(),
+            kind: "ready".into(),
+        };
+        let encoded = encode_persisted_target(id, &target).unwrap();
+        assert!(encoded.len() <= MAX_PERSISTED_TARGET_BYTES);
+        assert_eq!(
+            decode_persisted_target(id, &encoded).unwrap().task_id,
+            target.task_id
+        );
+        assert!(decode_persisted_target("edupi-r1-654321", &encoded).is_none());
+        assert!(decode_persisted_target(id, &"x".repeat(MAX_PERSISTED_TARGET_BYTES + 1)).is_none());
+
+        let malformed = encoded.replace("\"ready\"", "\"open_url\"");
+        assert!(decode_persisted_target(id, &malformed).is_none());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn persisted_target_round_trips_through_notification_user_info() {
+        let id = "edupi-r2-123456";
+        let target = Target {
+            reminder_id: "r2".into(),
+            task_id: "teacher-task-2".into(),
+            kind: "failed".into(),
+        };
+        let content = objc2_user_notifications::UNMutableNotificationContent::new();
+        set_persisted_target_user_info(&content, id, &target).unwrap();
+        let decoded = target_from_notification_user_info(&content, id).unwrap();
+        assert_eq!(decoded.reminder_id, target.reminder_id);
+        assert_eq!(decoded.task_id, target.task_id);
+        assert_eq!(decoded.kind, target.kind);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_default_action_is_consumed_once_even_when_payload_persists() {
+        let id = "edupi-replay-unique";
+        assert!(first_default_action_for_notification(id));
+        assert!(!first_default_action_for_notification(id));
+        assert!(first_default_action_for_notification("edupi-replay-other"));
+    }
+
+    #[test]
+    fn pending_notification_opens_are_drained_once_in_order_and_bounded() {
+        assert!(take_pending_reminder_open().is_empty());
+        enqueue_notification_open(Some(Target {
+            reminder_id: "r1".into(),
+            task_id: "task-1".into(),
+            kind: "ready".into(),
+        }));
+        enqueue_notification_open(None);
+        let first = take_pending_reminder_open();
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0].as_ref().unwrap().task_id, "task-1");
+        assert!(first[1].is_none());
+        assert!(take_pending_reminder_open().is_empty());
+
+        for index in 0..=MAX_PENDING_NOTIFICATION_TARGETS {
+            enqueue_notification_open(Some(Target {
+                reminder_id: format!("r{index}"),
+                task_id: format!("task-{index}"),
+                kind: "ready".into(),
+            }));
+        }
+        let remaining = take_pending_reminder_open();
+        assert_eq!(remaining.len(), MAX_PENDING_NOTIFICATION_TARGETS);
+        assert_eq!(remaining[0].as_ref().unwrap().task_id, "task-1");
+        assert_eq!(
+            remaining.last().unwrap().as_ref().unwrap().task_id,
+            "task-128"
+        );
+    }
+
     #[test]
     fn notification_targets_are_bounded_objects() {
         let mut value = ReminderNotification {
@@ -467,6 +689,7 @@ mod tests {
                 attempted_at: "2026-09-09".into(),
             }],
             target: Some(Target {
+                reminder_id: "r1".into(),
                 task_id: "task1".into(),
                 kind: "ready".into(),
             }),

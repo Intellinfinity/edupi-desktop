@@ -32,6 +32,82 @@ function resolveEduPiLaunchRoots(environment = process.env) {
   };
 }
 
+function shouldWakeCoreAtPackagedStart(environment = process.env) {
+  const port = Number(environment.PORT);
+  const parentPid = Number(environment.PI_WEB_PARENT_PID);
+  return environment.NODE_ENV === "production"
+    && environment.EDUPI_CORE_VALIDATION_MODE === "bundled"
+    && environment.HOSTNAME === "127.0.0.1"
+    && /^\d{1,5}$/.test(environment.PORT || "") && Number.isInteger(port) && port > 0 && port <= 65_535
+    && /^\d+$/.test(environment.PI_WEB_PARENT_PID || "") && Number.isSafeInteger(parentPid) && parentPid > 0
+    && typeof environment.PI_DESKTOP_INSTANCE_ID === "string" && environment.PI_DESKTOP_INSTANCE_ID.length > 0;
+}
+
+function waitForWakeRetry(delay, signal) {
+  if (signal?.aborted) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const finish = (completed) => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      resolve(completed);
+    };
+    const onAbort = () => finish(false);
+    const timer = setTimeout(() => finish(true), delay);
+    timer.unref?.();
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
+}
+
+function wakeRetryDelay(failures) {
+  return Math.min(30_000, 250 * 2 ** Math.max(0, failures - 12));
+}
+
+async function wakePackagedCoreAtStartup(environment = process.env, fetcher = fetch, options = {}) {
+  if (!shouldWakeCoreAtPackagedStart(environment)) return "skipped";
+  const { signal, sleep = waitForWakeRetry, onRetry } = options;
+  const origin = `http://127.0.0.1:${environment.PORT}`;
+  let failures = 0;
+  let coreErrors = 0;
+  while (!signal?.aborted) {
+    let verified = false;
+    try {
+      const response = await fetcher(`${origin}/api/desktop/identity`, {
+        cache: "no-store",
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(1_500)]) : AbortSignal.timeout(1_500),
+      });
+      if (response.status === 204) {
+        if (response.headers.get("x-pi-desktop-instance") !== environment.PI_DESKTOP_INSTANCE_ID) return "identity_mismatch";
+        verified = true;
+      }
+    } catch { /* Next.js may not be listening yet. */ }
+    if (signal?.aborted) return "cancelled";
+    if (verified) {
+      try {
+        // This is only a readiness retry. One successful ensure starts the
+        // existing Core G1 processor, which owns scheduling and durable claims.
+        const response = await fetcher(`${origin}/api/edupi/preparation`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin },
+          body: JSON.stringify({ action: "ensure" }),
+          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
+        });
+        if (response.ok) {
+          const status = await response.json();
+          if (status?.state === "error") {
+            if (++coreErrors >= 3) return "degraded";
+          } else return "ready";
+        }
+      } catch { /* Preparation may still be compiling or temporarily unavailable. */ }
+      if (signal?.aborted) return "cancelled";
+    }
+    failures++;
+    onRetry?.({ failures, phase: verified ? "preparation" : "identity" });
+    if (!await sleep(wakeRetryDelay(failures), signal)) return "cancelled";
+  }
+  return "cancelled";
+}
+
 if (require.main === module) {
   Object.assign(process.env, resolveEduPiLaunchRoots());
 
@@ -62,6 +138,16 @@ if (require.main === module) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("./server.js");
 
+  void wakePackagedCoreAtStartup(process.env, fetch, {
+    onRetry: ({ failures, phase }) => {
+      if (failures === 12 || failures % 24 === 0) {
+        console.warn("[edupi runtime] packaged startup wake pending", phase, failures);
+      }
+    },
+  }).then((status) => {
+    if (status !== "ready" && status !== "skipped") console.warn("[edupi runtime] packaged startup wake", status);
+  });
+
   if (process.env.EDUPI_MOBILE_BRIDGE_ENABLED === "1") {
     const host = process.env.EDUPI_MOBILE_BRIDGE_HOST;
     const port = Number(process.env.PORT);
@@ -77,4 +163,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { resolveEduPiLaunchRoots };
+module.exports = { resolveEduPiLaunchRoots, shouldWakeCoreAtPackagedStart, wakePackagedCoreAtStartup };

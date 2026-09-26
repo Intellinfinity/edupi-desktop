@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-26 路线 1：Core a8fe471 安装版主动闭环（部分验收）
+
+- 独立 Desktop `codex/route1-core-a8fe471-20260926` 从 `9ff46e5` 起步；Core `main` 精确 `a8fe471`（#192 功能、#193 仅文档）。Runtime schema/bridge/课次 schema 不变，Runtime/Desktop component manifest 分别配对到 `844eebaf…` / `8092bd3d…`。隔离 macOS `.app` 已实测冷启 G1、单班数学 4 份内部草稿、失败通知站内回退、Core synthetic 反馈、站内续聊绑定、菜单栏恢复与原生重启保留。回执 outbox、原生点击队列、权限延期和冷启恢复已在 `ebc6c6e`、`34e6d8b`、`71e32de` 修复；最终源码 1810 项测试中 1784 通过、26 跳过、0 失败。[最终预览 CI 36232143818](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36232143818) 的质量、macOS app/dmg、Windows NSIS 全绿；Windows NSIS 在隔离根实际安装启动，包内 Core 明确拒绝 `native_attestation_required`。真实跨到期系统睡眠、系统通知成功点击、原生 UI 反馈表单和 Windows G1 全链仍缺；路线 1 不记作完整闭环。实施表见[路线 1 计划](2026-09-26-route1-core-a8fe471-installed-loop.md)，实际证据见[验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 主验收是隔离的单教师/单班/单科可信事件 → G1 后台到期草稿 → 通知点击续聊 → 教师审核及 Core 反馈。包内无 WebView 冷启曾红测无 Core DB，受身份校验的启动唤醒后 staged 实测 G1 active/G2/G3 pending；通知 attempt 去重与精确点击续聊已通过源码/持久层回归，但这些都不是安装版草稿/睡眠/系统通知证据。G2/G3/G4 默认关闭且仅隔离 canary 可启用；G5 监护关系、材料和课次/学期归属未经 Core 证明时保持 hold，不自动外发。Core a8 Windows Runtime 明确要求尚未实现的原生盘证明，不绕过；macOS/Windows 安装证据、PR/CI/合并状态分别记录，不提前打勾。
+
 ## 2026-09-26 v0.3.45 官方 Console 签名版（已发布，本机原位升级与公网安装通过）
 
 - Desktop [#277](https://github.com/Intellinfinity/edupi-desktop/pull/277)、[#278](https://github.com/Intellinfinity/edupi-desktop/pull/278) 已合并；[三平台正式发布 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 与 Apple 公证装订全绿，[公开 v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 有 11 项资产和七个平台签名键。Linux [公网安装](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964574) 与 Windows [公网安装及诊断](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36197070379) 全绿；后者的匿名 API 限流由 CI-only [#279](https://github.com/Intellinfinity/edupi-desktop/pull/279) 修复，令牌在启动安装器前清除，未重发包。公开 DMG 摘要、严格签名、Gatekeeper 与包内 Console 只读 smoke 通过；本机 stapler 查询被 CloudKit TLS 阻断，runner 装订验证通过。详细证据见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。

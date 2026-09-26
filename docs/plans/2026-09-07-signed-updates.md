@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-26 路线 1 隔离 canary（未发布）
+
+- Core `a8fe471` 配对的 `com.abcwyc.pi-agent.route1-canary` `.app` 使用 `--no-sign` 构建，仅复制到 `/tmp` 独立安装目录并用隔离教师根运行。它验证的是本地安装版进程和 Core/提醒/续聊路径，**没有** Apple 公证、公开 Release 或旧版升级；不能继承下方 v0.3.45 正式版的公证结论。[最终预览 CI 36232143818](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36232143818) 在恢复修复后的 `02781cb` 构建 macOS/Windows 包并在 Windows runner 隔离安装及二次启动，三个 job 全绿；Core 明确拒绝 `native_attestation_required`，不算 Windows G1 验收。逐项结果见 [路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- `71e32de` 后重新构建并复制到 `/tmp/edupi-route1-final.Aavckr/Applications/` 的独立 `.app` 已从 LaunchServices 启动，内置 Core `ready`、G1 `active`，原生菜单栏点击恢复同一 PID；staged 与 bundle 资源的隔离闭环均返回 4 个草稿、1 次模型调用、失败去重、synthetic 排除和重启保留。该 canary 仍是未签名、未公证、未公开的测试版；没有执行正式安装覆盖或旧版升级。系统锁屏后通知权限、系统通知成功点击和跨到期实睡未验。
+
 ## 2026-09-26 v0.3.45 公开签名版与本机原位升级
 
 - [三平台正式 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 及 Apple 公证装订全绿；[Release v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 非草稿、11 项资产、七个带签名 updater 平台键，Raw feed 为 0.3.45。Linux [公网安装](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964574) 与 Windows [公网安装/诊断](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36197070379) 通过。公开 DMG 摘要与 Release 相同，严格签名和应用/镜像 Gatekeeper 为 `Notarized Developer ID`；本机 stapler 因 CloudKit TLS `-1200` 无结论，不覆盖 runner 的装订成功。

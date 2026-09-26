@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useEduPiCompletionMonitor } from "@/hooks/useEduPiCompletionMonitor";
-import { reminderNotificationAction, useEduPiReminderNotifications } from "@/hooks/useEduPiReminderNotifications";
+import { reminderContinuationTaskId, useEduPiReminderNotifications } from "@/hooks/useEduPiReminderNotifications";
 import { createComposerContext, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import { bindReminderSession } from "@/lib/edupi-reminder-session";
 import { reminderPrompt } from "@/lib/edupi-reminder-prompt";
@@ -883,7 +883,8 @@ export function AppShell() {
 
   const [reminderDraft, setReminderDraft] = useState<{ taskId: string; title: string; context?: EduPiComposerContext; openId?: string } | null>(null);
   const continueReminder = useCallback(async (taskId: string) => {
-    const response = await fetch("/api/edupi/workspace", { cache: "no-store" });
+    const signal = AbortSignal.timeout(30_000);
+    const response = await fetch("/api/edupi/workspace", { cache: "no-store", signal });
     if (!response.ok) throw new Error("事项读取失败");
     const { data } = await response.json();
     const task = data.tasks.find((item: { id: string }) => item.id === taskId);
@@ -896,7 +897,7 @@ export function AppShell() {
     const reminderKey = `reminder:${data.workspace}:${taskId}`;
     const draftKey = sessionId || reminderKey;
     const draft = getDraft(draftKey);
-    const result = await handleActivateEducationAgentSession({ taskId, sessionId, cwd: data.workspace, view: "tasks", stage: "run", signal: new AbortController().signal });
+    const result = await handleActivateEducationAgentSession({ taskId, sessionId, cwd: data.workspace, view: "tasks", stage: "run", signal });
     if (workspaceDraft) setDraft(workspaceDraftKey, workspaceDraft);
     const key = result === "existing" ? sessionId! : reminderKey;
     if (draft && (draft.value || draft.images.length || draft.context)) setDraft(key, draft);
@@ -955,12 +956,13 @@ export function AppShell() {
     setEducationRefreshKey((key) => key + 1);
   }, []);
   useEduPiCompletionMonitor({ onRefresh: handleEducationProjectionChanged, notifications: false });
-  const openReminderNotification = useCallback((target: import("@/lib/desktop-native").ReminderNotificationTarget | null) => {
+  const openReminderNotification = useCallback(async (target: import("@/lib/desktop-native").ReminderNotificationTarget | null) => {
     const inbox = () => router.replace("/?edupi=1&module=home&view=chat&reminders=1", { scroll: false });
-    const action = reminderNotificationAction(target);
-    if (!action) { inbox(); return; }
-    void handleEduPiAppAction(action).then(opened => { if (!opened) inbox(); }).catch(inbox);
-  }, [handleEduPiAppAction, router]);
+    const taskId = reminderContinuationTaskId(target);
+    if (!taskId) { inbox(); return; }
+    try { await continueReminder(taskId); }
+    catch { inbox(); }
+  }, [continueReminder, router]);
   useEduPiReminderNotifications(openReminderNotification);
 
   const handleProjectFilesImported = useCallback(() => {

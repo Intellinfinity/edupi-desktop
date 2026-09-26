@@ -393,9 +393,37 @@ export async function getNotificationPermissionStatusNative(): Promise<Notificat
   return invoke<NotificationPermissionStatus>("get_notification_permission_status");
 }
 
-export type ReminderNotificationTarget = { taskId: string; kind: "ready" | "failed" | "due" | "brief" };
+export type ReminderNotificationTarget = { reminderId: string; taskId: string; kind: "ready" | "failed" | "due" | "brief" };
 export type ReminderNotificationClaim = { id: string; attemptedAt: string };
 export type NativeReminderNotification = { title: string; body: string; target: ReminderNotificationTarget | null; claims: ReminderNotificationClaim[] };
+const DEFERRED_REMINDER_NOTIFICATION_ERRORS = new Set(["notification_permission_denied", "notification_permission_timeout", "notification_permission_unavailable", "notification_busy"]);
+
+export function isDeferredReminderNotificationError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error
+    && typeof error.code === "string" && DEFERRED_REMINDER_NOTIFICATION_ERRORS.has(error.code));
+}
+
+function nativeReminderError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
+export function createReminderOpenDrainer(takePending: () => Promise<Array<ReminderNotificationTarget | null>>,
+  onOpen: (target: ReminderNotificationTarget | null) => void | Promise<void>) {
+  let active = true;
+  let previous: Promise<void> = Promise.resolve();
+  return {
+    request(): Promise<void> {
+      previous = previous.then(async () => {
+        if (!active) return;
+        const targets = await takePending();
+        if (!Array.isArray(targets)) return;
+        for (const target of targets) await onOpen(target);
+      }).catch(() => { /* A later wake or remount can retry the native queue. */ });
+      return previous;
+    },
+    stop() { active = false; },
+  };
+}
 
 export async function sendReminderNotificationNative(request: NativeReminderNotification): Promise<void> {
   if (!isTauriDesktop()) throw new Error("请在桌面应用中使用通知");
@@ -404,23 +432,26 @@ export async function sendReminderNotificationNative(request: NativeReminderNoti
     await invoke("send_reminder_notification", { request });
   } catch (error) {
     const code = error instanceof Error ? error.message : String(error);
-    if (code === "notification_permission_denied") throw new Error("通知权限未开启，请在系统设置中允许 EduPi 通知");
-    if (code === "notification_permission_timeout") throw new Error("系统未返回通知授权结果，请重试");
-    if (code === "notification_permission_unavailable") throw new Error("暂时无法请求通知授权，请重试");
-    if (code === "notification_failed") throw new Error("通知发送失败，请检查系统通知设置");
-    if (code === "notification_busy") throw new Error("通知发送繁忙，请稍后重试");
+    if (code === "notification_permission_denied") throw nativeReminderError(code, "通知权限未开启，请在系统设置中允许 EduPi 通知");
+    if (code === "notification_permission_timeout") throw nativeReminderError(code, "系统未返回通知授权结果，请重试");
+    if (code === "notification_permission_unavailable") throw nativeReminderError(code, "暂时无法请求通知授权，请重试");
+    if (code === "notification_failed") throw nativeReminderError(code, "通知发送失败，请检查系统通知设置");
+    if (code === "notification_busy") throw nativeReminderError(code, "通知发送繁忙，请稍后重试");
     throw error;
   }
 }
 
-export async function listenReminderNotificationsNative(onOpen: (target: ReminderNotificationTarget | null) => void, onFailure: (claims: ReminderNotificationClaim[]) => void): Promise<() => void> {
+export async function listenReminderNotificationsNative(onOpen: (target: ReminderNotificationTarget | null) => void | Promise<void>, onFailure: (claims: ReminderNotificationClaim[]) => void): Promise<() => void> {
   if (!isTauriDesktop()) return () => {};
   const { listen } = await import("@tauri-apps/api/event");
-  const open = await listen<ReminderNotificationTarget | null>("edupi://reminder-open", event => onOpen(event.payload));
+  const { invoke } = await import("@tauri-apps/api/core");
+  const drainer = createReminderOpenDrainer(() => invoke<Array<ReminderNotificationTarget | null>>("take_pending_reminder_open"), onOpen);
+  const open = await listen<ReminderNotificationTarget | null>("edupi://reminder-open", () => { void drainer.request(); });
   try {
     const failure = await listen<ReminderNotificationClaim[]>("edupi://reminder-failed", event => onFailure(event.payload));
-    return () => { open(); failure(); };
-  } catch (error) { open(); throw error; }
+    void drainer.request();
+    return () => { drainer.stop(); open(); failure(); };
+  } catch (error) { drainer.stop(); open(); throw error; }
 }
 
 /** Remove one pending staging copy with packaged Desktop authorization. */

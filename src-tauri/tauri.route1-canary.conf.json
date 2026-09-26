@@ -1,0 +1,13 @@
+{
+  "productName": "EduPi Route1 Canary",
+  "identifier": "com.abcwyc.pi-agent.route1-canary",
+  "bundle": {
+    "targets": ["app"],
+    "createUpdaterArtifacts": false
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": []
+    }
+  }
+}

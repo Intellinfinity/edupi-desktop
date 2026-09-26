@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "86a49de9278704b3b64ad637c13acc03f21d34b5",
+    "core_commit": "a8fe4711419fe3f36a19fd342e17abe33a7825b9",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:d878f2fb5127f0874636975172ae0630b67b6b42957e7718b1983309e3e9632f",
-    "runtime_component_manifest_hash": "sha256:e2790002f558026ddf316ba259ffb3626468e63469a4ec05023c75dc67a56452",
+    "component_manifest_hash": "sha256:8092bd3d10af41683433e87e6a06d0da4d9fdc2e83a631eb1b9e59c267486bf7",
+    "runtime_component_manifest_hash": "sha256:844eebaf4339062f0189df2af66762152780db043c8ea0b6baefa45fb118c851",
     "runtime_schema_hash": "sha256:9c8c287a8d8eeaea2905fb83b64742a5841e664d766cfa58b0791bf17caf88dc"
   },
   "contract_identities": [
@@ -161,7 +161,9 @@
     "https://github.com/Intellinfinity/edupi/pull/188",
     "https://github.com/Intellinfinity/edupi/pull/189",
     "https://github.com/Intellinfinity/edupi/pull/190",
-    "https://github.com/Intellinfinity/edupi/pull/191"
+    "https://github.com/Intellinfinity/edupi/pull/191",
+    "https://github.com/Intellinfinity/edupi/pull/192",
+    "https://github.com/Intellinfinity/edupi/pull/193"
   ],
-  "change_note": "Desktop pin to merged Core 86a49de: retains the v1.1 bridge identity while pairing owner intent routing, G1 wake catch-up, and an explicitly gated G2 live bootstrap. The packaged host does not enable G2 or shared capability execution; both remain activation_pending, and external_send=false remains unchanged."
+  "change_note": "Desktop pin to Core a8fe471 (#192 runtime, #193 documentation): Runtime schema, bridge v1.1, and occurrence v1.2 identities stay unchanged while component manifests include current-owner permits for default-off shared capability live canaries. The packaged host enables G1 only; G2 and G3/G4 remain activation_pending outside isolated permitted canaries. G5 recipients, material evidence, and term/lesson attribution remain unverified; external_send=false."
 }

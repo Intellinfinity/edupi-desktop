@@ -2597,6 +2597,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             reminder_notification::send_reminder_notification,
             reminder_notification::get_notification_permission_status,
+            reminder_notification::take_pending_reminder_open,
             get_desktop_api_token,
             get_desktop_runtime_status,
             set_mobile_bridge_enabled,

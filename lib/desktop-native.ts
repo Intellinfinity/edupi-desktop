@@ -393,7 +393,7 @@ export async function getNotificationPermissionStatusNative(): Promise<Notificat
   return invoke<NotificationPermissionStatus>("get_notification_permission_status");
 }
 
-export type ReminderNotificationTarget = { taskId: string; kind: "ready" | "failed" | "due" | "brief" };
+export type ReminderNotificationTarget = { reminderId: string; taskId: string; kind: "ready" | "failed" | "due" | "brief" };
 export type ReminderNotificationClaim = { id: string; attemptedAt: string };
 export type NativeReminderNotification = { title: string; body: string; target: ReminderNotificationTarget | null; claims: ReminderNotificationClaim[] };
 

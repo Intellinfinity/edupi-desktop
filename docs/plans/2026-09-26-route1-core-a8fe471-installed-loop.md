@@ -30,7 +30,8 @@
 | 冷启后 G1 active 且 G2/G3 默认 pending | 未验 | 未验 | Core schema/manifest 先配对 |
 | 单班单科可信事件 → 到期一次 → 内部草稿/回执 | 未验 | 未验 | 未核实材料不得作为已验证来源 |
 | 托盘后台、跨到期睡眠、重启补跑且无重复执行 | 未验 | 未验 | 进程 SIGSTOP 不等于系统睡眠 |
-| 系统通知失败可站内恢复，点击直接续聊 | 未验 | 未验 | 点击必须到同一任务/会话 |
+| 系统通知失败可站内恢复，点击直接续聊 | 源码/持久层已实现，安装未验 | 源码/持久层已实现，安装未验 | 点击须精确到同一 reminder/task；Windows Toast 实际回调待验 |
 | 教师审核后反馈写回 Core、重读与重放 | 未验 | 未验 | delivery receipt 不代替 feedback |
 | G2/G3/G4 canary permit 与 G5/material/归属 hold | Core 单元已过，安装未验 | Core 单元已过，安装未验 | 默认关闭、无外发 |
+| Core Runtime Windows 原生盘证明 | 不适用 | a8 源码固定返回 `native_attestation_required` | 不绕过；需要新 Core 合同或如实记阻塞 |
 | 真实教师根、配置、launchd 未修改 | 过程核对中 | 不适用 | 使用独立工作树与隔离数据 |

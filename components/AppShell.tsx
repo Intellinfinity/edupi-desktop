@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useEduPiCompletionMonitor } from "@/hooks/useEduPiCompletionMonitor";
-import { reminderNotificationAction, useEduPiReminderNotifications } from "@/hooks/useEduPiReminderNotifications";
+import { reminderContinuationTaskId, useEduPiReminderNotifications } from "@/hooks/useEduPiReminderNotifications";
 import { createComposerContext, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import { bindReminderSession } from "@/lib/edupi-reminder-session";
 import { reminderPrompt } from "@/lib/edupi-reminder-prompt";
@@ -957,10 +957,10 @@ export function AppShell() {
   useEduPiCompletionMonitor({ onRefresh: handleEducationProjectionChanged, notifications: false });
   const openReminderNotification = useCallback((target: import("@/lib/desktop-native").ReminderNotificationTarget | null) => {
     const inbox = () => router.replace("/?edupi=1&module=home&view=chat&reminders=1", { scroll: false });
-    const action = reminderNotificationAction(target);
-    if (!action) { inbox(); return; }
-    void handleEduPiAppAction(action).then(opened => { if (!opened) inbox(); }).catch(inbox);
-  }, [handleEduPiAppAction, router]);
+    const taskId = reminderContinuationTaskId(target);
+    if (!taskId) { inbox(); return; }
+    void continueReminder(taskId).catch(inbox);
+  }, [continueReminder, router]);
   useEduPiReminderNotifications(openReminderNotification);
 
   const handleProjectFilesImported = useCallback(() => {

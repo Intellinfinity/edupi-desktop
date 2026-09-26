@@ -218,6 +218,7 @@ pub struct Claim {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Target {
+    reminder_id: String,
     task_id: String,
     kind: String,
 }
@@ -241,7 +242,9 @@ fn valid(request: &ReminderNotification) -> bool {
             !claim.id.is_empty() && claim.id.len() <= 64 && claim.attempted_at.len() <= 80
         })
         && request.target.as_ref().map_or(true, |target| {
-            !target.task_id.is_empty()
+            !target.reminder_id.is_empty()
+                && target.reminder_id.len() <= 64
+                && !target.task_id.is_empty()
                 && target.task_id.len() <= 500
                 && matches!(target.kind.as_str(), "ready" | "failed" | "due" | "brief")
         })
@@ -400,7 +403,26 @@ pub fn send_reminder_notification(
         return Ok(());
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("edupi-notification".into())
+            .spawn(move || {
+                let _waiting = waiting;
+                let result = deliver(&app, &request);
+                if result.is_err() {
+                    let _ = app.emit("edupi://reminder-failed", &request.claims);
+                }
+                let _ = sender.send(result);
+            })
+            .map_err(|_| "notification_failed".to_string())?;
+        return receiver
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .map_err(|_| "notification_failed".to_string())?;
+    }
+
+    #[cfg(target_os = "linux")]
     {
         std::thread::Builder::new()
             .name("edupi-notification".into())
@@ -467,6 +489,7 @@ mod tests {
                 attempted_at: "2026-09-09".into(),
             }],
             target: Some(Target {
+                reminder_id: "r1".into(),
                 task_id: "task1".into(),
                 kind: "ready".into(),
             }),

@@ -26,7 +26,7 @@ export type ReminderMetrics = {
 };
 type Store = { version: 1; items: Reminder[]; notifications?: Reminder[]; activity?: ReminderActivity[] };
 type ReminderAction = { id: string; type: "read" | "dismiss" | "handled" | "snooze" | "claim_notifications" | "release_notification" | "notification_deferred" | "notification_delivered" | "notification_failed" | "notification_opened"; attemptedAt?: string; taskId?: string };
-type ReminderStoreResult = Store & { metrics: ReminderMetrics };
+type ReminderStoreResult = Store & { metrics: ReminderMetrics; notificationTransitionApplied: boolean };
 const MAX_ACTIVITY = 2000;
 const MAX_NOTIFICATION_FAILURES = 3;
 const NOTIFICATION_RETRY_BASE_MS = 5 * 60_000;
@@ -38,8 +38,8 @@ function addActivity(state: Store, activity: ReminderActivity): void {
 }
 
 function matchingItems(state: Store, action: ReminderAction): Reminder[] {
-  if (action.id === "*") return action.taskId ? state.items.filter((item) => item.taskId === action.taskId) : state.items.filter((item) => item.notificationAttemptedAt);
-  return state.items.filter((item) => item.id === action.id);
+  const items = action.id === "*" ? action.taskId ? state.items : state.items.filter((item) => item.notificationAttemptedAt) : state.items.filter((item) => item.id === action.id);
+  return action.taskId ? items.filter((item) => item.taskId === action.taskId) : items;
 }
 
 function metrics(state: Store): ReminderMetrics {
@@ -78,6 +78,7 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
   const temporary = `${file}.${randomUUID()}.tmp`;
   try {
     let state: Store = { version: 1, items: [] };
+    let notificationTransitionApplied = false;
     try { state = JSON.parse(await readFile(file, "utf8")); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     if (state.version !== 1 || !Array.isArray(state.items)) throw new Error("提醒记录无法读取");
@@ -110,7 +111,7 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
           item.notificationRetryAt = new Date(now + NOTIFICATION_RETRY_BASE_MS).toISOString();
           addActivity(state, { type: "notification_deferred", reminderId: item.id, taskId: item.taskId, at });
         }
-        if (action.type === "notification_failed") {
+        if (action.type === "notification_failed" && action.attemptedAt && action.attemptedAt === item.notificationAttemptedAt && !item.notificationDeliveredAt) {
           delete item.notificationAttemptedAt;
           item.notificationFailureAt = at;
           item.notificationFailureCount = (item.notificationFailureCount ?? 0) + 1;
@@ -118,19 +119,22 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
             ? new Date(now + NOTIFICATION_RETRY_BASE_MS * (2 ** (item.notificationFailureCount - 1))).toISOString()
             : undefined;
           addActivity(state, { type: "notification_failed", reminderId: item.id, taskId: item.taskId, at });
+          notificationTransitionApplied = true;
         }
-        if (action.type === "notification_delivered") {
+        if (action.type === "notification_delivered" && action.attemptedAt && action.attemptedAt === item.notificationAttemptedAt && !item.notificationDeliveredAt) {
           item.notificationDeliveredAt = at;
           delete item.notificationRetryAt;
           const latencyMs = Date.parse(at) - Date.parse(item.notificationAttemptedAt || at);
           addActivity(state, { type: "notification_delivered", reminderId: item.id, taskId: item.taskId, at, latencyMs: Math.max(0, latencyMs) });
+          notificationTransitionApplied = true;
         }
-        if (action.type === "notification_opened") {
+        if (action.type === "notification_opened" && !item.notificationOpenedAt) {
           item.read = true;
           item.notificationOpenedAt = at;
           delete item.notificationRetryAt;
           const latencyMs = Date.parse(at) - Date.parse(item.notificationDeliveredAt || item.notificationAttemptedAt || at);
           addActivity(state, { type: "notification_opened", reminderId: item.id, taskId: item.taskId, at, latencyMs: Math.max(0, latencyMs) });
+          notificationTransitionApplied = true;
         }
         if (action.type === "read") { item.read = true; addActivity(state, { type: "read", reminderId: item.id, taskId: item.taskId, at }); }
         if (action.type === "dismiss" || action.type === "handled") { item.handled = true; item.read = true; addActivity(state, { type: "handled", reminderId: item.id, taskId: item.taskId, at }); }
@@ -141,10 +145,11 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
     const notifications = action?.type === "claim_notifications" ? state.items.filter(item => !item.withdrawn && !item.handled && !item.read && !item.snoozedUntil && !item.notificationAttemptedAt && (item.notificationFailureCount ?? 0) < MAX_NOTIFICATION_FAILURES && (!item.notificationRetryAt || Date.parse(item.notificationRetryAt) <= now)) : [];
     for (const item of notifications) {
       item.notificationAttemptedAt = new Date(now).toISOString();
+      delete item.notificationDeliveredAt;
       addActivity(state, { type: "notification_claimed", reminderId: item.id, taskId: item.taskId, at: item.notificationAttemptedAt });
     }
     await writeFile(temporary, JSON.stringify(state), { mode: 0o600 });
     await rename(temporary, file);
-    return { ...state, notifications, metrics: metrics(state) };
+    return { ...state, notifications, metrics: metrics(state), notificationTransitionApplied };
   } finally { await rm(temporary, { force: true }); await release(); }
 }

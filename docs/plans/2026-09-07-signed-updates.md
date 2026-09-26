@@ -2,6 +2,7 @@
 
 ## 2026-09-26 路线 1 隔离 canary（未发布）
 
+- 用户指定后续只验收正式签名/公证安装版。两份临时 canary 进程已退出，本机模型桩停止，测试通知权限恢复关闭；正式 v0.3.45 没有因 #281 合并而自动更新，未进行路线 1 的正式版安装。以下 canary 结果只作开发证据，下一正式 Release 的通知点击、睡眠恢复和数据保留须重新逐项验证。
 - Desktop [#281](https://github.com/Intellinfinity/edupi-desktop/pull/281) 已合并为 `d80bb12934c2805eb14eff57021d42e22f16be07`；这是源码合并，不是 v0.3.45 之后的新正式签名发布、Apple 公证或应用内升级。路线 1 的真实跨到期系统睡眠、通知成功点击和 Windows G1 仍待验。
 - 追加的本地 `EduPi Route1 Notify Canary` 使用 Developer ID 对测试 `.app` 及嵌套 helper 签名，严格校验通过；macOS 只对该 bundle ID 授予通知，签名 canary 关窗后台有两次原生 API 送达并回读。它没有公证/装订，也没有公开安装或覆盖正式 App；横幅显示、系统点击和教师实际操作仍未验，不能归入正式发布验收。
 - Core `a8fe471` 配对的 `com.abcwyc.pi-agent.route1-canary` `.app` 使用 `--no-sign` 构建，仅复制到 `/tmp` 独立安装目录并用隔离教师根运行。它验证的是本地安装版进程和 Core/提醒/续聊路径，**没有** Apple 公证、公开 Release 或旧版升级；不能继承下方 v0.3.45 正式版的公证结论。[最终预览 CI 36232143818](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36232143818) 在恢复修复后的 `02781cb` 构建 macOS/Windows 包并在 Windows runner 隔离安装及二次启动，三个 job 全绿；Core 明确拒绝 `native_attestation_required`，不算 Windows G1 验收。逐项结果见 [路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。

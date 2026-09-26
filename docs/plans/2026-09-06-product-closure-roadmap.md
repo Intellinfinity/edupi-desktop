@@ -2,6 +2,7 @@
 
 ## 2026-09-26 路线 1：Core a8fe471 安装版主动闭环（部分验收）
 
+- 用户验收选择：后续只在公开、签名并公证的正式 EduPi 安装版验收路线 1，不再同时启动两个本地 canary。两份测试 App 已退出，本机模型桩不再监听，测试 canary 的通知权限已恢复为关闭；隔离数据留作开发证据，不当作正式验收。当前正式 v0.3.45 仍固定旧 Core，未包含路线 1 合并代码；必须先另行正式发布并安装，才能继续本功能的安装版验收。系统通知点击和跨到期实睡仍为未验，不因测试实例准备过而勾选。
 - 合并状态：Desktop [#281](https://github.com/Intellinfinity/edupi-desktop/pull/281) 已于 2026-09-26 09:51 UTC 合入 `main`，merge commit `d80bb12934c2805eb14eff57021d42e22f16be07`。发布状态：未创建路线 1 正式 Release，现有 v0.3.45 安装版未覆盖。用户验收状态：仍为下述部分验收，不因合并升级为完整通过。
 - 合并后的签名隔离 canary 已只为自身开启系统通知；严格签名检查通过、设置回读“已开启”，关窗后台两条隔离提醒的原生 API 返回送达并持久落账。`notificationOpenedAt` 仍为空，横幅可见性与系统通知点击同任务续聊尚无证据；macOS 屏幕共享时关闭通知的全局隐私设置未改。详见同一[验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
 - 独立 Desktop `codex/route1-core-a8fe471-20260926` 从 `9ff46e5` 起步；Core `main` 精确 `a8fe471`（#192 功能、#193 仅文档）。Runtime schema/bridge/课次 schema 不变，Runtime/Desktop component manifest 分别配对到 `844eebaf…` / `8092bd3d…`。隔离 macOS `.app` 已实测冷启 G1、单班数学 4 份内部草稿、失败通知站内回退、Core synthetic 反馈、站内续聊绑定、菜单栏恢复与原生重启保留。回执 outbox、原生点击队列、权限延期和冷启恢复已在 `ebc6c6e`、`34e6d8b`、`71e32de` 修复；最终源码 1810 项测试中 1784 通过、26 跳过、0 失败。[最终预览 CI 36232143818](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36232143818) 的质量、macOS app/dmg、Windows NSIS 全绿；Windows NSIS 在隔离根实际安装启动，包内 Core 明确拒绝 `native_attestation_required`。真实跨到期系统睡眠、系统通知成功点击、原生 UI 反馈表单和 Windows G1 全链仍缺；路线 1 不记作完整闭环。实施表见[路线 1 计划](2026-09-26-route1-core-a8fe471-installed-loop.md)，实际证据见[验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。

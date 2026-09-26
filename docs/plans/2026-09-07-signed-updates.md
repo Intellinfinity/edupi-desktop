@@ -2,7 +2,7 @@
 
 ## 2026-09-26 路线 1 隔离 canary（未发布）
 
-- Core `a8fe471` 配对的 `com.abcwyc.pi-agent.route1-canary` `.app` 使用 `--no-sign` 构建，仅复制到 `/tmp` 独立安装目录并用隔离教师根运行。它验证的是本地安装版进程和 Core/提醒/续聊路径，**没有** Apple 签名、公证、公开 Release、旧版升级或 Windows 安装验收；不能继承下方 v0.3.45 正式版的公证结论。逐项结果见 [路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- Core `a8fe471` 配对的 `com.abcwyc.pi-agent.route1-canary` `.app` 使用 `--no-sign` 构建，仅复制到 `/tmp` 独立安装目录并用隔离教师根运行。它验证的是本地安装版进程和 Core/提醒/续聊路径，**没有** Apple 公证、公开 Release 或旧版升级；不能继承下方 v0.3.45 正式版的公证结论。[预览 CI 36224211786](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36224211786) 已构建 macOS/Windows 包并在 Windows runner 隔离安装，Core 明确拒绝 `native_attestation_required`，不算 Windows G1 验收。逐项结果见 [路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
 
 ## 2026-09-26 v0.3.45 公开签名版与本机原位升级
 

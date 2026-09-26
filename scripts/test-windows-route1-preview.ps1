@@ -47,8 +47,10 @@ console.log(JSON.stringify({ coreRoot: "native_attestation_required", g1Installe
 & $bundledNode --input-type=module -e $rootProbe
 if ($LASTEXITCODE -ne 0) { throw "Installed Core did not fail closed at the documented Windows attestation boundary" }
 
-$application = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -eq $executable }) | Select-Object -First 1
+$running = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -eq $executable })
+if ($running.Count -gt 1) { throw "Installer started multiple preview application processes" }
+$application = $running | Select-Object -First 1
 if (!$application) { $application = Start-Process -FilePath $executable -PassThru }
 try {
     $ready = $false
@@ -71,6 +73,18 @@ try {
         Start-Sleep -Seconds 2
     }
     if (!$ready) { throw "Installed preview local server did not become ready" }
+    $second = Start-Process -FilePath $executable -PassThru
+    try {
+        Wait-Process -Id $second.Id -Timeout 10 -ErrorAction SilentlyContinue
+        $second.Refresh()
+        if (!$second.HasExited) { throw "Second launch did not hand off to the installed process" }
+        $remaining = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -eq $executable })
+        if ($remaining.Count -ne 1) { throw "Installed preview has more than one active application process" }
+    } finally {
+        $second.Refresh()
+        if (!$second.HasExited) { Stop-Process -Id $second.Id -Force -ErrorAction SilentlyContinue }
+    }
     Write-Output "Windows preview installer started with an isolated data root; Core G1 remains blocked by native_attestation_required."
 } finally {
     $application.Refresh()

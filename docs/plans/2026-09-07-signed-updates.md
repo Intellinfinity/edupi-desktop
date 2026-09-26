@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-26 v0.3.45 公开签名版与本机原位升级
+
+- [三平台正式 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 及 Apple 公证装订全绿；[Release v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 非草稿、11 项资产、七个带签名 updater 平台键，Raw feed 为 0.3.45。Linux [公网安装](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964574) 与 Windows [公网安装/诊断](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36197070379) 通过。公开 DMG 摘要与 Release 相同，严格签名和应用/镜像 Gatekeeper 为 `Notarized Developer ID`；本机 stapler 因 CloudKit TLS `-1200` 无结论，不覆盖 runner 的装订成功。
+- 本机唯一安装副本从 v0.3.44 在设置页检测到 v0.3.45，经下载、安装、自动重启变为 v0.3.45；Core/投影/Kernel ready、Core `86a49de`、51 学生/160 任务/24 校历/6 课表、五份配置摘要和 7897 更新代理保持。官方 OpenConnector Console 独立原生窗口四页、403 阻断、768×846 半屏服务/参数交互均已操作；Windows/Linux UI 点击另记未验。详情见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。
+
 ## 2026-09-25 v0.3.43 公开签名版与本机更新边界
 
 - [#272](https://github.com/Intellinfinity/edupi-desktop/pull/272) 的管理与设置归位已进入公开 v0.3.43。正式 run [`36125163938`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36125163938) 三平台、Apple 公证装订及 7 键 feed 全绿；Release 非草稿、11 项资产。Linux [`36130963967`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36130963967) 与 Windows [`36130964060`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36130964060) 的公开安装和后置诊断均通过。公开 DMG 经 API/7897 独立下载后摘要与 Release 一致，严格签名及应用/镜像 Gatekeeper 公证通过。

@@ -1,14 +1,14 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-26 v0.3.45 官方 Console 签名版（已发布，安装验收进行中）
+## 2026-09-26 v0.3.45 官方 Console 签名版（已发布，本机原位升级与公网安装通过）
 
-- Desktop [#277](https://github.com/Intellinfinity/edupi-desktop/pull/277)、[#278](https://github.com/Intellinfinity/edupi-desktop/pull/278) 已合并；[三平台正式发布 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 与 Apple 公证装订全绿，[公开 v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 有 11 项资产和七个平台签名键。Linux 公网安装通过；公开 DMG 摘要、严格签名、Gatekeeper 与包内 Console 只读 smoke 通过。本机 stapler 查询被 CloudKit TLS 阻断；Windows 公开安装 job 在下载前遇匿名 GitHub API rate limit，修复和重跑中；本机 v0.3.44→v0.3.45 原位更新因锁屏待操作。详细证据见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。
-- 官方 Overview/Providers/Actions/Runs 已作为独立、无 Tauri capability 的窗口进入签名包；账号连接、OAuth、真实 Action 和 Core grant/Receipt 继续关闭。不能把只读 UI 发布写成 R23 完成。
+- Desktop [#277](https://github.com/Intellinfinity/edupi-desktop/pull/277)、[#278](https://github.com/Intellinfinity/edupi-desktop/pull/278) 已合并；[三平台正式发布 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 与 Apple 公证装订全绿，[公开 v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 有 11 项资产和七个平台签名键。Linux [公网安装](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964574) 与 Windows [公网安装及诊断](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36197070379) 全绿；后者的匿名 API 限流由 CI-only [#279](https://github.com/Intellinfinity/edupi-desktop/pull/279) 修复，令牌在启动安装器前清除，未重发包。公开 DMG 摘要、严格签名、Gatekeeper 与包内 Console 只读 smoke 通过；本机 stapler 查询被 CloudKit TLS 阻断，runner 装订验证通过。详细证据见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。
+- 本机唯一 EduPi.app 从 v0.3.44 经应用内下载、安装和自动重启至 v0.3.45，Core `86a49de`、51/160/24/6 教师数据、五份配置摘要、7897 更新代理和现有手机开关保持。签名版原生 Console 实际完成概览、服务搜索、Action 参数、运行记录和窗口关闭重开；半屏截图 768×846，服务/参数页面未见横向裁切，安装版连接写入/Action POST 继续 403。账号、OAuth、真实 Action 和 Core grant/Receipt 仍关闭，R23 继续部分实现；Windows/Linux UI 点击未验，不能以只读 UI 发布写成 R23 完成。
 
 ## 2026-09-26 R23 官方 OpenConnector Console 接入（历史源码阶段，发布状态由上方取代）
 
 - 教师指出 v0.3.44 的独立目录页不是上游已有的连接器界面。Desktop 在固定的 OpenConnector v1.6.5 源码上构建官方 Console，保留 Overview、Providers、Actions、Runs；独立原生窗口不继承主窗口 Tauri capability。出处、许可、补丁和生成资产摘要可重建，见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。
-- 隔离浏览器已看到 1554 个服务、18010 个 Action、服务搜索、参数详情和运行记录，800 像素无横向溢出；staged Console 与旧目录 host 均保持写入/执行阻断。当前仅为只读界面，账号、OAuth、真实 Action 和 Core grant/Receipt 仍未实现，R23 继续“部分实现”。三平台发布、安装版原生窗口及真实教师数据保持待验，不用源码页面替代。
+- 隔离浏览器已看到 1554 个服务、18010 个 Action、服务搜索、参数详情和运行记录，800 像素无横向溢出；staged Console 与旧目录 host 均保持写入/执行阻断。账号、OAuth、真实 Action 和 Core grant/Receipt 仍未实现，R23 继续“部分实现”。本段当时的三平台发布、安装版原生窗口及真实教师数据状态已由上方 v0.3.45 安装验收取代。
 
 ## 2026-09-26 v0.3.44 独立管理页与意图预检签名版（本机原位升级通过）
 

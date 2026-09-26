@@ -4,6 +4,7 @@
 
 - Desktop [PR #281](https://github.com/Intellinfinity/edupi-desktop/pull/281) 的独立 `codex/route1-core-a8fe471-20260926` 从 `main` 的 `9ff46e58e2adf07030d91bdd0e711a42c220cc9c` 创建；原 Desktop 工作树未改。Core 使用 detached `a8fe4711419fe3f36a19fd342e17abe33a7825b9` 的干净检出，原 Core 主工作树的大量未提交改动未动。真实教师数据根和 launchd 未操作。
 - 本记录已包含隔离 macOS `.app` 的启动、界面和重启实测，但**不等于路线 1 全部验收通过**。Windows Core 根证明、真实跨到期系统睡眠和系统通知成功点击仍未通过。下文旧版 canary 与预览 CI 证据均早于 `71e32de` 回执恢复修复，不能代替最终提交的安装版/CI 复核。主验收路径与逐项状态见[路线 1 计划](../plans/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 合并记录：[Desktop PR #281](https://github.com/Intellinfinity/edupi-desktop/pull/281) 于 2026-09-26 09:51 UTC 合入 `main`，merge commit `d80bb12934c2805eb14eff57021d42e22f16be07`。发布记录：本路线未创建正式 Release，也未覆盖 `/Applications/EduPi.app`。用户/目标系统验收：下文未通过项继续开放，合并不改变其状态。
 
 ## 2026-09-26 回执与冷启恢复修复
 

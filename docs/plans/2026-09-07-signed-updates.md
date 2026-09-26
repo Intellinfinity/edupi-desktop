@@ -1,5 +1,9 @@
 # 自动下载安装
 
+## 2026-09-26 路线 1 隔离 canary（未发布）
+
+- Core `a8fe471` 配对的 `com.abcwyc.pi-agent.route1-canary` `.app` 使用 `--no-sign` 构建，仅复制到 `/tmp` 独立安装目录并用隔离教师根运行。它验证的是本地安装版进程和 Core/提醒/续聊路径，**没有** Apple 签名、公证、公开 Release、旧版升级或 Windows 安装验收；不能继承下方 v0.3.45 正式版的公证结论。逐项结果见 [路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+
 ## 2026-09-26 v0.3.45 公开签名版与本机原位升级
 
 - [三平台正式 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 及 Apple 公证装订全绿；[Release v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 非草稿、11 项资产、七个带签名 updater 平台键，Raw feed 为 0.3.45。Linux [公网安装](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964574) 与 Windows [公网安装/诊断](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36197070379) 通过。公开 DMG 摘要与 Release 相同，严格签名和应用/镜像 Gatekeeper 为 `Notarized Developer ID`；本机 stapler 因 CloudKit TLS `-1200` 无结论，不覆盖 runner 的装订成功。

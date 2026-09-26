@@ -33,5 +33,5 @@
 | 系统通知失败可站内恢复，点击直接续聊 | 原生失败回退及站内同任务续聊通过；系统通知成功点击未验 | 未验 | G1 本机通知与 Core L4 receipt 分开记录 |
 | 教师审核后反馈写回 Core、重读与重放 | 包内 E2 通过；原生 UI 反馈表单未验 | 未验 | synthetic excluded；delivery receipt 不代替 feedback |
 | G2/G3/G4 canary permit 与 G5/material/归属 hold | G2/G3 Live 默认未注入，隔离 ambient/feedback canary 后关停；G5/material/归属为 Core 单元证据 | 未验 | 默认关闭、无外发 |
-| Core Runtime Windows 原生盘证明 | 不适用 | [CI 36224211786](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36224211786) 从已安装包实际返回 `native_attestation_required`，`g1Installed=false` | 不绕过；需要新 Core 合同或如实记阻塞 |
+| Core Runtime Windows 原生盘证明 | 不适用 | [最终 CI 36232143818](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36232143818) 从已安装包实际返回 `native_attestation_required`，`g1Installed=false` | 不绕过；需要新 Core 合同或如实记阻塞 |
 | 真实教师根、配置、launchd 未修改 | 隔离路径与正式应用 PID 核对通过 | 不适用 | 使用独立工作树与隔离数据；测试 canary 保留在 `/tmp` |

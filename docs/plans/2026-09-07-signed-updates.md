@@ -2,7 +2,7 @@
 
 ## 2026-09-26 路线 1 隔离 canary（未发布）
 
-- Core `a8fe471` 配对的 `com.abcwyc.pi-agent.route1-canary` `.app` 使用 `--no-sign` 构建，仅复制到 `/tmp` 独立安装目录并用隔离教师根运行。它验证的是本地安装版进程和 Core/提醒/续聊路径，**没有** Apple 公证、公开 Release 或旧版升级；不能继承下方 v0.3.45 正式版的公证结论。[预览 CI 36225798404](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36225798404) 已构建 macOS/Windows 包并在 Windows runner 隔离安装及二次启动，Core 明确拒绝 `native_attestation_required`，不算 Windows G1 验收。该 run 早于 `ebc6c6e`、`34e6d8b`、`71e32de` 恢复修复，不是最终提交的 CI；逐项结果见 [路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- Core `a8fe471` 配对的 `com.abcwyc.pi-agent.route1-canary` `.app` 使用 `--no-sign` 构建，仅复制到 `/tmp` 独立安装目录并用隔离教师根运行。它验证的是本地安装版进程和 Core/提醒/续聊路径，**没有** Apple 公证、公开 Release 或旧版升级；不能继承下方 v0.3.45 正式版的公证结论。[最终预览 CI 36232143818](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36232143818) 在恢复修复后的 `02781cb` 构建 macOS/Windows 包并在 Windows runner 隔离安装及二次启动，三个 job 全绿；Core 明确拒绝 `native_attestation_required`，不算 Windows G1 验收。逐项结果见 [路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
 - `71e32de` 后重新构建并复制到 `/tmp/edupi-route1-final.Aavckr/Applications/` 的独立 `.app` 已从 LaunchServices 启动，内置 Core `ready`、G1 `active`，原生菜单栏点击恢复同一 PID；staged 与 bundle 资源的隔离闭环均返回 4 个草稿、1 次模型调用、失败去重、synthetic 排除和重启保留。该 canary 仍是未签名、未公证、未公开的测试版；没有执行正式安装覆盖或旧版升级。系统锁屏后通知权限、系统通知成功点击和跨到期实睡未验。
 
 ## 2026-09-26 v0.3.45 公开签名版与本机原位升级

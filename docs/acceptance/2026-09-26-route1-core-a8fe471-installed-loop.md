@@ -3,7 +3,13 @@
 ## 当前状态
 
 - Desktop 独立 `codex/route1-core-a8fe471-20260926` 从 `main` 的 `9ff46e58e2adf07030d91bdd0e711a42c220cc9c` 创建；原 Desktop 工作树未改。Core 使用 detached `a8fe4711419fe3f36a19fd342e17abe33a7825b9` 的干净检出，原 Core 主工作树的大量未提交改动未动。真实教师数据根和 launchd 未操作。
-- 本记录已包含隔离 macOS `.app` 的启动、界面和重启实测，但**不等于路线 1 全部验收通过**。Windows Core 根证明、真实跨到期系统睡眠和系统通知成功点击仍未通过。主验收路径与逐项状态见[路线 1 计划](../plans/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 本记录已包含隔离 macOS `.app` 的启动、界面和重启实测，但**不等于路线 1 全部验收通过**。Windows Core 根证明、真实跨到期系统睡眠和系统通知成功点击仍未通过。下文旧版 canary 与预览 CI 证据均早于 `71e32de` 回执恢复修复，不能代替最终提交的安装版/CI 复核。主验收路径与逐项状态见[路线 1 计划](../plans/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+
+## 2026-09-26 回执与冷启恢复修复
+
+- Desktop `ebc6c6e` 在包内服务尚未就绪或首次 Core ensure 报错时持续有界重试，逐次重核同一桌面实例身份；`34e6d8b` 将原生通知点击目标放入进程内队列，前端注册监听后串行取出，导航不会被回执网络请求卡住，原生权限拒绝改为延期而非耗尽失败次数。`71e32de` 将已发生的通知送达、失败、点击写入原子本地 outbox，按原载体身份向 Core 精确重放；Core 不可用时保留回执且阻止同一提醒的新领取，满队列扫描不饿死其他提醒。旧版无法证明 Core 绑定的回执保持待处理，不伪造已同步。
+- 最终源码 `npm test`：1810 项，1784 passed、26 skipped、0 failed；TypeScript、lint、Cargo 35 项与针对性回执/原生点击测试通过。代码复审未发现剩余 P1/P2 阻塞。此前 [预览 CI 36225798404](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36225798404) 的质量、macOS `.app`、Windows NSIS 均成功，且 Windows 二次启动只保留一个进程；该 run 的提交早于上述恢复修复，最终提交必须另跑 CI。
+- 已知恢复边界：本地 claim 写入后、操作系统发送返回前若进程崩溃，因旧通知无稳定系统级去重 ID，不自动重发以免重复弹窗；旧提醒撤销且 Core 不再返回对应 current L4 intent 时，待处理回执保留诊断而不冒充已同步。G1 本地授权与 Core L4 回执是两种路径，前者不声称 Core L4 已完成。
 
 ## 合同核对
 
@@ -39,6 +45,14 @@
 | Windows | [预览 CI 36224211786](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36224211786) 的质量、macOS 包、Windows NSIS 包三项成功；Windows runner 将本 PR 的 NSIS 静默安装到 `RUNNER_TEMP`，用隔离教师根启动本机服务并拿到 HTTP 200，包内 Core 原生验证明确返回 `native_attestation_required`、`g1Installed=false`。Core `a8fe471` 在 `scripts/core_runtime_root.mjs:79` 对 `win32` 固定拒绝，Desktop 无权伪造证明。 | Windows 预览安装/原生壳启动通过；G1 冷启、托盘、睡眠、通知及教师反馈全链仍受 Core 合同阻塞，不能把 HTTP 200 写成 G1 可用。 |
 
 本次 canary 的材料、任务、消息、反馈均为 synthetic；未向学生、家长或第三方外发。`/Applications/EduPi.app`、真实教师数据根、Core 主工作树和 launchd 未改。保留测试根仅用于复核隔离数据，不能作为教师正式环境。
+
+### 最终代码的本机复核
+
+- 在 `71e32de` 上重新执行 `EDUPI_CORE_ROOT=<clean a8> npm run desktop:prepare`，2174 个 Core 文件与 `a8fe471` 一致；`npm run release:verify`、`cargo metadata --locked`、`cargo test --locked`（35 passed）、`tsc --noEmit`、`npm run lint`、`npm audit --audit-level=high`（0 vulnerabilities）和 preview `actionlint` 通过。
+- 同一最终代码的 staged 与重新构建 `.app` 资源各执行一次 `npm run test:route1-packaged-loop`，均返回 `platform=darwin`、`coreCommit=a8fe471…`、4 个产物、1 次模型调用、失败回调去重、审核接受、synthetic 反馈排除、重启保持、`externalSend=false`。后一次另保留隔离根用于原生 UI：`/private/var/folders/xk/qmn_r8g93ljb7b5vqzq3rd040000gn/T/edupi-route1-packaged-loop-7sdriq`。
+- 最终 `.app` 复制到 `/tmp/edupi-route1-final.Aavckr/Applications/EduPi Route1 Canary.app` 并通过 LaunchServices 启动。首次人为设置 `EDUPI_CORE_ROOT` 把内置 Core 错误声明成外部来源，投影返回 503；退出该测试进程后移除这项覆盖，按真实内置 Core 路径重启同一隔离根，Core `ready`、G1 `active`、G2/G3 `activation_pending`、`externalSend=false`，UI 显示同一个七一班数学课前任务与材料。此配置失误不是包内 Core 失败，不计入通过路径。
+- 原生窗口关闭后 Orca 返回窗口数 0，测试应用 PID `93954` 与包内服务继续存活；实际点击菜单栏托盘项，菜单为 `Quick Entry / Show EduPi / Quit EduPi`，点击 `Show EduPi` 后同 PID 的窗口恢复。该证据覆盖 macOS 菜单栏恢复，不代替 Windows 托盘或系统睡眠。
+- 隔离签名通知 canary 的设置页仍显示系统通知“已拒绝”。随后前台应用进程切至 `loginwindow` 锁屏；未得到已授权的系统通知成功送达/点击，也未对正式应用的隐私设置做任何操作。最终 `.app` 的权限延期逻辑只由单元测试覆盖，不能写成系统通知原生验收通过。
 
 ## 不越界
 

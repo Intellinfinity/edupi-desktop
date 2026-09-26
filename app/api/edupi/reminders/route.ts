@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 async function result(action?: ReminderAction) {
   const { data } = await readEducationWorkspaceBundle();
   const file = path.join(data.workspace, ".edupi", "desktop", "reminders.json");
-  const events = reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents, data.workCases);
+  const events = reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents, data.workCases, data.generatedArtifacts);
   let state = await updateReminderStore(file, events, action);
   const claimed = action?.type === "claim_notifications" ? state.notifications || [] : [];
   const attention = action && shouldSyncReminderAttention(action, state.notificationTransitionApplied)

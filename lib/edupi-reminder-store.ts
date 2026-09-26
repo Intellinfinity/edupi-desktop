@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import lockfile from "proper-lockfile";
 import type { ReminderEvent } from "./edupi-reminder-events";
 
-export type Reminder = { id: string; taskId: string; title: string; kind: "ready" | "failed" | "due" | "brief"; identity: string; createdAt: string; read: boolean; handled: boolean; snoozedUntil: string | null; nativeSource?: "teacher_created"; notificationAttemptedAt?: string; notificationDeliveredAt?: string; notificationOpenedAt?: string; notificationFailureAt?: string; notificationFailureCount?: number; notificationRetryAt?: string; withdrawn?: boolean };
+export type Reminder = { id: string; taskId: string; title: string; kind: "ready" | "failed" | "due" | "brief"; identity: string; createdAt: string; read: boolean; handled: boolean; snoozedUntil: string | null; nativeSource?: "teacher_created" | "core_g1"; notificationAttemptedAt?: string; notificationDeliveredAt?: string; notificationOpenedAt?: string; notificationFailureAt?: string; notificationFailureCount?: number; notificationRetryAt?: string; withdrawn?: boolean };
 export type ReminderActivityType = "candidate_created" | "candidate_withdrawn" | "notification_claimed" | "notification_delivered" | "notification_released" | "notification_deferred" | "notification_failed" | "notification_opened" | "read" | "handled" | "snoozed";
 export type ReminderActivity = { type: ReminderActivityType; reminderId: string; taskId: string; at: string; latencyMs?: number };
 export type ReminderMetrics = {
@@ -88,7 +88,7 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
       if (!current && !item.withdrawn) addActivity(state, { type: "candidate_withdrawn", reminderId: item.id, taskId: item.taskId, at: new Date(now).toISOString() });
       item.withdrawn = !current;
       if (current) item.title = current.title;
-      if (item.nativeSource === "teacher_created" && current?.nativeSource !== "teacher_created") delete item.nativeSource;
+      if (item.nativeSource && current?.nativeSource !== item.nativeSource) delete item.nativeSource;
     }
     for (const item of Object.values(snapshot)) {
       if (!item.completion || state.items.some(record => record.taskId === item.taskId && record.identity === item.identity)) continue;

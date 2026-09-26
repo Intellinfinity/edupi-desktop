@@ -136,6 +136,10 @@ jobs:
           if ($actual -notmatch '^(\d+)\.(\d+)\.(\d+)' -or "$($Matches[1]).$($Matches[2]).$($Matches[3])" -ne $expected) {
             throw "Preview executable version does not match package version"
           }
+      - name: Install Windows preview and record Core root boundary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test-windows-route1-preview.ps1
       - name: Upload preview installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

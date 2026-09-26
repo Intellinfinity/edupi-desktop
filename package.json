@@ -64,6 +64,7 @@
     "test:jev-intent-preflight": "node scripts/jev-intent-preflight.mjs --check && node --test scripts/jev-intent-preflight.test.mjs",
     "run:jev-intent-preflight": "node scripts/jev-intent-preflight.mjs --live",
     "test:staged-feedback-runtime": "node scripts/test-staged-feedback-runtime.mjs",
+    "test:route1-packaged-loop": "node scripts/test-route1-packaged-loop.mjs",
     "test:edupi-c6-e2": "node scripts/test-edupi-c6-e2.mjs",
     "test:edupi-c6-recognition-e2": "node scripts/test-edupi-c6-recognition-e2.mjs",
     "test:edupi-text-schedule-evidence-e2": "node scripts/test-edupi-text-schedule-evidence-e2.mjs",

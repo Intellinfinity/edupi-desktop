@@ -20,6 +20,7 @@
 
 - Core clean checkout：`npm run test:core-runtime-g1-live` 通过，结果含 cold start、重启无额外模型调用、Unix SIGSTOP/SIGCONT 补扫；`npm run test:capability-live` 通过，G3/G4 仅当前 owner/accepted Fact 内部草稿，G5 未核实关系拒绝入队、material hold、`external_send=false`；`npm run check:core-runtime-manifest` 报模块 148、资产 201，Runtime component hash 与上述一致；`npm run typecheck` 通过。这些是 Core 工程证据，不是 macOS/Windows 系统睡眠或 Desktop installed 证据。
 - Desktop pin 定向测试先因旧 `86a49de` 失败，更新后 `lib/edupi-bridge-contract.test.mjs` 在 `EDUPI_CORE_ROOT` 指向 clean a8 检出时 10/10 通过；`scripts/packaged-core-bundle.test.mjs` 3/3 通过，完整闭包复制、无 `.git` 校验、坏依赖拒绝和隔离 Runtime 启动均有证据。仍须完整 staged/安装版草稿—提醒—反馈验证。
+- `EDUPI_CORE_ROOT=<clean a8> npm run desktop:prepare` 成功，将 2174 个 Core 文件打入隔离资源；普通 staged runtime 与反馈 smoke 均通过，G1 `active`、G2/共享能力 `activation_pending`、`externalSend=false`。新增无 WebView 冷启测试先失败：只请求包内 identity 时，20 秒内无 Core DB；`desktop/server-launcher.cjs` 只在 bundled/production/loopback 且随机实例身份匹配后有界调用一次现有 `ensure`。重新打包后 `EDUPI_STAGED_HEADLESS_BOOT=1 npm run test:staged-desktop-runtime` 返回 `headlessBoot=true`、Core/投影 ready、G1 active、G2/G3 pending。单元测试验证外部 Core、dev、非 loopback、坏端口/父 PID 不启动；身份错配不发送 Core 请求。当前全量 `npm test` 为 1769 total / 1743 passed / 26 skipped / 0 failed，TypeScript、lint 通过。这仍只证明包内冷启，不证明 macOS/Windows 安装版跨到期睡眠或草稿内容。
 
 ## 不越界
 

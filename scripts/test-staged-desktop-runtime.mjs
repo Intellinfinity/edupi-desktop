@@ -17,6 +17,8 @@ const nodeBinary = process.platform === "darwin"
   : path.join(resources, "node", process.platform === "win32" ? "node.exe" : "node");
 const stagedCoreRoot = path.join(resources, "edupi-core");
 const identityOnly = process.env.EDUPI_STAGED_IDENTITY_ONLY === "1";
+const headlessBoot = process.env.EDUPI_STAGED_HEADLESS_BOOT === "1";
+if (identityOnly && headlessBoot) throw new Error("identity-only and headless boot checks are mutually exclusive");
 for (const required of [
   stagedServerDir,
   nodeBinary,
@@ -41,6 +43,7 @@ const serverDir = path.join(isolatedResources, "server");
 const coreRoot = path.join(isolatedResources, "edupi-core");
 const dataRoot = path.join(temporaryRoot, "data");
 const stateRoot = path.join(temporaryRoot, "state");
+const runtimeDatabase = path.join(dataRoot, ".edupi", "runtime", "core-runtime-v1.sqlite");
 fs.mkdirSync(isolatedResources, { recursive: true });
 fs.cpSync(stagedServerDir, serverDir, { recursive: true, verbatimSymlinks: true });
 fs.cpSync(stagedCoreRoot, coreRoot, { recursive: true, verbatimSymlinks: true });
@@ -97,7 +100,8 @@ async function stop() {
 try {
   let identityReady = false;
   let status = null;
-  const deadline = Date.now() + 45_000;
+  let runtimeStoreSeenBeforeStatus = false;
+  const deadline = Date.now() + (headlessBoot ? 20_000 : 45_000);
   while (Date.now() < deadline && !(identityReady && (identityOnly || status))) {
     if (child.exitCode !== null) throw new Error(`staged server exited: ${logs.slice(-4000)}`);
     try {
@@ -105,8 +109,11 @@ try {
       if (identity.status === 204) {
         identityReady = true;
         if (identityOnly) break;
-        const response = await fetch(`${baseUrl}/api/edupi/status?summary=1`, { signal: AbortSignal.timeout(10_000) });
-        status = await response.json();
+        if (!headlessBoot || fs.existsSync(runtimeDatabase)) {
+          if (headlessBoot) runtimeStoreSeenBeforeStatus = true;
+          const response = await fetch(`${baseUrl}/api/edupi/status?summary=1`, { signal: AbortSignal.timeout(10_000) });
+          status = await response.json();
+        }
       }
     } catch {
       // Keep polling while the staged server completes its cold start.
@@ -117,6 +124,7 @@ try {
   if (identityOnly) {
     console.log(JSON.stringify({ status: "passed", identityOnly: true }, null, 2));
   } else {
+    if (headlessBoot) assert.equal(runtimeStoreSeenBeforeStatus, true, `Core did not start before any education API request: ${logs.slice(-4000)}`);
     assert.ok(status, `staged server did not become ready: ${logs.slice(-4000)}`);
     assert.equal(status.compatibility.actual.coreCommit, compat.core_runtime.core_commit);
     assert.equal(status.compatibility.actual.componentManifestHash, compat.core_runtime.component_manifest_hash);
@@ -132,7 +140,7 @@ try {
     assert.equal(timetableSources.status, 200);
     assert.equal(timetableSources.headers.get("cache-control"), "no-store");
     assert.deepEqual((await timetableSources.json()).sources, []);
-    console.log(JSON.stringify({ status: "passed", coreCommit: status.compatibility.actual.coreCommit, coreStatus: status.core.status,
+    console.log(JSON.stringify({ status: "passed", headlessBoot, coreCommit: status.compatibility.actual.coreCommit, coreStatus: status.core.status,
       projectionStatus: status.projection.status, occurrenceContract: occurrenceIdentity.contract_version,
       proactivity: status.proactivity.status,
       processors: { g1: status.core.capabilities.g1_processor, g2: status.core.capabilities.g2_processor, sharedCapability: status.core.capabilities.g3_processor },

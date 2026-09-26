@@ -32,6 +32,53 @@ function resolveEduPiLaunchRoots(environment = process.env) {
   };
 }
 
+function shouldWakeCoreAtPackagedStart(environment = process.env) {
+  const port = Number(environment.PORT);
+  const parentPid = Number(environment.PI_WEB_PARENT_PID);
+  return environment.NODE_ENV === "production"
+    && environment.EDUPI_CORE_VALIDATION_MODE === "bundled"
+    && environment.HOSTNAME === "127.0.0.1"
+    && /^\d{1,5}$/.test(environment.PORT || "") && Number.isInteger(port) && port > 0 && port <= 65_535
+    && /^\d+$/.test(environment.PI_WEB_PARENT_PID || "") && Number.isSafeInteger(parentPid) && parentPid > 0
+    && typeof environment.PI_DESKTOP_INSTANCE_ID === "string" && environment.PI_DESKTOP_INSTANCE_ID.length > 0;
+}
+
+async function wakePackagedCoreAtStartup(environment = process.env, fetcher = fetch) {
+  if (!shouldWakeCoreAtPackagedStart(environment)) return "skipped";
+  const origin = `http://127.0.0.1:${environment.PORT}`;
+  let verified = false;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    try {
+      const response = await fetcher(`${origin}/api/desktop/identity`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(1_500),
+      });
+      if (response.status === 204) {
+        if (response.headers.get("x-pi-desktop-instance") !== environment.PI_DESKTOP_INSTANCE_ID) return "identity_mismatch";
+        verified = true;
+        break;
+      }
+    } catch { /* Next.js may not be listening yet. */ }
+    if (attempt < 11) await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  if (!verified) return "unavailable";
+  try {
+    // One bounded wake starts the existing Core G1 processor. Core owns its
+    // subsequent timer, source rechecks, queue claims and durable receipts.
+    const response = await fetcher(`${origin}/api/edupi/preparation`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin },
+      body: JSON.stringify({ action: "ensure" }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) return "unavailable";
+    const status = await response.json();
+    return status?.state === "error" ? "degraded" : "ready";
+  } catch {
+    return "unavailable";
+  }
+}
+
 if (require.main === module) {
   Object.assign(process.env, resolveEduPiLaunchRoots());
 
@@ -62,6 +109,10 @@ if (require.main === module) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("./server.js");
 
+  void wakePackagedCoreAtStartup().then((status) => {
+    if (status !== "ready" && status !== "skipped") console.warn("[edupi runtime] packaged startup wake", status);
+  });
+
   if (process.env.EDUPI_MOBILE_BRIDGE_ENABLED === "1") {
     const host = process.env.EDUPI_MOBILE_BRIDGE_HOST;
     const port = Number(process.env.PORT);
@@ -77,4 +128,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { resolveEduPiLaunchRoots };
+module.exports = { resolveEduPiLaunchRoots, shouldWakeCoreAtPackagedStart, wakePackagedCoreAtStartup };

@@ -1,5 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-26 路线 1：Core a8fe471 安装版主动闭环（实施中）
+
+- 独立 Desktop `codex/route1-core-a8fe471-20260926` 从 `9ff46e5` 起步；Core `main` 精确 `a8fe471`（#192 功能、#193 仅文档）。Runtime schema/bridge/课次 schema 不变，Runtime/ Desktop component manifest 分别须配对到 `844eebaf…` / `8092bd3d…`。当前仍未改 Desktop pin，不能把 Core 单元测试当作安装版完成。实施与逐项验收表见 [路线 1 计划](2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 主验收是隔离的单教师/单班/单科可信事件 → G1 后台到期草稿 → 通知点击续聊 → 教师审核及 Core 反馈。G2/G3/G4 默认关闭且仅隔离 canary 可启用；G5 监护关系、材料和课次/学期归属未经 Core 证明时保持 hold，不自动外发。macOS/Windows 安装证据、PR/CI/合并状态分别记录，不提前打勾。
+
 ## 2026-09-26 v0.3.45 官方 Console 签名版（已发布，本机原位升级与公网安装通过）
 
 - Desktop [#277](https://github.com/Intellinfinity/edupi-desktop/pull/277)、[#278](https://github.com/Intellinfinity/edupi-desktop/pull/278) 已合并；[三平台正式发布 run 36190180285](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36190180285) 与 Apple 公证装订全绿，[公开 v0.3.45](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.45) 有 11 项资产和七个平台签名键。Linux [公网安装](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36194964574) 与 Windows [公网安装及诊断](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36197070379) 全绿；后者的匿名 API 限流由 CI-only [#279](https://github.com/Intellinfinity/edupi-desktop/pull/279) 修复，令牌在启动安装器前清除，未重发包。公开 DMG 摘要、严格签名、Gatekeeper 与包内 Console 只读 smoke 通过；本机 stapler 查询被 CloudKit TLS 阻断，runner 装订验证通过。详细证据见 [官方 Console 验收](../acceptance/2026-09-26-openconnector-official-console.md)。

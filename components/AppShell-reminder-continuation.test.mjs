@@ -9,6 +9,7 @@ test("native notification click enters the existing reminder chat flow, not a ta
   assert.ok(start > 0 && end > start);
   const handler = source.slice(start, end);
   assert.match(handler, /continueReminder\(taskId\)/u);
+  assert.match(source.slice(source.indexOf("const continueReminder = useCallback("), start), /AbortSignal\.timeout\(30_000\)/u);
   assert.doesNotMatch(handler, /handleEduPiAppAction\(/u);
-  assert.match(handler, /catch\(inbox\)/u);
+  assert.match(handler, /catch \{ inbox\(\); \}/u);
 });

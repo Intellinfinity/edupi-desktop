@@ -4,7 +4,7 @@ import test from "node:test";
 import { createJiti } from "jiti";
 
 const source = await readFile(new URL("./useEduPiReminderNotifications.ts", import.meta.url), "utf8");
-const { authorizedReminderNotifications, reminderOutcomeAction, reminderContinuationTaskId } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./useEduPiReminderNotifications.ts");
+const { authorizedReminderNotifications, reminderOutcomeAction, reminderOutcomeType, reminderContinuationTaskId } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./useEduPiReminderNotifications.ts");
 
 test("one notification opens only its exact task continuation", () => {
   assert.equal(reminderContinuationTaskId({ reminderId: "r1", taskId: "task-one", kind: "ready" }), "task-one");
@@ -19,12 +19,20 @@ test("native notification outcomes carry the exact Core claim identity", () => {
   assert.deepEqual(reminderOutcomeAction(claim, "notification_delivered"), { ...claim, type: "notification_delivered" });
 });
 
+test("skipped system permission defers a reminder without spending its native failure budget", () => {
+  assert.equal(reminderOutcomeType("attempted"), "notification_delivered");
+  assert.equal(reminderOutcomeType("failed"), "notification_failed");
+  assert.equal(reminderOutcomeType("skipped"), "notification_deferred");
+});
+
 test("notification lifecycle records delivery, failure, and opened targets", () => {
   assert.match(source, /notification_delivered[\s\S]*notification_failed/);
   assert.match(source, /notification_opened/);
   assert.match(source, /id: target\.reminderId, type: "notification_opened"/u);
   assert.match(source, /taskId: target\.taskId/);
   assert.doesNotMatch(source, /id: "\*", type: "notification_opened"/u);
+  assert.match(source, /void markOpened\(target\)\.catch\(\(\) => \{\}\); await onOpen\(target\)/u);
+  assert.doesNotMatch(source, /await markOpened\(target\)/u);
 });
 
 test("native send requires the current server authorization list, not just a claimed notification", () => {

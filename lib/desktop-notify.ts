@@ -1,6 +1,6 @@
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { APP_PREF_KEYS, getPrefBool } from "@/lib/app-prefs";
-import { sendReminderNotificationNative, type NativeReminderNotification } from "@/lib/desktop-native";
+import { isDeferredReminderNotificationError, sendReminderNotificationNative, type NativeReminderNotification } from "@/lib/desktop-native";
 
 export function desktopNotificationsEnabled(): boolean {
   return getPrefBool(APP_PREF_KEYS.notifyOnComplete, true);
@@ -37,6 +37,12 @@ export async function notifyDesktop(options: {
 
   try {
     if (!(await ensurePermission())) return "skipped";
+  } catch (error) {
+    console.error("Desktop notification authorization unavailable:", error);
+    return "skipped";
+  }
+
+  try {
     if (options.reminder) await sendReminderNotificationNative({ title: options.title, body: options.body, ...options.reminder });
     else {
       const { sendNotification } = await import("@tauri-apps/plugin-notification");
@@ -45,6 +51,7 @@ export async function notifyDesktop(options: {
     return "attempted";
   } catch (error) {
     console.error("Desktop notification failed:", error);
+    if (isDeferredReminderNotificationError(error)) return "skipped";
     return "failed";
   }
 }

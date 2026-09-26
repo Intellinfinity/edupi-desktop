@@ -883,7 +883,8 @@ export function AppShell() {
 
   const [reminderDraft, setReminderDraft] = useState<{ taskId: string; title: string; context?: EduPiComposerContext; openId?: string } | null>(null);
   const continueReminder = useCallback(async (taskId: string) => {
-    const response = await fetch("/api/edupi/workspace", { cache: "no-store" });
+    const signal = AbortSignal.timeout(30_000);
+    const response = await fetch("/api/edupi/workspace", { cache: "no-store", signal });
     if (!response.ok) throw new Error("事项读取失败");
     const { data } = await response.json();
     const task = data.tasks.find((item: { id: string }) => item.id === taskId);
@@ -896,7 +897,7 @@ export function AppShell() {
     const reminderKey = `reminder:${data.workspace}:${taskId}`;
     const draftKey = sessionId || reminderKey;
     const draft = getDraft(draftKey);
-    const result = await handleActivateEducationAgentSession({ taskId, sessionId, cwd: data.workspace, view: "tasks", stage: "run", signal: new AbortController().signal });
+    const result = await handleActivateEducationAgentSession({ taskId, sessionId, cwd: data.workspace, view: "tasks", stage: "run", signal });
     if (workspaceDraft) setDraft(workspaceDraftKey, workspaceDraft);
     const key = result === "existing" ? sessionId! : reminderKey;
     if (draft && (draft.value || draft.images.length || draft.context)) setDraft(key, draft);
@@ -955,11 +956,12 @@ export function AppShell() {
     setEducationRefreshKey((key) => key + 1);
   }, []);
   useEduPiCompletionMonitor({ onRefresh: handleEducationProjectionChanged, notifications: false });
-  const openReminderNotification = useCallback((target: import("@/lib/desktop-native").ReminderNotificationTarget | null) => {
+  const openReminderNotification = useCallback(async (target: import("@/lib/desktop-native").ReminderNotificationTarget | null) => {
     const inbox = () => router.replace("/?edupi=1&module=home&view=chat&reminders=1", { scroll: false });
     const taskId = reminderContinuationTaskId(target);
     if (!taskId) { inbox(); return; }
-    void continueReminder(taskId).catch(inbox);
+    try { await continueReminder(taskId); }
+    catch { inbox(); }
   }, [continueReminder, router]);
   useEduPiReminderNotifications(openReminderNotification);
 

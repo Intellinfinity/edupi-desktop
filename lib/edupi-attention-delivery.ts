@@ -1,6 +1,7 @@
 import { DESKTOP_INSTANCE_ID_ENV } from "./desktop-api";
 import { resolveEduPiBridgeRoots } from "./edupi-core-snapshot";
 import { ensureEduPiRuntime } from "./edupi-runtime-supervisor";
+import { reminderEvents } from "./edupi-reminder-events";
 import type { EducationContract } from "./edupi-education-contract";
 import type { Reminder } from "./edupi-reminder-store";
 
@@ -22,9 +23,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function affectedItems(items: readonly Reminder[], action: AttentionAction): readonly Reminder[] {
   if (action.type === "claim_notifications") return items;
+  if (action.id !== "*") return items.filter((item) => item.id === action.id && (!action.taskId || item.taskId === action.taskId));
   if (action.taskId) return items.filter((item) => item.taskId === action.taskId);
-  if (action.id === "*") return items.filter((item) => item.notificationAttemptedAt);
-  return items.filter((item) => item.id === action.id);
+  return items.filter((item) => item.notificationAttemptedAt);
 }
 
 function transitionFor(action: AttentionAction, current: string | null): AttentionTransition | null {
@@ -63,11 +64,25 @@ export function selectNativeReminderNotifications(claimed: readonly Reminder[], 
   });
 }
 
-export async function syncReminderAttention({ data, items, action, now = new Date(), runtime }: {
+export async function revalidateG1LocalClaims(claimed: readonly Reminder[], readCurrent: () => Promise<EducationContract>): Promise<Reminder[]> {
+  if (!claimed.some(item => item.nativeSource === "core_g1")) return [...claimed];
+  let current: EducationContract;
+  try { current = await readCurrent(); }
+  catch { return claimed.filter(item => item.nativeSource !== "core_g1"); }
+  if (current.scope !== "teacher_internal" || current.externalSend !== false || current.requiresTeacherReview !== true
+    || current.l4Preparation !== null) return claimed.filter(item => item.nativeSource !== "core_g1");
+  const events = Object.values(reminderEvents(current.tasks, current.workspace, new Date(),
+    current.continuity.documents, current.workCases, current.generatedArtifacts));
+  return claimed.filter(item => item.nativeSource !== "core_g1" || events.some(event => event.nativeSource === "core_g1"
+    && event.taskId === item.taskId && event.identity === item.identity && event.completion === item.kind));
+}
+
+export async function syncReminderAttention({ data, items, action, now = new Date(), runtime, instanceId }: {
   data: EducationContract;
   items: readonly Reminder[];
   action: AttentionAction;
   now?: Date;
+  instanceId?: string;
   runtime?: { host: { call(operation: string, payload: unknown): Promise<Record<string, unknown>> }; roots?: unknown };
 }): Promise<SyncResult> {
   if (!["claim_notifications", "notification_delivered", "notification_failed", "notification_opened"].includes(action.type)) {
@@ -82,6 +97,8 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
     ({ status, recorded, ...(claiming ? { linkedNotificationIds, currentNotificationIds } : {}),
       ...(g1LocalFallback ? { g1LocalFallback: true } : {}) });
   if (!claiming && !data.l4Preparation?.attentionIntents.length) return claimResult("unsupported");
+  const carrierInstanceId = instanceId === undefined ? process.env[DESKTOP_INSTANCE_ID_ENV]?.trim() || "desktop-dev" : instanceId;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(carrierInstanceId)) return claimResult("unavailable");
   let roots;
   let host: RuntimeHost;
   try {
@@ -101,12 +118,11 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
       || claiming && !supported.includes("attention_delivery_read")) {
       return claimResult("unsupported");
     }
-    const instanceId = process.env[DESKTOP_INSTANCE_ID_ENV]?.trim() || "desktop-dev";
     let recorded = 0;
     for (const item of targets) {
       const intent = intentFor(data, item);
       if (!intent) continue;
-      const delivery = currentDelivery(data, item, instanceId);
+      const delivery = currentDelivery(data, item, carrierInstanceId);
       let currentVersion = delivery?.version || 0;
       let currentStatus = delivery?.status || null;
       let next = transitionFor(action, currentStatus);
@@ -119,7 +135,7 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
           opportunity_id: intent.opportunityId,
           work_case_id: intent.workCaseId,
           deep_link: intent.deepLink,
-          carrier: { kind: "desktop", instance_id: instanceId },
+          carrier: { kind: "desktop", instance_id: carrierInstanceId },
           delivery_id: item.id,
           expected_version: expectedVersion,
           status,
@@ -141,7 +157,7 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
     if (!claiming) return claimResult("synced", recorded);
     const response = asRecord(await host.call("attention_delivery_read", {
       root_ref: fingerprint,
-      carrier: { kind: "desktop", instance_id: instanceId },
+      carrier: { kind: "desktop", instance_id: carrierInstanceId },
     }));
     if (response?.ok === false && response.error_code === "activation_pending" && data.l4Preparation === null
       && linkedNotificationIds.length === 0 && capabilities?.g1_processor === "active"
@@ -162,7 +178,7 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
         if (intent && delivery?.attention_intent_id === intent.attentionIntentId
           && delivery.opportunity_id === intent.opportunityId && delivery.work_case_id === intent.workCaseId
           && delivery.deep_link === intent.deepLink && carrier?.kind === "desktop"
-          && carrier.instance_id === instanceId && delivery.intent_current === true
+          && carrier.instance_id === carrierInstanceId && delivery.intent_current === true
           && delivery.external_send === false && (delivery.status === "queued" || delivery.status === "retry")) {
           currentNotificationIds.push(item.id);
         }

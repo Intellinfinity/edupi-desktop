@@ -2,7 +2,7 @@
 
 ## 2026-09-26 路线 1：Core a8fe471 安装版主动闭环（实施中）
 
-- 独立 Desktop `codex/route1-core-a8fe471-20260926` 从 `9ff46e5` 起步；Core `main` 精确 `a8fe471`（#192 功能、#193 仅文档）。Runtime schema/bridge/课次 schema 不变，Runtime/ Desktop component manifest 分别须配对到 `844eebaf…` / `8092bd3d…`。当前仍未改 Desktop pin，不能把 Core 单元测试当作安装版完成。实施与逐项验收表见 [路线 1 计划](2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 独立 Desktop `codex/route1-core-a8fe471-20260926` 从 `9ff46e5` 起步；Core `main` 精确 `a8fe471`（#192 功能、#193 仅文档）。Runtime schema/bridge/课次 schema 不变，Runtime/ Desktop component manifest 已分别配对到 `844eebaf…` / `8092bd3d…`。Desktop 解析器、bridge 10/10 和真实 bundle closure 3/3 已过，但安装版主动闭环尚未验收。实施表见[路线 1 计划](2026-09-26-route1-core-a8fe471-installed-loop.md)，实际证据见[验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
 - 主验收是隔离的单教师/单班/单科可信事件 → G1 后台到期草稿 → 通知点击续聊 → 教师审核及 Core 反馈。G2/G3/G4 默认关闭且仅隔离 canary 可启用；G5 监护关系、材料和课次/学期归属未经 Core 证明时保持 hold，不自动外发。macOS/Windows 安装证据、PR/CI/合并状态分别记录，不提前打勾。
 
 ## 2026-09-26 v0.3.45 官方 Console 签名版（已发布，本机原位升级与公网安装通过）

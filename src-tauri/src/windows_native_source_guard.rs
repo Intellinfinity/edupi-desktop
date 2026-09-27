@@ -714,12 +714,14 @@ mod tests {
         let parent = std::env::var_os("USERPROFILE")
             .map(std::path::PathBuf::from)
             .ok_or_else(|| denied("fixture_user_profile_unavailable"))?;
+        let mut last_error = None;
         for index in 0..2 {
             let root = parent.join(format!(
                 "edupi-source-guard-{}-{suffix}-{index}",
                 std::process::id()
             ));
-            if fs::create_dir(&root).is_err() {
+            if let Err(error) = fs::create_dir(&root) {
+                last_error = Some(error);
                 continue;
             }
             let prepared = (|| {
@@ -741,9 +743,10 @@ mod tests {
             if prepared.is_ok() {
                 return Ok(root);
             }
+            last_error = prepared.err();
             let _ = fs::remove_dir_all(root);
         }
-        Err(denied("fixture_no_verified_ntfs_parent"))
+        Err(last_error.unwrap_or_else(|| denied("fixture_no_verified_ntfs_parent")))
     }
 
     fn grant_everyone_write(path: &Path) -> io::Result<()> {

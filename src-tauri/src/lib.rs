@@ -86,9 +86,13 @@ const LIGHT_WINDOW_BG: Color = Color(247, 247, 245, 255);
 const DARK_WINDOW_BG: Color = Color(28, 28, 30, 255);
 
 struct DesktopServer {
-    child: Mutex<Option<Child>>,
+    state: Mutex<DesktopServerState>,
+}
+
+struct DesktopServerState {
+    child: Option<Child>,
     #[cfg(windows)]
-    native_source_guard: Mutex<Option<windows_native_source_guard::WindowsNativeSourceGuard>>,
+    native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>,
 }
 
 struct DesktopResumeMonitor {
@@ -408,32 +412,35 @@ impl DesktopServer {
     #[cfg(not(feature = "custom-protocol"))]
     fn empty() -> Self {
         Self {
-            child: Mutex::new(None),
-            #[cfg(windows)]
-            native_source_guard: Mutex::new(None),
+            state: Mutex::new(DesktopServerState {
+                child: None,
+                #[cfg(windows)]
+                native_source_guard: None,
+            }),
         }
     }
 
     #[cfg(not(windows))]
     fn running(child: Child) -> Self {
         Self {
-            child: Mutex::new(Some(child)),
+            state: Mutex::new(DesktopServerState { child: Some(child) }),
         }
     }
 
     #[cfg(windows)]
     fn running(child: Child, native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>) -> Self {
-        Self { child: Mutex::new(Some(child)), native_source_guard: Mutex::new(native_source_guard) }
+        Self { state: Mutex::new(DesktopServerState { child: Some(child), native_source_guard }) }
     }
 
     fn stop(&self) {
-        if let Some(mut child) = self.child.lock().ok().and_then(|mut guard| guard.take()) {
+        let Ok(mut state) = self.state.lock() else { return; };
+        if let Some(mut child) = state.child.take() {
+            // Keep the lifecycle lock while waiting: another stop must not
+            // release the PE source handles before the child is gone.
             terminate_process_tree(&mut child);
         }
         #[cfg(windows)]
-        if let Ok(mut guard) = self.native_source_guard.lock() {
-            drop(guard.take());
-        }
+        drop(state.native_source_guard.take());
     }
 }
 
@@ -2024,7 +2031,7 @@ mod tests {
     use super::{
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root, mobile_gateway_reachable,
-        args_request_safe_mode, route1_isolated_canary_root, safe_mode_from_inputs,
+        args_request_safe_mode, route1_isolated_canary_root, safe_mode_from_inputs, DesktopServer,
         windows_g1_canary_child_value,
         normalize_update_proxy, read_update_proxy_from_path, write_update_proxy_file,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
@@ -2040,6 +2047,42 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, SystemTime};
+
+    #[cfg(unix)]
+    #[test]
+    fn concurrent_server_stops_wait_for_process_exit_before_unlocking() {
+        use std::io::{BufRead, BufReader};
+        use std::os::unix::process::CommandExt;
+        use std::process::{Command, Stdio};
+        use std::sync::{mpsc, Arc};
+
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg("trap '' TERM; printf 'ready\\n'; while :; do /bin/sleep 1; done")
+            .process_group(0)
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut ready = String::new();
+        BufReader::new(child.stdout.take().unwrap()).read_line(&mut ready).unwrap();
+        assert_eq!(ready, "ready\n");
+        let server = Arc::new(DesktopServer::running(child));
+        let (sent, received) = mpsc::channel();
+        let first = {
+            let server = server.clone();
+            let sent = sent.clone();
+            std::thread::spawn(move || { server.stop(); sent.send(()).unwrap(); })
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        let second = {
+            let server = server.clone();
+            std::thread::spawn(move || { server.stop(); sent.send(()).unwrap(); })
+        };
+        let returned_early = received.recv_timeout(Duration::from_millis(400)).is_ok();
+        first.join().unwrap();
+        second.join().unwrap();
+        assert!(!returned_early, "a second stop returned before the first waited for the child");
+    }
 
     static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 

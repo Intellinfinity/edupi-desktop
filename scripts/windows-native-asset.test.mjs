@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { verifyPinnedWindowsNativeAsset, WINDOWS_NATIVE_ASSET_PATH,
+import { preparePinnedWindowsNativeAsset, stagePinnedWindowsNativeAsset, verifyPinnedWindowsNativeAsset, WINDOWS_NATIVE_ASSET_PATH,
   WINDOWS_NATIVE_CONTRACT_PATH } from "./windows-native-asset.mjs";
 
 const bytes = Buffer.from("isolated-windows-native-fixture");
@@ -90,5 +90,68 @@ test("a symlinked working-tree contract is rejected even if its content matches 
     fs.rmSync(core.file);
     fs.symlinkSync(target, core.file);
     assert.throws(() => core.verify(pin), /not a regular Core file/);
+  } finally { core.close(); }
+});
+
+test("approved raw bytes are staged only after committed contract and digest checks", () => {
+  const core = fixture();
+  try {
+    const pin = core.commitContract(approved(core.source));
+    const destinationRoot = path.join(core.root, "bundle");
+    fs.mkdirSync(destinationRoot);
+    const target = path.join(destinationRoot, ...WINDOWS_NATIVE_ASSET_PATH.split("/"));
+    const altered = Buffer.from(bytes);
+    altered[0] ^= 1;
+    assert.throws(() => stagePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pin,
+      destinationRoot, downloadAsset: () => altered }), /SHA-256/);
+    assert.equal(fs.existsSync(target), false, "rejected bytes must not reach the package");
+    const staged = stagePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pin,
+      destinationRoot, downloadAsset: () => bytes });
+    assert.equal(staged.digest, sha256(bytes));
+    assert.deepEqual(fs.readFileSync(target), bytes);
+    assert.throws(() => stagePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pin,
+      destinationRoot, downloadAsset: () => bytes }), /already exists/);
+  } finally { core.close(); }
+});
+
+test("source proof and scoped credential are required before fetching native bytes", () => {
+  const core = fixture();
+  try {
+    const destinationRoot = path.join(core.root, "bundle");
+    fs.mkdirSync(destinationRoot);
+    const badPin = core.commitContract(approved("f".repeat(40)));
+    let fetched = false;
+    assert.throws(() => stagePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: badPin,
+      destinationRoot, downloadAsset: () => { fetched = true; return bytes; } }), /unavailable in Core history/);
+    assert.equal(fetched, false);
+    const goodPin = core.commitContract(approved(core.source));
+    assert.throws(() => stagePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: goodPin,
+      destinationRoot, token: "" }), /read token/);
+    assert.equal(fs.existsSync(path.join(destinationRoot, ...WINDOWS_NATIVE_ASSET_PATH.split("/"))), false);
+  } finally { core.close(); }
+});
+
+test("Windows packaging allows only committed pending or approved source states", () => {
+  const core = fixture();
+  try {
+    const destinationRoot = path.join(core.root, "bundle");
+    fs.mkdirSync(destinationRoot);
+    const pending = approved(core.source, { status: "pending", binary_sha256: null, binary_size: null,
+      binary_source_commit: null, release_asset_id: null });
+    const pendingPin = core.commitContract(pending);
+    let fetched = false;
+    assert.equal(preparePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pendingPin,
+      destinationRoot, platform: "win32", downloadAsset: () => { fetched = true; return bytes; } }), null);
+    assert.equal(fetched, false);
+    const approvedPin = core.commitContract(approved(core.source));
+    assert.equal(preparePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: approvedPin,
+      destinationRoot, platform: "darwin", downloadAsset: () => { fetched = true; return bytes; } }), null);
+    assert.equal(fetched, false);
+    const staged = preparePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: approvedPin,
+      destinationRoot, platform: "win32", downloadAsset: () => bytes });
+    assert.equal(staged.digest, sha256(bytes));
+    const invalidPin = core.commitContract({ ...pending, release_asset_id: 123 });
+    assert.throws(() => preparePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: invalidPin,
+      destinationRoot, platform: "win32", downloadAsset: () => bytes }), /not approved or pending/);
   } finally { core.close(); }
 });

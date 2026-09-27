@@ -11,6 +11,7 @@ const CONTRACT_KEYS = [
 ].sort();
 const SHA256 = /^sha256:[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
+const MAX_BINARY_SIZE = 8 * 1024 * 1024;
 
 function validateApprovedWindowsNativeContract(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -18,12 +19,23 @@ function validateApprovedWindowsNativeContract(value) {
     || value.version !== 1 || value.status !== "approved"
     || value.platform !== "win32" || value.architecture !== "x64" || value.node_major !== 22
     || value.binary_relative_path !== WINDOWS_NATIVE_ASSET_PATH
-    || !SHA256.test(value.binary_sha256) || !Number.isSafeInteger(value.binary_size) || value.binary_size <= 0
+    || !SHA256.test(value.binary_sha256) || !Number.isSafeInteger(value.binary_size)
+    || value.binary_size <= 0 || value.binary_size > MAX_BINARY_SIZE
     || !COMMIT.test(value.binary_source_commit)
     || !Number.isSafeInteger(value.release_asset_id) || value.release_asset_id <= 0) {
     throw new Error("Windows native asset contract is not approved");
   }
   return value;
+}
+
+function isPendingWindowsNativeContract(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    && JSON.stringify(Object.keys(value).sort()) === JSON.stringify(CONTRACT_KEYS)
+    && value.version === 1 && value.status === "pending" && value.platform === "win32"
+    && value.architecture === "x64" && value.node_major === 22
+    && value.binary_relative_path === WINDOWS_NATIVE_ASSET_PATH
+    && value.binary_sha256 === null && value.binary_size === null
+    && value.binary_source_commit === null && value.release_asset_id === null;
 }
 
 function verifyWindowsNativeAssetBytes(contract, bytes) {
@@ -51,8 +63,7 @@ function assertWindowsNativeSourceAncestor(coreRoot, contract, coreCommit) {
   return true;
 }
 
-/** The only build-time entry point: never accept a caller-supplied approval object. */
-export function verifyPinnedWindowsNativeAsset({ coreRoot, coreCommit, rawAssetBytes }) {
+function readCommittedWindowsNativeContract(coreRoot, coreCommit) {
   if (typeof coreRoot !== "string" || !path.isAbsolute(coreRoot) || !COMMIT.test(coreCommit)) {
     throw new Error("Pinned Core root or commit is invalid");
   }
@@ -74,10 +85,79 @@ export function verifyPinnedWindowsNativeAsset({ coreRoot, coreCommit, rawAssetB
   let contract;
   try { contract = JSON.parse(actualBytes.toString("utf8")); }
   catch { throw new Error("Pinned Windows native contract is invalid JSON"); }
+  return { root, contract };
+}
+
+function readPinnedWindowsNativeContract(coreRoot, coreCommit) {
+  const { root, contract } = readCommittedWindowsNativeContract(coreRoot, coreCommit);
   validateApprovedWindowsNativeContract(contract);
   assertWindowsNativeSourceAncestor(root, contract, coreCommit);
+  return { root, contract };
+}
+
+/** Never accept a caller-supplied approval object. */
+export function verifyPinnedWindowsNativeAsset({ coreRoot, coreCommit, rawAssetBytes }) {
+  const { contract } = readPinnedWindowsNativeContract(coreRoot, coreCommit);
   const digest = verifyWindowsNativeAssetBytes(contract, rawAssetBytes);
   return Object.freeze({ releaseAssetId: contract.release_asset_id, digest,
     size: contract.binary_size, sourceCommit: contract.binary_source_commit,
     relativePath: WINDOWS_NATIVE_ASSET_PATH });
+}
+
+function downloadApprovedAsset(assetId, token, maxBuffer) {
+  try {
+    return execFileSync("gh", ["api", "-H", "Accept: application/octet-stream",
+      `repos/Intellinfinity/edupi/releases/assets/${assetId}`], {
+      env: { ...process.env, GH_TOKEN: token }, stdio: ["ignore", "pipe", "pipe"], maxBuffer,
+    });
+  } catch {
+    throw new Error("Core private native asset download failed");
+  }
+}
+
+/** Stages only the exact Core-approved bytes into a fresh packaged Core root. */
+export function stagePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot,
+  token = process.env.EDUPI_CORE_READ_TOKEN, downloadAsset = null }) {
+  const { contract } = readPinnedWindowsNativeContract(coreRoot, coreCommit);
+  if (typeof destinationRoot !== "string" || !path.isAbsolute(destinationRoot)) {
+    throw new Error("Packaged Core destination is invalid");
+  }
+  const destination = fs.realpathSync(destinationRoot);
+  if (!downloadAsset && (typeof token !== "string" || !token)) {
+    throw new Error("Scoped Core read token is required for the Windows native asset");
+  }
+  const target = path.join(destination, ...WINDOWS_NATIVE_ASSET_PATH.split("/"));
+  if (fs.existsSync(target)) throw new Error("Windows native asset already exists in the package");
+  const rawAssetBytes = downloadAsset
+    ? downloadAsset(contract.release_asset_id)
+    : downloadApprovedAsset(contract.release_asset_id, token, Math.min(MAX_BINARY_SIZE + 4096, contract.binary_size + 4096));
+  const verified = verifyPinnedWindowsNativeAsset({ coreRoot, coreCommit, rawAssetBytes });
+  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  const relative = path.relative(destination, fs.realpathSync(path.dirname(target)));
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error("Windows native asset destination escaped the package");
+  }
+  let created = false;
+  try {
+    fs.writeFileSync(target, rawAssetBytes, { flag: "wx", mode: 0o600 });
+    created = true;
+    const staged = fs.lstatSync(target);
+    if (!staged.isFile() || staged.isSymbolicLink()
+      || verifyWindowsNativeAssetBytes(contract, fs.readFileSync(target)) !== verified.digest) {
+      throw new Error("Staged Windows native asset differs from Core approval");
+    }
+  } catch (error) {
+    if (created) fs.rmSync(target);
+    throw error;
+  }
+  return Object.freeze({ path: target, ...verified });
+}
+
+export function preparePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot,
+  platform = process.platform, token, downloadAsset } = {}) {
+  if (platform !== "win32") return null;
+  const { contract } = readCommittedWindowsNativeContract(coreRoot, coreCommit);
+  if (isPendingWindowsNativeContract(contract)) return null;
+  if (contract?.status !== "approved") throw new Error("Windows native asset contract is not approved or pending");
+  return stagePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot, token, downloadAsset });
 }

@@ -473,6 +473,8 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
     assert.match(workflow, /contracts\/edupi-core-compat\.json/);
     assert.match(workflow, /repository: Intellinfinity\/edupi/);
     assert.match(workflow, /ref: \$\{\{ steps\.core\.outputs\.commit \}\}/);
+    assert.match(workflow, /path: \.edupi-core-runtime\s+fetch-depth: 0/u,
+      "native source ancestry requires the pinned Core history");
     assert.match(workflow, /ssh-key: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN == '' && secrets\.EDUPI_CORE_DEPLOY_KEY \|\| '' \}\}/);
     assert.match(
       workflow,
@@ -487,6 +489,17 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
     assert.match(workflow, /EDUPI_CORE_ROOT: \$\{\{ github\.workspace \}\}\/\.edupi-core-runtime/);
     assert.doesNotMatch(workflow, /git checkout (main|master|latest)/i);
   }
+});
+
+test("Windows packaging stages only the Core-approved native asset with the scoped read token", async () => {
+  const prepare = await readFile(join(root, "scripts", "prepare-desktop.mjs"), "utf8");
+  assert.match(prepare, /buildPackagedCoreBundle\([\s\S]*?preparePinnedWindowsNativeAsset\(/u);
+  for (const name of ["preview-installers.yml", "release.yml"]) {
+    const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
+    assert.match(workflow, /EDUPI_CORE_READ_TOKEN: \$\{\{ runner\.os == 'Windows' && secrets\.EDUPI_CORE_READ_TOKEN \|\| '' \}\}[\s\S]*?run: npm run desktop:prepare/u);
+  }
+  const debug = await readFile(join(root, ".github", "workflows", "windows-build-debug.yml"), "utf8");
+  assert.match(debug, /EDUPI_CORE_READ_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}[\s\S]*?run: npm run desktop:prepare/u);
 });
 
 test("all packaged platform configs carry the bundled Core and third-party notices", async () => {

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { desktopTargetTriple } from "./desktop-platform.mjs";
 import { copyDesktopStandaloneTree, verifyDesktopServerRuntime } from "./desktop-standalone-tree.mjs";
 import { buildPackagedCoreBundle } from "./packaged-core-bundle.mjs";
+import { preparePinnedWindowsNativeAsset } from "./windows-native-asset.mjs";
 import { piPackageDirNames } from "./pi-packages.mjs";
 import { removeUnusedMuslNativePackages } from "./packaged-sharp.mjs";
 import { copyPackageClosure, copyPreparationDependencies } from "./preparation-runtime.mjs";
@@ -351,9 +352,12 @@ if (overlong.length > 0) {
 
 const { binaryPath: nodeBinary, triple } = await bundleNodeRuntime();
 const coreBundle = await buildPackagedCoreBundle({ coreRoot: process.env.EDUPI_CORE_ROOT, desktopRoot: rootDir });
+const windowsNativeAsset = preparePinnedWindowsNativeAsset({ coreRoot: coreBundle.sourceRoot,
+  coreCommit: coreBundle.coreCommit, destinationRoot: coreBundle.destinationRoot });
 await copyRuntimeModelHostFiles(coreBundle.sourceRoot, serverResourcesDir);
 await verifyDesktopServerRuntime(serverResourcesDir);
 
 console.log(`Desktop server staged at ${serverResourcesDir}`);
 console.log(`Node runtime staged at ${nodeBinary} (${triple})`);
 console.log(`Core runtime staged at ${coreBundle.destinationRoot} (${coreBundle.files} files, ${coreBundle.coreCommit})`);
+if (windowsNativeAsset) console.log(`Core Windows native asset staged (${windowsNativeAsset.size} bytes, ${windowsNativeAsset.digest})`);

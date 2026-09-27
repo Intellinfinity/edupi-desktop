@@ -59,7 +59,7 @@ test("official releases require Developer ID and notarization before publishing"
   const credentials = ["APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD", "APPLE_SIGNING_IDENTITY", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
   const requirement = releaseJob.slice(releaseJob.indexOf("name: Require Apple signing and notarization credentials"));
   assert.ok(requirement.length > 0);
-  assert.ok(releaseJob.indexOf("name: Require Apple signing and notarization credentials") < releaseJob.indexOf("name: Create one draft release"));
+  assert.ok(releaseJob.indexOf("name: Require Apple signing and notarization credentials") < releaseJob.indexOf("name: Create or verify one commit-bound draft release"));
   for (const credential of credentials) {
     assert.match(requirement, new RegExp(`test -n "\\$${credential}"`));
   }
@@ -229,18 +229,30 @@ test("a failed release build is reported instead of failing silently", async () 
   assert.match(workflow, /if: failure\(\)/);
   assert.match(workflow, /gh issue create/);
   assert.match(workflow, /release-failure/);
-  assert.match(workflow, /needs: \[release, build, manifest\]/);
+  assert.match(workflow, /needs: \[release, build, draft-proof, manifest\]/);
 });
 
-test("the manifest job only publishes when every platform succeeded", async () => {
-  // `needs: build` covers the whole matrix, so one failed platform keeps the
-  // release a draft. Publishing a release that is missing a platform's
-  // installer or its component manifest breaks updates for that platform.
+test("signed draft builds and manifest publication require separate dispatches", async () => {
   const workflow = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  const releaseJob = workflow.slice(workflow.indexOf("\n  release:"), workflow.indexOf("\n  build:"));
+  const buildJob = workflow.slice(workflow.indexOf("\n  build:"), workflow.indexOf("\n  draft-proof:"));
+  const proofJob = workflow.slice(workflow.indexOf("\n  draft-proof:"), workflow.indexOf("\n  manifest:"));
   const manifestJob = workflow.slice(workflow.indexOf("\n  manifest:"), workflow.indexOf("\n  notify:"));
 
-  assert.match(manifestJob, /needs: \[release, build\]/);
-  assert.doesNotMatch(manifestJob, /if: (always|success\(\) \|\|)/);
+  assert.match(workflow, /phase:\s*\n\s*description: Build a signed draft[\s\S]*?default: draft\s*\n\s*options: \[draft, publish\]/);
+  assert.match(releaseJob, /if \[ "\$RELEASE_PHASE" = "publish" \]; then[\s\S]*?No accepted draft exists/);
+  assert.match(releaseJob, /release_draft.*!= "true"/);
+  assert.match(releaseJob, /release_target.*!= "\$GITHUB_SHA"/);
+  assert.match(buildJob, /needs: release\s*\n\s*if: inputs\.phase == 'draft'/);
+  assert.match(proofJob, /needs: \[release, build\]\s*\n\s*if: inputs\.phase == 'draft' && inputs\.platform == 'all'/);
+  assert.match(proofJob, /release-draft-proof\.mjs fingerprint/);
+  assert.match(manifestJob, /needs: \[release, build, draft-proof\]/);
+  assert.match(manifestJob, /if: \$\{\{ always\(\) && inputs\.phase == 'publish' && needs\.release\.result == 'success' && needs\.build\.result == 'skipped' && needs\['draft-proof'\]\.result == 'skipped' \}\}/);
+  assert.match(manifestJob, /release-draft-proof\.mjs verify/);
+  assert.ok(manifestJob.indexOf("release-draft-proof.mjs verify") < manifestJob.indexOf("name: Upload component manifest"));
+  assert.match(manifestJob, /Accepted draft asset changed before feed update/);
+  assert.match(manifestJob, /feed_previous_tree=/);
+  assert.match(manifestJob, /Restore updater feed after failed/);
   assert.match(manifestJob, /scripts\/updater-manifest\.mjs/);
   assert.match(manifestJob, /Accept: application\/octet-stream/);
   assert.match(manifestJob, /FEED_BRANCH: updater-feed/);
@@ -266,7 +278,7 @@ test("parallel builders share one commit-bound draft release", async () => {
   const releaseJob = workflow.slice(workflow.indexOf("\n  release:"), workflow.indexOf("\n  build:"));
   const buildJob = workflow.slice(workflow.indexOf("\n  build:"), workflow.indexOf("\n  manifest:"));
 
-  assert.match(releaseJob, /Create one draft release/);
+  assert.match(releaseJob, /Create or verify one commit-bound draft release/);
   assert.match(releaseJob, /release_count.*-gt 1/);
   assert.match(releaseJob, /release_draft.*!= "true"/);
   assert.match(releaseJob, /release_target.*!= "\$GITHUB_SHA"/);

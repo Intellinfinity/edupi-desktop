@@ -2,7 +2,7 @@
 
 ## 2026-09-27 执行顺序修订
 
-这份计划沿用原路线 1 编号；下方旧候选快照保留历史。当前 Core #204（范围/来源/耐久预算）和 Desktop #285（默认关闭、精确 pin）均已合并；Core #205 只交付 Windows 原生只读探针，Windows G1 仍拒绝。v0.3.46 正式构建已取消，Release 保持 Draft，公开 feed 和唯一正式 App 仍为 v0.3.45。
+这份计划沿用原路线 1 编号；下方旧候选快照保留历史。Core #204（范围/来源/耐久预算）、Core #207（旧授权租约栅栏）和 Desktop #285（默认关闭）已合并；Desktop 仍 pin #204 的 `3397b71`，尚未消费 #207。Core #205 只交付 Windows 原生只读探针，Windows G1 仍拒绝。v0.3.46 正式构建已取消，Release 保持 Draft，公开 feed 和唯一正式 App 仍为 v0.3.45。
 
 1. 完成 Windows 根证明：在真实 Windows runner 上覆盖原生根、现有文件与创建写入、SQLite DB/WAL/SHM、并发替换和模块来源。仅当 Core 安全复审、测试及 CI 均通过且 `native_attestation_required` 能被真实证明取代时，合入 Core 修复；不得由 Desktop 伪造 attestation。
 2. 在新 Core main 上重新核对 Runtime schema、Runtime component manifest、Desktop component manifest 与打包闭包，更新 Desktop 单一 compat pin。保留 G1 默认关闭、预算/来源限制、G2/G3/G4 Live 默认关闭和 `external_send=false`。

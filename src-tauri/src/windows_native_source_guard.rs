@@ -43,9 +43,9 @@ use windows_sys::Win32::{
         GetFinalPathNameByHandleW, GetVolumeInformationByHandleW, DELETE, FILE_APPEND_DATA,
         FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT, FILE_ATTRIBUTE_TAG_INFO,
         FILE_DELETE_CHILD, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_ID_INFO,
-        FILE_NAME_NORMALIZED, FILE_READ_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE,
-        FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, OPEN_EXISTING, READ_CONTROL,
-        VOLUME_NAME_DOS, WRITE_DAC, WRITE_OWNER,
+        FILE_NAME_NORMALIZED, FILE_READ_ATTRIBUTES, FILE_READ_DATA, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, OPEN_EXISTING,
+        READ_CONTROL, VOLUME_NAME_DOS, WRITE_DAC, WRITE_OWNER,
     },
     System::{
         Ioctl::{
@@ -106,7 +106,9 @@ impl WindowsNativeSourceGuard {
             // Not sharing DELETE prevents another SID from renaming/replacing
             // any opened component. Not sharing WRITE on the PE prevents an
             // already-open writer and blocks a new writer until child exit.
-            let handle = open_existing(prefix, READ_CONTROL | FILE_READ_ATTRIBUTES, share)?;
+            let access =
+                READ_CONTROL | FILE_READ_ATTRIBUTES | if final_file { FILE_READ_DATA } else { 0 };
+            let handle = open_existing(prefix, access, share)?;
             let (attributes, id) = object_identity(&handle)?;
             if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
                 || (attributes & FILE_ATTRIBUTE_DIRECTORY != 0) == final_file

@@ -7,6 +7,7 @@
 - Windows 根：Core #205 已合并 `ed0499d`，但仅只读原生探针通过；Windows 实际写入、SQLite、并发替换与模块来源证明未完，G1 仍返回 `native_attestation_required`。状态为**部分实现**；完整安全修复合并后才更新 Desktop pin。
 - 发布/安装：v0.3.46 正式 run `36298536318` 已取消，Release 保持 Draft（4 个 Linux 资产），公开 feed 与唯一正式 App 仍为 v0.3.45。状态为**未发布、正式安装未验**；Windows 根过门后再做签名/公证和 macOS/Windows 六领域逐域验收。系统通知真实点击、跨到期实睡、真人反馈和真实材料内容质量均未验，不能用源码或 canary 结果补勾。逐域矩阵见[路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
 - 六领域 Desktop 消费：当前普通对话 canary 只让课前准备继续，其他五领域返回 `domain_out_of_scope` 并撤回。状态为**部分实现**，不是“六领域只待安装验收”；后续必须在 Core 许可范围内补 Desktop 路由，再按允许/澄清/hold 分别验收。
+- Windows 同身份威胁边界：真实 Windows runner 已证实同教师账号可在持有无 DELETE 共享的目录句柄时改名根。首次 G1 安装 canary 须在 Safe Mode 暂停第三方 Plugin/Skill；这只减小同身份扩展风险，不等于正常模式抗恶意插件。若要覆盖该攻击，需受管 VFS/独立写者或进程隔离。现有 Core 门继续 fail-closed，不能因改名后身份漂移检测通过就放行。
 
 ## 2026-09-27 路线 1 正式版候选（未发布）
 

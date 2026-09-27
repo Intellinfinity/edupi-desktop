@@ -540,19 +540,21 @@ test("release and preview verify the bundled read-only OpenConnector catalog", a
 
 test("preview installs Desktop dependencies before the paired Core runtime test", async () => {
   const workflow = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
-  const packageJob = workflow.slice(workflow.indexOf("  package:"));
+  const packageJob = workflow.slice(workflow.indexOf("  package:"), workflow.indexOf("  native-asset-probe:"));
+  const probeJob = workflow.slice(workflow.indexOf("  native-asset-probe:"));
+  assert.match(workflow, /quality:\s+if: \$\{\{ !inputs\.native_asset_probe_only \}\}/u);
+  assert.match(packageJob, /needs: quality\s+if: \$\{\{ !inputs\.native_asset_probe_only \}\}/u);
   assert.match(packageJob, /Install Core runtime dependencies[\s\S]*?- run: npm ci[\s\S]*?Verify paired Core runtime/u);
   assert.match(packageJob, /name: Verify paired Core runtime\s+if: runner\.os != 'Windows'/u);
   assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
   assert.match(packageJob, /name: Verify Windows native asset preflight\s+if: runner\.os == 'Windows'\s+run: node --test scripts\/windows-native-asset\.test\.mjs/u);
-  const probe = packageJob.slice(packageJob.indexOf("name: Probe private Core native asset with the scoped read secret"),
-    packageJob.indexOf("\n      - name:", packageJob.indexOf("name: Probe private Core native asset with the scoped read secret") + 1));
-  assert.match(probe, /if: runner\.os == 'Windows' && inputs\.native_asset_probe_id != ''/u);
-  assert.match(probe, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
-  assert.match(probe, /Accept: application\/octet-stream/u);
-  assert.match(probe, /sha256sum/u);
-  assert.match(probe, /trap 'rm -f "\$asset"' EXIT/u);
-  assert.doesNotMatch(probe, /actions\/upload-artifact|tauri-action|\.node.*resources/u);
+  assert.match(probeJob, /if: inputs\.native_asset_probe_only/u);
+  assert.match(probeJob, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
+  assert.match(probeJob, /Accept: application\/octet-stream/u);
+  assert.match(probeJob, /sha256sum/u);
+  assert.match(probeJob, /trap 'rm -f "\$asset"' EXIT/u);
+  assert.doesNotMatch(probeJob, /actions\/upload-artifact|tauri-action|\.node.*resources/u);
+  assert.doesNotMatch(packageJob, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
 });
 
 test("published install workflows require an explicit release tag", async () => {

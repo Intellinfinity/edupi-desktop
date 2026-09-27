@@ -1,5 +1,13 @@
 # Route 1: Core a8fe471 Installed Proactive Loop
 
+## 2026-09-27 执行顺序修订
+
+这份计划沿用原路线 1 编号；下方旧候选快照保留历史。当前 Core #204（范围/来源/耐久预算）和 Desktop #285（默认关闭、精确 pin）均已合并；Core #205 只交付 Windows 原生只读探针，Windows G1 仍拒绝。v0.3.46 正式构建已取消，Release 保持 Draft，公开 feed 和唯一正式 App 仍为 v0.3.45。
+
+1. 完成 Windows 根证明：在真实 Windows runner 上覆盖原生根、现有文件与创建写入、SQLite DB/WAL/SHM、并发替换和模块来源。仅当 Core 安全复审、测试及 CI 均通过且 `native_attestation_required` 能被真实证明取代时，合入 Core 修复；不得由 Desktop 伪造 attestation。
+2. 在新 Core main 上重新核对 Runtime schema、Runtime component manifest、Desktop component manifest 与打包闭包，更新 Desktop 单一 compat pin。保留 G1 默认关闭、预算/来源限制、G2/G3/G4 Live 默认关闭和 `external_send=false`。
+3. 完成正式签名/公证 Release 与 feed，再对唯一正式安装副本用隔离教师根分别在 macOS、Windows 实测六领域安全路径与横向闭环。每领域的允许、澄清、hold、撤销和重复事件结果写入[路线 1 验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)；不以预览 CI 或旧 canary 代替安装证据。
+
 ## 2026-09-27 安全重检
 
 - 旧 canary 的 G1 `active` 只证明处理器启动，**不证明单班单科授权**。Desktop 曾无条件注入 G1 Live，Core a8 在 ambient planning 关闭时允许所有合格到期候选入队；有已确认材料的其他班级也可能调用模型。下表保留历史观测，不再作为发布许可。

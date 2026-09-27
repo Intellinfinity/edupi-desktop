@@ -1,5 +1,26 @@
 # 路线 1：Core a8fe471 安装版主动闭环验收
 
+## 2026-09-27 最新验收门（取代下文旧候选状态）
+
+- 安全门：Core [#204](https://github.com/Intellinfinity/edupi/pull/204) 已合并为 `3397b71b3de370c75480a185ae9475d176f8352f`，提供精确班级/学科/来源授权和耐久 12 次模型预算；Desktop [#285](https://github.com/Intellinfinity/edupi-desktop/pull/285) 已合并为 `38d8c95645a505bfe08c5a72d26bce5bb924248c`，当前 pin 正是 `3397b71`，默认 G1 pending。#285 最终预览 CI [`36296800201`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36296800201) 的质量、macOS app/dmg、Windows NSIS 均通过；它仍不是公开签名/公证版安装验收。旧段落中“#285 Draft、尚未运行最终 CI”的文字仅是当时快照，不再代表当前状态。
+- Windows 门：Core [#205](https://github.com/Intellinfinity/edupi/pull/205) 已合并为 `ed0499d875579c5d321593559bd56f25aa224b85`，仅完成原生只读盘/ACL/reparse 探针与 Windows runner 的正反样本。实际 Core 写入、SQLite DB/WAL/SHM、并发替换和模块来源尚未形成完整证明，`native_attestation_required` 仍是正确拒绝结果。须先合入完整修复并复核 Runtime schema、Runtime/Desktop component manifest，再更新 Desktop 精确 pin；不可把 #205 当作 Windows G1 已放行。
+- 安装门：v0.3.46 正式 run [`36298536318`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36298536318) 已在发布前取消。Release 保持 Draft，现有 4 个 Linux 资产；公开 updater feed 与唯一 `/Applications/EduPi.app` 仍是 v0.3.45。不得继承旧包的 Apple 公证或已安装证据，也不得提前把 Draft 发布为 Latest。先过 Windows 根证明，再打包、签名、公证、安装并实测六领域。
+
+### 正式安装版六领域记录表
+
+下表是**待执行的验收项目**，不是已通过结果。每行都要记录正式版本/包摘要、Core pin、macOS 与 Windows 隔离数据根、操作、对象 ID、前后 Core 回读、UI/通知证据及失败/重放结果；未经教师核实的真人材料不得写入合成记录。
+
+| 领域 | 应验证的安全结果 | macOS 正式版 | Windows 正式版 |
+| --- | --- | --- | --- |
+| `teaching_preparation` 课前准备 | 可信单班单科课次或明确对话 → 到期仅一次受预算模型调用 → 内部待审草稿/通知 → 点击同任务续聊 → 审核及 Core 反馈；跨班、撤销来源和预算耗尽不得执行 | 未验 | 未验 |
+| `student_followup` 学生跟进 | 当前同班学生对象明确时进入受限 Goal/内部草稿；同名、转班或对象不明时询问/停留，不串学生档案；反馈回读 | 未验 | 未验 |
+| `lesson_reflection` 课后反思 | 缺结构化课次或反馈时要求补充；有当前已审核来源且 canary permit 时仅生成内部草稿，修订/删除后旧草稿失效 | 未验 | 未验 |
+| `calendar_administration` 校历行政 | 缺结构化事项时询问；确认来源、期限及范围后 canary 内部产物可审，重复到期不重复执行 | 未验 | 未验 |
+| `parent_communication` 家校沟通 | 未核实监护关系或接收人时保持审核/阻断；已许可的隔离 canary 仅起草内部内容，绝不自动外发 | 未验 | 未验 |
+| `safety_privacy` 安全隐私 | 自然对话命中后保持 `safety_review_required` 人工审核，不自动推进执行或外发；撤销/重放维持阻断 | 未验 | 未验 |
+
+横向安装条件同样未验：冷启与托盘后台、真实跨到期系统睡眠/唤醒补跑、重启保留、通知失败站内处理与真实系统通知点击续聊、重复事件不重做、模型/教师配置和数据原位保留。G2/G3/G4 Live 默认关闭，只能在隔离 canary 且满足 Core 许可边界时启用；G5 未核实监护关系、材料和课次/学期归属不得标记为已验证。
+
 ## 当前状态
 
 - 2026-09-27 安全复审推翻了旧 canary 的“单班单科”推断：旧包无条件启动 G1，Core a8 可在未授权时扫描其他班级的合格到期任务。旧 G1 `active`、1 次合成模型调用与通过的预览 CI 均只能作历史工程证据。v0.3.46 PR #285 保持 Draft，预览 run `36270079017` 已取消；默认关闭、Core 精确授权和耐久预算未完成前不发布，也不接触真实教师数据根。

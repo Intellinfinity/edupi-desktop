@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-09-27 路线 1 最新门禁（取代下文旧候选快照）
+
+- 范围/预算：Core #204 已合并 `3397b71`；Desktop #285 已合并 `38d8c95`，compat pin 精确为 Core `3397b71`。最终预览 CI `36296800201` 全绿，隔离包内单班草稿/通知失败/审核/synthetic 反馈/重启有工程证据。状态为**已实现待正式安装验收**，不能记为六领域完成。
+- Windows 根：Core #205 已合并 `ed0499d`，但仅只读原生探针通过；Windows 实际写入、SQLite、并发替换与模块来源证明未完，G1 仍返回 `native_attestation_required`。状态为**部分实现**；完整安全修复合并后才更新 Desktop pin。
+- 发布/安装：v0.3.46 正式 run `36298536318` 已取消，Release 保持 Draft（4 个 Linux 资产），公开 feed 与唯一正式 App 仍为 v0.3.45。状态为**未发布、正式安装未验**；Windows 根过门后再做签名/公证和 macOS/Windows 六领域逐域验收。系统通知真实点击、跨到期实睡、真人反馈和真实材料内容质量均未验，不能用源码或 canary 结果补勾。逐域矩阵见[路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+
 ## 2026-09-27 路线 1 正式版候选（未发布）
 
 - 安全重检发现旧 Desktop 无条件启动 G1，Core `a8fe471` 可在未授权单班单科范围时扫描其他合格课次并调用模型；旧 canary 的 G1 active、测试总数和 1 次合成调用都不能证明生产安全。v0.3.46 PR #285 已改 Draft，预览 run `36270079017` 已取消。当前实施 G1 默认关闭、Core 当前授权/来源和跨重启模型预算硬门；完成新 pin、CI、发布与唯一正式 App 验收前不标记通过。Windows G1 的 `native_attestation_required` 不绕过，原生证明另列未实现。

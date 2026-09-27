@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-09-27 v0.3.46 发布暂停（最新状态）
+
+- Core #204 的范围/预算和 Desktop #285 的默认关闭/精确 pin 已合并；最终预览 CI `36296800201` 全绿。Core #205 的 Windows 只读探针已合并，但 G1 仍正确拒绝 `native_attestation_required`，正式发布不能把此项视为通过。
+- 正式 run [`36298536318`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36298536318) 已取消，manifest/notify job 未发布；[v0.3.46 Release](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.46) 仍为 Draft，仅 4 个 Linux 资产。公开 updater feed 和唯一 `/Applications/EduPi.app` 保持 v0.3.45；v0.3.46 尚无 Apple 公证、7 键 feed 或正式安装版验收。待 Windows 完整根证明、安全复审、Core/Desktop 重新配对后再正式构建，不沿用已取消 run 的残留资产作为完成证据。
+
 ## 2026-09-27 v0.3.46 路线 1 正式版候选（未发布）
 
 - 安全重检发现候选 Core a8 的 G1 没有强制单班单科授权，旧 Desktop 还无条件注入 G1 Live；已有本地门禁与旧 canary 不能证明发布安全。PR #285 已转 Draft，预览 run `36270079017` 已取消。默认关闭 G1、Core 精确授权/来源/耐久预算、重新固定 Core 组件清单和三平台 CI 均待完成；Release、Apple 公证、公开资产、feed 和正式 App 更新均未执行，不得继承 v0.3.45 的证据。Windows G1 仍保持 `native_attestation_required`。

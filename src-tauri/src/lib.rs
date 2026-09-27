@@ -214,11 +214,14 @@ fn route1_isolated_canary_root(
     data_source: &str,
     core_mode: &str,
     data_root: &Path,
-    temp_root: &Path,
+    allowed_home: &Path,
     persisted_root: Option<&Path>,
 ) -> bool {
+    let named_canary = data_root.file_name().and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("edupi-route1-canary-") && name.len() > "edupi-route1-canary-".len());
     if marker != Some("1") || data_source != "environment" || core_mode != "bundled"
-        || is_filesystem_root(temp_root) || data_root == temp_root || !data_root.starts_with(temp_root)
+        || is_filesystem_root(allowed_home) || data_root == allowed_home
+        || !data_root.starts_with(allowed_home) || !named_canary
     {
         return false;
     }
@@ -1893,14 +1896,15 @@ fn start_packaged_server(
     let safe_mode = safe_mode_requested();
     let route1_marker = env::var(ROUTE1_ISOLATED_CANARY_ENV).ok();
     let isolated_canary = if route1_marker.as_deref() == Some("1") {
-        match (dunce::canonicalize(env::temp_dir()), persisted_data_root(app)) {
-            (Ok(temp_root), Ok(Ok(persisted_root))) => route1_isolated_canary_root(
+        let home_root = app.path().home_dir().ok().and_then(|home| dunce::canonicalize(home).ok());
+        match (home_root, persisted_data_root(app)) {
+            (Some(home_root), Ok(Ok(persisted_root))) => route1_isolated_canary_root(
                 route1_marker.as_deref(), &roots.status.data_source, roots.core_validation_mode,
-                Path::new(&roots.data_root), &temp_root, Some(Path::new(&persisted_root)),
+                Path::new(&roots.data_root), &home_root, Some(Path::new(&persisted_root)),
             ),
-            (Ok(temp_root), Ok(Err(FALLBACK_PERSISTED_NO_KEY))) => route1_isolated_canary_root(
+            (Some(home_root), Ok(Err(FALLBACK_PERSISTED_NO_KEY))) => route1_isolated_canary_root(
                 route1_marker.as_deref(), &roots.status.data_source, roots.core_validation_mode,
-                Path::new(&roots.data_root), &temp_root, None,
+                Path::new(&roots.data_root), &home_root, None,
             ),
             _ => false,
         }
@@ -2033,24 +2037,26 @@ mod tests {
     }
 
     #[test]
-    fn route1_canary_requires_an_explicit_separate_temporary_data_root() {
-        let temporary = Path::new("temp");
-        let canary = Path::new("temp/route1-teacher");
-        let teacher = Path::new("teachers/real-data");
+    fn route1_canary_requires_an_explicit_named_root_separate_from_teacher_data() {
+        let home = Path::new("home");
+        let canary = Path::new("home/edupi-route1-canary-1234");
+        let teacher = Path::new("home/edupi-data");
         assert!(route1_isolated_canary_root(
-            Some("1"), "environment", "bundled", canary, temporary, Some(teacher)
+            Some("1"), "environment", "bundled", canary, home, Some(teacher)
         ));
         for (marker, source, mode, root, persisted) in [
             (None, "environment", "bundled", canary, Some(teacher)),
             (Some("0"), "environment", "bundled", canary, Some(teacher)),
             (Some("1"), "persisted", "bundled", canary, Some(teacher)),
             (Some("1"), "environment", "external", canary, Some(teacher)),
-            (Some("1"), "environment", "bundled", temporary, Some(teacher)),
+            (Some("1"), "environment", "bundled", home, Some(teacher)),
             (Some("1"), "environment", "bundled", teacher, Some(teacher)),
-            (Some("1"), "environment", "bundled", canary, Some(temporary)),
+            (Some("1"), "environment", "bundled", Path::new("home/random"), Some(teacher)),
+            (Some("1"), "environment", "bundled", Path::new("temp/edupi-route1-canary-1234"), Some(teacher)),
+            (Some("1"), "environment", "bundled", canary, Some(home)),
         ] {
             assert!(!route1_isolated_canary_root(
-                marker, source, mode, root, temporary, persisted
+                marker, source, mode, root, home, persisted
             ));
         }
     }

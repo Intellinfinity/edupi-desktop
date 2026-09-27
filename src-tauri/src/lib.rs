@@ -52,6 +52,7 @@ const EDUPI_CORE_ALLOWED_ROOT_ENV: &str = "EDUPI_CORE_ALLOWED_ROOT";
 const EDUPI_DATA_PREF_KEY: &str = "edupiDataRoot";
 const MOBILE_BRIDGE_PREF_KEY: &str = "mobileBridgeEnabled";
 const SAFE_MODE_FLAG: &str = "--safe-mode";
+const NORMAL_MODE_RESTART_ENV: &str = "EDUPI_RESTART_NORMAL_MODE";
 const MANAGED_DATA_DIRECTORY: &str = "edupi-data";
 const FALLBACK_PERSISTED_MISSING: &str = "persisted_missing";
 const FALLBACK_PERSISTED_NO_KEY: &str = "persisted_no_key";
@@ -180,8 +181,31 @@ fn get_desktop_api_token(token: tauri::State<'_, DesktopApiToken>) -> String {
 }
 
 fn safe_mode_requested() -> bool {
-    args_request_safe_mode(env::args_os())
-        || matches!(env::var("EDUPI_SAFE_MODE").as_deref(), Ok("1" | "true" | "yes"))
+    let configured = env::var("EDUPI_SAFE_MODE").ok();
+    let normal_restart = env::var(NORMAL_MODE_RESTART_ENV).ok();
+    safe_mode_from_inputs(
+        env::args_os(),
+        configured.as_deref(),
+        normal_restart.as_deref(),
+    )
+}
+
+fn safe_mode_from_inputs<I, S>(
+    args: I,
+    configured: Option<&str>,
+    normal_restart: Option<&str>,
+) -> bool
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    // Tauri's orderly restart retains the original arguments. The private
+    // process-scoped override lets a Safe Mode instance restart normally
+    // after the single-instance mutex has been released on RunEvent::Exit.
+    if normal_restart == Some("1") {
+        return false;
+    }
+    args_request_safe_mode(args) || matches!(configured, Some("1" | "true" | "yes"))
 }
 
 fn args_request_safe_mode<I, S>(args: I) -> bool
@@ -326,12 +350,12 @@ fn set_mobile_bridge_enabled(app: AppHandle, enabled: bool) -> Result<DesktopRun
 
 #[tauri::command]
 fn restart_normal_mode(app: AppHandle) -> Result<(), String> {
-    let executable = env::current_exe().map_err(|error| error.to_string())?;
-    let arguments: Vec<_> = env::args_os().skip(1).filter(|argument| argument != SAFE_MODE_FLAG).collect();
-    let mut command = Command::new(executable);
-    command.args(arguments).env_remove("EDUPI_SAFE_MODE");
-    command.spawn().map_err(|error| error.to_string())?;
-    app.exit(0);
+    if !safe_mode_requested() {
+        return Err("EduPi is already in normal mode".to_string());
+    }
+    env::remove_var("EDUPI_SAFE_MODE");
+    env::set_var(NORMAL_MODE_RESTART_ENV, "1");
+    app.request_restart();
     Ok(())
 }
 
@@ -1907,7 +1931,7 @@ mod tests {
     use super::{
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root, mobile_gateway_reachable,
-        args_request_safe_mode,
+        args_request_safe_mode, safe_mode_from_inputs,
         normalize_update_proxy, read_update_proxy_from_path, write_update_proxy_file,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
         response_has_instance_id, resume_gap_detected, should_reconcile_webview_cache,
@@ -1945,6 +1969,12 @@ mod tests {
         assert!(args_request_safe_mode(["edupi", "--safe-mode"]));
         assert!(!args_request_safe_mode(["edupi", "--safe-mode=1"]));
         assert!(!args_request_safe_mode(["edupi", "--safe"]));
+        assert!(safe_mode_from_inputs(["edupi", "--safe-mode"], None, None));
+        assert!(safe_mode_from_inputs(["edupi"], Some("1"), None));
+        assert!(
+            !safe_mode_from_inputs(["edupi", "--safe-mode"], Some("1"), Some("1")),
+            "orderly restart must clear Safe Mode even when Tauri retains the original arguments"
+        );
     }
 
     #[test]

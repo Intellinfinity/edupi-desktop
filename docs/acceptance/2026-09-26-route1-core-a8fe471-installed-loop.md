@@ -6,6 +6,7 @@
 - 后续 Core [#207](https://github.com/Intellinfinity/edupi/pull/207) 已合并为 `c61a841e380dbfcee844f7fb90253ee376c1ffc7`，补充暂停/恢复或版本变化后的 G1 旧授权租约失效；Desktop 当前 `3397b71` pin **尚未包含**该修复。Windows 根修复合入后须以当时最新已复审 Core main 统一重新配对，不能仅把 pin 移到 #205 的只读探针。
 - Windows 门：Core [#205](https://github.com/Intellinfinity/edupi/pull/205) 已合并为 `ed0499d875579c5d321593559bd56f25aa224b85`，仅完成原生只读盘/ACL/reparse 探针与 Windows runner 的正反样本。实际 Core 写入、SQLite DB/WAL/SHM、并发替换和模块来源尚未形成完整证明，`native_attestation_required` 仍是正确拒绝结果。须先合入完整修复并复核 Runtime schema、Runtime/Desktop component manifest，再更新 Desktop 精确 pin；不可把 #205 当作 Windows G1 已放行。
 - 后续 Core [#206](https://github.com/Intellinfinity/edupi/pull/206) 已合并为 `a595f5a58eb7009480cd7ca4fe121b3fb8efa072`；最终 [Windows/Linux CI `36314832108`](https://github.com/Intellinfinity/edupi/actions/runs/36314832108) 双绿，覆盖受保护目录、真实 SQLite WAL/SHM 继承、inherit-only 宽松 ACE 拒绝及替换后身份漂移。合同仍为 `pending`，`.node` 只做字节预检且不可执行，Core writer/G1 未运行；本项状态仍为**部分实现**，不能以 #206 取代完整 Windows 门。
+- Core [#209](https://github.com/Intellinfinity/edupi/pull/209) 已合并为 `4579b792595f6f02b953b3918ddd4e90d20b6e0d`，[最终 Windows/Linux CI `36319307845`](https://github.com/Intellinfinity/edupi/actions/runs/36319307845) 双绿；Windows 受保护 `.edupi/output` 的 `O_RDWR→fstat→fsync` 真机通过，修复 owner 目录刷盘旧 `O_RDONLY` 的 `EPERM`。完整 owner 启用/预算/暂停/撤销仍未运行，Root gate/G1 不变。
 - 安装门：v0.3.46 正式 run [`36298536318`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36298536318) 已在发布前取消。Release 保持 Draft，现有 4 个 Linux 资产；公开 updater feed 与唯一 `/Applications/EduPi.app` 仍是 v0.3.45。不得继承旧包的 Apple 公证或已安装证据，也不得提前把 Draft 发布为 Latest。先过 Windows 根证明，再打包、签名、公证、安装并实测六领域。
 
 ### 正式安装版六领域记录表
@@ -26,6 +27,8 @@
 横向安装条件同样未验：冷启与托盘后台、真实跨到期系统睡眠/唤醒补跑、重启保留、通知失败站内处理与真实系统通知点击续聊、重复事件不重做、模型/教师配置和数据原位保留。G2/G3/G4 Live 默认关闭，只能在隔离 canary 且满足 Core 许可边界时启用；G5 未核实监护关系、材料和课次/学期归属不得标记为已验证。
 
 Windows 首次 G1 安装 canary 使用 Safe Mode 暂停第三方 Plugin/Skill，并单独记录正常模式默认关闭与只读流程。同一教师 OS 身份的恶意扩展不在现有 Windows 根证明防护范围内；Safe Mode 的通过结果不能推广为正常模式对该攻击的防护。若要在正常模式抵御同身份恶意扩展，需要进程隔离或受管写者/VFS，不能用前后文件 ID 检测代替。
+
+Desktop Draft #287 现已在源码中对 Windows Normal Mode 的 G1 启用 API 与后台 supervisor 同时设门；Safe→Normal 后若旧配置仍 enabled，状态按 Core 实际能力显示暂停，原生“恢复正常启动”改用 Tauri 有序重启。全量 TypeScript/Node 与 macOS Cargo 测试通过，独立复审未见剩余 P1/P2；**正式 Windows/macOS 安装版重启与通知/睡眠验收仍未执行**。
 
 ## 当前状态
 

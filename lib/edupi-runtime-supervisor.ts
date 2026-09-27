@@ -8,6 +8,7 @@ import { validateContainedRegularFile, type ResolvedEduPiCore, type ResolvedEduP
 import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-model-host";
 import { loadRuntimeOwnerControlToken } from "./edupi-owner-control-token";
 import { readEduPiProactivityActivation, type EduPiProactivityActivation } from "./edupi-proactivity-config";
+import { canStartEduPiProactivity } from "./safe-mode";
 
 export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callOwnerControl(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
@@ -36,7 +37,7 @@ function startupFailureCode(value: unknown): StartupFailureCode {
 const unavailable = (code: StartupFailureCode = "runtime_unavailable") => Object.assign(new Error("EduPi runtime unavailable."), { code: startupFailureCode(code) });
 
 export function g1ScopeForActivation(activation: EduPiProactivityActivation): { classId: string; subject: string; grantId: string } | null {
-  if (!activation.enabled || activation.source !== "desktop_canary" || activation.configurationStatus !== "ready"
+  if (!canStartEduPiProactivity() || !activation.enabled || activation.source !== "desktop_canary" || activation.configurationStatus !== "ready"
     || !activation.scope || !activation.grantId) return null;
   return { classId: activation.scope.classId, subject: activation.scope.subject, grantId: activation.grantId };
 }
@@ -69,8 +70,9 @@ export function clearEduPiRuntimeQuarantine(dataRoot: string): void { quarantine
 export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEduPiCore; dataRoot: ResolvedEduPiDataRoot }): Promise<EduPiRuntimeHandle> {
   if (quarantined.has(dataRoot.root)) return Promise.reject(unavailable());
   const activation = readEduPiProactivityActivation({ dataRoot: dataRoot.root });
+  const executionAllowed = canStartEduPiProactivity();
   const g1Scope = g1ScopeForActivation(activation);
-  const identity = `${runtime.root}:${runtime.coreCommit}:${runtime.componentManifestHash}:${activation.enabled}:${activation.source}:${activation.updatedAt || "none"}:${JSON.stringify(g1Scope)}`;
+  const identity = `${runtime.root}:${runtime.coreCommit}:${runtime.componentManifestHash}:${activation.enabled}:${activation.source}:${activation.updatedAt || "none"}:${executionAllowed}:${JSON.stringify(g1Scope)}`;
   const existing = entries.get(dataRoot.root);
   if (existing) {
     if (existing.identity !== identity) return Promise.reject(unavailable());
@@ -78,7 +80,7 @@ export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEdu
   }
   const entry: Entry = { identity, startup: Promise.resolve(null as unknown as EduPiRuntimeHandle) };
   entries.set(dataRoot.root, entry);
-  entry.startup = start(runtime, dataRoot, entry, activation, g1Scope).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
+  entry.startup = start(runtime, dataRoot, entry, activation, g1Scope, executionAllowed).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
   return entry.startup;
 }
 
@@ -108,7 +110,7 @@ export function restartEduPiRuntime(args: { runtime: ResolvedEduPiCore; dataRoot
 }
 
 async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot, entry: Entry, activation: EduPiProactivityActivation,
-  g1Scope: ReturnType<typeof g1ScopeForActivation>): Promise<EduPiRuntimeHandle> {
+  g1Scope: ReturnType<typeof g1ScopeForActivation>, executionAllowed: boolean): Promise<EduPiRuntimeHandle> {
   const load = (file: string) => import(/* webpackIgnore: true */ pathToFileURL(path.join(runtime.root, "scripts", file)).href);
   const manifestFile = validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.join(runtime.root, "contracts/edupi-core-runtime-component-manifest.json") });
   const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
@@ -125,7 +127,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   const packaged = path.join(process.cwd(), "core-runtime-host.mjs");
   const bootstrap = fs.existsSync(packaged) ? packaged : path.join(process.cwd(), "desktop/core-runtime-host.mjs");
   const configuredStateDir = process.env.PI_DESKTOP_STATE_DIR?.trim();
-  const ambientPlanning = activation.enabled;
+  const ambientPlanning = activation.enabled && executionAllowed;
   const ownerControlAvailable = ambientPlanning || Boolean(configuredStateDir && path.isAbsolute(configuredStateDir));
   const ownerControlToken = ownerControlAvailable
     ? loadRuntimeOwnerControlToken(configuredStateDir, dataRoot.root, { required: ambientPlanning })

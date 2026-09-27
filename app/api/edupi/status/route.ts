@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       compatibility: { expected: expectedCompatibility, actual: null, reason },
       projection: { status: "unavailable", reason: `${reason}；未使用本地 JSON 回退` },
       kernel: { status: "unavailable", summary: { total: 0, running: 0, failed: 0, needs_review: 0, succeeded: 0, skipped: 0 }, runs: [] },
-      proactivity: { status: "unavailable", ambientPlanning: process.env.EDUPI_AMBIENT_PLANNING === "1", attentionDelivery: false, teacherFeedback: false, attentionIntents: 0, attentionDeliveries: 0, currentAttentionDeliveries: 0, externalSend: false },
+      proactivity: { status: "unavailable", ambientPlanning: false, attentionDelivery: false, teacherFeedback: false, attentionIntents: 0, attentionDeliveries: 0, currentAttentionDeliveries: 0, externalSend: false },
     });
   }
 
@@ -56,7 +56,6 @@ export async function GET(request: Request) {
   let runtimeReason = "Core Runtime 不可用";
   let runtimeCapabilities: Record<string, unknown> | null = null;
   const activation = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root });
-  const ambientPlanning = activation.enabled;
   try {
     const host = await ensureEduPiRuntime(roots);
     const runtimeHealth = await host.call("health", null);
@@ -103,6 +102,8 @@ export async function GET(request: Request) {
     ? workspace.l4_preparation as Record<string, unknown> : null;
   const attentionIntents = Array.isArray(preparation?.attention_intents) ? preparation.attention_intents : [];
   const attentionDeliveries = Array.isArray(preparation?.attention_deliveries) ? preparation.attention_deliveries : [];
+  const ambientPlanning = runtimeCapabilities?.ambient_planning === "active";
+  const g1Running = runtimeCapabilities?.g1_processor === "active";
   const kernelBody = kernel
     ? summaryOnly
       ? { status: "ready", projection_kind: kernel.projection.projection_kind, state_version: kernel.projection.state_version, updated_at: kernel.projection.updated_at, summary: kernel.projection.summary, runs: [] }
@@ -142,8 +143,9 @@ export async function GET(request: Request) {
     projection: snapshot ? { status: "ready", reason: null, projection: "education_workspace", counts } : { status: "unavailable", reason: `${projectionReason}；未使用本地 JSON 回退` },
     kernel: kernelBody,
     proactivity: {
-      status: !runtime ? "unavailable" : ambientPlanning ? "active" : "disabled",
+      status: !runtime ? "unavailable" : ambientPlanning && g1Running ? "active" : activation.enabled ? "paused" : "disabled",
       ambientPlanning,
+      configuredEnabled: activation.enabled,
       activationSource: activation.source,
       configurationStatus: activation.configurationStatus,
       scope: activation.scope,

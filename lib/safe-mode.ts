@@ -9,6 +9,11 @@ export function isSafeModeEnabled(environment: NodeJS.ProcessEnv = process.env):
   return value === "1" || value === "true" || value === "yes";
 }
 
+export function canStartEduPiProactivity(platform: NodeJS.Platform = process.platform,
+  environment: NodeJS.ProcessEnv = process.env): boolean {
+  return platform !== "win32" || isSafeModeEnabled(environment);
+}
+
 export type SafeModeResourceRoots = {
   coreExtensionRoot?: string;
   coreSkillRoot?: string;

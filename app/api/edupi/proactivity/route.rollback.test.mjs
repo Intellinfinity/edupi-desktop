@@ -30,6 +30,7 @@ test("failed enable orders stop marker and quarantine before rollback retries", 
     "next/server": { NextResponse: { json: (body, options = {}) => Response.json(body, { status: options.status || 200 }) } },
     "@/lib/bounded-form-data": { parseJsonWithinLimit: request => request.json(), RequestBodyTooLargeError: BodyTooLarge },
     "@/lib/desktop-api-auth": { isDesktopApiRequestAllowed: () => true },
+    "@/lib/safe-mode": { canStartEduPiProactivity: () => true },
     "@/lib/edupi-core-snapshot": { resolveEduPiBridgeRoots: () => ({ dataRoot: { root } }),
       readEduPiEducationSnapshot: async () => ({ workspace: {} }) },
     "@/lib/edupi-generated-artifacts": { workspaceResourcesRequest: async () => ({ teacherMaterials: [] }) },
@@ -80,4 +81,34 @@ test("failed enable orders stop marker and quarantine before rollback retries", 
   const blocked = await route.exports.POST(request({ enabled: true, classId: scope.classId,
     subject: scope.subject, expectedUpdatedAt: marker.updatedAt }));
   assert.equal(blocked.status, 409, "same-scope re-enable cannot bypass a pending stop fence");
+});
+
+test("Windows normal mode refuses G1 enable before reading or mutating Core", async () => {
+  const modules = {
+    "next/server": { NextResponse: { json: (body, options = {}) => Response.json(body, { status: options.status || 200 }) } },
+    "@/lib/bounded-form-data": { parseJsonWithinLimit: request => request.json(), RequestBodyTooLargeError: class extends Error {} },
+    "@/lib/desktop-api-auth": { isDesktopApiRequestAllowed: () => true },
+    "@/lib/safe-mode": { canStartEduPiProactivity: () => false },
+    "@/lib/edupi-core-snapshot": { resolveEduPiBridgeRoots: () => { throw new Error("Core must not be read"); } },
+    "@/lib/edupi-generated-artifacts": {},
+    "@/lib/edupi-proactivity-control": {},
+    "@/lib/edupi-proactivity-config": {},
+    "@/lib/edupi-proactivity-runtime": {},
+    "@/lib/edupi-runtime-supervisor": {},
+  };
+  const source = fs.readFileSync(new URL("./route.ts", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+  const route = { exports: {} };
+  new Function("require", "module", "exports", compiled)(name => {
+    if (!Object.hasOwn(modules, name)) throw new Error(`unexpected dependency ${name}`);
+    return modules[name];
+  }, route, route.exports);
+  const response = await route.exports.POST(new Request("http://localhost/api/edupi/proactivity", { method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ enabled: true, classId: "class-7-1", subject: "数学", expectedUpdatedAt: null }) }));
+  assert.equal(response.status, 409);
+  const body = await response.json();
+  assert.equal(body.code, "proactivity_safe_mode_required");
+  assert.equal(body.externalSend, false);
 });

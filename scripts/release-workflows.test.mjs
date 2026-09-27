@@ -544,6 +544,7 @@ test("preview installs Desktop dependencies before the paired Core runtime test"
   assert.match(packageJob, /Install Core runtime dependencies[\s\S]*?- run: npm ci[\s\S]*?Verify paired Core runtime/u);
   assert.match(packageJob, /name: Verify paired Core runtime\s+if: runner\.os != 'Windows'/u);
   assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
+  assert.match(packageJob, /name: Verify Windows native asset preflight\s+if: runner\.os == 'Windows'\s+run: node --test scripts\/windows-native-asset\.test\.mjs/u);
 });
 
 test("published install workflows require an explicit release tag", async () => {

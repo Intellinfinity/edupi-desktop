@@ -90,6 +90,9 @@ jobs:
           node --test --test-name-pattern
           "bundled validation rejects|external mode still requires"
           scripts/packaged-core-bundle.test.mjs
+      - name: Verify Windows native asset preflight
+        if: runner.os == 'Windows'
+        run: node --test scripts/windows-native-asset.test.mjs
       - name: Verify paired timetable source alias
         if: runner.os != 'Windows'
         env:

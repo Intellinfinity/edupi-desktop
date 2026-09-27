@@ -571,6 +571,8 @@ test("preview installs Desktop dependencies before the paired Core runtime test"
   assert.match(workflow, /native_asset_probe_core_commit:/u);
   assert.match(probeJob, /name: Check out exact Core source for staging probe[\s\S]*?fetch-depth: 0/u);
   assert.match(probeJob, /name: Stage Core-approved native asset in temporary Windows directory[\s\S]*?preparePinnedWindowsNativeAsset/u);
+  assert.match(probeJob, /name: Test Windows native source guard in protected fixture[\s\S]*?cargo test --locked --manifest-path src-tauri\/Cargo\.toml --lib windows_native_source_guard/u);
+  assert.match(packageJob, /name: Test Windows native source guard\s+if: runner\.os == 'Windows'\s+run: cargo test --locked --manifest-path src-tauri\/Cargo\.toml --lib windows_native_source_guard/u);
   assert.match(probeJob, /fs\.rmSync\(destinationRoot, \{ recursive: true, force: true \}\)/u);
   assert.match(probeJob, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
   assert.match(probeJob, /Accept: application\/octet-stream/u);

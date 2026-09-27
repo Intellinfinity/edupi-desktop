@@ -37,6 +37,8 @@ use tauri::{
 
 mod computer_use;
 mod reminder_notification;
+#[cfg(windows)]
+mod windows_native_source_guard;
 
 const WINDOW_LABEL: &str = "main";
 const OPENCONNECTOR_WINDOW_LABEL: &str = "openconnector-console";
@@ -85,6 +87,8 @@ const DARK_WINDOW_BG: Color = Color(28, 28, 30, 255);
 
 struct DesktopServer {
     child: Mutex<Option<Child>>,
+    #[cfg(windows)]
+    native_source_guard: Mutex<Option<windows_native_source_guard::WindowsNativeSourceGuard>>,
 }
 
 struct DesktopResumeMonitor {
@@ -230,8 +234,8 @@ fn route1_isolated_canary_root(
     })
 }
 
-fn windows_g1_canary_child_value(platform: &str, safe_mode: bool, isolated_canary: bool) -> &'static str {
-    if platform == "windows" && safe_mode && isolated_canary { "1" } else { "0" }
+fn windows_g1_canary_child_value(platform: &str, safe_mode: bool, isolated_canary: bool, source_held: bool) -> &'static str {
+    if platform == "windows" && safe_mode && isolated_canary && source_held { "1" } else { "0" }
 }
 
 fn args_request_safe_mode<I, S>(args: I) -> bool
@@ -405,24 +409,31 @@ impl DesktopServer {
     fn empty() -> Self {
         Self {
             child: Mutex::new(None),
+            #[cfg(windows)]
+            native_source_guard: Mutex::new(None),
         }
     }
 
+    #[cfg(not(windows))]
     fn running(child: Child) -> Self {
         Self {
             child: Mutex::new(Some(child)),
         }
     }
 
-    fn stop(&self) {
-        let Ok(mut guard) = self.child.lock() else {
-            return;
-        };
-        let Some(mut child) = guard.take() else {
-            return;
-        };
+    #[cfg(windows)]
+    fn running(child: Child, native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>) -> Self {
+        Self { child: Mutex::new(Some(child)), native_source_guard: Mutex::new(native_source_guard) }
+    }
 
-        terminate_process_tree(&mut child);
+    fn stop(&self) {
+        if let Some(mut child) = self.child.lock().ok().and_then(|mut guard| guard.take()) {
+            terminate_process_tree(&mut child);
+        }
+        #[cfg(windows)]
+        if let Ok(mut guard) = self.native_source_guard.lock() {
+            drop(guard.take());
+        }
     }
 }
 
@@ -1922,6 +1933,23 @@ fn start_packaged_server(
     if let Some(agent_dir) = &isolated_agent_dir {
         fs::create_dir_all(agent_dir)?;
     }
+    #[cfg(windows)]
+    let native_source_guard = if safe_mode && isolated_canary {
+        match windows_native_source_guard::WindowsNativeSourceGuard::acquire(Path::new(&roots.core_root)) {
+            Ok(guard) => Some(guard),
+            Err(error) => {
+                record_native_startup_diagnostic(app, "core_native_source", "windows-attestation-source", &error.to_string(), None);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    #[cfg(windows)]
+    let source_held = native_source_guard.is_some();
+    #[cfg(not(windows))]
+    let source_held = false;
+    let windows_g1_canary = windows_g1_canary_child_value(env::consts::OS, safe_mode, isolated_canary, source_held);
     let mut command = Command::new(&node_path);
     command
         .arg(&server_script)
@@ -1943,7 +1971,7 @@ fn start_packaged_server(
         .env("PI_DESKTOP_STATE_DIR", &desktop_state_dir)
         .env("PI_WEB_PARENT_PID", std::process::id().to_string())
         .env("EDUPI_SAFE_MODE", if safe_mode { "1" } else { "0" })
-        .env("EDUPI_WINDOWS_G1_CANARY", windows_g1_canary_child_value(env::consts::OS, safe_mode, isolated_canary))
+        .env("EDUPI_WINDOWS_G1_CANARY", windows_g1_canary)
         .env("EDUPI_MOBILE_BRIDGE_ENABLED", if mobile_enabled { "1" } else { "0" })
         .env(DESKTOP_API_TOKEN_ENV, desktop_api_token)
         .env(DESKTOP_INSTANCE_ID_ENV, desktop_instance_id)
@@ -1975,13 +2003,20 @@ fn start_packaged_server(
 
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     if let Err(error) = wait_for_server(&mut child, address, desktop_instance_id, &log_path) {
+        #[cfg(windows)]
+        let server = DesktopServer::running(child, native_source_guard);
+        #[cfg(not(windows))]
         let server = DesktopServer::running(child);
         server.stop();
         return Err(error.into());
     }
 
     let url = format!("http://127.0.0.1:{port}").parse()?;
-    Ok((url, DesktopServer::running(child)))
+    #[cfg(windows)]
+    let server = DesktopServer::running(child, native_source_guard);
+    #[cfg(not(windows))]
+    let server = DesktopServer::running(child);
+    Ok((url, server))
 }
 
 #[cfg(all(test, feature = "custom-protocol"))]
@@ -2063,13 +2098,14 @@ mod tests {
 
     #[test]
     fn normal_start_never_inherits_a_windows_g1_canary_marker() {
-        assert_eq!(windows_g1_canary_child_value("windows", true, true), "1");
-        for (platform, safe_mode, isolated) in [
-            ("windows", false, true),
-            ("windows", true, false),
-            ("macos", true, true),
+        assert_eq!(windows_g1_canary_child_value("windows", true, true, true), "1");
+        for (platform, safe_mode, isolated, source_held) in [
+            ("windows", false, true, true),
+            ("windows", true, false, true),
+            ("windows", true, true, false),
+            ("macos", true, true, true),
         ] {
-            assert_eq!(windows_g1_canary_child_value(platform, safe_mode, isolated), "0");
+            assert_eq!(windows_g1_canary_child_value(platform, safe_mode, isolated, source_held), "0");
         }
     }
 

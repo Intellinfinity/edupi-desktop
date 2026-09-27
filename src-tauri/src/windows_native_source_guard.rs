@@ -716,7 +716,7 @@ mod tests {
         );
     }
 
-    fn isolated_root() -> io::Result<std::path::PathBuf> {
+    fn isolated_root_with_bytes(source: Option<&Path>) -> io::Result<std::path::PathBuf> {
         let sid_output = Command::new(system32_tool("whoami.exe")?)
             .args(["/user", "/fo", "csv", "/nh"])
             .output()?;
@@ -754,7 +754,11 @@ mod tests {
                 }
                 let addon = root.join(NATIVE_SOURCE_RELATIVE);
                 fs::create_dir_all(addon.parent().unwrap())?;
-                fs::write(addon, b"isolated-pe-fixture")?;
+                let bytes = match source {
+                    Some(file) => fs::read(file)?,
+                    None => b"isolated-pe-fixture".to_vec(),
+                };
+                fs::write(addon, bytes)?;
                 WindowsNativeSourceGuard::acquire(&root)?;
                 Ok(())
             })();
@@ -765,6 +769,10 @@ mod tests {
             let _ = fs::remove_dir_all(root);
         }
         Err(last_error.unwrap_or_else(|| denied("fixture_no_verified_ntfs_parent")))
+    }
+
+    fn isolated_root() -> io::Result<std::path::PathBuf> {
+        isolated_root_with_bytes(None)
     }
 
     fn grant_everyone_write(path: &Path) -> io::Result<()> {
@@ -804,6 +812,65 @@ mod tests {
             let source_dir = root.join("native/windows-runtime-attestation");
             grant_everyone_write(&source_dir)?;
             assert!(WindowsNativeSourceGuard::acquire(&root).is_err());
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(&root);
+        result.and(cleanup)
+    }
+
+    #[test]
+    fn rejects_only_parent_delete_child_permission() -> io::Result<()> {
+        let root = isolated_root()?;
+        let result = (|| {
+            let parent = root.join("native/windows-runtime-attestation");
+            let output = Command::new(system32_tool("icacls.exe")?)
+                .arg(&parent)
+                .args(["/grant", "*S-1-1-0:(DC)"])
+                .output()?;
+            if !output.status.success() {
+                return Err(denied("fixture_delete_child_acl_setup_failed"));
+            }
+            assert!(WindowsNativeSourceGuard::acquire(&root).is_err());
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(&root);
+        result.and(cleanup)
+    }
+
+    #[test]
+    fn rejects_a_reparse_point_in_the_native_source_chain() -> io::Result<()> {
+        use std::os::windows::fs::symlink_file;
+        let root = isolated_root()?;
+        let result = (|| {
+            let addon = root.join(NATIVE_SOURCE_RELATIVE);
+            let target = addon.with_extension("original.node");
+            fs::rename(&addon, &target)?;
+            symlink_file(&target, &addon)?;
+            assert!(WindowsNativeSourceGuard::acquire(&root).is_err());
+            Ok(())
+        })();
+        let cleanup = fs::remove_dir_all(&root);
+        result.and(cleanup)
+    }
+
+    #[test]
+    #[ignore = "requires an approved native asset path from the scoped Windows probe"]
+    fn held_approved_addon_loads_in_node_22() -> io::Result<()> {
+        let source = std::env::var_os("EDUPI_NATIVE_ASSET_PROBE_PATH")
+            .ok_or_else(|| denied("fixture_approved_asset_unavailable"))?;
+        let root = isolated_root_with_bytes(Some(Path::new(&source)))?;
+        let result = (|| {
+            let addon = root.join(NATIVE_SOURCE_RELATIVE);
+            let guard = WindowsNativeSourceGuard::acquire(&root)?;
+            let output = Command::new("node.exe")
+                .arg("-e")
+                .arg("require(process.argv[1]); process.stdout.write('approved-load')")
+                .arg(&addon)
+                .output()?;
+            if !output.status.success() || output.stdout != b"approved-load" {
+                return Err(denied("fixture_approved_addon_load_failed"));
+            }
+            drop(guard);
             Ok(())
         })();
         let cleanup = fs::remove_dir_all(&root);

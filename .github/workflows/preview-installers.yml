@@ -265,14 +265,22 @@ jobs:
           const temporaryRoot = process.env.RUNNER_TEMP;
           if (!temporaryRoot || !path.isAbsolute(temporaryRoot)) throw new Error('Windows runner temp root is invalid');
           const destinationRoot = fs.mkdtempSync(path.join(temporaryRoot, 'edupi-native-stage-'));
+          const runId = process.env.GITHUB_RUN_ID;
+          if (!/^[1-9][0-9]*$/.test(runId || '')) throw new Error('Windows probe run identity is invalid');
+          const retainedAsset = path.join(temporaryRoot, `edupi-approved-native-${runId}.node`);
+          let complete = false;
           try {
             const result = preparePinnedWindowsNativeAsset({ coreRoot: process.env.PROBE_CORE_ROOT,
               coreCommit: process.env.PROBE_CORE_COMMIT, destinationRoot });
             if (!result) throw new Error('Core native contract was not approved');
+            fs.copyFileSync(result.path, retainedAsset, fs.constants.COPYFILE_EXCL);
+            fs.appendFileSync(process.env.GITHUB_ENV, `EDUPI_NATIVE_ASSET_PROBE_PATH=${retainedAsset}\n`);
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
               `Windows native staging passed: ${result.size} bytes, ${result.digest}.\n`);
+            complete = true;
           } finally {
             fs.rmSync(destinationRoot, { recursive: true, force: true });
+            if (!complete) fs.rmSync(retainedAsset, { force: true });
           }
           NODE
       - name: Use Rust toolchain for source guard probe
@@ -283,3 +291,15 @@ jobs:
         env:
           TAURI_CONFIG: '{"bundle":{"resources":[]}}'
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib windows_native_source_guard
+      - name: Load approved native asset while source guard is held
+        if: inputs.native_asset_probe_core_commit != ''
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":[]}}'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib held_approved_addon_loads_in_node_22 -- --ignored
+      - name: Remove temporary approved native asset
+        if: always() && inputs.native_asset_probe_core_commit != ''
+        run: >-
+          node -e "const fs=require('node:fs'),path=require('node:path');
+          const id=process.env.GITHUB_RUN_ID;
+          if(!/^[1-9][0-9]*$/.test(id||'')) process.exit(1);
+          fs.rmSync(path.join(process.env.RUNNER_TEMP,'edupi-approved-native-'+id+'.node'),{force:true})"

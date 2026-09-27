@@ -545,6 +545,14 @@ test("preview installs Desktop dependencies before the paired Core runtime test"
   assert.match(packageJob, /name: Verify paired Core runtime\s+if: runner\.os != 'Windows'/u);
   assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
   assert.match(packageJob, /name: Verify Windows native asset preflight\s+if: runner\.os == 'Windows'\s+run: node --test scripts\/windows-native-asset\.test\.mjs/u);
+  const probe = packageJob.slice(packageJob.indexOf("name: Probe private Core native asset with the scoped read secret"),
+    packageJob.indexOf("\n      - name:", packageJob.indexOf("name: Probe private Core native asset with the scoped read secret") + 1));
+  assert.match(probe, /if: runner\.os == 'Windows' && inputs\.native_asset_probe_id != ''/u);
+  assert.match(probe, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
+  assert.match(probe, /Accept: application\/octet-stream/u);
+  assert.match(probe, /sha256sum/u);
+  assert.match(probe, /trap 'rm -f "\$asset"' EXIT/u);
+  assert.doesNotMatch(probe, /actions\/upload-artifact|tauri-action|\.node.*resources/u);
 });
 
 test("published install workflows require an explicit release tag", async () => {

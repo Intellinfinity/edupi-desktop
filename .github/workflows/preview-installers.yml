@@ -2,6 +2,19 @@ name: Build preview installers
 
 on:
   workflow_dispatch:
+    inputs:
+      native_asset_probe_id:
+        description: Optional private Core release asset ID for a read-only Windows download probe
+        type: string
+        default: ""
+      native_asset_probe_sha256:
+        description: Expected raw asset SHA-256 with sha256 prefix
+        type: string
+        default: ""
+      native_asset_probe_size:
+        description: Expected raw asset byte count
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -93,6 +106,30 @@ jobs:
       - name: Verify Windows native asset preflight
         if: runner.os == 'Windows'
         run: node --test scripts/windows-native-asset.test.mjs
+      - name: Probe private Core native asset with the scoped read secret
+        if: runner.os == 'Windows' && inputs.native_asset_probe_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+          PROBE_ASSET_ID: ${{ inputs.native_asset_probe_id }}
+          PROBE_ASSET_SHA256: ${{ inputs.native_asset_probe_sha256 }}
+          PROBE_ASSET_SIZE: ${{ inputs.native_asset_probe_size }}
+        run: |
+          set -euo pipefail
+          [[ "$PROBE_ASSET_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$PROBE_ASSET_SHA256" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$PROBE_ASSET_SIZE" =~ ^[1-9][0-9]*$ ]]
+          test -n "$GH_TOKEN"
+          test -n "$RUNNER_TEMP"
+          asset="$RUNNER_TEMP/edupi-native-probe-$GITHUB_RUN_ID.node"
+          trap 'rm -f "$asset"' EXIT
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/Intellinfinity/edupi/releases/assets/$PROBE_ASSET_ID" > "$asset"
+          actual_size="$(wc -c < "$asset" | tr -d '[:space:]')"
+          actual_sha256="sha256:$(sha256sum "$asset" | cut -d ' ' -f 1)"
+          test "$actual_size" = "$PROBE_ASSET_SIZE"
+          test "$actual_sha256" = "$PROBE_ASSET_SHA256"
+          echo 'Private Core native asset bytes matched the scoped read-token probe.' >> "$GITHUB_STEP_SUMMARY"
       - name: Verify paired timetable source alias
         if: runner.os != 'Windows'
         env:

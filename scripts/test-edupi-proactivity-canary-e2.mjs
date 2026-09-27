@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -68,6 +70,8 @@ try {
   const feedbackRoute = await jiti.import("../app/api/edupi/teacher-feedback/route.ts");
   const statusRoute = await jiti.import("../app/api/edupi/status/route.ts");
   const supervisor = await jiti.import("../lib/edupi-runtime-supervisor.ts");
+  const snapshotRoots = await jiti.import("../lib/edupi-core-snapshot.ts");
+  const grantRuntime = await jiti.import("../lib/edupi-proactivity-runtime.ts");
   const sessionReader = await jiti.import("../lib/session-reader.ts");
   const sessionRoute = await jiti.import("../app/api/sessions/[id]/route.ts");
   const ambientLedger = await jiti.import("../lib/edupi-ambient-message-ledger.ts");
@@ -101,6 +105,48 @@ try {
   const material = await flow.intakeRecognizedMaterial({ descriptor, title: "七一班数学材料", materialKind: "lesson_note", subject: "数学", classId: "class-7-1", recognize: true },
     { recognize: async () => ({ events: [], slots: [] }) });
   assert.equal(material.receipts[0].status, "accepted");
+
+  // Upgrading an enabled v1 canary must not silently restart broad G1. The
+  // old grant stays visible until the teacher explicitly stops it, then a
+  // fresh v2 grant may be created for the same class and subject.
+  const roots = snapshotRoots.resolveEduPiBridgeRoots();
+  const oldGrantToken = crypto.createHash("sha256").update("class-7-1\0数学", "utf8").digest("hex").slice(0, 32);
+  const oldGrantId = `desktop_canary_${oldGrantToken}`;
+  const oldHost = await supervisor.ensureEduPiRuntime(roots);
+  const oldHealth = await oldHost.call("health", null);
+  const rootRef = oldHealth.result.data_root_fingerprint;
+  const grantNow = Date.now();
+  const oldEndsAt = new Date(grantNow + 86_400_000).toISOString();
+  await grantRuntime.ensureProactivityGrant(oldHost, rootRef, { grantId: oldGrantId, endsAt: oldEndsAt,
+    spec: { scope: { class_id: "class-7-1", subject: "数学" }, domains: ["teaching_preparation"], actions: ["prepare", "update"],
+      source_ids: [`conversation:${"c".repeat(64)}`], starts_at: new Date(grantNow - 60_000).toISOString(),
+      ends_at: oldEndsAt, budget: { id: `budget_${oldGrantToken}`, max_calls: 12 } } });
+  const legacyUpdatedAt = new Date(grantNow).toISOString();
+  fs.writeFileSync(path.join(stateDir, "edupi-proactivity.json"), JSON.stringify({ version: 1,
+    data_root_hash: `sha256:${crypto.createHash("sha256").update(fs.realpathSync(dataRoot), "utf8").digest("hex")}`,
+    enabled: true, scope: { class_id: "class-7-1", subject: "数学" }, grant_id: oldGrantId,
+    updated_at: legacyUpdatedAt }), { mode: 0o600 });
+  await supervisor.closeAllEduPiRuntimes();
+  const legacyResponse = await proactivityRoute.GET(request("http://localhost/api/edupi/proactivity"));
+  const legacyState = await legacyResponse.json();
+  assert.equal(legacyState.activation.enabled, false);
+  assert.equal(legacyState.activation.configurationStatus, "legacy");
+  assert.deepEqual(legacyState.activation.scope, { classId: "class-7-1", subject: "数学" });
+  const legacyStatus = await statusRoute.GET(new Request("http://localhost/api/edupi/status?summary=1", { headers: { host: "localhost" } }));
+  assert.equal((await legacyStatus.json()).core.capabilities.g1_processor, "activation_pending");
+  const earlyEnable = await proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", {
+    enabled: true, classId: "class-7-1", subject: "数学", expectedUpdatedAt: legacyUpdatedAt }));
+  assert.equal(earlyEnable.status, 409, "legacy grant must be stopped before a v2 grant can be created");
+  const stoppedLegacy = await proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", {
+    enabled: false, classId: null, subject: null, expectedUpdatedAt: legacyUpdatedAt }));
+  const stoppedLegacyBody = await stoppedLegacy.json();
+  assert.equal(stoppedLegacy.status, 200, JSON.stringify(stoppedLegacyBody));
+  assert.equal(stoppedLegacyBody.grantPaused, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(stateDir, "edupi-proactivity.json"), "utf8")).version, 2);
+  const stoppedHost = await supervisor.ensureEduPiRuntime(roots);
+  const stoppedHealth = await stoppedHost.call("health", null);
+  const stoppedOwner = await stoppedHost.call("owner_read", { root_ref: stoppedHealth.result.data_root_fingerprint });
+  assert.equal(stoppedOwner.result.grants.find(item => item.id === oldGrantId).status, "paused");
 
   const before = await proactivityRoute.GET(request("http://localhost/api/edupi/proactivity"));
   const beforeBody = await before.json();
@@ -240,10 +286,60 @@ try {
   assert.deepEqual(ambientLedger.readCapturedEduPiAmbientMessages(sessionId, { stateDir, dataRoot }), []);
   const afterDeletePlanning = JSON.parse(fs.readFileSync(planningFile, "utf8")).state;
   assert.equal(afterDeletePlanning.goals.find((item) => item.id === deletionSourceResult.goalId).status, "revoked");
+  const beforeStopFailure = await proactivityRoute.GET(request("http://localhost/api/edupi/proactivity"));
+  const beforeStopFailureState = await beforeStopFailure.json();
+  const enabledForStopFailure = await proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", {
+    enabled: true, classId: "class-7-1", subject: "数学", expectedUpdatedAt: beforeStopFailureState.activation.updatedAt }));
+  const enabledForStopFailureState = await enabledForStopFailure.json();
+  assert.equal(enabledForStopFailure.status, 200, JSON.stringify(enabledForStopFailureState));
+  const configFile = path.join(stateDir, "edupi-proactivity.json");
+  const ownerFile = path.join(home, "output", "ambient-authorization-v1.json");
+  const oldConfigBytes = fs.readFileSync(configFile);
+  const oldOwnerBytes = fs.readFileSync(ownerFile);
+  fs.writeFileSync(ownerFile, "{}", { mode: 0o600 });
+  const originalSync = fs.fsyncSync;
+  let directorySyncs = 0;
+  fs.fsyncSync = descriptor => {
+    if (fs.fstatSync(descriptor).isDirectory() && ++directorySyncs >= 2) throw new Error("synthetic_config_sync_failure");
+    return originalSync(descriptor);
+  };
+  let failedStop;
+  try {
+    failedStop = await proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", {
+      enabled: false, classId: null, subject: null, expectedUpdatedAt: enabledForStopFailureState.activation.updatedAt }));
+  } finally { fs.fsyncSync = originalSync; }
+  assert.equal(failedStop.status, 503, "pause and config durability failure must never acknowledge a stop");
+  assert.equal((await failedStop.json()).code, "proactivity_stop_uncertain");
+  assert.equal(supervisor.getActiveEduPiRuntime(dataRoot), null, "failed stop closes the current G1 process");
+  // Model a crash restoring both old valid files; the independently durable
+  // marker must still fence a fresh packaged-server process.
+  fs.writeFileSync(ownerFile, oldOwnerBytes, { mode: 0o600 });
+  fs.writeFileSync(configFile, oldConfigBytes, { mode: 0o600 });
+  const restartSource = `import path from "node:path";
+import { createJiti } from "jiti";
+const jiti = createJiti(path.join(process.cwd(), "scripts/test-edupi-proactivity-canary-e2.mjs"), { tsconfigPaths: true });
+const { resolveEduPiBridgeRoots } = await jiti.import("../lib/edupi-core-snapshot.ts");
+const { ensureEduPiRuntime, closeAllEduPiRuntimes } = await jiti.import("../lib/edupi-runtime-supervisor.ts");
+const host = await ensureEduPiRuntime(resolveEduPiBridgeRoots());
+const health = await host.call("health", null);
+if (!health.ok || health.result.capabilities.g1_processor !== "activation_pending") process.exitCode = 1;
+await closeAllEduPiRuntimes();`;
+  const afterCrash = spawnSync(process.execPath, ["--input-type=module", "-e", restartSource], {
+    cwd: desktopRoot, env: process.env, encoding: "utf8", timeout: 60_000 });
+  assert.equal(afterCrash.status, 0, `stop marker did not fence a new process: ${afterCrash.stderr.slice(-1000)}`);
+  const pendingStopState = await (await proactivityRoute.GET(request("http://localhost/api/edupi/proactivity"))).json();
+  assert.equal(pendingStopState.activation.configurationStatus, "stop_pending");
+  const recoveredStop = await proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", {
+    enabled: false, classId: null, subject: null, expectedUpdatedAt: pendingStopState.activation.updatedAt }));
+  const recoveredStopState = await recoveredStop.json();
+  assert.equal(recoveredStop.status, 200, JSON.stringify(recoveredStopState));
+  assert.equal(recoveredStopState.grantPaused, true);
+  assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity-stop.json")), false);
   console.log(JSON.stringify({ status: "passed", explicit_opt_in: true, scope_bound: true, ordinary_message_goal: true,
     concurrent_activation_cas: true, out_of_scope_tombstoned: true, natural_correction: true, natural_cancellation: true, replay_no_duplicate: true, restart_persistent: true,
     feedback_channel: true, synthetic_feedback_excluded: true, explicit_stop: true, session_delete_withdrawal: true,
-    active_goal_delete_propagation: true, capture_crash_recovery: true, model_provider_calls: 0, external_send: false }));
+    active_goal_delete_propagation: true, capture_crash_recovery: true, stop_durability_failure_fenced: true,
+    model_provider_calls: 0, external_send: false }));
 } finally {
   try {
     const jiti = createJiti(import.meta.url, { tsconfigPaths: true });

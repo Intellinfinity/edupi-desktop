@@ -14,15 +14,37 @@ type GrantBinding = {
 
 type OwnerGrant = { id: string; version: number; status: "active" | "paused" | "revoked"; ends_at: string };
 type EffectiveGrantStatus = OwnerGrant["status"] | "expired";
-type OwnerRead = { root_ref: string; owner: { id: string } | null; grants: OwnerGrant[] };
+type OwnerBudget = { grantId: string; budgetId: string; usedCalls: number; maxCalls: number;
+  remainingCalls: number; usageUnverified: boolean };
+type OwnerRead = { root_ref: string; owner: { id: string } | null; grants: OwnerGrant[]; g1ModelBudget: OwnerBudget[] | null };
 
 export class EduPiProactivityRuntimeError extends Error {
-  constructor(public readonly code: "proactivity_response_invalid" | "proactivity_grant_revoked" | "proactivity_runtime_unavailable") {
+  constructor(public readonly code: "proactivity_response_invalid" | "proactivity_grant_revoked" | "proactivity_runtime_unavailable"
+    | "proactivity_budget_exhausted" | "proactivity_grant_denied" | "proactivity_preparation_blocked"
+    | "proactivity_stop_uncertain") {
     super(code); this.name = "EduPiProactivityRuntimeError";
   }
 }
 
 function invalid(): never { throw new EduPiProactivityRuntimeError("proactivity_response_invalid"); }
+
+export function inspectProactivityCatchUp(value: unknown): { queued: number; needsAttention: boolean } {
+  if (!value || typeof value !== "object" || Array.isArray(value) || (value as Record<string, unknown>).ok !== true) invalid();
+  const result = (value as Record<string, unknown>).result;
+  if (!result || typeof result !== "object" || Array.isArray(result)) invalid();
+  const { tasks, failures } = result as Record<string, unknown>;
+  if (!Array.isArray(tasks) || tasks.length > 20 || !Array.isArray(failures) || failures.length > 20) invalid();
+  const codes = failures.map(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) invalid();
+    const code = (item as Record<string, unknown>).code;
+    if (typeof code !== "string" || !/^[a-z_]{1,64}$/u.test(code)) invalid();
+    return code;
+  });
+  if (codes.includes("budget_exhausted")) throw new EduPiProactivityRuntimeError("proactivity_budget_exhausted");
+  if (codes.includes("permission_denied")) throw new EduPiProactivityRuntimeError("proactivity_grant_denied");
+  if (tasks.length === 0 && failures.length > 0) throw new EduPiProactivityRuntimeError("proactivity_preparation_blocked");
+  return { queued: tasks.length, needsAttention: failures.length > 0 };
+}
 
 function ownerRead(value: unknown, rootRef: string): OwnerRead {
   if (!value || typeof value !== "object" || Array.isArray(value) || (value as Record<string, unknown>).ok !== true) invalid();
@@ -41,7 +63,27 @@ function ownerRead(value: unknown, rootRef: string): OwnerRead {
       || !Number.isFinite(Date.parse(grant.ends_at)) || new Date(grant.ends_at).toISOString() !== grant.ends_at) invalid();
     return { id: String(grant.id), version: Number(grant.version), status: grant.status as OwnerGrant["status"], ends_at: grant.ends_at };
   });
-  return { root_ref: rootRef, owner: owner ? { id: String((owner as Record<string, unknown>).id) } : null, grants: normalized };
+  const rawBudget = read.g1_model_budget;
+  if (rawBudget !== undefined && (!Array.isArray(rawBudget) || rawBudget.length > 768)) invalid();
+  const g1ModelBudget = rawBudget === undefined ? null : rawBudget.map((raw): OwnerBudget => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) invalid();
+    const item = raw as Record<string, unknown>;
+    if (Object.keys(item).length !== 7 || !["grant_id", "budget_id", "used_calls", "max_calls", "remaining_calls", "exhausted", "usage_unverified"]
+      .every(key => Object.hasOwn(item, key)) || !ID.test(String(item.grant_id || "")) || !ID.test(String(item.budget_id || ""))
+      || !Number.isSafeInteger(item.used_calls) || Number(item.used_calls) < 0 || Number(item.used_calls) > 1536
+      || !Number.isSafeInteger(item.max_calls) || Number(item.max_calls) < 0 || Number(item.max_calls) > 12
+      || !Number.isSafeInteger(item.remaining_calls) || Number(item.remaining_calls) < 0 || Number(item.remaining_calls) > 12
+      || typeof item.exhausted !== "boolean" || typeof item.usage_unverified !== "boolean"
+      || item.usage_unverified && (item.remaining_calls !== 0 || item.exhausted !== true)
+      || !item.usage_unverified && (item.remaining_calls !== Math.max(0, Number(item.max_calls) - Number(item.used_calls))
+        || item.exhausted !== (item.remaining_calls === 0))) invalid();
+    return { grantId: String(item.grant_id), budgetId: String(item.budget_id), usedCalls: Number(item.used_calls),
+      maxCalls: Number(item.max_calls), remainingCalls: Number(item.remaining_calls), usageUnverified: item.usage_unverified as boolean };
+  });
+  if (g1ModelBudget && (new Set(g1ModelBudget.map(item => item.grantId)).size !== g1ModelBudget.length
+    || g1ModelBudget.some(item => !normalized.some(grant => grant.id === item.grantId)))) invalid();
+  return { root_ref: rootRef, owner: owner ? { id: String((owner as Record<string, unknown>).id) } : null,
+    grants: normalized, g1ModelBudget };
 }
 
 async function readOwner(host: Pick<EduPiRuntimeHandle, "call">, rootRef: string): Promise<OwnerRead> {
@@ -130,11 +172,17 @@ export async function readProactivityGrantStatus(
   rootRef: string,
   grantId: string | null,
   now = Date.now(),
-): Promise<{ status: EffectiveGrantStatus; grantVersion: number; endsAt: string } | null> {
+): Promise<{ status: EffectiveGrantStatus; grantVersion: number; endsAt: string;
+  modelBudget: Pick<OwnerBudget, "usedCalls" | "maxCalls" | "remainingCalls" | "usageUnverified"> } | null> {
   if (grantId === null) return null;
-  const grant = (await readOwner(host, rootRef)).grants.find((item) => item.id === grantId);
+  const state = await readOwner(host, rootRef);
+  const grant = state.grants.find((item) => item.id === grantId);
+  const budget = state.g1ModelBudget?.find(item => item.grantId === grantId);
+  if (grant && !budget) invalid();
   return grant ? { status: grant.status === "active" && Date.parse(grant.ends_at) <= now ? "expired" : grant.status,
-    grantVersion: grant.version, endsAt: grant.ends_at } : null;
+    grantVersion: grant.version, endsAt: grant.ends_at,
+    modelBudget: { usedCalls: budget!.usedCalls, maxCalls: budget!.maxCalls,
+      remainingCalls: budget!.remainingCalls, usageUnverified: budget!.usageUnverified } } : null;
 }
 
 export async function readProactivityOwnerContext(

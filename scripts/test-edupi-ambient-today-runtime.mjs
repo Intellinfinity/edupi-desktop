@@ -87,10 +87,10 @@ try {
   assert.equal(directSnapshot.workspace.l4_preparation.goals[0].id, goal.id);
   handle = await ensureEduPiRuntime({ runtime, dataRoot });
   const runtimeHealth = projectCoreRuntimeHealth(
-    await handle.call("health", null), runtime.coreCommit, identity.runtime.runtime_component_manifest_hash,
+    await handle.call("health", null), runtime.coreCommit, identity.runtime.runtime_component_manifest_hash, false,
   );
   assert.equal(runtimeHealth.status, "ready");
-  assert.equal(runtimeHealth.capabilities.g1_processor, "active");
+  assert.equal(runtimeHealth.capabilities.g1_processor, "activation_pending");
   assert.equal(runtimeHealth.capabilities.g2_processor, "activation_pending");
   assert.equal(runtimeHealth.capabilities.g3_processor, "activation_pending");
   const response = await handle.callBridge({

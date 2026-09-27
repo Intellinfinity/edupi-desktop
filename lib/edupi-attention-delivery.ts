@@ -59,7 +59,8 @@ export function selectNativeReminderNotifications(claimed: readonly Reminder[], 
   // An empty Core read does not prove that an old unmarked task never had a withdrawn intent.
   return claimed.filter((item) => {
     if (attention.status === "synced" && current.has(item.id)) return true;
-    return !linked.has(item.id) && (item.nativeSource === "teacher_created" || item.nativeSource === "core_g1" && attention.g1LocalFallback === true
+    return !linked.has(item.id) && (item.nativeSource === "teacher_created" || item.nativeSource === "core_g1"
+      && item.kind === "ready" && attention.g1LocalFallback === true
       || item.kind === "brief" && item.taskId.startsWith("document:"));
   });
 }
@@ -69,12 +70,15 @@ export async function revalidateG1LocalClaims(claimed: readonly Reminder[], read
   let current: EducationContract;
   try { current = await readCurrent(); }
   catch { return claimed.filter(item => item.nativeSource !== "core_g1"); }
-  if (current.scope !== "teacher_internal" || current.externalSend !== false || current.requiresTeacherReview !== true
-    || current.l4Preparation !== null) return claimed.filter(item => item.nativeSource !== "core_g1");
+  if (current.scope !== "teacher_internal" || current.externalSend !== false || current.requiresTeacherReview !== true) {
+    return claimed.filter(item => item.nativeSource !== "core_g1");
+  }
   const events = Object.values(reminderEvents(current.tasks, current.workspace, new Date(),
     current.continuity.documents, current.workCases, current.generatedArtifacts));
-  return claimed.filter(item => item.nativeSource !== "core_g1" || events.some(event => event.nativeSource === "core_g1"
-    && event.taskId === item.taskId && event.identity === item.identity && event.completion === item.kind));
+  return claimed.filter(item => item.nativeSource !== "core_g1" || (item.kind === "ready" && !intentFor(current, item)
+    && !current.l4Preparation?.attentionDeliveries.some(delivery => delivery.deliveryId === item.id)
+    && events.some(event => event.nativeSource === "core_g1"
+      && event.taskId === item.taskId && event.identity === item.identity && event.completion === item.kind)));
 }
 
 export async function syncReminderAttention({ data, items, action, now = new Date(), runtime, instanceId }: {
@@ -184,7 +188,11 @@ export async function syncReminderAttention({ data, items, action, now = new Dat
         }
       }
     }
-    return claimResult("synced", recorded, currentNotificationIds);
+    const g1LocalFallback = data.scope === "teacher_internal" && data.externalSend === false
+      && data.requiresTeacherReview === true && capabilities?.g1_processor === "active"
+      && targets.some(item => item.nativeSource === "core_g1" && item.kind === "ready"
+        && !linkedNotificationIds.includes(item.id));
+    return claimResult("synced", recorded, currentNotificationIds, g1LocalFallback);
   } catch {
     return claimResult("unavailable");
   }

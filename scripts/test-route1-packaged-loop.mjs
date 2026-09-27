@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
 
-const appRoot = path.resolve(process.env.EDUPI_INSTALLED_APP || "src-tauri/target/release/bundle/macos/EduPi Route1 Canary.app");
+const appRoot = path.resolve(process.env.EDUPI_INSTALLED_APP || "/Applications/EduPi.app");
 const desktopRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const compat = JSON.parse(fs.readFileSync(path.join(desktopRoot, "contracts/edupi-core-compat.json"), "utf8"));
 const resources = path.resolve(process.env.EDUPI_PACKAGED_RESOURCES || path.join(appRoot, "Contents/Resources/resources"));
@@ -191,10 +191,23 @@ try {
   const status = await api(firstServer, "/api/edupi/status?summary=1");
   assert.equal(status.core.status, "ready");
   assert.equal(status.projection.status, "ready");
-  assert.equal(status.core.capabilities.g1_processor, "active");
+  assert.equal(status.core.capabilities.g1_processor, "activation_pending");
   assert.equal(status.core.capabilities.g2_processor, "activation_pending");
   assert.equal(status.core.capabilities.g3_processor, "activation_pending");
   assert.equal(status.externalSend, false);
+  assert.equal(modelCalls, 0, "default-off startup unexpectedly called the model");
+
+  const owner = await api(firstServer, "/api/edupi/teacher-feedback", { action: "bootstrap" });
+  assert.equal(owner.ok, true, JSON.stringify(owner));
+  const proactivity = await api(firstServer, "/api/edupi/proactivity");
+  assert.equal(proactivity.activation.enabled, false);
+  assert.equal(proactivity.scopes.some(item => item.classId === "class-7-1" && item.subject === "数学" && item.ready), true,
+    JSON.stringify({ scopes: proactivity.scopes }));
+  const activated = await api(firstServer, "/api/edupi/proactivity", { enabled: true,
+    classId: "class-7-1", subject: "数学", expectedUpdatedAt: proactivity.activation.updatedAt });
+  assert.equal(activated.activation.enabled, true);
+  const activeStatus = await api(firstServer, "/api/edupi/status?summary=1");
+  assert.equal(activeStatus.core.capabilities.g1_processor, "active");
 
   const ready = await waitFor("internal G1 draft", async () => {
     const data = await api(firstServer, "/api/edupi/education");
@@ -237,14 +250,6 @@ try {
     candidateId: candidate.candidateId, expectedSnapshotId: candidate.snapshotId,
     expectedRevision: candidate.revision, decision: "accept" });
   assert.equal(reviewed.data.workCandidates.find(item => item.candidateId === candidate.candidateId).status, "accepted");
-  const owner = await api(firstServer, "/api/edupi/teacher-feedback", { action: "bootstrap" });
-  assert.equal(owner.ok, true, JSON.stringify(owner));
-  const proactivity = await api(firstServer, "/api/edupi/proactivity");
-  assert.equal(proactivity.scopes.some(item => item.classId === "class-7-1" && item.subject === "数学" && item.ready), true,
-    JSON.stringify({ scopes: proactivity.scopes }));
-  const activated = await api(firstServer, "/api/edupi/proactivity", { enabled: true,
-    classId: "class-7-1", subject: "数学", expectedUpdatedAt: proactivity.activation.updatedAt });
-  assert.equal(activated.activation.enabled, true);
   const targetBody = { action: "target_read", target: { kind: "work_candidate", target_id: candidate.candidateId } };
   const targetRead = await api(firstServer, "/api/edupi/teacher-feedback", targetBody);
   assert.equal(targetRead.ok, true, JSON.stringify(targetRead));

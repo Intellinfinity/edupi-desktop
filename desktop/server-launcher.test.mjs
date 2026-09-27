@@ -14,7 +14,7 @@ const packaged = {
   PI_DESKTOP_INSTANCE_ID: "isolated-instance",
 };
 
-test("headless G1 boot is limited to an identified packaged server with bundled Core", () => {
+test("headless Core boot is limited to an identified packaged server with bundled Core", () => {
   assert.equal(shouldWakeCoreAtPackagedStart(packaged), true);
   for (const changed of [
     { NODE_ENV: "development" },
@@ -26,7 +26,7 @@ test("headless G1 boot is limited to an identified packaged server with bundled 
   ]) assert.equal(shouldWakeCoreAtPackagedStart({ ...packaged, ...changed }), false);
 });
 
-test("headless G1 boot verifies the exact child identity before one preparation wake", async () => {
+test("headless Core boot verifies the exact child identity before one readiness wake", async () => {
   const calls = [];
   const fetcher = async (url, options) => {
     calls.push({ path: new URL(url).pathname, method: options?.method || "GET" });
@@ -47,7 +47,7 @@ test("headless G1 boot verifies the exact child identity before one preparation 
   assert.deepEqual(rejected, ["/api/desktop/identity"]);
 });
 
-test("headless G1 boot keeps probing after the original twelve-probe window", async () => {
+test("headless Core boot keeps probing after the original twelve-probe window", async () => {
   let identityProbes = 0;
   let preparationWakes = 0;
   const delays = [];

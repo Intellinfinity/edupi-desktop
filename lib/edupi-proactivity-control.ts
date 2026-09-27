@@ -101,7 +101,7 @@ export function buildProactivityGrantBinding(
   const instant = new Date(now);
   if (!Number.isFinite(instant.getTime()) || instant.toISOString() !== now) throw new EduPiProactivityControlError("proactivity_scope_unavailable");
   const token = crypto.createHash("sha256").update(`${scope.classId}\0${scope.subject}`, "utf8").digest("hex").slice(0, 32);
-  const grantId = `desktop_canary_${token}`;
+  const grantId = `desktop_canary_v2_${token}`;
   const startsAt = new Date(instant.getTime() - 60_000).toISOString();
   const endsAt = new Date(instant.getTime() + EDUPI_PROACTIVITY_DURATION_DAYS * 86_400_000).toISOString();
   const sourceIds = [
@@ -119,7 +119,7 @@ export function buildProactivityGrantBinding(
       source_ids: sourceIds,
       starts_at: startsAt,
       ends_at: endsAt,
-      budget: { id: `budget_${token}`, max_calls: EDUPI_PROACTIVITY_MAX_CALLS },
+      budget: { id: `budget_v2_${token}`, max_calls: EDUPI_PROACTIVITY_MAX_CALLS },
     },
   };
 }

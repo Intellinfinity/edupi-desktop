@@ -4,8 +4,9 @@ import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
 import { activeBridgeIdentity } from "@/lib/edupi-bridge-manifest";
 import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { coreRuntimeFingerprint, inspectEduPiRuntimeRecovery, repairEduPiRuntimeState, type RuntimeRecoveryResult } from "@/lib/edupi-runtime-recovery";
-import { describeEduPiRuntimeStartupFailure, ensureEduPiRuntime, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
+import { describeEduPiRuntimeStartupFailure, ensureEduPiRuntime, g1ScopeForActivation, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { projectCoreRuntimeHealth } from "@/lib/edupi-runtime-health";
+import { readEduPiProactivityActivation } from "@/lib/edupi-proactivity-config";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,8 @@ export async function POST(request: Request) {
     const repaired = await repairEduPiRuntimeState(roots.dataRoot, fingerprint);
     const identity = activeBridgeIdentity();
     const host = repaired.repaired ? await restartEduPiRuntime(roots) : await ensureEduPiRuntime(roots);
-    const health = projectCoreRuntimeHealth(await host.call("health", null), roots.runtime.coreCommit, identity.runtime.runtime_component_manifest_hash);
+    const health = projectCoreRuntimeHealth(await host.call("health", null), roots.runtime.coreCommit, identity.runtime.runtime_component_manifest_hash,
+      Boolean(g1ScopeForActivation(readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root }))));
     if (health.status !== "ready") return NextResponse.json({ ok: false, error: health.reason || "Core Runtime 修复后仍未就绪", code: "runtime_not_ready", before: { status: before.status }, repaired: publicRecovery(repaired) }, { status: 503 });
     return NextResponse.json({ ok: true, status: health.status, before: { status: before.status }, repaired: publicRecovery(repaired) });
   } catch (error) {

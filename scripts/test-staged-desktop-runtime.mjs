@@ -132,7 +132,7 @@ try {
     assert.equal(status.compatibility.actual.supportedCommands.includes("review_follow_up"), true);
     assert.equal(status.core.status, "ready");
     assert.equal(status.projection.status, "ready");
-    assert.equal(status.core.capabilities.g1_processor, "active");
+    assert.equal(status.core.capabilities.g1_processor, "activation_pending");
     assert.equal(status.core.capabilities.g2_processor, "activation_pending");
     assert.equal(status.core.capabilities.g3_processor, "activation_pending");
     assert.equal(status.externalSend, false);

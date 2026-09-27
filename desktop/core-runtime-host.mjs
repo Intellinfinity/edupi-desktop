@@ -62,14 +62,25 @@ export function createParentModelExecutor(channel = process) {
 }
 
 export async function startCoreRuntimeHost({ coreRoot, options }, channel = process) {
-  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken"].includes(key))
-    || (options.ambientPlanning !== undefined && typeof options.ambientPlanning !== "boolean")) throw new Error("Invalid runtime bootstrap.");
-  const hostExecutor = createParentModelExecutor(channel);
+  const scope = options?.g1Scope;
+  const validScope = scope && typeof scope === "object" && !Array.isArray(scope)
+    && Object.keys(scope).length === 3 && ["classId", "subject", "grantId"].every(key => Object.hasOwn(scope, key))
+    && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(scope.classId)
+    && typeof scope.subject === "string" && scope.subject.trim() === scope.subject
+    && scope.subject.length > 0 && scope.subject.length <= 128 && !/[\u0000-\u001f\u007f]/u.test(scope.subject)
+    && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(scope.grantId);
+  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken", "g1Scope"].includes(key))
+    || (options.ambientPlanning !== undefined && typeof options.ambientPlanning !== "boolean")
+    || scope !== undefined && (options.ambientPlanning !== true || typeof options.ownerControlToken !== "string" || !validScope)) throw new Error("Invalid runtime bootstrap.");
+  const hostExecutor = scope ? createParentModelExecutor(channel) : null;
   try {
     const { createCoreRuntimeDaemon } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_daemon.mjs")).href);
-    const daemon = await createCoreRuntimeDaemon({ ...options, g1Live: { hostExecutor: { run: hostExecutor.run }, leaseMs: 300000 } });
-    return { daemon, async close() { hostExecutor.close(); await daemon.close(); } };
-  } catch (error) { hostExecutor.close(); throw error; }
+    const { g1Scope, ...daemonOptions } = options;
+    const daemon = await createCoreRuntimeDaemon({ ...daemonOptions,
+      ...(g1Scope ? { g1Live: { hostExecutor: { run: hostExecutor.run }, leaseMs: 300000,
+        scope: { classId: g1Scope.classId, subject: g1Scope.subject }, grantId: g1Scope.grantId } } : {}) });
+    return { daemon, async close() { hostExecutor?.close(); await daemon.close(); } };
+  } catch (error) { hostExecutor?.close(); throw error; }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

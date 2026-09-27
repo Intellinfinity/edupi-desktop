@@ -2,7 +2,8 @@
 
 ## 2026-09-27 路线 1 正式版候选（未发布）
 
-- v0.3.46 候选仅将已合并的 Desktop 路线 1 代码送入正式发布链；Core 仍固定 `a8fe471`，Windows G1 的 `native_attestation_required` 不绕过。发布、Apple 公证、公开安装、Mac 原位升级和老师的系统通知点击/跨到期睡眠/反馈验收分别记证；目前仍未执行，不能把下方 canary 结果提升为正式版通过。
+- 安全重检发现旧 Desktop 无条件启动 G1，Core `a8fe471` 可在未授权单班单科范围时扫描其他合格课次并调用模型；旧 canary 的 G1 active、测试总数和 1 次合成调用都不能证明生产安全。v0.3.46 PR #285 已改 Draft，预览 run `36270079017` 已取消。当前实施 G1 默认关闭、Core 当前授权/来源和跨重启模型预算硬门；完成新 pin、CI、发布与唯一正式 App 验收前不标记通过。Windows G1 的 `native_attestation_required` 不绕过，原生证明另列未实现。
+- Core [#204](https://github.com/Intellinfinity/edupi/pull/204) 已合并为 `3397b71`，Runtime schema 与两份组件清单已更新；Desktop 候选现精确固定该 commit，默认冷启 G1/G2/G3 pending。隔离 staged 包内闭环得到同班 4 份内部草稿、1 次本地模型调用、站内及原生通知领取、失败去重、教师审核和 synthetic 反馈、重启后不重做；这些仍不是正式 App/Windows/系统通知点击/真实睡眠证据。PR #285、三平台发布和唯一正式 App 验收继续开放。
 
 ## 2026-09-26 路线 1：Core a8fe471 安装版主动闭环（部分验收）
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { readEduPiProactivity, updateEduPiProactivity, type EduPiProactivityState } from "@/lib/edupi-proactivity-client";
 import { createMissedTeacherFeedbackCapture, recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDomain } from "@/lib/edupi-teacher-feedback";
@@ -97,7 +97,9 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
   const active = state.activation.enabled;
   const recoveryPending = !active && state.activation.scope !== null;
   const operational = active && state.grant?.status === "active" && state.capabilities !== null
-    && Object.values(state.capabilities).every(Boolean);
+    && Object.values(state.capabilities).every(Boolean) && !state.grant.modelBudget.usageUnverified
+    && state.grant.modelBudget.remainingCalls > 0;
+  const budgetExhausted = active && state.grant?.modelBudget.remainingCalls === 0;
   const ready = state.scopes.filter((scope) => scope.ready);
   const current = active || recoveryPending ? state.activation.scope : ready.find((scope) => scopeKey(scope) === selectedKey) || null;
   const currentLabel = current
@@ -105,12 +107,15 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
     : "没有可用范围";
   return <section className="edupi-proactivity-canary" aria-labelledby="edupi-proactivity-canary-title">
     <div>
-      <span><strong id="edupi-proactivity-canary-title">课前准备试用</strong><small>{active || recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用 · 不外发`}</small></span>
-      {active ? <em className={operational ? "is-ready" : undefined}>{operational ? "运行中" : "需要恢复"}</em>
-        : <em>{recoveryPending ? "停止待恢复" : "默认关闭"}</em>}
+      <span><strong id="edupi-proactivity-canary-title">课前准备试用</strong><small>{active && state.grant
+        ? `${currentLabel} · 剩余 ${state.grant.modelBudget.remainingCalls} 次`
+        : recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用 · 不外发`}</small></span>
+      {active ? <em className={operational ? "is-ready" : undefined}>{budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复"}</em>
+        : <em>{recoveryPending ? state.activation.configurationStatus === "legacy" ? "旧授权待停止" : "停止待恢复"
+          : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭"}</em>}
     </div>
     {!active && !recoveryPending && ready.length > 0 ? <label><span>班级与学科</span><select aria-label="主动备课班级与学科" value={selectedKey} disabled={busy} onChange={(event) => onSelect(event.target.value)}>{ready.map((scope) => <option key={scopeKey(scope)} value={scopeKey(scope)}>{scope.className || scope.classId} · {scope.subject}</option>)}</select></label> : null}
-    <button className={!active && !recoveryPending ? "edupi-admin-primary" : undefined} type="button" disabled={busy || !active && !recoveryPending && !current} onClick={onToggle}>{busy ? "处理中…" : active ? "停止主动运行" : recoveryPending ? "重试停止" : "启用试用"}</button>
+    <button className={!active && !recoveryPending ? "edupi-admin-primary" : undefined} type="button" disabled={busy || !active && !recoveryPending && !current} onClick={onToggle}>{busy ? "处理中…" : active ? "停止主动运行" : recoveryPending ? state.activation.configurationStatus === "legacy" ? "停止旧授权" : "重试停止" : "启用试用"}</button>
     {message ? <p role="status" aria-live="polite">{message}</p> : !active && ready.length === 0 ? <p role="status">需要一条带班级 ID 的课表和同范围材料。</p> : null}
   </section>;
 }
@@ -120,35 +125,65 @@ export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false }: {
   const [selectedKey, setSelectedKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const refreshEpoch = useRef(0);
+  const refreshAbort = useRef<AbortController | null>(null);
   useEffect(() => {
     if (!isTauriDesktop()) return;
-    const controller = new AbortController();
-    void readEduPiProactivity(controller.signal).then((next) => {
-      setState(next);
-      const preferred = next.activation.scope ? scopeKey(next.activation.scope) : next.scopes.find((scope) => scope.ready) ? scopeKey(next.scopes.find((scope) => scope.ready)!) : "";
-      setSelectedKey(preferred);
-    }, () => setMessage("主动运行状态暂不可用"));
-    return () => controller.abort();
+    let disposed = false;
+    const refresh = () => {
+      if (busyRef.current || document.hidden) return;
+      const epoch = ++refreshEpoch.current;
+      refreshAbort.current?.abort();
+      const controller = new AbortController();
+      refreshAbort.current = controller;
+      void readEduPiProactivity(controller.signal).then((next) => {
+        if (disposed || epoch !== refreshEpoch.current) return;
+        setState(next);
+        const preferred = next.activation.scope ? scopeKey(next.activation.scope)
+          : next.scopes.find((scope) => scope.ready) ? scopeKey(next.scopes.find((scope) => scope.ready)!) : "";
+        setSelectedKey((current) => next.scopes.some((scope) => scopeKey(scope) === current) ? current : preferred);
+        setMessage((current) => current === "主动运行状态暂不可用" ? null : current);
+      }, () => {
+        if (!disposed && epoch === refreshEpoch.current && !controller.signal.aborted) setMessage("主动运行状态暂不可用");
+      });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      disposed = true;
+      refreshAbort.current?.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
   const selected = useMemo(() => state?.scopes.find((scope) => scopeKey(scope) === selectedKey) || null, [selectedKey, state]);
   if (!isTauriDesktop()) return null;
   if (!state) return <p className="edupi-proactivity-canary__loading" role={message ? "alert" : "status"}>{message || "正在读取主动运行…"}</p>;
   const toggle = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
     const recoveryPending = !state.activation.enabled && state.activation.scope !== null;
     const enabling = !state.activation.enabled && !recoveryPending;
     if (enabling && (!selected || !window.confirm(`启用 ${selected.className || selected.classId} · ${selected.subject} 的主动备课试用？\n${state.limits.durationDays} 天，最多 ${state.limits.maxModelCalls} 次模型调用，不外发。`))) return;
+    busyRef.current = true;
+    ++refreshEpoch.current;
+    refreshAbort.current?.abort();
     setBusy(true); setMessage(null);
     try {
       const next = await updateEduPiProactivity(enabling
         ? { enabled: true, classId: selected!.classId, subject: selected!.subject, expectedUpdatedAt: state.activation.updatedAt }
         : { enabled: false, classId: null, subject: null, expectedUpdatedAt: state.activation.updatedAt });
       setState(next);
-      setMessage(enabling ? "主动备课已启用" : "主动运行已停止");
+      setMessage(enabling ? next.grant?.modelBudget.remainingCalls === 0 ? "额度已用完"
+        : next.initialScan?.needsAttention ? "已启用，部分课前任务需核对" : "主动备课已启用"
+        : recoveryPending && state.activation.configurationStatus === "legacy" ? "旧授权已停止" : "主动运行已停止");
       onChanged?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "主动运行设置暂不可用");
-    } finally { setBusy(false); }
+    } finally { busyRef.current = false; setBusy(false); }
   };
   return <>
     <EduPiProactivityCanaryView state={state} selectedKey={selectedKey} busy={busy} message={message} onSelect={setSelectedKey} onToggle={() => void toggle()} />

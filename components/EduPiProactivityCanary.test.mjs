@@ -21,11 +21,26 @@ test("canary view exposes one scoped primary action and the hard limits", () => 
 
 test("active canary view has one stop action", () => {
   const active = { ...base, activation: { ...base.activation, enabled: true, source: "desktop_canary", configurationStatus: "ready", scope: { classId: "class-7-1", subject: "数学" } },
-    grant: { status: "active", grantVersion: 1, endsAt: "2026-09-30T08:00:00.000Z" }, capabilities: { ambientPlanning: true, ownerIntent: true, attentionDelivery: true, teacherFeedback: true } };
+    grant: { status: "active", grantVersion: 1, endsAt: "2026-09-30T08:00:00.000Z",
+      modelBudget: { usedCalls: 1, maxCalls: 12, remainingCalls: 11, usageUnverified: false } },
+    capabilities: { ambientPlanning: true, ownerIntent: true, attentionDelivery: true, teacherFeedback: true } };
   const html = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: active, selectedKey: JSON.stringify(["class-7-1", "数学"]), busy: false, message: null, onSelect() {}, onToggle() {} }));
   assert.match(html, />停止主动运行</);
+  assert.match(html, /剩余 11 次/);
   assert.equal((html.match(/<button/g) || []).length, 1);
   assert.doesNotMatch(html, /<select/);
+});
+
+test("an exhausted active grant is not shown as running", () => {
+  const exhausted = { ...base, activation: { ...base.activation, enabled: true, source: "desktop_canary", configurationStatus: "ready",
+    scope: { classId: "class-7-1", subject: "数学" } },
+  grant: { status: "active", grantVersion: 2, endsAt: "2026-09-30T08:00:00.000Z",
+    modelBudget: { usedCalls: 12, maxCalls: 12, remainingCalls: 0, usageUnverified: false } },
+  capabilities: { ambientPlanning: true, ownerIntent: true, attentionDelivery: true, teacherFeedback: true } };
+  const html = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: exhausted,
+    selectedKey: JSON.stringify(["class-7-1", "数学"]), busy: false, message: null, onSelect() {}, onToggle() {} }));
+  assert.match(html, /额度已用完/);
+  assert.doesNotMatch(html, /运行中/);
 });
 
 test("a fenced stop failure keeps one recovery action instead of permitting another scope", () => {
@@ -38,6 +53,18 @@ test("a fenced stop failure keeps one recovery action instead of permitting anot
   assert.match(html, />重试停止</);
   assert.doesNotMatch(html, /<select/);
   assert.equal((html.match(/<button/g) || []).length, 1);
+});
+
+test("a legacy grant remains visible until the teacher explicitly stops it", () => {
+  const legacy = { ...base, activation: { ...base.activation, source: "desktop_canary",
+    configurationStatus: "legacy", scope: { classId: "class-7-1", subject: "数学" },
+    updatedAt: "2026-09-23T08:00:00.000Z" } };
+  const html = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: legacy,
+    selectedKey: JSON.stringify(["class-7-1", "数学"]), busy: false, message: null,
+    onSelect() {}, onToggle() {} }));
+  assert.match(html, /旧授权待停止/);
+  assert.match(html, />停止旧授权</);
+  assert.doesNotMatch(html, /启用试用/);
 });
 
 test("missed-opportunity feedback covers every L4 domain with one scoped report action", () => {

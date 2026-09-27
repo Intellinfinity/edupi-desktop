@@ -562,6 +562,10 @@ test("preview installs Desktop dependencies before the paired Core runtime test"
   assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
   assert.match(packageJob, /name: Verify Windows native asset preflight\s+if: runner\.os == 'Windows'\s+run: node --test scripts\/windows-native-asset\.test\.mjs/u);
   assert.match(probeJob, /if: inputs\.native_asset_probe_only/u);
+  assert.match(workflow, /native_asset_probe_core_commit:/u);
+  assert.match(probeJob, /name: Check out exact Core source for staging probe[\s\S]*?fetch-depth: 0/u);
+  assert.match(probeJob, /name: Stage Core-approved native asset in temporary Windows directory[\s\S]*?preparePinnedWindowsNativeAsset/u);
+  assert.match(probeJob, /fs\.rmSync\(destinationRoot, \{ recursive: true, force: true \}\)/u);
   assert.match(probeJob, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
   assert.match(probeJob, /Accept: application\/octet-stream/u);
   assert.match(probeJob, /sha256sum < "\$asset"/u);

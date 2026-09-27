@@ -7,6 +7,10 @@ on:
         description: Check private Core asset access without building installers
         type: boolean
         default: false
+      native_asset_probe_core_commit:
+        description: Optional exact Core commit for the Windows staging path
+        type: string
+        default: ""
       native_asset_probe_id:
         description: Optional private Core release asset ID for a read-only Windows download probe
         type: string
@@ -177,6 +181,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Probe private Core native asset with the scoped read secret
+        if: inputs.native_asset_probe_core_commit == ''
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
@@ -206,3 +211,54 @@ jobs:
           echo "Asset probe SHA-256: $actual_sha256"
           test "$actual_sha256" = "$PROBE_ASSET_SHA256"
           echo 'Private Core native asset bytes matched the scoped read-token probe.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Check out Desktop staging code
+        if: inputs.native_asset_probe_core_commit != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Use Node 22 for native staging probe
+        if: inputs.native_asset_probe_core_commit != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+      - name: Check out exact Core source for staging probe
+        if: inputs.native_asset_probe_core_commit != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Intellinfinity/edupi
+          ref: ${{ inputs.native_asset_probe_core_commit }}
+          path: .edupi-core-runtime
+          fetch-depth: 0
+          token: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+          persist-credentials: false
+      - name: Preserve exact Core contract bytes for staging probe
+        if: inputs.native_asset_probe_core_commit != ''
+        shell: bash
+        run: |
+          git -C .edupi-core-runtime config core.autocrlf false
+          git -C .edupi-core-runtime checkout-index --all --force
+          git -C .edupi-core-runtime archive HEAD | tar -x -C .edupi-core-runtime
+      - name: Stage Core-approved native asset in temporary Windows directory
+        if: inputs.native_asset_probe_core_commit != ''
+        shell: bash
+        env:
+          EDUPI_CORE_READ_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+          PROBE_CORE_COMMIT: ${{ inputs.native_asset_probe_core_commit }}
+          PROBE_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { preparePinnedWindowsNativeAsset } from './scripts/windows-native-asset.mjs';
+          const temporaryRoot = process.env.RUNNER_TEMP;
+          if (!temporaryRoot || !path.isAbsolute(temporaryRoot)) throw new Error('Windows runner temp root is invalid');
+          const destinationRoot = fs.mkdtempSync(path.join(temporaryRoot, 'edupi-native-stage-'));
+          try {
+            const result = preparePinnedWindowsNativeAsset({ coreRoot: process.env.PROBE_CORE_ROOT,
+              coreCommit: process.env.PROBE_CORE_COMMIT, destinationRoot });
+            if (!result) throw new Error('Core native contract was not approved');
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `Windows native staging passed: ${result.size} bytes, ${result.digest}.\n`);
+          } finally {
+            fs.rmSync(destinationRoot, { recursive: true, force: true });
+          }
+          NODE

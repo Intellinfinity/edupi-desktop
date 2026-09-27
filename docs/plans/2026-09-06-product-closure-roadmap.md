@@ -2,7 +2,7 @@
 
 ## 2026-09-28 路线 1 最新门禁（取代下文旧候选快照）
 
-- 最新 Core 来源门：[#211](https://github.com/Intellinfinity/edupi/pull/211) 已合并 `ecaeb294`，[最终 CI `36340950913`](https://github.com/Intellinfinity/edupi/actions/runs/36340950913) Windows/质量双绿，固定 181248 字节 native asset 可在受保护 NTFS 加载且单字节篡改被拒；**生产 root/writer/G1 仍关闭**。Desktop `6cbac1e` 已把 Windows G1 限到显式临时隔离根、包内 Core、Safe Mode 和当前单班单科许可；普通启动强制 canary 标记为 0，隔离状态/模型目录不沿用真实配置，手机桥接关闭。1841 项测试中 1815 通过、26 跳过、0 失败，TypeScript/lint、macOS Cargo 37/37 通过。Windows 真 Tauri/NSIS 与正式安装仍未验，Desktop pin 仍 `3397b71`，#287 保持 Draft。
+- 最新 Core 来源门：[#211](https://github.com/Intellinfinity/edupi/pull/211) 已合并 `ecaeb294`，[最终 CI `36340950913`](https://github.com/Intellinfinity/edupi/actions/runs/36340950913) Windows/质量双绿，固定 181248 字节 native asset 可在受保护 NTFS 加载且单字节篡改被拒；**生产 root/writer/G1 仍关闭**。Desktop `50fd12d` 把 Windows G1 限到显式标记的当前用户 home 下独立命名根、包内 Core、Safe Mode 和当前单班单科许可；普通启动强制 canary 标记为 0，隔离状态/模型目录不沿用真实配置，手机桥接关闭。系统 TEMP 在 Core 真 Windows 核验中已被拒，不能绕过规范路径/ACL 门。Desktop `2403606` 将 Core 只读 token 缩到 Next 构建后的独立 staging 步骤，打包前再次无 token 验证；1842 项测试中 1816 通过、26 跳过、0 失败，TypeScript/lint/actionlint、macOS Cargo 37/37 通过。旧预览 `36344329083` 因凭据范围重构取消，不算 CI 通过。Windows 真 Tauri/NSIS 与正式安装仍未验，Desktop pin 仍 `3397b71`，#287 保持 Draft。Core root/writer [#212](https://github.com/Intellinfinity/edupi/pull/212) 仍为 Draft。
 
 - 范围/预算：Core #204 已合并 `3397b71`；Desktop #285 已合并 `38d8c95`，compat pin 精确为 Core `3397b71`。最终预览 CI `36296800201` 全绿，隔离包内单班草稿/通知失败/审核/synthetic 反馈/重启有工程证据。状态为**已实现待正式安装验收**，不能记为六领域完成。
 - 授权租约：Core #207 已合并 `c61a841`，旧 grant 在暂停/恢复或版本更新后不能继续调用或提交；当前 Desktop pin 仍停在 #204，尚未消费这项增强。状态为**Core 已实现、Desktop 待重新配对**。

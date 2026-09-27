@@ -11,6 +11,8 @@
 
 下表是**待执行的验收项目**，不是已通过结果。每行都要记录正式版本/包摘要、Core pin、macOS 与 Windows 隔离数据根、操作、对象 ID、前后 Core 回读、UI/通知证据及失败/重放结果；未经教师核实的真人材料不得写入合成记录。
 
+现有 Desktop 普通对话的 G1 canary 只允许 `teaching_preparation` 进入后续处理；其他五领域会撤回为 `domain_out_of_scope`。因此下表非课前准备领域还包含**Desktop 路由待实现**，不是仅缺一次安装测试；即使 Core 已有某些 Goal/capability/hold 命令，也不能把 Core 单测写成 Desktop 六领域闭环。G2/G3/G4 Live 仍不得默认启用。
+
 | 领域 | 应验证的安全结果 | macOS 正式版 | Windows 正式版 |
 | --- | --- | --- | --- |
 | `teaching_preparation` 课前准备 | 可信单班单科课次或明确对话 → 到期仅一次受预算模型调用 → 内部待审草稿/通知 → 点击同任务续聊 → 审核及 Core 反馈；跨班、撤销来源和预算耗尽不得执行 | 未验 | 未验 |

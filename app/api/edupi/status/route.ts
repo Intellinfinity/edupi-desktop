@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { EduPiCoreProcessError } from "@/lib/edupi-core-process-client";
 import { EduPiSnapshotError, readEduPiCoreHealth, readEduPiEducationSnapshot, readEduPiKernelProjection, resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { loadEduPiCompatManifest } from "@/lib/edupi-bridge-manifest";
-import { describeEduPiRuntimeStartupFailure, ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
+import { describeEduPiRuntimeStartupFailure, ensureEduPiRuntime, g1ScopeForActivation } from "@/lib/edupi-runtime-supervisor";
 import { projectCoreRuntimeHealth, type ProjectedCoreRuntimeHealth } from "@/lib/edupi-runtime-health";
 import { readEduPiProactivityActivation } from "@/lib/edupi-proactivity-config";
 
@@ -62,7 +62,8 @@ export async function GET(request: Request) {
     const runtimeHealth = await host.call("health", null);
     const runtimeResult = runtimeHealth && typeof runtimeHealth.result === "object" && runtimeHealth.result && !Array.isArray(runtimeHealth.result) ? runtimeHealth.result as Record<string, unknown> : null;
     runtimeCapabilities = runtimeResult?.capabilities && typeof runtimeResult.capabilities === "object" && !Array.isArray(runtimeResult.capabilities) ? runtimeResult.capabilities as Record<string, unknown> : null;
-    runtime = projectCoreRuntimeHealth(runtimeHealth, roots.runtime.coreCommit, identity.runtime.runtime_component_manifest_hash);
+    runtime = projectCoreRuntimeHealth(runtimeHealth, roots.runtime.coreCommit, identity.runtime.runtime_component_manifest_hash,
+      Boolean(g1ScopeForActivation(activation)));
     runtimeReason = runtime.reason || "Core Runtime 已连接";
   } catch (error) {
     runtimeReason = failureReason(error, "Core Runtime 不可用");

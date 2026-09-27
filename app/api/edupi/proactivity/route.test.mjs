@@ -21,6 +21,7 @@ test("proactivity route is desktop-token protected, bounded, restart-backed, and
   assert.match(source, /writeEduPiProactivityConfig/);
   assert.match(source, /restartEduPiRuntime/);
   assert.match(source, /ensureProactivityGrant/);
+  assert.match(source, /await host\.call\("prepare_due", null\)/);
   assert.match(source, /pauseProactivityGrant/);
   assert.match(source, /withMutationLock\(roots\.dataRoot\.root/);
   assert.match(source, /activation\.updatedAt !== body\.expectedUpdatedAt/);

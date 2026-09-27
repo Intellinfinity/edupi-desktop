@@ -14,10 +14,12 @@ type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: 
 const shared = globalThis as typeof globalThis & {
   __edupiRuntimeSupervisors?: Map<string, Entry>;
   __edupiRuntimeRestartLocks?: Map<string, Promise<EduPiRuntimeHandle>>;
+  __edupiRuntimeQuarantine?: Set<string>;
   __edupiRuntimeExitHook?: boolean;
 };
 const entries = shared.__edupiRuntimeSupervisors ||= new Map<string, Entry>();
 const restartLocks = shared.__edupiRuntimeRestartLocks ||= new Map<string, Promise<EduPiRuntimeHandle>>();
+const quarantined = shared.__edupiRuntimeQuarantine ||= new Set<string>();
 const STARTUP_FAILURE_REASONS = Object.freeze({
   runtime_database_unavailable: "Core Runtime 数据库不可用（runtime_database_unavailable）",
   runtime_root_invalid: "Core Runtime 数据目录校验失败（runtime_root_invalid）",
@@ -32,6 +34,12 @@ function startupFailureCode(value: unknown): StartupFailureCode {
   return typeof code === "string" && STARTUP_FAILURE_CODES.has(code as StartupFailureCode) ? code as StartupFailureCode : "runtime_unavailable";
 }
 const unavailable = (code: StartupFailureCode = "runtime_unavailable") => Object.assign(new Error("EduPi runtime unavailable."), { code: startupFailureCode(code) });
+
+export function g1ScopeForActivation(activation: EduPiProactivityActivation): { classId: string; subject: string; grantId: string } | null {
+  if (!activation.enabled || activation.source !== "desktop_canary" || activation.configurationStatus !== "ready"
+    || !activation.scope || !activation.grantId) return null;
+  return { classId: activation.scope.classId, subject: activation.scope.subject, grantId: activation.grantId };
+}
 
 export function describeEduPiRuntimeStartupFailure(error: unknown): string | null {
   const code = startupFailureCode(error);
@@ -48,9 +56,21 @@ export async function closeAllEduPiRuntimes(): Promise<void> {
   await Promise.allSettled([...entries.values()].map(async entry => { try { await (await entry.startup).close(); } catch { entry.kill?.(); } }));
 }
 
+export async function quarantineEduPiRuntime(dataRoot: string): Promise<void> {
+  quarantined.add(dataRoot);
+  const entry = entries.get(dataRoot);
+  if (!entry) return;
+  try { await (await entry.startup).close(); }
+  catch { entry.kill?.(); if (entries.get(dataRoot) === entry) entries.delete(dataRoot); }
+}
+
+export function clearEduPiRuntimeQuarantine(dataRoot: string): void { quarantined.delete(dataRoot); }
+
 export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEduPiCore; dataRoot: ResolvedEduPiDataRoot }): Promise<EduPiRuntimeHandle> {
+  if (quarantined.has(dataRoot.root)) return Promise.reject(unavailable());
   const activation = readEduPiProactivityActivation({ dataRoot: dataRoot.root });
-  const identity = `${runtime.root}:${runtime.coreCommit}:${runtime.componentManifestHash}:${activation.enabled}:${activation.source}:${activation.updatedAt || "none"}`;
+  const g1Scope = g1ScopeForActivation(activation);
+  const identity = `${runtime.root}:${runtime.coreCommit}:${runtime.componentManifestHash}:${activation.enabled}:${activation.source}:${activation.updatedAt || "none"}:${JSON.stringify(g1Scope)}`;
   const existing = entries.get(dataRoot.root);
   if (existing) {
     if (existing.identity !== identity) return Promise.reject(unavailable());
@@ -58,7 +78,7 @@ export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEdu
   }
   const entry: Entry = { identity, startup: Promise.resolve(null as unknown as EduPiRuntimeHandle) };
   entries.set(dataRoot.root, entry);
-  entry.startup = start(runtime, dataRoot, entry, activation).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
+  entry.startup = start(runtime, dataRoot, entry, activation, g1Scope).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
   return entry.startup;
 }
 
@@ -87,7 +107,8 @@ export function restartEduPiRuntime(args: { runtime: ResolvedEduPiCore; dataRoot
   return restart;
 }
 
-async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot, entry: Entry, activation: EduPiProactivityActivation): Promise<EduPiRuntimeHandle> {
+async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot, entry: Entry, activation: EduPiProactivityActivation,
+  g1Scope: ReturnType<typeof g1ScopeForActivation>): Promise<EduPiRuntimeHandle> {
   const load = (file: string) => import(/* webpackIgnore: true */ pathToFileURL(path.join(runtime.root, "scripts", file)).href);
   const manifestFile = validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.join(runtime.root, "contracts/edupi-core-runtime-component-manifest.json") });
   const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
@@ -160,6 +181,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
         componentManifestHash: manifest.component_manifest_hash, port: 0,
         ...(ambientPlanning ? { ambientPlanning: true } : {}),
         ...(ownerControlToken ? { ownerControlToken } : {}),
+        ...(g1Scope ? { g1Scope } : {}),
       } }, error => { if (error) failed(); });
     });
   } catch (error) { await close(); throw unavailable(startupFailureCode(error)); }

@@ -1,5 +1,12 @@
 # Route 1: Core a8fe471 Installed Proactive Loop
 
+## 2026-09-27 安全重检
+
+- 旧 canary 的 G1 `active` 只证明处理器启动，**不证明单班单科授权**。Desktop 曾无条件注入 G1 Live，Core a8 在 ambient planning 关闭时允许所有合格到期候选入队；有已确认材料的其他班级也可能调用模型。下表保留历史观测，不再作为发布许可。
+- v0.3.46 [PR #285](https://github.com/Intellinfinity/edupi-desktop/pull/285) 已改为 Draft，预览 run `36270079017` 已取消。当前修复目标是默认不启动 G1，只有 Core 核验精确班级、学科、当前 owner grant、来源和耐久模型调用预算后才执行。Core 与 Desktop 重新配对、三平台 CI 和唯一正式 App 验收前不得发布。
+- Windows 原生盘证明、真实跨到期系统睡眠、系统通知点击和原生教师反馈仍分别待验，任何源码或旧 canary 成功都不改变这些状态。
+- Core #204 已合入 `3397b71` 并完成授权、来源、预算和旧授权迁移；Desktop 候选已更新到该精确 Core pin。staged 包内隔离数据的单班草稿、通知领取/失败、审核、synthetic 反馈与重启重放通过。当前状态仍是“已实现待正式安装验收”，不是路线 1 验收通过。
+
 **Goal:** 在单教师、单班、单学科的隔离安装版里，证明可信事件到内部草稿、提醒、续聊、审核及 Core 反馈的连续流程，并保持真实教师根和 launchd 不变。
 
 **Architecture:** 继续使用 Core 唯一状态、现有 G1 Live 处理器、队列和持久回执；Desktop 只负责受限启动、原生通知、会话导航与教师表单。通过独立 `codex/route1-core-a8fe471-20260926` Desktop 工作树和 detached Core `a8fe471` 检出执行。G2/G3/G4 只在隔离 canary 按 Core permit 运行；G5 及未证实材料/课次/学期关系一律 hold。
@@ -24,6 +31,8 @@
 6. **发布门禁与账本。** 全量 `npm test`、TypeScript、lint、audit、Cargo locked metadata/tests、staged Core/模型/通知 E2、macOS/Windows 安装包 CI 与独立复审；开 PR、等待 CI、合并。将逐项实际结果及代码 commit、操作、预期/实际、证据路径、未验条件写回 `docs/plans/2026-09-06-product-closure-roadmap.md`、`docs/plans/2026-09-07-signed-updates.md` 与一份路线 1 验收记录。合并不等于安装或真人价值通过。
 
 ## 验收状态表
+
+2026-09-27 验收方式修订：下表的 canary 结果保留为开发证据。后续必须先发布包含本路线代码的正式签名/公证版本，再顺序使用唯一 `/Applications/EduPi.app` 验收；不得同时启动另一个同图标测试 App。切换隔离数据前先备份正式 App、记录教师数据与模型配置摘要，测试后恢复原数据根；不向真实学生档案写入合成证据。Windows G1 仍受 Core `a8fe471` 的原生盘证明阻塞，不能因安装包启动就勾选。
 
 | 条件 | macOS 隔离安装 | Windows 隔离安装 | 边界 |
 | --- | --- | --- | --- |

@@ -2,6 +2,10 @@
 
 ## 当前状态
 
+- 2026-09-27 安全复审推翻了旧 canary 的“单班单科”推断：旧包无条件启动 G1，Core a8 可在未授权时扫描其他班级的合格到期任务。旧 G1 `active`、1 次合成模型调用与通过的预览 CI 均只能作历史工程证据。v0.3.46 PR #285 保持 Draft，预览 run `36270079017` 已取消；默认关闭、Core 精确授权和耐久预算未完成前不发布，也不接触真实教师数据根。
+- Desktop 独立工作树 `5858c3c` 加未提交安全修复，macOS 源码 `npm test` 为 1812 total / 1786 passed / 26 skipped / 0 failed；`tsc --noEmit`、lint、默认关闭 G1 的直接 Core a8 隔离运行测试均通过。预期默认冷启没有 G1 模型执行；实际 `g1_processor=activation_pending`、G2/G3 pending、`external_send=false`。这不是新 Core 授权/预算、三平台 CI 或正式安装版的验收，完成代码后需重跑。
+- 上一条 1812 项测试是修复过程的历史中间状态。当前候选 Core 为 main `3397b71`（#204，quality CI `36292490885` success），schema `sha256:8e54f23a…`、Runtime/Desktop 组件 `sha256:d23e31e…` / `sha256:7f60717c…`；Core 全量 `npm test`、typecheck、manifest/writer matrix、audit 通过。Desktop `npm test` 1824 total / 1798 passed / 26 skipped / 0 failed，TypeScript、lint、audit、release verify、Cargo metadata 与 35 项 Cargo 测试通过。`desktop:prepare` 打入 2174 个精确 Core 文件；macOS staged 冷启 Core/投影 ready、G1/G2/G3 pending、`externalSend=false`。隔离 packaged backend 的 `test:route1-packaged-loop` 从默认零模型调用到单班启用后 1 次本地模型调用、4 份草稿、原生通知领取与失败去重、审核、synthetic 反馈和重启保留均通过。隔离 proactivity E2 还验证旧 v1 授权停止、双写入失败 stop marker 在旧文件恢复模拟下令新进程 G1 pending。包内 backend 与合成输出不代替正式 App UI、系统通知点击、真实睡眠或 Windows G1 验收。
+
 - 用户已要求以后只用正式版验收。本次额外启动的两份隔离 canary 已停止；本机模型桩未监听，`EduPi Route1 Notify Canary` 的 macOS 通知开关已回读为关闭，正式 `/Applications/EduPi.app` 保持唯一运行。下面的 canary 记录保留为开发证据，不能代替下一正式签名/公证 Release 的安装版验收。准备好的周一跨日样本未经历真实系统睡眠，通知也没有点击回执；两项仍未验。
 - Desktop [PR #281](https://github.com/Intellinfinity/edupi-desktop/pull/281) 的独立 `codex/route1-core-a8fe471-20260926` 从 `main` 的 `9ff46e58e2adf07030d91bdd0e711a42c220cc9c` 创建；原 Desktop 工作树未改。Core 使用 detached `a8fe4711419fe3f36a19fd342e17abe33a7825b9` 的干净检出，原 Core 主工作树的大量未提交改动未动。真实教师数据根和 launchd 未操作。
 - 本记录已包含隔离 macOS `.app` 的启动、界面和重启实测，但**不等于路线 1 全部验收通过**。Windows Core 根证明、真实跨到期系统睡眠和系统通知成功点击仍未通过。下文旧版 canary 与预览 CI 证据均早于 `71e32de` 回执恢复修复，不能代替最终提交的安装版/CI 复核。主验收路径与逐项状态见[路线 1 计划](../plans/2026-09-26-route1-core-a8fe471-installed-loop.md)。

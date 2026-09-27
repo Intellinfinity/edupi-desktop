@@ -3,13 +3,15 @@ import { fetchDesktopApi } from "./desktop-native";
 export type EduPiProactivityState = {
   ok: true;
   degraded?: boolean;
-  activation: { enabled: boolean; source: "default" | "desktop_canary" | "environment"; configurationStatus: "missing" | "ready" | "mismatched" | "invalid"; scope: { classId: string; subject: string } | null; updatedAt: string | null };
+  activation: { enabled: boolean; source: "default" | "desktop_canary" | "environment"; configurationStatus: "missing" | "ready" | "legacy" | "stop_pending" | "mismatched" | "invalid"; scope: { classId: string; subject: string } | null; updatedAt: string | null };
   scopes: Array<{ classId: string; className: string | null; subject: string; slotCount: number; materialCount: number; ready: boolean }>;
-  grant: { status: "active" | "paused" | "revoked" | "expired"; grantVersion: number; endsAt: string } | null;
+  grant: { status: "active" | "paused" | "revoked" | "expired"; grantVersion: number; endsAt: string;
+    modelBudget: { usedCalls: number; maxCalls: number; remainingCalls: number; usageUnverified: boolean } } | null;
   capabilities: { ambientPlanning: boolean; ownerIntent: boolean; attentionDelivery: boolean; teacherFeedback: boolean } | null;
   limits: { durationDays: number; maxModelCalls: number; domain: "teaching_preparation" };
   externalSend: false;
   grantPaused?: boolean;
+  initialScan?: { queued: number; needsAttention: boolean };
 };
 
 export class EduPiProactivityClientError extends Error {
@@ -27,11 +29,13 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
   const limits = record(state?.limits);
   const scopes = state?.scopes;
   const grant = state?.grant === null ? null : record(state?.grant);
+  const modelBudget = record(grant?.modelBudget);
   const capabilities = state?.capabilities === null ? null : record(state?.capabilities);
+  const initialScan = state?.initialScan === undefined ? null : record(state?.initialScan);
   if (state?.ok !== true || state.externalSend !== false || state.degraded !== undefined && typeof state.degraded !== "boolean"
     || !activation || typeof activation.enabled !== "boolean"
     || !["default", "desktop_canary", "environment"].includes(String(activation.source))
-    || !["missing", "ready", "mismatched", "invalid"].includes(String(activation.configurationStatus))
+    || !["missing", "ready", "legacy", "stop_pending", "mismatched", "invalid"].includes(String(activation.configurationStatus))
     || activationScope !== null && (typeof activationScope?.classId !== "string" || !activationScope.classId
       || typeof activationScope?.subject !== "string" || !activationScope.subject)
     || activation.updatedAt !== null && typeof activation.updatedAt !== "string"
@@ -48,11 +52,21 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
       throw new EduPiProactivityClientError("主动运行范围无效");
     }
   }
-  if (grant && (!Number.isInteger(grant.grantVersion) || !["active", "paused", "revoked", "expired"].includes(String(grant.status)) || typeof grant.endsAt !== "string")) {
+  if (grant && (!Number.isInteger(grant.grantVersion) || !["active", "paused", "revoked", "expired"].includes(String(grant.status)) || typeof grant.endsAt !== "string"
+    || !modelBudget || !Number.isSafeInteger(modelBudget.usedCalls) || Number(modelBudget.usedCalls) < 0 || Number(modelBudget.usedCalls) > 1536
+    || !Number.isSafeInteger(modelBudget.maxCalls) || Number(modelBudget.maxCalls) < 0 || Number(modelBudget.maxCalls) > 12
+    || !Number.isSafeInteger(modelBudget.remainingCalls) || Number(modelBudget.remainingCalls) < 0 || Number(modelBudget.remainingCalls) > 12
+    || typeof modelBudget.usageUnverified !== "boolean"
+    || modelBudget.usageUnverified && modelBudget.remainingCalls !== 0
+    || !modelBudget.usageUnverified && modelBudget.remainingCalls !== Math.max(0, Number(modelBudget.maxCalls) - Number(modelBudget.usedCalls)))) {
     throw new EduPiProactivityClientError("主动运行授权无效");
   }
   if (capabilities && ![capabilities.ambientPlanning, capabilities.ownerIntent, capabilities.attentionDelivery, capabilities.teacherFeedback].every((item) => typeof item === "boolean")) {
     throw new EduPiProactivityClientError("主动运行能力无效");
+  }
+  if (state?.initialScan !== undefined && (!initialScan || !Number.isInteger(initialScan.queued)
+    || Number(initialScan.queued) < 0 || Number(initialScan.queued) > 20 || typeof initialScan.needsAttention !== "boolean")) {
+    throw new EduPiProactivityClientError("主动运行检查结果无效");
   }
   return value as EduPiProactivityState;
 }

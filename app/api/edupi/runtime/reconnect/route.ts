@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { activeBridgeIdentity } from "@/lib/edupi-bridge-manifest";
-import { describeEduPiRuntimeStartupFailure, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
+import { describeEduPiRuntimeStartupFailure, g1ScopeForActivation, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { projectCoreRuntimeHealth } from "@/lib/edupi-runtime-health";
 import { isApiRequestAllowed } from "@/lib/request-security";
+import { readEduPiProactivityActivation } from "@/lib/edupi-proactivity-config";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
       await host.call("health", null),
       roots.runtime.coreCommit,
       identity.runtime.runtime_component_manifest_hash,
+      Boolean(g1ScopeForActivation(readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root }))),
     );
     if (health.status !== "ready") {
       return NextResponse.json({ ok: false, error: health.reason || "Core 重新连接后仍未就绪" }, { status: 503 });

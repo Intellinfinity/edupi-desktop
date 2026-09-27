@@ -2,11 +2,11 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "a8fe4711419fe3f36a19fd342e17abe33a7825b9",
+    "core_commit": "3397b71b3de370c75480a185ae9475d176f8352f",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:8092bd3d10af41683433e87e6a06d0da4d9fdc2e83a631eb1b9e59c267486bf7",
-    "runtime_component_manifest_hash": "sha256:844eebaf4339062f0189df2af66762152780db043c8ea0b6baefa45fb118c851",
-    "runtime_schema_hash": "sha256:9c8c287a8d8eeaea2905fb83b64742a5841e664d766cfa58b0791bf17caf88dc"
+    "component_manifest_hash": "sha256:7f60717cac718c83b04ab4aed1e74609622b0983d8d8e7134cdc5249a9ee4376",
+    "runtime_component_manifest_hash": "sha256:d23e31e5127959ac1b0a4d099a7c868e6b70b26104d43044182a4de821203082",
+    "runtime_schema_hash": "sha256:8e54f23a43ac567e3743802c127914197117f266524566c31c08fe8b551f8439"
   },
   "contract_identities": [
     {
@@ -163,7 +163,8 @@
     "https://github.com/Intellinfinity/edupi/pull/190",
     "https://github.com/Intellinfinity/edupi/pull/191",
     "https://github.com/Intellinfinity/edupi/pull/192",
-    "https://github.com/Intellinfinity/edupi/pull/193"
+    "https://github.com/Intellinfinity/edupi/pull/193",
+    "https://github.com/Intellinfinity/edupi/pull/204"
   ],
-  "change_note": "Desktop pin to Core a8fe471 (#192 runtime, #193 documentation): Runtime schema, bridge v1.1, and occurrence v1.2 identities stay unchanged while component manifests include current-owner permits for default-off shared capability live canaries. The packaged host enables G1 only; G2 and G3/G4 remain activation_pending outside isolated permitted canaries. G5 recipients, material evidence, and term/lesson attribution remain unverified; external_send=false."
+  "change_note": "Desktop pin to Core #204 scoped G1: Runtime schema and both component manifests changed; bridge v1.1 and occurrence v1.2 identities remain unchanged. Packaged G1 is default-off, requiring one exact class/subject owner grant and durable model budget. G2 and G3/G4 Live remain activation_pending outside isolated permitted canaries. G5 recipients, unconfirmed material evidence, and term/lesson attribution remain unverified; external_send=false."
 }

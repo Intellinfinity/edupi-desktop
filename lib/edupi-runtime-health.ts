@@ -34,14 +34,15 @@ export function coreExecutionReadinessLabel(capabilities: CoreRuntimeHealth["cap
   if (!capabilities || ![capabilities.g1_processor, capabilities.g2_processor, capabilities.g3_processor]
     .every(status => status === "active" || status === "activation_pending")) return "执行状态暂不可用";
   const label = (status: "active" | "activation_pending") => status === "active" ? "可运行" : "待接入";
-  return `课前准备${label(capabilities.g1_processor)} · 学生跟进${label(capabilities.g2_processor)} · 其他任务${label(capabilities.g3_processor)}`;
+  return `课前准备${capabilities.g1_processor === "active" ? "可运行" : "未开启"} · 学生跟进${label(capabilities.g2_processor)} · 其他任务${label(capabilities.g3_processor)}`;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-export function projectCoreRuntimeHealth(response: unknown, expectedCoreCommit: string, expectedComponentManifestHash: string): ProjectedCoreRuntimeHealth {
+export function projectCoreRuntimeHealth(response: unknown, expectedCoreCommit: string, expectedComponentManifestHash: string,
+  expectG1Live = true): ProjectedCoreRuntimeHealth {
   const envelope = record(response);
   const health = record(envelope?.result);
   const capabilities = record(health?.capabilities);
@@ -64,7 +65,11 @@ export function projectCoreRuntimeHealth(response: unknown, expectedCoreCommit: 
   const timerErrorCode = scheduler?.timer_error_code as string | null | undefined;
   let status: ProjectedCoreRuntimeHealth["status"] = lifecycle;
   let reason: string | null = lifecycle === "ready" ? null : `Core Runtime ${lifecycle}`;
-  if (lifecycle === "ready" && (capabilities.g1_processor !== "active" || capabilities.internal_timer !== "active" || !scheduler?.timer_active)) {
+  if (lifecycle === "ready" && !expectG1Live && capabilities.g1_processor === "active") {
+    status = "degraded";
+    reason = "课程准备意外运行";
+  } else if (lifecycle === "ready" && expectG1Live
+    && (capabilities.g1_processor !== "active" || capabilities.internal_timer !== "active" || !scheduler?.timer_active)) {
     status = "degraded";
     reason = "课程准备自动检查未启动";
   } else if (lifecycle === "ready" && timerErrorCode && !isPreparationIssue(timerErrorCode)) {

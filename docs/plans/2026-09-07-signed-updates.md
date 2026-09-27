@@ -1,5 +1,11 @@
 # 自动下载安装
 
+## 2026-09-27 v0.3.46 路线 1 正式版候选（未发布）
+
+- 安全重检发现候选 Core a8 的 G1 没有强制单班单科授权，旧 Desktop 还无条件注入 G1 Live；已有本地门禁与旧 canary 不能证明发布安全。PR #285 已转 Draft，预览 run `36270079017` 已取消。默认关闭 G1、Core 精确授权/来源/耐久预算、重新固定 Core 组件清单和三平台 CI 均待完成；Release、Apple 公证、公开资产、feed 和正式 App 更新均未执行，不得继承 v0.3.45 的证据。Windows G1 仍保持 `native_attestation_required`。
+- 2026-09-27 更新：Core [#204](https://github.com/Intellinfinity/edupi/pull/204) 与其 quality CI 已通过并合入 `3397b71`。Desktop 候选 pin 与 Runtime schema/两份组件清单已精确配对；本地 staged Core/投影 ready、G1 默认 pending，隔离包内单班草稿与通知失败链路通过。v0.3.46 仍未发布，PR #285 的最终 CI、Apple 公证、公开资产、feed 与唯一正式 App 验收未执行；Windows 原生盘证明依旧未交付。
+- 教师要求以后只用正式版验收。正式 Release 后在 Mac 上顺序使用唯一 `/Applications/EduPi.app`，先备份并记录教师数据/模型配置，再核对更新验签、版本、Core 身份、真实提醒点击和数据保留；不另开同图标 canary，不把预览 CI 视作安装版通过。
+
 ## 2026-09-26 路线 1 隔离 canary（未发布）
 
 - 用户指定后续只验收正式签名/公证安装版。两份临时 canary 进程已退出，本机模型桩停止，测试通知权限恢复关闭；正式 v0.3.45 没有因 #281 合并而自动更新，未进行路线 1 的正式版安装。以下 canary 结果只作开发证据，下一正式 Release 的通知点击、睡眠恢复和数据保留须重新逐项验证。

@@ -63,7 +63,7 @@ test("private model IPC correlates results, forwards cancellation and rejects on
   host.close();
 });
 
-test("runtime host forwards explicit ambient planning activation to Core", async t => {
+test("runtime host leaves G1 Live off without an exact scoped grant and forwards an explicit one", async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-runtime-host-ambient-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, "scripts"));
@@ -79,11 +79,22 @@ test("runtime host forwards explicit ambient planning activation to Core", async
   const channel = new EventEmitter();
   channel.connected = true;
   channel.send = () => {};
+  const options = { dataRoot: root, token: "token", supervisorSessionId: "session", coreCommit: "a".repeat(40), componentManifestHash: `sha256:${"b".repeat(64)}`, port: 0, ambientPlanning: true };
   const host = await startCoreRuntimeHost({
     coreRoot: root,
-    options: { dataRoot: root, token: "token", supervisorSessionId: "session", coreCommit: "a".repeat(40), componentManifestHash: `sha256:${"b".repeat(64)}`, port: 0, ambientPlanning: true },
+    options,
   }, channel);
   const { lastOptions } = await import(path.join(root, "scripts/core_runtime_daemon.mjs"));
   assert.equal(lastOptions().ambientPlanning, true);
+  assert.equal(lastOptions().g1Live, undefined);
   await host.close();
+
+  const scope = { classId: "class-7-1", subject: "数学", grantId: "desktop_canary_class_7_math" };
+  const scoped = await startCoreRuntimeHost({ coreRoot: root,
+    options: { ...options, ownerControlToken: "owner-control-test", g1Scope: scope } }, channel);
+  assert.deepEqual(lastOptions().g1Live.scope, { classId: scope.classId, subject: scope.subject });
+  assert.equal(lastOptions().g1Live.grantId, scope.grantId);
+  await scoped.close();
+  await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
+    options: { ...options, ambientPlanning: false, g1Scope: scope } }, channel), /Invalid runtime bootstrap/);
 });

@@ -1,7 +1,8 @@
 import { readEduPiKernelProjection, resolveEduPiBridgeRoots } from "./edupi-core-snapshot";
 import { readEducationContract } from "./edupi-education-server";
-import { ensureEduPiRuntime, getPendingEduPiRuntime } from "./edupi-runtime-supervisor";
+import { ensureEduPiRuntime, getPendingEduPiRuntime, g1ScopeForActivation } from "./edupi-runtime-supervisor";
 import { pumpBackgroundJobs } from "./edupi-background-jobs";
+import { readEduPiProactivityActivation } from "./edupi-proactivity-config";
 
 type PreparationStatus = { state: "idle" | "running" | "ready" | "error"; updatedAt: string | null; prepared: number; error: string | null; taskId?: string | null; retryable?: boolean };
 const shared = globalThis as typeof globalThis & { __edupiPreparationStatus?: PreparationStatus };
@@ -14,9 +15,11 @@ function preparationFailureMessage(code: string): string {
     stale_revision: "任务已更新，请重新打开后再准备",
     stale_source: "材料或课程已变化，请重新核对",
     model_unavailable: "请检查默认模型配置",
-    activation_pending: "备课执行尚未接通",
+    activation_pending: "请先在自动运行中选择班级和学科",
     invalid_candidate: "这项任务暂不能准备",
     attempts_exhausted: "重试次数已用完，请检查材料和模型",
+    permission_denied: "请检查主动运行授权",
+    budget_exhausted: "本次模型调用额度已用完",
   };
   return messages[code] || "备课暂不可用，请重试";
 }
@@ -95,10 +98,18 @@ export async function startPreparation({ taskId = null }: { taskId?: string | nu
 
 export async function ensurePreparation(): Promise<PreparationStatus> {
   try {
-    const host = await ensureEduPiRuntime(resolveEduPiBridgeRoots());
+    const roots = resolveEduPiBridgeRoots();
+    const host = await ensureEduPiRuntime(roots);
     // Agent-computer recovery is independent from the preparation scan. A
     // malformed calendar source must not leave an unrelated document job stuck.
     void pumpBackgroundJobs().catch(() => console.warn("[edupi background] startup recovery unavailable"));
+    // A default-off Core is healthy. Do not request a G1 scan until the
+    // teacher has activated an exact class and subject scope.
+    if (!g1ScopeForActivation(readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root }))) {
+      const status = current();
+      Object.assign(status, { state: "idle", taskId: null, error: null, retryable: false, updatedAt: new Date().toISOString() });
+      return { ...status };
+    }
     // The Core timer performs the same scan every five minutes. Running it
     // once on Desktop startup/resume closes the sleep gap immediately; Core's
     // source revision and queue replay guards keep this idempotent.

@@ -7,6 +7,8 @@ const PREPARATION_ISSUES: Record<string, { detail: string; summary: string }> = 
   stale_revision: { detail: "任务已更新", summary: "有任务已更新" },
   invalid_candidate: { detail: "任务暂不能执行", summary: "有任务暂不能执行" },
   attempts_exhausted: { detail: "自动重试次数已用完", summary: "有任务已停止自动重试" },
+  permission_denied: { detail: "主动运行授权未生效", summary: "有任务等待主动运行授权" },
+  budget_exhausted: { detail: "本次模型调用额度已用完", summary: "主动运行调用额度已用完" },
 };
 
 export function preparationIssueLabel(code: string | null | undefined): string | null {

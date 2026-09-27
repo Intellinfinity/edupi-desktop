@@ -84,8 +84,8 @@ async function wakePackagedCoreAtStartup(environment = process.env, fetcher = fe
     if (signal?.aborted) return "cancelled";
     if (verified) {
       try {
-        // This is only a readiness retry. One successful ensure starts the
-        // existing Core G1 processor, which owns scheduling and durable claims.
+        // This is only a readiness retry. Default-off Core starts without G1;
+        // an explicitly scoped runtime owns scheduling and durable claims.
         const response = await fetcher(`${origin}/api/edupi/preparation`, {
           method: "POST",
           headers: { "content-type": "application/json", origin },

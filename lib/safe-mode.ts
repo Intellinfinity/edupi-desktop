@@ -11,7 +11,13 @@ export function isSafeModeEnabled(environment: NodeJS.ProcessEnv = process.env):
 
 export function canStartEduPiProactivity(platform: NodeJS.Platform = process.platform,
   environment: NodeJS.ProcessEnv = process.env): boolean {
-  return platform !== "win32" || isSafeModeEnabled(environment);
+  return platform !== "win32" || isSafeModeEnabled(environment) && environment.EDUPI_WINDOWS_G1_CANARY === "1";
+}
+
+export function coreRuntimeCanaryEnvironment(platform: NodeJS.Platform, environment: NodeJS.ProcessEnv,
+  hasScopedPermit: boolean): { EDUPI_WINDOWS_G1_CANARY?: "1" } {
+  return platform === "win32" && hasScopedPermit && canStartEduPiProactivity(platform, environment)
+    ? { EDUPI_WINDOWS_G1_CANARY: "1" } : {};
 }
 
 export type SafeModeResourceRoots = {

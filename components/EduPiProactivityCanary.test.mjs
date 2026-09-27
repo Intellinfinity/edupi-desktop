@@ -36,7 +36,7 @@ test("Windows normal mode leaves G1 off and names the Safe Mode restart boundary
   const disabledHtml = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: disabled,
     selectedKey: JSON.stringify(["class-7-1", "数学"]), busy: false, message: null, onSelect() {}, onToggle() {} }));
   assert.match(disabledHtml, /安全模式可试用/);
-  assert.match(disabledHtml, /Windows 试用需以安全模式启动/);
+  assert.match(disabledHtml, /Windows 试用需用隔离数据目录以安全模式启动/);
   assert.match(disabledHtml, /<button[^>]*disabled/);
 
   const persisted = { ...disabled, activation: { ...base.activation, enabled: true, source: "desktop_canary",

@@ -282,7 +282,7 @@ export async function POST(request: Request) {
     }
     if (body.enabled && !canStartEduPiProactivity()) {
       return NextResponse.json({ ok: false, code: "proactivity_safe_mode_required",
-        error: "Windows 主动运行仅可在安全模式试用", externalSend: false }, { status: 409 });
+        error: "Windows 主动运行仅可在隔离安全模式试用", externalSend: false }, { status: 409 });
     }
     const roots = resolveEduPiBridgeRoots();
     return await withMutationLock(roots.dataRoot.root, async () => {

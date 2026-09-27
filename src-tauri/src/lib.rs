@@ -52,6 +52,7 @@ const EDUPI_CORE_ALLOWED_ROOT_ENV: &str = "EDUPI_CORE_ALLOWED_ROOT";
 const EDUPI_DATA_PREF_KEY: &str = "edupiDataRoot";
 const MOBILE_BRIDGE_PREF_KEY: &str = "mobileBridgeEnabled";
 const SAFE_MODE_FLAG: &str = "--safe-mode";
+const ROUTE1_ISOLATED_CANARY_ENV: &str = "EDUPI_ROUTE1_ISOLATED_CANARY";
 const NORMAL_MODE_RESTART_ENV: &str = "EDUPI_RESTART_NORMAL_MODE";
 const MANAGED_DATA_DIRECTORY: &str = "edupi-data";
 const FALLBACK_PERSISTED_MISSING: &str = "persisted_missing";
@@ -206,6 +207,28 @@ where
         return false;
     }
     args_request_safe_mode(args) || matches!(configured, Some("1" | "true" | "yes"))
+}
+
+fn route1_isolated_canary_root(
+    marker: Option<&str>,
+    data_source: &str,
+    core_mode: &str,
+    data_root: &Path,
+    temp_root: &Path,
+    persisted_root: Option<&Path>,
+) -> bool {
+    if marker != Some("1") || data_source != "environment" || core_mode != "bundled"
+        || is_filesystem_root(temp_root) || data_root == temp_root || !data_root.starts_with(temp_root)
+    {
+        return false;
+    }
+    !persisted_root.is_some_and(|persisted| {
+        data_root.starts_with(persisted) || persisted.starts_with(data_root)
+    })
+}
+
+fn windows_g1_canary_child_value(platform: &str, safe_mode: bool, isolated_canary: bool) -> &'static str {
+    if platform == "windows" && safe_mode && isolated_canary { "1" } else { "0" }
 }
 
 fn args_request_safe_mode<I, S>(args: I) -> bool
@@ -1867,9 +1890,34 @@ fn start_packaged_server(
 
     let roots = edupi_launch_roots(app)?;
     let port = choose_port(app)?;
-    let mobile_enabled = mobile_bridge_enabled_from_prefs(app);
-    let desktop_state_dir = app.path().app_config_dir()?;
+    let safe_mode = safe_mode_requested();
+    let route1_marker = env::var(ROUTE1_ISOLATED_CANARY_ENV).ok();
+    let isolated_canary = if route1_marker.as_deref() == Some("1") {
+        match (dunce::canonicalize(env::temp_dir()), persisted_data_root(app)) {
+            (Ok(temp_root), Ok(Ok(persisted_root))) => route1_isolated_canary_root(
+                route1_marker.as_deref(), &roots.status.data_source, roots.core_validation_mode,
+                Path::new(&roots.data_root), &temp_root, Some(Path::new(&persisted_root)),
+            ),
+            (Ok(temp_root), Ok(Err(FALLBACK_PERSISTED_NO_KEY))) => route1_isolated_canary_root(
+                route1_marker.as_deref(), &roots.status.data_source, roots.core_validation_mode,
+                Path::new(&roots.data_root), &temp_root, None,
+            ),
+            _ => false,
+        }
+    } else {
+        false
+    };
+    let mobile_enabled = !isolated_canary && mobile_bridge_enabled_from_prefs(app);
+    let desktop_state_dir = if isolated_canary {
+        Path::new(&roots.data_root).join(".edupi/desktop-state")
+    } else {
+        app.path().app_config_dir()?
+    };
     fs::create_dir_all(&desktop_state_dir)?;
+    let isolated_agent_dir = isolated_canary.then(|| Path::new(&roots.data_root).join(".edupi/agent"));
+    if let Some(agent_dir) = &isolated_agent_dir {
+        fs::create_dir_all(agent_dir)?;
+    }
     let mut command = Command::new(&node_path);
     command
         .arg(&server_script)
@@ -1890,13 +1938,19 @@ fn start_packaged_server(
         )
         .env("PI_DESKTOP_STATE_DIR", &desktop_state_dir)
         .env("PI_WEB_PARENT_PID", std::process::id().to_string())
-        .env("EDUPI_SAFE_MODE", if safe_mode_requested() { "1" } else { "0" })
+        .env("EDUPI_SAFE_MODE", if safe_mode { "1" } else { "0" })
+        .env("EDUPI_WINDOWS_G1_CANARY", windows_g1_canary_child_value(env::consts::OS, safe_mode, isolated_canary))
         .env("EDUPI_MOBILE_BRIDGE_ENABLED", if mobile_enabled { "1" } else { "0" })
         .env(DESKTOP_API_TOKEN_ENV, desktop_api_token)
         .env(DESKTOP_INSTANCE_ID_ENV, desktop_instance_id)
+        .env_remove(ROUTE1_ISOLATED_CANARY_ENV)
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
+
+    if let Some(agent_dir) = &isolated_agent_dir {
+        command.env("PI_CODING_AGENT_DIR", agent_dir);
+    }
 
     if mobile_enabled {
         if let Some(ip) = local_lan_ip().filter(|ip| !ip.is_loopback() && !ip.is_unspecified()) {
@@ -1931,7 +1985,8 @@ mod tests {
     use super::{
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root, mobile_gateway_reachable,
-        args_request_safe_mode, safe_mode_from_inputs,
+        args_request_safe_mode, route1_isolated_canary_root, safe_mode_from_inputs,
+        windows_g1_canary_child_value,
         normalize_update_proxy, read_update_proxy_from_path, write_update_proxy_file,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
         response_has_instance_id, resume_gap_detected, should_reconcile_webview_cache,
@@ -1975,6 +2030,41 @@ mod tests {
             !safe_mode_from_inputs(["edupi", "--safe-mode"], Some("1"), Some("1")),
             "orderly restart must clear Safe Mode even when Tauri retains the original arguments"
         );
+    }
+
+    #[test]
+    fn route1_canary_requires_an_explicit_separate_temporary_data_root() {
+        let temporary = Path::new("temp");
+        let canary = Path::new("temp/route1-teacher");
+        let teacher = Path::new("teachers/real-data");
+        assert!(route1_isolated_canary_root(
+            Some("1"), "environment", "bundled", canary, temporary, Some(teacher)
+        ));
+        for (marker, source, mode, root, persisted) in [
+            (None, "environment", "bundled", canary, Some(teacher)),
+            (Some("0"), "environment", "bundled", canary, Some(teacher)),
+            (Some("1"), "persisted", "bundled", canary, Some(teacher)),
+            (Some("1"), "environment", "external", canary, Some(teacher)),
+            (Some("1"), "environment", "bundled", temporary, Some(teacher)),
+            (Some("1"), "environment", "bundled", teacher, Some(teacher)),
+            (Some("1"), "environment", "bundled", canary, Some(temporary)),
+        ] {
+            assert!(!route1_isolated_canary_root(
+                marker, source, mode, root, temporary, persisted
+            ));
+        }
+    }
+
+    #[test]
+    fn normal_start_never_inherits_a_windows_g1_canary_marker() {
+        assert_eq!(windows_g1_canary_child_value("windows", true, true), "1");
+        for (platform, safe_mode, isolated) in [
+            ("windows", false, true),
+            ("windows", true, false),
+            ("macos", true, true),
+        ] {
+            assert_eq!(windows_g1_canary_child_value(platform, safe_mode, isolated), "0");
+        }
     }
 
     #[test]

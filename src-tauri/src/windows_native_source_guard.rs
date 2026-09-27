@@ -668,6 +668,28 @@ mod tests {
         Ok(tool)
     }
 
+    fn sid_from_whoami_csv(value: &str) -> io::Result<&str> {
+        let start = value
+            .find("S-1-")
+            .ok_or_else(|| denied("fixture_sid_unavailable"))?;
+        let sid = value[start..]
+            .split(|ch: char| !(ch == 'S' || ch == '-' || ch.is_ascii_digit()))
+            .next()
+            .unwrap_or("");
+        if sid.len() <= "S-1-".len() {
+            return Err(denied("fixture_sid_unavailable"));
+        }
+        Ok(sid)
+    }
+
+    #[test]
+    fn extracts_sid_without_csv_quotes_or_crlf() {
+        assert_eq!(
+            sid_from_whoami_csv("\"runner\",\"S-1-5-21-1234\"\r\n").unwrap(),
+            "S-1-5-21-1234"
+        );
+    }
+
     #[test]
     fn rejects_noncanonical_source_spellings() {
         for source in [
@@ -700,13 +722,7 @@ mod tests {
             return Err(denied("fixture_sid_unavailable"));
         }
         let text = String::from_utf8_lossy(&sid_output.stdout);
-        let sid = text
-            .split(',')
-            .find_map(|part| {
-                let trimmed = part.trim_matches('"').trim();
-                trimmed.starts_with("S-1-").then_some(trimmed)
-            })
-            .ok_or_else(|| denied("fixture_sid_unavailable"))?;
+        let sid = sid_from_whoami_csv(&text)?;
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(io::Error::other)?

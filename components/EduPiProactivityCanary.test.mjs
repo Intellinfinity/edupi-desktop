@@ -12,7 +12,7 @@ test("canary view exposes one scoped primary action and the hard limits", () => 
   const html = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: base, selectedKey: JSON.stringify(["class-7-1", "数学"]), busy: false, message: null, onSelect() {}, onToggle() {} }));
   assert.match(html, /课前准备试用/);
   assert.match(html, /七一班 · 数学/);
-  assert.match(html, /7 天 · 最多 12 次模型调用 · 不外发/);
+  assert.match(html, /7 天 · 最多 12 次模型调用/);
   assert.match(html, />启用试用</);
   assert.equal((html.match(/<button/g) || []).length, 1);
   assert.match(html, /<select/);

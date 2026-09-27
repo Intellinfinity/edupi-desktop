@@ -109,7 +109,7 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
     <div>
       <span><strong id="edupi-proactivity-canary-title">课前准备试用</strong><small>{active && state.grant
         ? `${currentLabel} · 剩余 ${state.grant.modelBudget.remainingCalls} 次`
-        : recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用 · 不外发`}</small></span>
+        : recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用`}</small></span>
       {active ? <em className={operational ? "is-ready" : undefined}>{budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复"}</em>
         : <em>{recoveryPending ? state.activation.configurationStatus === "legacy" ? "旧授权待停止" : "停止待恢复"
           : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭"}</em>}
@@ -167,7 +167,7 @@ export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false }: {
     if (busyRef.current) return;
     const recoveryPending = !state.activation.enabled && state.activation.scope !== null;
     const enabling = !state.activation.enabled && !recoveryPending;
-    if (enabling && (!selected || !window.confirm(`启用 ${selected.className || selected.classId} · ${selected.subject} 的主动备课试用？\n${state.limits.durationDays} 天，最多 ${state.limits.maxModelCalls} 次模型调用，不外发。`))) return;
+    if (enabling && (!selected || !window.confirm(`启用 ${selected.className || selected.classId} · ${selected.subject} 的主动备课试用？\n${state.limits.durationDays} 天，最多 ${state.limits.maxModelCalls} 次调用已配置模型；不会自动发给学生或家长。`))) return;
     busyRef.current = true;
     ++refreshEpoch.current;
     refreshAbort.current?.abort();

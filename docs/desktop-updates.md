@@ -27,7 +27,7 @@ v0.3.29 没有可用的 updater 插件；v0.3.25–v0.3.28 固化了旧 Release 
 
 ### 1. 启用源码仓库 Release
 
-保持 `Intellinfinity/edupi-desktop` 为公开仓库并启用 Actions。正式工作流在当前仓库创建草稿 Release，只有 macOS、Windows、Linux 和组件清单全部上传成功后才发布为 latest；不需要额外的发布仓库或跨仓库令牌。
+保持 `Intellinfinity/edupi-desktop` 为公开仓库并启用 Actions。正式工作流先在当前仓库创建绑定提交的签名草稿；草稿安装安全检查后需再次手动运行 `publish` 阶段，核对成功构建记录与全部资产身份、更新 feed，最后公开为 Latest。构建成功本身不会发布；不需要额外的发布仓库或跨仓库令牌。
 
 ### 2. 创建永久 updater 密钥
 
@@ -67,10 +67,10 @@ Tauri updater 签名负责应用内更新完整性，但不会消除系统安装
    npm run release:verify
    ```
 
-3. 手动运行 GitHub Actions 的 **Publish signed desktop release**；
-4. 等待三平台构建与上传完成；不要手工发布缺平台的草稿；
-5. 验证公开 Release 包含 `latest.json`、`.sig`、macOS、Windows、Linux 和 `component-versions.json`；
-6. 用上一正式版客户端点击“检查更新”，完成一次下载、安装、重启与版本确认。
+3. 在目标提交手动运行 **Publish signed desktop release**，选择 `phase=draft`、`platform=all`；等待三平台签名构建、公证、资产上传及 `draft-proof` 全部成功，记录该 run ID 和 job summary 中的资产集合 SHA-256。Release 仍是 Draft，公开 feed 不变；
+4. 从该 Draft 下载精确资产，核对安装包实际 SHA-256 与 GitHub asset digest、签名和内置 Core pin，用隔离数据完成发布前安装安全检查。Draft 测试仍只算发布前证据，不冒充已公开正式版验收；失败时保持 Draft；
+5. 安全检查通过后，在**同一目标提交**再次运行工作流，选择 `phase=publish`，填入 `draft_run_id` 和验收时记录的 `accepted_assets_sha256`。它不重新构建，只接受三平台及公证均成功的 run，且当前资产 ID/大小/摘要与验收时完全一致；核对 7 个 updater 平台键、更新 feed 后才发布 Latest；
+6. 验证公开 Release 包含 `latest.json`、`.sig`、macOS、Windows、Linux 和 `component-versions.json`，再用上一正式版客户端完成下载、验签、安装、重启和版本/教师数据确认。路线 1 的六领域流程、通知点击、跨到期实睡和恢复以这一步的正式安装版证据为准，不能由 Draft 安全检查代替。
 
 当前 `pi 0.84.1` 与 `pi-web 0.8.7` 是显式锁定的发布组件。升级它们必须单独合并、验证并更新 `scripts/release-component-pins.json`，不能在桌面发布当天顺手漂移。
 

@@ -3,6 +3,17 @@ name: Publish signed desktop release
 on:
   workflow_dispatch:
     inputs:
+      phase:
+        description: Build a signed draft, or publish a previously installed and accepted draft
+        type: choice
+        default: draft
+        options: [draft, publish]
+      draft_run_id:
+        description: Successful all-platform draft run ID; required for publish
+        type: string
+      accepted_assets_sha256:
+        description: Asset-set fingerprint recorded during signed draft installation
+        type: string
       platform:
         description: Build all platforms or retry one platform
         type: choice
@@ -11,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: edupi-desktop-release
@@ -28,6 +40,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Require Apple signing and notarization credentials
+        if: inputs.phase == 'draft'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -43,11 +56,12 @@ jobs:
           test -n "$APPLE_PASSWORD"
           test -n "$APPLE_TEAM_ID"
 
-      - name: Create one draft release
+      - name: Create or verify one commit-bound draft release
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_PHASE: ${{ inputs.phase }}
         run: |
           set -euo pipefail
           version="$(node -p "require('./src-tauri/pi-agent-desktop-package.json').version")"
@@ -73,6 +87,10 @@ jobs:
               exit 1
             fi
           else
+            if [ "$RELEASE_PHASE" = "publish" ]; then
+              echo "::error::No accepted draft exists for $tag; build and install the draft first."
+              exit 1
+            fi
             jq -n \
               --arg tag "$tag" \
               --arg target "$GITHUB_SHA" \
@@ -91,6 +109,7 @@ jobs:
 
   build:
     needs: release
+    if: inputs.phase == 'draft'
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -412,12 +431,62 @@ jobs:
           fi
           rm -f "$RUNNER_TEMP/edupi-resource-signing.p12"
 
-  manifest:
+  draft-proof:
     needs: [release, build]
+    if: inputs.phase == 'draft' && inputs.platform == 'all'
     runs-on: ubuntu-latest
     steps:
       - name: Check out EduPi Desktop
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Record the successfully built draft asset identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_ID: ${{ needs.release.outputs.release_id }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$RELEASE_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > draft-run.json
+          gh api "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" > draft-assets.json
+          fingerprint="$(node scripts/release-draft-proof.mjs fingerprint \
+            --version "$RELEASE_VERSION" --release-id "$RELEASE_ID" \
+            --assets-json draft-assets.json --run-json draft-run.json)"
+          {
+            echo "Signed draft asset identity: \`$fingerprint\`"
+            echo "Draft run ID: \`$GITHUB_RUN_ID\`"
+            echo "The draft remains unpublished. Install and accept these exact asset IDs and digests before publishing."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  manifest:
+    needs: [release, build, draft-proof]
+    # Publishing is an explicit second dispatch after the signed draft has
+    # been installed and accepted. Verify that a prior all-platform build
+    # succeeded and its exact asset IDs/digests have not changed.
+    if: ${{ always() && inputs.phase == 'publish' && needs.release.result == 'success' && needs.build.result == 'skipped' && needs['draft-proof'].result == 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out EduPi Desktop
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify accepted signed draft and unchanged assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_ID: ${{ needs.release.outputs.release_id }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          DRAFT_RUN_ID: ${{ inputs.draft_run_id }}
+          ACCEPTED_ASSETS_SHA256: ${{ inputs.accepted_assets_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$DRAFT_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          gh api "repos/$RELEASE_REPOSITORY/actions/runs/$DRAFT_RUN_ID" > accepted-run.json
+          gh api "repos/$RELEASE_REPOSITORY/actions/runs/$DRAFT_RUN_ID/jobs?per_page=100" > accepted-jobs.json
+          gh api "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" > accepted-assets.json
+          node scripts/release-draft-proof.mjs verify \
+            --version "$RELEASE_VERSION" --release-id "$RELEASE_ID" \
+            --target-sha "$GITHUB_SHA" --draft-run-id "$DRAFT_RUN_ID" \
+            --accepted-fingerprint "$ACCEPTED_ASSETS_SHA256" \
+            --run-json accepted-run.json --jobs-json accepted-jobs.json --assets-json accepted-assets.json
 
       - name: Upload component manifest to the release
         env:
@@ -487,15 +556,28 @@ jobs:
           import fs from "node:fs";
           import { requiredReleaseAssetNames } from "./scripts/updater-manifest.mjs";
           const assets = JSON.parse(fs.readFileSync("final-assets.json", "utf8"));
+          const accepted = JSON.parse(fs.readFileSync("accepted-assets.json", "utf8"));
           const expected = [...requiredReleaseAssetNames(process.env.RELEASE_VERSION), "component-versions.json", "latest.json"].sort();
           const names = assets.map((asset) => asset.name).sort();
           if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`Release assets differ: ${names.join(", ")}`);
+          const originalByName = new Map(accepted.map((asset) => [asset.name, asset]));
+          for (const name of requiredReleaseAssetNames(process.env.RELEASE_VERSION)) {
+            const original = originalByName.get(name);
+            const current = assets.find((asset) => asset.name === name);
+            if (!original || !current || original.id !== current.id || original.size !== current.size
+              || original.digest !== current.digest) throw new Error(`Accepted draft asset changed before feed update: ${name}`);
+          }
           NODE
 
           # Build a one-file Git tree instead of branching from main. Each
           # update is a fast-forward commit whose current tree contains only
           # latest.json; a failed write leaves the release draft untouched.
           feed_parent="$(gh api "repos/$RELEASE_REPOSITORY/git/ref/heads/$FEED_BRANCH" --jq .object.sha 2>/dev/null || true)"
+          if [ -z "$feed_parent" ]; then
+            echo "::error::Updater feed has no recoverable parent; initialize it before publishing."
+            exit 1
+          fi
+          feed_previous_tree="$(gh api "repos/$RELEASE_REPOSITORY/git/commits/$feed_parent" --jq .tree.sha)"
           feed_content="$(base64 --wrap=0 latest.json)"
           feed_blob="$(jq -n --arg content "$feed_content" \
             '{ content: $content, encoding: "base64" }' \
@@ -516,6 +598,36 @@ jobs:
           fi
           feed_commit="$(gh api --method POST "repos/$RELEASE_REPOSITORY/git/commits" \
             --input feed-commit-request.json --jq .sha)"
+          feed_update_started=false
+          publication_complete=false
+          restore_feed_on_failure() {
+            failure_code="$?"
+            trap - EXIT
+            if [ "$failure_code" -eq 0 ] || [ "$feed_update_started" != true ] || [ "$publication_complete" = true ]; then
+              exit "$failure_code"
+            fi
+            set +e
+            release_draft="$(gh api "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID" --jq .draft 2>/dev/null)"
+            current_feed="$(gh api "repos/$RELEASE_REPOSITORY/git/ref/heads/$FEED_BRANCH" --jq .object.sha 2>/dev/null)"
+            if [ "$release_draft" != true ] || [ "$current_feed" != "$feed_commit" ]; then
+              echo "::error::Publication/feed state is uncertain; inspect both before retrying."
+              exit "$failure_code"
+            fi
+            jq -n --arg message "Restore updater feed after failed $RELEASE_TAG publication" \
+              --arg tree "$feed_previous_tree" --arg parent "$feed_commit" \
+              '{ message: $message, tree: $tree, parents: [$parent] }' > feed-rollback-request.json
+            rollback_commit="$(gh api --method POST "repos/$RELEASE_REPOSITORY/git/commits" \
+              --input feed-rollback-request.json --jq .sha)"
+            if [ -n "$rollback_commit" ] && gh api --method PATCH "repos/$RELEASE_REPOSITORY/git/refs/heads/$FEED_BRANCH" \
+              -f sha="$rollback_commit" -F force=false > /dev/null; then
+              echo "::error::Release remained a draft; updater feed was restored to its previous tree."
+            else
+              echo "::error::Updater feed rollback failed; inspect the Release and feed immediately."
+            fi
+            exit "$failure_code"
+          }
+          trap restore_feed_on_failure EXIT
+          feed_update_started=true
           if [ -n "$feed_parent" ]; then
             gh api --method PATCH "repos/$RELEASE_REPOSITORY/git/refs/heads/$FEED_BRANCH" \
               -f sha="$feed_commit" -F force=false > /dev/null
@@ -535,13 +647,14 @@ jobs:
           gh api --method PATCH "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID" \
             -F draft=false -F prerelease=false -f make_latest=true \
             --jq '{ tag: .tag_name, draft, prerelease, published_at, assets: (.assets | length) }'
+          test "$(gh api "repos/$RELEASE_REPOSITORY/releases/$RELEASE_ID" --jq .draft)" = false
+          publication_complete=true
 
-  # A partially failed matrix leaves the release a draft and skips `manifest`,
-  # which is correct — but it was also completely silent. Four consecutive
+  # A failed draft or publish dispatch must report its stage. Four consecutive
   # v0.1.3 builds failed on Windows without anyone noticing, and the release was
   # published by hand with macOS artifacts only and no component manifest.
   notify:
-    needs: [release, build, manifest]
+    needs: [release, build, draft-proof, manifest]
     if: failure()
     runs-on: ubuntu-latest
     permissions:
@@ -559,13 +672,13 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "## Signed release build failed"
+            echo "## Signed release workflow failed"
             echo
             echo "[Run log]($RUN_URL)"
             echo
-            echo "The release for this version stays a **draft** and has no"
-            echo "\`component-versions.json\`: the manifest job only runs when every"
-            echo "platform in the build matrix succeeds."
+            echo "Phase: \`${{ inputs.phase }}\`. Verify the Release draft/public state,"
+            echo "asset list, and updater feed independently; a publish failure may"
+            echo "occur after the feed write. Do not infer their state from this alert."
             echo
             echo "**Do not publish it by hand.** A release missing a platform's installer"
             echo "or its component manifest will not serve updates to that platform —"

@@ -551,7 +551,7 @@ test("preview installs Desktop dependencies before the paired Core runtime test"
   assert.match(probeJob, /if: inputs\.native_asset_probe_only/u);
   assert.match(probeJob, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
   assert.match(probeJob, /Accept: application\/octet-stream/u);
-  assert.match(probeJob, /sha256sum/u);
+  assert.match(probeJob, /sha256sum < "\$asset"/u);
   assert.match(probeJob, /magic.*4d5a/su);
   assert.match(probeJob, /trap 'rm -f "\$asset"' EXIT/u);
   assert.doesNotMatch(probeJob, /actions\/upload-artifact|tauri-action|\.node.*resources/u);

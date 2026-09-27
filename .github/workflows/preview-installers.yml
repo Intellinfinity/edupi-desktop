@@ -194,6 +194,12 @@ jobs:
             "repos/Intellinfinity/edupi/releases/assets/$PROBE_ASSET_ID" > "$asset"
           actual_size="$(wc -c < "$asset" | tr -d '[:space:]')"
           actual_sha256="sha256:$(sha256sum "$asset" | cut -d ' ' -f 1)"
+          magic="$(od -An -tx1 -N2 "$asset" | tr -d '[:space:]')"
+          echo "Asset probe received $actual_size bytes with magic $magic."
+          if [ "$magic" != '4d5a' ]; then
+            echo 'Asset probe did not receive a PE binary.' >&2
+            exit 1
+          fi
           test "$actual_size" = "$PROBE_ASSET_SIZE"
           test "$actual_sha256" = "$PROBE_ASSET_SHA256"
           echo 'Private Core native asset bytes matched the scoped read-token probe.' >> "$GITHUB_STEP_SUMMARY"

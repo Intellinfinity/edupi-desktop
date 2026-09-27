@@ -1,6 +1,8 @@
 # 路线 1：Core a8fe471 安装版主动闭环验收
 
-## 2026-09-27 最新验收门（取代下文旧候选状态）
+## 2026-09-28 最新验收门（取代下文旧候选状态）
+
+- Core 私有资产已从 Draft 调整为 prerelease，Desktop 的独立 [Windows 探针 `36336815225`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36336815225) 使用现有 `EDUPI_CORE_READ_TOKEN` 对资产 `593162228` 实际下载，核对 181248 字节、PE `MZ`、SHA-256 `6ab712a49739e4ef2b3a911f65963dd567b4227c1feb10c47299972818f3036c`，成功；quality/package 均因 probe-only 有意跳过，不是安装版 CI。旧 Draft 403 与后续一次误判 SHA 的记录保留为诊断历史，**不再是当前资产读取阻塞**。Core 原生 loader、writer 与生产 Windows 根证明尚未通过，Core 合同仍 `pending`，Desktop 不 repin、不发布。
 
 - 安全门：Core [#204](https://github.com/Intellinfinity/edupi/pull/204) 已合并为 `3397b71b3de370c75480a185ae9475d176f8352f`，提供精确班级/学科/来源授权和耐久 12 次模型预算；Desktop [#285](https://github.com/Intellinfinity/edupi-desktop/pull/285) 已合并为 `38d8c95645a505bfe08c5a72d26bce5bb924248c`，当前 pin 正是 `3397b71`，默认 G1 pending。#285 最终预览 CI [`36296800201`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36296800201) 的质量、macOS app/dmg、Windows NSIS 均通过；它仍不是公开签名/公证版安装验收。旧段落中“#285 Draft、尚未运行最终 CI”的文字仅是当时快照，不再代表当前状态。
 - 后续 Core [#207](https://github.com/Intellinfinity/edupi/pull/207) 已合并为 `c61a841e380dbfcee844f7fb90253ee376c1ffc7`，补充暂停/恢复或版本变化后的 G1 旧授权租约失效；Desktop 当前 `3397b71` pin **尚未包含**该修复。Windows 根修复合入后须以当时最新已复审 Core main 统一重新配对，不能仅把 pin 移到 #205 的只读探针。
@@ -8,7 +10,7 @@
 - 后续 Core [#206](https://github.com/Intellinfinity/edupi/pull/206) 已合并为 `a595f5a58eb7009480cd7ca4fe121b3fb8efa072`；最终 [Windows/Linux CI `36314832108`](https://github.com/Intellinfinity/edupi/actions/runs/36314832108) 双绿，覆盖受保护目录、真实 SQLite WAL/SHM 继承、inherit-only 宽松 ACE 拒绝及替换后身份漂移。合同仍为 `pending`，`.node` 只做字节预检且不可执行，Core writer/G1 未运行；本项状态仍为**部分实现**，不能以 #206 取代完整 Windows 门。
 - Core [#209](https://github.com/Intellinfinity/edupi/pull/209) 已合并为 `4579b792595f6f02b953b3918ddd4e90d20b6e0d`，[最终 Windows/Linux CI `36319307845`](https://github.com/Intellinfinity/edupi/actions/runs/36319307845) 双绿；Windows 受保护 `.edupi/output` 的 `O_RDWR→fstat→fsync` 真机通过，修复 owner 目录刷盘旧 `O_RDONLY` 的 `EPERM`。完整 owner 启用/预算/暂停/撤销仍未运行，Root gate/G1 不变。
 - Core [#210](https://github.com/Intellinfinity/edupi/pull/210) 已合并为 `4845cde61fa2dead3e12807f38ac96a23cef35c4`，真实 Windows NULL DACL 夹具被 inspector 与 root lease 拒绝；仍为原生负例证据，非生产写者放行。
-- Desktop [CI `36329205990`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36329205990) 在实际 Windows runner 用现有 `EDUPI_CORE_READ_TOKEN` 读取 Core 私有 Draft 资产 `593162228` 时返回 HTTP 403 `Resource not accessible by personal access token`。参数校验与 Secret 非空通过，未到大小/SHA 计算。此项为**外部访问阻塞**，不能把本机管理 `gh` 可读或候选 PE 摘要当作打包资产来源通过；Core 合同继续 pending，Desktop 不 repin、不发布。
+- Desktop [CI `36329205990`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36329205990) 在实际 Windows runner 用现有 `EDUPI_CORE_READ_TOKEN` 读取 Core 私有 Draft 资产 `593162228` 时返回 HTTP 403；该历史失败已由上方 prerelease 实测取代，不能再写成当前阻塞。中间探针 `36336738875` 已拿到相同 181248 字节和正确摘要，但 Windows `sha256sum` 在带反斜杠文件名的输出前加转义符，导致字符串比较失败；从标准输入计算后最终探针通过。
 - 安装门：v0.3.46 正式 run [`36298536318`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36298536318) 已在发布前取消。Release 保持 Draft，现有 4 个 Linux 资产；公开 updater feed 与唯一 `/Applications/EduPi.app` 仍是 v0.3.45。不得继承旧包的 Apple 公证或已安装证据，也不得提前把 Draft 发布为 Latest。先过 Windows 根证明，再打包、签名、公证、安装并实测六领域。
 
 ### 正式安装版六领域记录表

@@ -91,6 +91,7 @@ struct DesktopServer {
 
 struct DesktopServerState {
     child: Option<Child>,
+    isolated_canary: bool,
     #[cfg(windows)]
     native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>,
 }
@@ -257,6 +258,10 @@ fn mobile_bridge_enabled_from_prefs(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+fn effective_mobile_bridge_enabled(saved: bool, isolated_canary: bool) -> bool {
+    saved && !isolated_canary
+}
+
 fn local_lan_ip() -> Option<IpAddr> {
     // UDP connect only asks the OS which interface it would use; it does not
     // send a packet to the documentation address.
@@ -331,7 +336,9 @@ fn mobile_gateway_reachable(address: SocketAddr) -> bool {
 }
 
 fn mobile_bridge_status(app: &AppHandle, restart_required: bool) -> DesktopRuntimeStatus {
-    let enabled = mobile_bridge_enabled_from_prefs(app);
+    let isolated_canary = app.try_state::<DesktopServer>()
+        .is_some_and(|server| server.isolated_canary());
+    let enabled = effective_mobile_bridge_enabled(mobile_bridge_enabled_from_prefs(app), isolated_canary);
     let port = env::var("PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
@@ -373,6 +380,9 @@ fn get_desktop_runtime_status(app: AppHandle) -> DesktopRuntimeStatus {
 
 #[tauri::command]
 fn set_mobile_bridge_enabled(app: AppHandle, enabled: bool) -> Result<DesktopRuntimeStatus, String> {
+    if app.try_state::<DesktopServer>().is_some_and(|server| server.isolated_canary()) {
+        return Err("隔离试用期间不可修改手机访问设置".into());
+    }
     let mut prefs = read_ui_prefs(&app);
     if !prefs.is_object() {
         prefs = serde_json::json!({});
@@ -414,6 +424,7 @@ impl DesktopServer {
         Self {
             state: Mutex::new(DesktopServerState {
                 child: None,
+                isolated_canary: false,
                 #[cfg(windows)]
                 native_source_guard: None,
             }),
@@ -421,15 +432,19 @@ impl DesktopServer {
     }
 
     #[cfg(not(windows))]
-    fn running(child: Child) -> Self {
+    fn running(child: Child, isolated_canary: bool) -> Self {
         Self {
-            state: Mutex::new(DesktopServerState { child: Some(child) }),
+            state: Mutex::new(DesktopServerState { child: Some(child), isolated_canary }),
         }
     }
 
     #[cfg(windows)]
-    fn running(child: Child, native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>) -> Self {
-        Self { state: Mutex::new(DesktopServerState { child: Some(child), native_source_guard }) }
+    fn running(child: Child, native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>, isolated_canary: bool) -> Self {
+        Self { state: Mutex::new(DesktopServerState { child: Some(child), native_source_guard, isolated_canary }) }
+    }
+
+    fn isolated_canary(&self) -> bool {
+        self.state.lock().map(|state| state.isolated_canary).unwrap_or(true)
     }
 
     fn stop(&self) {
@@ -1929,7 +1944,7 @@ fn start_packaged_server(
     } else {
         false
     };
-    let mobile_enabled = !isolated_canary && mobile_bridge_enabled_from_prefs(app);
+    let mobile_enabled = effective_mobile_bridge_enabled(mobile_bridge_enabled_from_prefs(app), isolated_canary);
     let desktop_state_dir = if isolated_canary {
         Path::new(&roots.data_root).join(".edupi/desktop-state")
     } else {
@@ -2011,18 +2026,18 @@ fn start_packaged_server(
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     if let Err(error) = wait_for_server(&mut child, address, desktop_instance_id, &log_path) {
         #[cfg(windows)]
-        let server = DesktopServer::running(child, native_source_guard);
+        let server = DesktopServer::running(child, native_source_guard, isolated_canary);
         #[cfg(not(windows))]
-        let server = DesktopServer::running(child);
+        let server = DesktopServer::running(child, isolated_canary);
         server.stop();
         return Err(error.into());
     }
 
     let url = format!("http://127.0.0.1:{port}").parse()?;
     #[cfg(windows)]
-    let server = DesktopServer::running(child, native_source_guard);
+    let server = DesktopServer::running(child, native_source_guard, isolated_canary);
     #[cfg(not(windows))]
-    let server = DesktopServer::running(child);
+    let server = DesktopServer::running(child, isolated_canary);
     Ok((url, server))
 }
 
@@ -2032,6 +2047,7 @@ mod tests {
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root, mobile_gateway_reachable,
         args_request_safe_mode, route1_isolated_canary_root, safe_mode_from_inputs, DesktopServer,
+        effective_mobile_bridge_enabled,
         windows_g1_canary_child_value,
         normalize_update_proxy, read_update_proxy_from_path, write_update_proxy_file,
         persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
@@ -2066,7 +2082,7 @@ mod tests {
         let mut ready = String::new();
         BufReader::new(child.stdout.take().unwrap()).read_line(&mut ready).unwrap();
         assert_eq!(ready, "ready\n");
-        let server = Arc::new(DesktopServer::running(child));
+        let server = Arc::new(DesktopServer::running(child, false));
         let (sent, received) = mpsc::channel();
         let first = {
             let server = server.clone();
@@ -2150,6 +2166,13 @@ mod tests {
         ] {
             assert_eq!(windows_g1_canary_child_value(platform, safe_mode, isolated, source_held), "0");
         }
+    }
+
+    #[test]
+    fn isolated_canary_never_reports_a_saved_mobile_bridge_as_running() {
+        assert!(effective_mobile_bridge_enabled(true, false));
+        assert!(!effective_mobile_bridge_enabled(true, true));
+        assert!(!effective_mobile_bridge_enabled(false, false));
     }
 
     #[test]

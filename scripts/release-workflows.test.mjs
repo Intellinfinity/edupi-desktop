@@ -493,13 +493,19 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
 
 test("Windows packaging stages only the Core-approved native asset with the scoped read token", async () => {
   const prepare = await readFile(join(root, "scripts", "prepare-desktop.mjs"), "utf8");
-  assert.match(prepare, /buildPackagedCoreBundle\([\s\S]*?preparePinnedWindowsNativeAsset\(/u);
+  assert.doesNotMatch(prepare, /preparePinnedWindowsNativeAsset/u,
+    "the official build must stage the private asset after Next preparation");
   for (const name of ["preview-installers.yml", "release.yml"]) {
     const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
-    assert.match(workflow, /EDUPI_CORE_READ_TOKEN: \$\{\{ runner\.os == 'Windows' && secrets\.EDUPI_CORE_READ_TOKEN \|\| '' \}\}[\s\S]*?run: npm run desktop:prepare/u);
+    const prepareStep = workflow.slice(workflow.indexOf("name: Prepare packaged"), workflow.indexOf("name: Stage Core-approved Windows native asset"));
+    assert.doesNotMatch(prepareStep, /EDUPI_CORE_READ_TOKEN/u);
+    assert.match(workflow, /name: Stage Core-approved Windows native asset\s+if: runner\.os == 'Windows'[\s\S]*?EDUPI_CORE_READ_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}[\s\S]*?run: npm run desktop:stage-windows-native/u);
+    assert.match(workflow, /name: Verify staged Windows native asset[\s\S]*?run: npm run desktop:verify-windows-native/u);
   }
   const debug = await readFile(join(root, ".github", "workflows", "windows-build-debug.yml"), "utf8");
-  assert.match(debug, /EDUPI_CORE_READ_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}[\s\S]*?run: npm run desktop:prepare/u);
+  assert.match(debug, /name: Stage Core-approved Windows native asset[\s\S]*?EDUPI_CORE_READ_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}[\s\S]*?run: npm run desktop:stage-windows-native/u);
+  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  assert.match(pkg.scripts["desktop:build"], /desktop:prepare.*desktop:stage-windows-native.*desktop:verify-windows-native.*tauri build/u);
 });
 
 test("all packaged platform configs carry the bundled Core and third-party notices", async () => {

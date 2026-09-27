@@ -5,7 +5,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { preparePinnedWindowsNativeAsset, stagePinnedWindowsNativeAsset, verifyPinnedWindowsNativeAsset, WINDOWS_NATIVE_ASSET_PATH,
+import { preparePinnedWindowsNativeAsset, stagePinnedWindowsNativeAsset, verifyPinnedWindowsNativeAsset,
+  verifyStagedWindowsNativeAsset, WINDOWS_NATIVE_ASSET_PATH,
   WINDOWS_NATIVE_CONTRACT_PATH } from "./windows-native-asset.mjs";
 
 const bytes = Buffer.from("isolated-windows-native-fixture");
@@ -153,5 +154,35 @@ test("Windows packaging allows only committed pending or approved source states"
     const invalidPin = core.commitContract({ ...pending, release_asset_id: 123 });
     assert.throws(() => preparePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: invalidPin,
       destinationRoot, platform: "win32", downloadAsset: () => bytes }), /not approved or pending/);
+  } finally { core.close(); }
+});
+
+test("the pre-bundle check rejects missing or modified approved native bytes", () => {
+  const core = fixture();
+  try {
+    const destinationRoot = path.join(core.root, "bundle");
+    fs.mkdirSync(destinationRoot);
+    const pending = approved(core.source, { status: "pending", binary_sha256: null, binary_size: null,
+      binary_source_commit: null, release_asset_id: null });
+    const pendingPin = core.commitContract(pending);
+    assert.equal(verifyStagedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pendingPin,
+      destinationRoot, platform: "win32" }), null);
+    const stale = path.join(destinationRoot, ...WINDOWS_NATIVE_ASSET_PATH.split("/"));
+    fs.mkdirSync(path.dirname(stale), { recursive: true });
+    fs.writeFileSync(stale, bytes);
+    assert.throws(() => verifyStagedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pendingPin,
+      destinationRoot, platform: "win32" }), /unapproved native asset/);
+    fs.rmSync(stale);
+    const pin = core.commitContract(approved(core.source));
+    assert.throws(() => verifyStagedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pin,
+      destinationRoot, platform: "win32" }), /missing/);
+    stagePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pin,
+      destinationRoot, downloadAsset: () => bytes });
+    assert.equal(verifyStagedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pin,
+      destinationRoot, platform: "win32" }).digest, sha256(bytes));
+    const target = path.join(destinationRoot, ...WINDOWS_NATIVE_ASSET_PATH.split("/"));
+    fs.writeFileSync(target, Buffer.from("tampered-native-asset"));
+    assert.throws(() => verifyStagedWindowsNativeAsset({ coreRoot: core.root, coreCommit: pin,
+      destinationRoot, platform: "win32" }), /size|SHA-256/);
   } finally { core.close(); }
 });

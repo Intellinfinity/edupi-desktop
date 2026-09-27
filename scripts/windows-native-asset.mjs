@@ -153,11 +153,45 @@ export function stagePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinatio
   return Object.freeze({ path: target, ...verified });
 }
 
+function assertNoUnapprovedNativeAsset(destinationRoot) {
+  if (typeof destinationRoot !== "string" || !path.isAbsolute(destinationRoot)) {
+    throw new Error("Packaged Core destination is invalid");
+  }
+  const target = path.join(fs.realpathSync(destinationRoot), ...WINDOWS_NATIVE_ASSET_PATH.split("/"));
+  if (fs.existsSync(target)) throw new Error("Windows package contains an unapproved native asset");
+}
+
 export function preparePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot,
   platform = process.platform, token, downloadAsset } = {}) {
   if (platform !== "win32") return null;
   const { contract } = readCommittedWindowsNativeContract(coreRoot, coreCommit);
-  if (isPendingWindowsNativeContract(contract)) return null;
+  if (isPendingWindowsNativeContract(contract)) {
+    assertNoUnapprovedNativeAsset(destinationRoot);
+    return null;
+  }
   if (contract?.status !== "approved") throw new Error("Windows native asset contract is not approved or pending");
   return stagePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot, token, downloadAsset });
+}
+
+export function verifyStagedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot,
+  platform = process.platform } = {}) {
+  if (platform !== "win32") return null;
+  const { contract } = readCommittedWindowsNativeContract(coreRoot, coreCommit);
+  if (isPendingWindowsNativeContract(contract)) {
+    assertNoUnapprovedNativeAsset(destinationRoot);
+    return null;
+  }
+  validateApprovedWindowsNativeContract(contract);
+  const destination = fs.realpathSync(destinationRoot);
+  const target = path.join(destination, ...WINDOWS_NATIVE_ASSET_PATH.split("/"));
+  let file;
+  try { file = fs.lstatSync(target); }
+  catch { throw new Error("Core-approved Windows native asset is missing from the package"); }
+  if (!file.isFile() || file.isSymbolicLink()) throw new Error("Staged Windows native asset is not a regular file");
+  const parent = fs.realpathSync(path.dirname(target));
+  const relative = path.relative(destination, parent);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error("Windows native asset destination escaped the package");
+  }
+  return verifyPinnedWindowsNativeAsset({ coreRoot, coreCommit, rawAssetBytes: fs.readFileSync(target) });
 }

@@ -266,8 +266,14 @@ jobs:
       - name: Prepare packaged Next.js server
         env:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
-          EDUPI_CORE_READ_TOKEN: ${{ runner.os == 'Windows' && secrets.EDUPI_CORE_READ_TOKEN || '' }}
         run: npm run desktop:prepare
+
+      - name: Stage Core-approved Windows native asset
+        if: runner.os == 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+          EDUPI_CORE_READ_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+        run: npm run desktop:stage-windows-native
 
       - name: Verify staged packaged server
         env:
@@ -333,6 +339,12 @@ jobs:
       - name: Test desktop shell
         if: runner.os == 'Windows' || runner.os == 'Linux'
         run: cargo test --release --manifest-path src-tauri/Cargo.toml --lib --target ${{ matrix.target }}
+
+      - name: Verify staged Windows native asset
+        if: runner.os == 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: npm run desktop:verify-windows-native
 
       - name: Build, sign, and upload updater artifacts
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5

@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$bundleDirectory = "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"
+$bundleDirectory = if ($env:EDUPI_PREVIEW_INSTALLER_DIR) { $env:EDUPI_PREVIEW_INSTALLER_DIR } else { "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis" }
 $installers = @(Get-ChildItem $bundleDirectory -Filter "*-setup.exe" -File)
 if ($installers.Count -ne 1) { throw "Expected exactly one Windows preview installer" }
 
@@ -31,6 +31,13 @@ if ($desktopManifest.component_manifest_hash -ne $compat.core_runtime.component_
     $runtimeManifest.component_manifest_hash -ne $compat.core_runtime.runtime_component_manifest_hash) {
     throw "Installed Core component manifests differ from the Desktop compatibility pin"
 }
+$nativeContract = Get-Content (Join-Path $coreRoot "contracts/windows-runtime-attestation-v1.json") -Raw | ConvertFrom-Json
+if ($nativeContract.status -ne "approved") { throw "Installed Core native contract is not approved" }
+$nativeAsset = Join-Path $coreRoot $nativeContract.binary_relative_path
+if (!(Test-Path $nativeAsset -PathType Leaf)) { throw "Approved native asset is missing from the installed preview" }
+if ((Get-Item $nativeAsset).Length -ne $nativeContract.binary_size) { throw "Installed native asset size differs from Core approval" }
+$nativeDigest = "sha256:$((Get-FileHash $nativeAsset -Algorithm SHA256).Hash.ToLowerInvariant())"
+if ($nativeDigest -ne $nativeContract.binary_sha256) { throw "Installed native asset SHA-256 differs from Core approval" }
 
 # Core a8fe471 intentionally rejects Windows roots until native filesystem
 # attestation exists. Record this exact installed-resource boundary; do not
@@ -85,7 +92,7 @@ try {
         $second.Refresh()
         if (!$second.HasExited) { Stop-Process -Id $second.Id -Force -ErrorAction SilentlyContinue }
     }
-    Write-Output "Windows preview installer started with an isolated data root; Core G1 remains blocked by native_attestation_required."
+    Write-Output "Windows preview installer retained the approved native bytes, started with isolated data, and kept normal-mode G1 blocked."
 } finally {
     $application.Refresh()
     if (!$application.HasExited) { Stop-Process -Id $application.Id -ErrorAction SilentlyContinue }

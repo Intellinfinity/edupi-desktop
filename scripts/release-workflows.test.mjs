@@ -594,3 +594,23 @@ test("published install workflows require an explicit release tag", async () => 
   const windows = await readFile(join(root, ".github", "workflows", "windows-build-debug.yml"), "utf8");
   assert.doesNotMatch(windows, /\$\(ls "\$d" \| wc -l\)/u);
 });
+
+test("Windows preview installation checks the approved native bytes and normal-mode refusal", async () => {
+  const smoke = await readFile(join(root, "scripts", "test-windows-route1-preview.ps1"), "utf8");
+  assert.match(smoke, /contracts\/windows-runtime-attestation-v1\.json/u);
+  assert.match(smoke, /binary_size/u);
+  assert.match(smoke, /Get-FileHash \$nativeAsset -Algorithm SHA256/u);
+  assert.match(smoke, /binary_sha256/u);
+  assert.match(smoke, /native_attestation_required/u);
+  assert.match(smoke, /g1Installed: false/u);
+});
+
+test("a preview installer can be rechecked on Windows without rebuilding or publishing", async () => {
+  const workflow = await readFile(join(root, ".github", "workflows", "windows-preview-installed-smoke.yml"), "utf8");
+  assert.match(workflow, /workflow_dispatch:/u);
+  assert.match(workflow, /contents: read/u);
+  assert.match(workflow, /actions: read/u);
+  assert.match(workflow, /gh run download "\$env:PREVIEW_RUN_ID"[\s\S]*?EduPi-Windows-x64/u);
+  assert.match(workflow, /test-windows-route1-preview\.ps1/u);
+  assert.doesNotMatch(workflow, /tauri build|release upload|contents: write|EDUPI_CORE_READ_TOKEN/u);
+});

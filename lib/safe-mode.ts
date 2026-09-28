@@ -14,9 +14,11 @@ export function canStartEduPiProactivity(platform: NodeJS.Platform = process.pla
   return platform !== "win32" || isSafeModeEnabled(environment) && environment.EDUPI_WINDOWS_G1_CANARY === "1";
 }
 
-export function coreRuntimeCanaryEnvironment(platform: NodeJS.Platform, environment: NodeJS.ProcessEnv,
-  hasScopedPermit: boolean): { EDUPI_WINDOWS_G1_CANARY?: "1" } {
-  return platform === "win32" && hasScopedPermit && canStartEduPiProactivity(platform, environment)
+// Tauri has already proved the isolated root, bundled Core and private state
+// before setting the marker on this server. Core root admission must survive
+// stopping G1; the current scope/grant separately controls model execution.
+export function coreRuntimeCanaryEnvironment(platform: NodeJS.Platform, environment: NodeJS.ProcessEnv): { EDUPI_WINDOWS_G1_CANARY?: "1" } {
+  return platform === "win32" && canStartEduPiProactivity(platform, environment)
     ? { EDUPI_WINDOWS_G1_CANARY: "1" } : {};
 }
 

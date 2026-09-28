@@ -17,6 +17,8 @@ use std::{
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt as _;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt as _;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt as _;
 #[cfg(windows)]
@@ -94,6 +96,8 @@ struct DesktopServerState {
     isolated_canary: bool,
     #[cfg(windows)]
     native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>,
+    #[cfg(windows)]
+    private_state_guard: Option<windows_native_source_guard::WindowsPrivateStateGuard>,
 }
 
 struct DesktopResumeMonitor {
@@ -230,7 +234,7 @@ fn route1_isolated_canary_root(
         .is_some_and(|name| name.starts_with("edupi-route1-canary-") && name.len() > "edupi-route1-canary-".len());
     if marker != Some("1") || data_source != "environment" || core_mode != "bundled"
         || is_filesystem_root(allowed_home) || data_root == allowed_home
-        || !data_root.starts_with(allowed_home) || !named_canary
+        || data_root.parent() != Some(allowed_home) || !named_canary
     {
         return false;
     }
@@ -239,8 +243,72 @@ fn route1_isolated_canary_root(
     })
 }
 
-fn windows_g1_canary_child_value(platform: &str, safe_mode: bool, isolated_canary: bool, source_held: bool) -> &'static str {
-    if platform == "windows" && safe_mode && isolated_canary && source_held { "1" } else { "0" }
+fn paths_overlap(left: &Path, right: &Path) -> bool {
+    left.starts_with(right) || right.starts_with(left)
+}
+
+fn route1_desktop_state_dir(config_root: &Path, data_root: &Path, teacher_root: Option<&Path>, isolated_canary: bool) -> io::Result<PathBuf> {
+    if !isolated_canary {
+        return Ok(config_root.to_path_buf());
+    }
+    let name = data_root.file_name().and_then(|value| value.to_str())
+        .filter(|value| value.starts_with("edupi-route1-canary-") && value.len() > "edupi-route1-canary-".len())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "isolated canary root name is invalid"))?;
+    let state_dir = config_root.join("route1-isolated").join(name);
+    if paths_overlap(&state_dir, data_root) || teacher_root.is_some_and(|root| paths_overlap(&state_dir, root)) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "isolated desktop state overlaps the data root"));
+    }
+    Ok(state_dir)
+}
+
+fn prospective_directory_path(path: &Path) -> io::Result<PathBuf> {
+    if !path.is_absolute() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "isolated desktop state path must be absolute"));
+    }
+    let mut current = Some(path);
+    while let Some(candidate) = current {
+        match fs::symlink_metadata(candidate) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "isolated desktop state ancestor is not a directory"));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        current = candidate.parent();
+    }
+    let mut missing = Vec::new();
+    let mut current = path;
+    loop {
+        match fs::symlink_metadata(current) {
+            Ok(_) => {
+                let mut physical = dunce::canonicalize(current)?;
+                for component in missing.iter().rev() {
+                    physical.push(component);
+                }
+                return Ok(physical);
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                missing.push(current.file_name().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "isolated desktop state path is invalid"))?.to_os_string());
+                current = current.parent().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "isolated desktop state path is invalid"))?;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+fn verify_route1_state_location(state_dir: &Path, data_root: &Path, teacher_root: &Path) -> io::Result<()> {
+    let physical_state = prospective_directory_path(state_dir)?;
+    let physical_data = dunce::canonicalize(data_root)?;
+    let physical_teacher = prospective_directory_path(teacher_root)?;
+    if paths_overlap(&physical_state, &physical_data) || paths_overlap(&physical_state, &physical_teacher) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "isolated desktop state overlaps a data root"));
+    }
+    Ok(())
+}
+
+fn windows_g1_canary_child_value(platform: &str, safe_mode: bool, isolated_canary: bool, source_held: bool, private_state_held: bool) -> &'static str {
+    if platform == "windows" && safe_mode && isolated_canary && source_held && private_state_held { "1" } else { "0" }
 }
 
 fn args_request_safe_mode<I, S>(args: I) -> bool
@@ -427,6 +495,8 @@ impl DesktopServer {
                 isolated_canary: false,
                 #[cfg(windows)]
                 native_source_guard: None,
+                #[cfg(windows)]
+                private_state_guard: None,
             }),
         }
     }
@@ -439,8 +509,8 @@ impl DesktopServer {
     }
 
     #[cfg(windows)]
-    fn running(child: Child, native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>, isolated_canary: bool) -> Self {
-        Self { state: Mutex::new(DesktopServerState { child: Some(child), native_source_guard, isolated_canary }) }
+    fn running(child: Child, native_source_guard: Option<windows_native_source_guard::WindowsNativeSourceGuard>, private_state_guard: Option<windows_native_source_guard::WindowsPrivateStateGuard>, isolated_canary: bool) -> Self {
+        Self { state: Mutex::new(DesktopServerState { child: Some(child), native_source_guard, private_state_guard, isolated_canary }) }
     }
 
     fn isolated_canary(&self) -> bool {
@@ -456,6 +526,8 @@ impl DesktopServer {
         }
         #[cfg(windows)]
         drop(state.native_source_guard.take());
+        #[cfg(windows)]
+        drop(state.private_state_guard.take());
     }
 }
 
@@ -1611,7 +1683,7 @@ fn managed_data_root(app: &AppHandle) -> Result<String, io::Error> {
     Ok(root.to_string_lossy().into_owned())
 }
 
-fn persisted_data_root_from_prefs(path: &Path) -> Result<Result<String, &'static str>, io::Error> {
+fn persisted_data_root_from_prefs_impl(path: &Path, prepare: bool) -> Result<Result<String, &'static str>, io::Error> {
     let raw = match fs::read_to_string(path) {
         Ok(raw) => raw,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -1654,10 +1726,19 @@ fn persisted_data_root_from_prefs(path: &Path) -> Result<Result<String, &'static
     if is_filesystem_root(&canonical) {
         return Ok(Err(FALLBACK_PERSISTED_FILESYSTEM_ROOT));
     }
-    if ensure_data_directories(&canonical.to_string_lossy()).is_err() {
+    if prepare && ensure_data_directories(&canonical.to_string_lossy()).is_err() {
         return Ok(Err(FALLBACK_PERSISTED_INVALID));
     }
     Ok(Ok(canonical.to_string_lossy().into_owned()))
+}
+
+fn persisted_data_root_from_prefs(path: &Path) -> Result<Result<String, &'static str>, io::Error> {
+    persisted_data_root_from_prefs_impl(path, true)
+}
+
+fn persisted_data_root_for_canary(app: &AppHandle) -> Result<Result<String, &'static str>, io::Error> {
+    let path = ui_prefs_path(app).map_err(io::Error::other)?;
+    persisted_data_root_from_prefs_impl(&path, false)
 }
 
 fn persisted_data_root(app: &AppHandle) -> Result<Result<String, &'static str>, io::Error> {
@@ -1928,29 +2009,55 @@ fn start_packaged_server(
     let port = choose_port(app)?;
     let safe_mode = safe_mode_requested();
     let route1_marker = env::var(ROUTE1_ISOLATED_CANARY_ENV).ok();
-    let isolated_canary = if route1_marker.as_deref() == Some("1") {
-        let home_root = app.path().home_dir().ok().and_then(|home| dunce::canonicalize(home).ok());
-        match (home_root, persisted_data_root(app)) {
-            (Some(home_root), Ok(Ok(persisted_root))) => route1_isolated_canary_root(
-                route1_marker.as_deref(), &roots.status.data_source, roots.core_validation_mode,
-                Path::new(&roots.data_root), &home_root, Some(Path::new(&persisted_root)),
-            ),
-            (Some(home_root), Ok(Err(FALLBACK_PERSISTED_NO_KEY))) => route1_isolated_canary_root(
-                route1_marker.as_deref(), &roots.status.data_source, roots.core_validation_mode,
-                Path::new(&roots.data_root), &home_root, None,
-            ),
-            _ => false,
+    let home_root = (route1_marker.as_deref() == Some("1"))
+        .then(|| app.path().home_dir().ok().and_then(|home| dunce::canonicalize(home).ok())).flatten();
+    let persisted_for_canary = (route1_marker.as_deref() == Some("1"))
+        .then(|| persisted_data_root_for_canary(app));
+    let teacher_root = match persisted_for_canary.as_ref() {
+        Some(Ok(Ok(root))) => Some(PathBuf::from(root)),
+        Some(Ok(Err(FALLBACK_PERSISTED_NO_KEY))) => app.path().app_data_dir().ok()
+            .map(|path| path.join(MANAGED_DATA_DIRECTORY)),
+        _ => None,
+    };
+    let isolated_canary = match (home_root.as_deref(), teacher_root.as_deref()) {
+        (Some(home), Some(teacher)) => route1_isolated_canary_root(
+            route1_marker.as_deref(), &roots.status.data_source, roots.core_validation_mode,
+            Path::new(&roots.data_root), home, Some(teacher),
+        ),
+        _ => false,
+    };
+    if route1_marker.as_deref() == Some("1") && !isolated_canary {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "isolated canary root is unavailable").into());
+    }
+    let mobile_enabled = effective_mobile_bridge_enabled(mobile_bridge_enabled_from_prefs(app), isolated_canary);
+    let desktop_state_dir = route1_desktop_state_dir(
+        &app.path().app_config_dir()?, Path::new(&roots.data_root), teacher_root.as_deref(), isolated_canary,
+    )?;
+    if isolated_canary {
+        verify_route1_state_location(&desktop_state_dir, Path::new(&roots.data_root), teacher_root.as_deref().unwrap())?;
+    }
+    fs::create_dir_all(&desktop_state_dir)?;
+    if isolated_canary {
+        verify_route1_state_location(&desktop_state_dir, Path::new(&roots.data_root), teacher_root.as_deref().unwrap())?;
+        #[cfg(unix)] {
+            if let Some(parent) = desktop_state_dir.parent() {
+                fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+            }
+            fs::set_permissions(&desktop_state_dir, fs::Permissions::from_mode(0o700))?;
+        }
+    }
+    #[cfg(windows)]
+    let private_state_guard = if isolated_canary {
+        match windows_native_source_guard::WindowsPrivateStateGuard::acquire(&desktop_state_dir) {
+            Ok(guard) => Some(guard),
+            Err(error) => {
+                record_native_startup_diagnostic(app, "desktop_private_state", "route1-isolated-state", &error.to_string(), None);
+                return Err(error.into());
+            }
         }
     } else {
-        false
+        None
     };
-    let mobile_enabled = effective_mobile_bridge_enabled(mobile_bridge_enabled_from_prefs(app), isolated_canary);
-    let desktop_state_dir = if isolated_canary {
-        Path::new(&roots.data_root).join(".edupi/desktop-state")
-    } else {
-        app.path().app_config_dir()?
-    };
-    fs::create_dir_all(&desktop_state_dir)?;
     let isolated_agent_dir = isolated_canary.then(|| Path::new(&roots.data_root).join(".edupi/agent"));
     if let Some(agent_dir) = &isolated_agent_dir {
         fs::create_dir_all(agent_dir)?;
@@ -1971,7 +2078,11 @@ fn start_packaged_server(
     let source_held = native_source_guard.is_some();
     #[cfg(not(windows))]
     let source_held = false;
-    let windows_g1_canary = windows_g1_canary_child_value(env::consts::OS, safe_mode, isolated_canary, source_held);
+    #[cfg(windows)]
+    let private_state_held = private_state_guard.is_some();
+    #[cfg(not(windows))]
+    let private_state_held = false;
+    let windows_g1_canary = windows_g1_canary_child_value(env::consts::OS, safe_mode, isolated_canary, source_held, private_state_held);
     let mut command = Command::new(&node_path);
     command
         .arg(&server_script)
@@ -2026,7 +2137,7 @@ fn start_packaged_server(
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     if let Err(error) = wait_for_server(&mut child, address, desktop_instance_id, &log_path) {
         #[cfg(windows)]
-        let server = DesktopServer::running(child, native_source_guard, isolated_canary);
+        let server = DesktopServer::running(child, native_source_guard, private_state_guard, isolated_canary);
         #[cfg(not(windows))]
         let server = DesktopServer::running(child, isolated_canary);
         server.stop();
@@ -2035,7 +2146,7 @@ fn start_packaged_server(
 
     let url = format!("http://127.0.0.1:{port}").parse()?;
     #[cfg(windows)]
-    let server = DesktopServer::running(child, native_source_guard, isolated_canary);
+    let server = DesktopServer::running(child, native_source_guard, private_state_guard, isolated_canary);
     #[cfg(not(windows))]
     let server = DesktopServer::running(child, isolated_canary);
     Ok((url, server))
@@ -2046,11 +2157,11 @@ mod tests {
     use super::{
         build_root_status, child_process_compatible_path, clear_webview_caches_for_layout,
         default_allowed_root, ensure_data_directories, is_filesystem_root, mobile_gateway_reachable,
-        args_request_safe_mode, route1_isolated_canary_root, safe_mode_from_inputs, DesktopServer,
+        args_request_safe_mode, route1_desktop_state_dir, route1_isolated_canary_root, safe_mode_from_inputs, verify_route1_state_location, DesktopServer,
         effective_mobile_bridge_enabled,
         windows_g1_canary_child_value,
         normalize_update_proxy, read_update_proxy_from_path, write_update_proxy_file,
-        persisted_data_root_from_prefs, read_last_version_from_path, reconcile_cache_version_state,
+        persisted_data_root_from_prefs, persisted_data_root_from_prefs_impl, read_last_version_from_path, reconcile_cache_version_state,
         response_has_instance_id, resume_gap_detected, should_reconcile_webview_cache,
         update_server_port_in_prefs, validate_selected_data_root, write_last_version_to_path,
         WebviewCacheLayout, FALLBACK_PERSISTED_CORRUPT, FALLBACK_PERSISTED_MISSING,
@@ -2147,6 +2258,7 @@ mod tests {
             (Some("1"), "environment", "bundled", teacher, Some(teacher)),
             (Some("1"), "environment", "bundled", Path::new("home/random"), Some(teacher)),
             (Some("1"), "environment", "bundled", Path::new("temp/edupi-route1-canary-1234"), Some(teacher)),
+            (Some("1"), "environment", "bundled", Path::new("home/nested/edupi-route1-canary-1234"), Some(teacher)),
             (Some("1"), "environment", "bundled", canary, Some(home)),
         ] {
             assert!(!route1_isolated_canary_root(
@@ -2156,15 +2268,54 @@ mod tests {
     }
 
     #[test]
+    fn isolated_desktop_state_is_private_and_outside_core_data() {
+        let config = Path::new("home/Library/Application Support/com.abcwyc.pi-agent");
+        let data = Path::new("home/edupi-route1-canary-1234");
+        let teacher = Path::new("home/edupi-data");
+        let state = route1_desktop_state_dir(config, data, Some(teacher), true).unwrap();
+        assert_eq!(state, config.join("route1-isolated/edupi-route1-canary-1234"));
+        assert!(!state.starts_with(data));
+        assert_eq!(route1_desktop_state_dir(config, data, None, false).unwrap(), config);
+        assert!(route1_desktop_state_dir(data, data, Some(teacher), true).is_err());
+        assert!(route1_desktop_state_dir(config, Path::new("home/random"), Some(teacher), true).is_err());
+        assert!(route1_desktop_state_dir(config, data, Some(&config.join("route1-isolated")), true).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn isolated_state_preflight_rejects_real_root_overlap_and_symlink_before_writing() {
+        use std::os::unix::fs::symlink;
+        let temp = std::env::temp_dir().join(format!("edupi-route1-state-test-{}", super::generate_random_hex().unwrap()));
+        let data = temp.join("edupi-route1-canary-1234");
+        let teacher = temp.join("teacher-data");
+        fs::create_dir_all(&data).unwrap();
+        fs::create_dir_all(&teacher).unwrap();
+        let overlapping = teacher.join("route1-isolated/edupi-route1-canary-1234");
+        assert!(verify_route1_state_location(&overlapping, &data, &teacher).is_err());
+        assert!(!overlapping.parent().unwrap().exists());
+        let alias = temp.join("config-link");
+        symlink(&teacher, &alias).unwrap();
+        let through_alias = alias.join("route1-isolated/edupi-route1-canary-1234");
+        assert!(verify_route1_state_location(&through_alias, &data, &teacher).is_err());
+        assert!(!overlapping.parent().unwrap().exists());
+        let prefs = temp.join("ui-prefs.json");
+        fs::write(&prefs, serde_json::json!({"edupiDataRoot": teacher}).to_string()).unwrap();
+        assert!(persisted_data_root_from_prefs_impl(&prefs, false).unwrap().is_ok());
+        assert!(!teacher.join(".edupi").exists(), "canary preflight must never prepare the teacher root");
+        fs::remove_dir_all(&temp).unwrap();
+    }
+
+    #[test]
     fn normal_start_never_inherits_a_windows_g1_canary_marker() {
-        assert_eq!(windows_g1_canary_child_value("windows", true, true, true), "1");
-        for (platform, safe_mode, isolated, source_held) in [
-            ("windows", false, true, true),
-            ("windows", true, false, true),
-            ("windows", true, true, false),
-            ("macos", true, true, true),
+        assert_eq!(windows_g1_canary_child_value("windows", true, true, true, true), "1");
+        for (platform, safe_mode, isolated, source_held, private_state_held) in [
+            ("windows", false, true, true, true),
+            ("windows", true, false, true, true),
+            ("windows", true, true, false, true),
+            ("windows", true, true, true, false),
+            ("macos", true, true, true, true),
         ] {
-            assert_eq!(windows_g1_canary_child_value(platform, safe_mode, isolated, source_held), "0");
+            assert_eq!(windows_g1_canary_child_value(platform, safe_mode, isolated, source_held, private_state_held), "0");
         }
     }
 

@@ -724,13 +724,15 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setPendingTaskBinding(null);
     if (view === "review") setReviewMode("task");
     updateLocation(view, task, stage);
-  }, [activeView, cancelActivation, updateLocation]);
+    if (stage === "review") void loadWorkspace().catch(() => {});
+  }, [activeView, cancelActivation, loadWorkspace, updateLocation]);
 
   const selectStage = useCallback((stage: TaskStage) => {
     cancelActivation();
     setActiveStage(stage);
     updateLocation(activeView === "review" ? "review" : "tasks", activeTask, stage);
-  }, [activeTask, activeView, cancelActivation, updateLocation]);
+    if (stage === "review") void loadWorkspace().catch(() => {});
+  }, [activeTask, activeView, cancelActivation, loadWorkspace, updateLocation]);
 
   const toggleInspector = useCallback(() => {
     const next = !inspectorOpen;

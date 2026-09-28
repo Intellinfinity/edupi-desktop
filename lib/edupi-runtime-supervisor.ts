@@ -134,7 +134,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
     : null;
   const child = fork(bootstrap, [], {
     cwd: runtime.root, execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"],
-    env: { PATH: process.env.PATH, LANG: process.env.LANG || "en_US.UTF-8", TZ: process.env.TZ || "Asia/Shanghai", NODE_ENV: process.env.NODE_ENV || "production", EDUPI_PROJECT_ROOT: dataRoot.root, EDUPI_HOME: path.join(dataRoot.root, ".edupi"), EDUPI_MEMORY_DIR: dataRoot.memoryDir, EDUPI_OUTPUT_DIR: dataRoot.outputDir, EDUPI_LOCK_DIR: dataRoot.lockDir, EDUPI_CORE_COMMIT: runtime.coreCommit, EDUPI_CORE_PARENT_PID: String(process.pid), ...(configuredStateDir && path.isAbsolute(configuredStateDir) ? { PI_DESKTOP_STATE_DIR: path.resolve(configuredStateDir) } : {}), ...coreRuntimeCanaryEnvironment(process.platform, process.env, Boolean(g1Scope)) },
+    env: { PATH: process.env.PATH, LANG: process.env.LANG || "en_US.UTF-8", TZ: process.env.TZ || "Asia/Shanghai", NODE_ENV: process.env.NODE_ENV || "production", EDUPI_PROJECT_ROOT: dataRoot.root, EDUPI_HOME: path.join(dataRoot.root, ".edupi"), EDUPI_MEMORY_DIR: dataRoot.memoryDir, EDUPI_OUTPUT_DIR: dataRoot.outputDir, EDUPI_LOCK_DIR: dataRoot.lockDir, EDUPI_CORE_COMMIT: runtime.coreCommit, EDUPI_CORE_PARENT_PID: String(process.pid), ...(configuredStateDir && path.isAbsolute(configuredStateDir) ? { PI_DESKTOP_STATE_DIR: path.resolve(configuredStateDir) } : {}), ...coreRuntimeCanaryEnvironment(process.platform, process.env) },
   });
   entry.kill = () => { child.kill("SIGKILL"); };
   const modelHost = attachRuntimeModelHost(child, createRuntimeModelHost({ coreRoot: runtime.root, projectRoot: dataRoot.root }));

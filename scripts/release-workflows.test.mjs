@@ -603,6 +603,10 @@ test("Windows preview installation checks the approved native bytes and normal-m
   assert.match(smoke, /binary_sha256/u);
   assert.match(smoke, /native_attestation_required/u);
   assert.match(smoke, /g1Installed: false/u);
+  assert.match(smoke, /EDUPI_ROUTE1_ISOLATED_CANARY = "1"/u);
+  assert.match(smoke, /ArgumentList "--safe-mode"/u);
+  assert.match(smoke, /api\/edupi\/status\?summary=1/u);
+  assert.match(smoke, /g1_processor -eq "activation_pending"/u);
 });
 
 test("a preview installer can be rechecked on Windows without rebuilding or publishing", async () => {

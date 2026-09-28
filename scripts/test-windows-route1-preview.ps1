@@ -39,9 +39,8 @@ if ((Get-Item $nativeAsset).Length -ne $nativeContract.binary_size) { throw "Ins
 $nativeDigest = "sha256:$((Get-FileHash $nativeAsset -Algorithm SHA256).Hash.ToLowerInvariant())"
 if ($nativeDigest -ne $nativeContract.binary_sha256) { throw "Installed native asset SHA-256 differs from Core approval" }
 
-# Core a8fe471 intentionally rejects Windows roots until native filesystem
-# attestation exists. Record this exact installed-resource boundary; do not
-# inject a fake attestation or label HTTP availability as G1 readiness.
+# Normal mode must still refuse native Core root admission. This does not
+# substitute for the separately guarded Safe Mode isolated canary below.
 $env:EDUPI_INSTALLED_CORE_ROOT = $coreRoot
 $rootProbe = @'
 import path from "node:path";
@@ -95,5 +94,60 @@ try {
     Write-Output "Windows preview installer retained the approved native bytes, started with isolated data, and kept normal-mode G1 blocked."
 } finally {
     $application.Refresh()
-    if (!$application.HasExited) { Stop-Process -Id $application.Id -ErrorAction SilentlyContinue }
+    if (!$application.HasExited) {
+        Stop-Process -Id $application.Id -ErrorAction SilentlyContinue
+        Wait-Process -Id $application.Id -Timeout 10 -ErrorAction SilentlyContinue
+    }
+}
+
+# Exercise the installed executable's native root and private-state guards,
+# without enabling G1 or touching any teacher's configured data directory.
+if (@(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -eq $executable }).Count -ne 0) {
+    throw "Normal-mode preview process still owns the single instance"
+}
+$canaryRoot = Join-Path $env:USERPROFILE "edupi-route1-canary-preview-$([guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $canaryRoot | Out-Null
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+& (Join-Path $env:SystemRoot "System32/icacls.exe") $canaryRoot "/inheritance:r" "/grant:r" "*${sid}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Isolated canary root ACL setup failed" }
+foreach ($relative in @(".edupi/memory", ".edupi/output", ".edupi/locks")) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $canaryRoot $relative) | Out-Null
+}
+$env:EDUPI_PROJECT_ROOT = $canaryRoot
+$env:EDUPI_DATA_ROOT = $canaryRoot
+$env:EDUPI_DATA_ALLOWED_ROOT = $env:USERPROFILE
+$env:EDUPI_ROUTE1_ISOLATED_CANARY = "1"
+$canary = Start-Process -FilePath $executable -ArgumentList "--safe-mode" -PassThru
+try {
+    $verified = $false
+    for ($attempt = 0; $attempt -lt 45; $attempt++) {
+        $canary.Refresh()
+        if ($canary.HasExited) { throw "Installed Safe Mode canary exited before Core became ready" }
+        $logRoots = @((Join-Path $env:LOCALAPPDATA "com.abcwyc.pi-agent"), (Join-Path $env:APPDATA "com.abcwyc.pi-agent"))
+        $logs = @($logRoots | Where-Object { Test-Path $_ } |
+            ForEach-Object { Get-ChildItem $_ -Filter "server.log" -Recurse -ErrorAction SilentlyContinue })
+        foreach ($log in $logs) {
+            $ports = [regex]::Matches((Get-Content $log.FullName -Raw), 'http://127\.0\.0\.1:(\d+)')
+            if ($ports.Count -eq 0) { continue }
+            $origin = "http://127.0.0.1:$($ports[$ports.Count - 1].Groups[1].Value)"
+            try {
+                $status = Invoke-RestMethod "$origin/api/edupi/status?summary=1" -Headers @{ Origin = $origin } -TimeoutSec 5
+                if ($status.core.status -eq "ready" -and $status.projection.status -eq "ready" -and
+                    $status.compatibility.actual.coreCommit -eq $compat.core_runtime.core_commit -and
+                    $status.core.capabilities.g1_processor -eq "activation_pending" -and
+                    $status.externalSend -eq $false) { $verified = $true; break }
+            } catch { }
+        }
+        if ($verified) { break }
+        Start-Sleep -Seconds 2
+    }
+    if (!$verified) { throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off" }
+    Write-Output "Windows installed preview Safe Mode canary: Core/projection ready, exact pin, G1 pending, external send off."
+} finally {
+    $canary.Refresh()
+    if (!$canary.HasExited) {
+        Stop-Process -Id $canary.Id -ErrorAction SilentlyContinue
+        Wait-Process -Id $canary.Id -Timeout 10 -ErrorAction SilentlyContinue
+    }
 }

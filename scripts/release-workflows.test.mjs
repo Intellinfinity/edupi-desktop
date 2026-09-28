@@ -595,7 +595,7 @@ test("published install workflows require an explicit release tag", async () => 
   assert.doesNotMatch(windows, /\$\(ls "\$d" \| wc -l\)/u);
 });
 
-test("Windows preview installation checks the approved native bytes and normal-mode refusal", async () => {
+test("Windows preview checks native bytes, normal refusal and isolated Safe Mode boot", async () => {
   const smoke = await readFile(join(root, "scripts", "test-windows-route1-preview.ps1"), "utf8");
   assert.match(smoke, /contracts\/windows-runtime-attestation-v1\.json/u);
   assert.match(smoke, /binary_size/u);

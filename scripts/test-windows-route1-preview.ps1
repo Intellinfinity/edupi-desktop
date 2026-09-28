@@ -121,6 +121,7 @@ $env:EDUPI_ROUTE1_ISOLATED_CANARY = "1"
 $canary = Start-Process -FilePath $executable -ArgumentList "--safe-mode" -PassThru
 try {
     $verified = $false
+    $lastStatus = "no Core status response"
     for ($attempt = 0; $attempt -lt 45; $attempt++) {
         $canary.Refresh()
         if ($canary.HasExited) { throw "Installed Safe Mode canary exited before Core became ready" }
@@ -133,6 +134,7 @@ try {
             $origin = "http://127.0.0.1:$($ports[$ports.Count - 1].Groups[1].Value)"
             try {
                 $status = Invoke-RestMethod "$origin/api/edupi/status?summary=1" -Headers @{ Origin = $origin } -TimeoutSec 5
+                $lastStatus = "core=$($status.core.status) projection=$($status.projection.status) g1=$($status.core.capabilities.g1_processor)"
                 if ($status.core.status -eq "ready" -and $status.projection.status -eq "ready" -and
                     $status.compatibility.actual.coreCommit -eq $compat.core_runtime.core_commit -and
                     $status.core.capabilities.g1_processor -eq "activation_pending" -and
@@ -142,7 +144,7 @@ try {
         if ($verified) { break }
         Start-Sleep -Seconds 2
     }
-    if (!$verified) { throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off" }
+    if (!$verified) { throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus" }
     Write-Output "Windows installed preview Safe Mode canary: Core/projection ready, exact pin, G1 pending, external send off."
 } finally {
     $canary.Refresh()

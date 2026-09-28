@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "453e303d75ac5ad2657cc1eac641b25b68d14db7",
+    "core_commit": "748f9b544e315d162f1ab2833856de2da378e2c0",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:2fdf719f1c68f1ee5ec1e3b169d1029f736bea59f04e7bb84893cc952012b1bc",
-    "runtime_component_manifest_hash": "sha256:adfbb5d442ff2b685d99c52f84fe4de227b7a882669f8e0f822f2ca714d6b322",
+    "component_manifest_hash": "sha256:80d26d1aaea15ffc4c91cabfcf3765fcfa323b8ef186db94768ad090f8f74495",
+    "runtime_component_manifest_hash": "sha256:ef1dbede25739d0486eef4b5e834e19de500ab44e0d4e8b5e0a80991f52d96bb",
     "runtime_schema_hash": "sha256:8b4d701c64fd191019bee627eae7f9b2fbc533c0adbd41df4110ffc7719da9b8"
   },
   "contract_identities": [
@@ -168,7 +168,8 @@
     "https://github.com/Intellinfinity/edupi/pull/211",
     "https://github.com/Intellinfinity/edupi/pull/212",
     "https://github.com/Intellinfinity/edupi/pull/213",
+    "https://github.com/Intellinfinity/edupi/pull/214",
     "https://github.com/Intellinfinity/edupi-desktop/pull/287"
   ],
-  "change_note": "Desktop pin to Core #213 on the default-off Windows canary contract: Runtime schema and Runtime component manifest changed for the distinct completed_source_changed review code; Desktop component manifest and bridge/occurrence identities remain unchanged. Windows G1 requires an isolated Safe Mode launch, a Desktop-held prestart native-source guard, and Core native root/writer proof with one exact class/subject/source owner grant and durable model budget. Direct Core CLI canary is unsupported. G2 and G3/G4 Live remain activation_pending outside separately permitted canaries. G5 recipients, unconfirmed material evidence, and term/lesson attribution remain unverified; external_send=false."
+  "change_note": "Desktop pin to Core #214: Runtime schema and bridge/occurrence identities remain unchanged; both component manifests track scoped G1 teacher draft content-source verification. A stopped isolated Windows Safe Mode canary retains native root admission for owner-control and teacher readback, while autonomous G1 still requires the current exact class/subject/source grant and durable model budget. Direct Core CLI canary is unsupported. G2 and G3/G4 Live remain activation_pending outside separately permitted canaries. G5 recipients, unconfirmed material evidence, and term/lesson attribution remain unverified; external_send=false."
 }

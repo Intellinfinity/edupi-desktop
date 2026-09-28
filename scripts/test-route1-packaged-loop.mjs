@@ -222,6 +222,10 @@ try {
   assert.equal(modelCalls, 1);
   const artifactCount = ready.workCase.artifactIds.length;
   assert.equal(artifactCount, 4);
+  const artifactId = ready.workCase.artifactIds[0];
+  const draftRead = await api(firstServer, `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(artifactId)}`);
+  assert.equal(draftRead.artifact.artifact_id, artifactId, "scoped draft must be readable for teacher review");
+  assert.equal(draftRead.artifact.revision, 1);
   assert.equal(ready.data.generatedArtifacts.filter(item => item.task_id === taskId && item.available).length, artifactCount);
 
   const repeatEnsure = await api(firstServer, "/api/edupi/preparation", { action: "ensure" });
@@ -276,6 +280,9 @@ try {
   const deactivated = await api(firstServer, "/api/edupi/proactivity", { enabled: false,
     classId: null, subject: null, expectedUpdatedAt: activated.activation.updatedAt });
   assert.equal(deactivated.activation.enabled, false);
+  const stoppedRead = await api(firstServer, `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(artifactId)}`);
+  assert.equal(stoppedRead.artifact.content, draftRead.artifact.content,
+    "stopping autonomous G1 must not hide an existing teacher draft");
 
   await stop(firstServer);
   firstServer = undefined;
@@ -296,11 +303,17 @@ try {
   const stoppedCanary = await api(secondServer, "/api/edupi/proactivity", { enabled: false,
     classId: null, subject: null, expectedUpdatedAt: reactivated.activation.updatedAt });
   assert.equal(stoppedCanary.activation.enabled, false);
+  const manualRevision = await api(secondServer, "/api/edupi/preparation-artifact", { artifactId,
+    expectedRevision: stoppedRead.artifact.current_revision, content: "隔离教师手工修订：2x + 3 = 7，x = 2。" });
+  assert.equal(manualRevision.artifact.revision, 2);
+  assert.equal((await api(secondServer, `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(artifactId)}`)).artifact.content,
+    "隔离教师手工修订：2x + 3 = 7，x = 2。\n");
   assert.equal(modelCalls, 1, "restart duplicated draft generation");
   success = true;
   console.log(JSON.stringify({ status: "passed", platform: process.platform, coreCommit: status.compatibility.actual.coreCommit,
     taskId, artifactCount, modelCalls, reminderId: reminder.id, notificationFailureDeduped: true,
-    review: "accepted", syntheticFeedbackExcluded: true, restartPreserved: true, externalSend: false }));
+    review: "accepted", syntheticFeedbackExcluded: true, restartPreserved: true,
+    stoppedDraftReadAndManualRevision: true, externalSend: false }));
 } finally {
   await stop(firstServer);
   await stop(secondServer);

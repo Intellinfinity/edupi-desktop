@@ -164,7 +164,13 @@ fn inspect_private_existing(
         // A short exclusive probe rejects stale write/delete handles that
         // might predate a previously tightened ACL. The verified private
         // parent prevents another SID from reopening one after it closes.
-        let probe = open_existing(prefix, READ_CONTROL | FILE_READ_ATTRIBUTES, FILE_SHARE_READ)?;
+        // A metadata-only open does not reliably participate in NT share
+        // checks. Include directory read data so an earlier writer conflicts.
+        let probe = open_existing(
+            prefix,
+            READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA,
+            FILE_SHARE_READ,
+        )?;
         let (attributes, id) = object_identity(&probe)?;
         if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
             || attributes & FILE_ATTRIBUTE_DIRECTORY == 0
@@ -190,7 +196,11 @@ fn inspect_private_existing(
     } else {
         FILE_SHARE_READ | FILE_SHARE_DELETE
     };
-    let handle = open_existing(prefix, READ_CONTROL | FILE_READ_ATTRIBUTES, share)?;
+    let handle = open_existing(
+        prefix,
+        READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA,
+        share,
+    )?;
     let (attributes, id) = object_identity(&handle)?;
     if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
         || (attributes & FILE_ATTRIBUTE_DIRECTORY != 0) != directory
@@ -332,8 +342,11 @@ impl WindowsPrivateStateGuard {
         for (index, prefix) in prefixes.iter().enumerate() {
             let private = index + 2 >= prefixes.len();
             let probed_id = if private {
-                let probe =
-                    open_existing(prefix, READ_CONTROL | FILE_READ_ATTRIBUTES, FILE_SHARE_READ)?;
+                let probe = open_existing(
+                    prefix,
+                    READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA,
+                    FILE_SHARE_READ,
+                )?;
                 let (attributes, id) = object_identity(&probe)?;
                 if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
                     || attributes & FILE_ATTRIBUTE_DIRECTORY == 0
@@ -349,7 +362,7 @@ impl WindowsPrivateStateGuard {
             };
             let handle = open_existing(
                 prefix,
-                READ_CONTROL | FILE_READ_ATTRIBUTES,
+                READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA,
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
             )?;
             let (attributes, id) = object_identity(&handle)?;

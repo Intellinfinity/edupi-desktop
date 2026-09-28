@@ -11,6 +11,14 @@ on:
         description: Optional exact Core commit for the Windows staging path
         type: string
         default: ""
+      preview_installed_smoke_run_id:
+        description: Recheck the Windows NSIS artifact from a completed preview run
+        type: string
+        default: ""
+      preview_installed_smoke_sha:
+        description: Exact Desktop source commit of the completed preview run
+        type: string
+        default: ""
       native_asset_probe_id:
         description: Optional private Core release asset ID for a read-only Windows download probe
         type: string
@@ -33,7 +41,7 @@ concurrency:
 
 jobs:
   quality:
-    if: ${{ !inputs.native_asset_probe_only }}
+    if: ${{ !inputs.native_asset_probe_only && inputs.preview_installed_smoke_run_id == '' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -49,7 +57,7 @@ jobs:
 
   package:
     needs: quality
-    if: ${{ !inputs.native_asset_probe_only }}
+    if: ${{ !inputs.native_asset_probe_only && inputs.preview_installed_smoke_run_id == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -190,7 +198,7 @@ jobs:
           retention-days: 7
 
   native-asset-probe:
-    if: inputs.native_asset_probe_only
+    if: inputs.native_asset_probe_only && inputs.preview_installed_smoke_run_id == ''
     runs-on: windows-latest
     steps:
       - name: Probe private Core native asset with the scoped read secret
@@ -303,3 +311,47 @@ jobs:
           const id=process.env.GITHUB_RUN_ID;
           if(!/^[1-9][0-9]*$/.test(id||'')) process.exit(1);
           fs.rmSync(path.join(process.env.RUNNER_TEMP,'edupi-approved-native-'+id+'.node'),{force:true})"
+
+  installed-preview-smoke:
+    if: inputs.preview_installed_smoke_run_id != ''
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out the current installer verification script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download the exact completed preview artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_installed_smoke_run_id }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.preview_installed_smoke_sha }}
+        run: |
+          if ($env:PREVIEW_RUN_ID -notmatch '^[1-9][0-9]*$' -or $env:EXPECTED_SOURCE_SHA -notmatch '^[a-f0-9]{40}$') {
+            throw "Preview run identity is invalid"
+          }
+          $run = gh api "repos/Intellinfinity/edupi-desktop/actions/runs/$env:PREVIEW_RUN_ID" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.name -ne "Build preview installers" -or
+              $run.conclusion -ne "success" -or $run.head_sha -ne $env:EXPECTED_SOURCE_SHA -or
+              $run.head_repository.full_name -ne "Intellinfinity/edupi-desktop") {
+            throw "Preview run is not the accepted commit-bound build"
+          }
+          $target = Join-Path $env:RUNNER_TEMP "edupi-preview-smoke-$env:GITHUB_RUN_ID"
+          New-Item -ItemType Directory -Path $target | Out-Null
+          gh run download "$env:PREVIEW_RUN_ID" --repo Intellinfinity/edupi-desktop --name EduPi-Windows-x64 --dir "$target"
+          if ($LASTEXITCODE -ne 0) { throw "Windows preview artifact download failed" }
+          "Preview source commit: $($run.head_sha)" >> $env:GITHUB_STEP_SUMMARY
+      - name: Install and verify the preview NSIS in isolation
+        shell: pwsh
+        env:
+          EDUPI_PREVIEW_INSTALLER_DIR: ${{ runner.temp }}/edupi-preview-smoke-${{ github.run_id }}
+        run: ./scripts/test-windows-route1-preview.ps1
+      - name: Remove downloaded runner copy
+        if: always()
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP "edupi-preview-smoke-$env:GITHUB_RUN_ID"
+          if ((Test-Path $target) -and $target.StartsWith((Join-Path $env:RUNNER_TEMP "edupi-preview-smoke-"))) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+          }

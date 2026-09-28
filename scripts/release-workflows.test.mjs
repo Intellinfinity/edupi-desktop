@@ -560,9 +560,9 @@ test("release and preview verify the bundled read-only OpenConnector catalog", a
 test("preview installs Desktop dependencies before the paired Core runtime test", async () => {
   const workflow = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
   const packageJob = workflow.slice(workflow.indexOf("  package:"), workflow.indexOf("  native-asset-probe:"));
-  const probeJob = workflow.slice(workflow.indexOf("  native-asset-probe:"));
-  assert.match(workflow, /quality:\s+if: \$\{\{ !inputs\.native_asset_probe_only \}\}/u);
-  assert.match(packageJob, /needs: quality\s+if: \$\{\{ !inputs\.native_asset_probe_only \}\}/u);
+  const probeJob = workflow.slice(workflow.indexOf("  native-asset-probe:"), workflow.indexOf("  installed-preview-smoke:"));
+  assert.match(workflow, /quality:\s+if: \$\{\{ !inputs\.native_asset_probe_only && inputs\.preview_installed_smoke_run_id == '' \}\}/u);
+  assert.match(packageJob, /needs: quality\s+if: \$\{\{ !inputs\.native_asset_probe_only && inputs\.preview_installed_smoke_run_id == '' \}\}/u);
   assert.match(packageJob, /Install Core runtime dependencies[\s\S]*?- run: npm ci[\s\S]*?Verify paired Core runtime/u);
   assert.match(packageJob, /name: Verify paired Core runtime\s+if: runner\.os != 'Windows'/u);
   assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
@@ -606,8 +606,9 @@ test("Windows preview installation checks the approved native bytes and normal-m
 });
 
 test("a preview installer can be rechecked on Windows without rebuilding or publishing", async () => {
-  const workflow = await readFile(join(root, ".github", "workflows", "windows-preview-installed-smoke.yml"), "utf8");
-  assert.match(workflow, /workflow_dispatch:/u);
+  const source = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
+  const workflow = source.slice(source.indexOf("  installed-preview-smoke:"));
+  assert.match(source, /workflow_dispatch:/u);
   assert.match(workflow, /contents: read/u);
   assert.match(workflow, /actions: read/u);
   assert.match(workflow, /gh run download "\$env:PREVIEW_RUN_ID"[\s\S]*?EduPi-Windows-x64/u);

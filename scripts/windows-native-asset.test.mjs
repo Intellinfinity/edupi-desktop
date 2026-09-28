@@ -5,17 +5,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { isKnownLegacyWindowsNativePin, preparePinnedWindowsNativeAsset, stagePinnedWindowsNativeAsset, verifyPinnedWindowsNativeAsset,
+import { preparePinnedWindowsNativeAsset, stagePinnedWindowsNativeAsset, verifyPinnedWindowsNativeAsset,
   verifyStagedWindowsNativeAsset, WINDOWS_NATIVE_ASSET_PATH,
   WINDOWS_NATIVE_CONTRACT_PATH } from "./windows-native-asset.mjs";
 
 const bytes = Buffer.from("isolated-windows-native-fixture");
 const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
-test("only the exact pre-contract Core pin may omit the Windows native contract", () => {
-  assert.equal(isKnownLegacyWindowsNativePin("3397b71b3de370c75480a185ae9475d176f8352f"), true);
-  assert.equal(isKnownLegacyWindowsNativePin("a8fe4711419fe3f36a19fd342e17abe33a7825b9"), false);
-  assert.equal(isKnownLegacyWindowsNativePin("ecaeb29428310a732b7fb87ff02aa13e9049215c"), false);
+test("a Windows package never accepts a Core checkout without a native contract", () => {
+  const core = fixture();
+  try {
+    const destinationRoot = path.join(core.root, "bundle");
+    fs.mkdirSync(destinationRoot);
+    assert.throws(() => preparePinnedWindowsNativeAsset({ coreRoot: core.root, coreCommit: core.source,
+      destinationRoot, platform: "win32", downloadAsset: () => bytes }), /ENOENT|contract/u);
+  } finally { core.close(); }
 });
 const approved = (source, overrides = {}) => ({ version: 1, status: "approved", platform: "win32", architecture: "x64", node_major: 22,
   binary_relative_path: WINDOWS_NATIVE_ASSET_PATH, binary_sha256: sha256(bytes), binary_size: bytes.length,

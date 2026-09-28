@@ -12,11 +12,6 @@ const CONTRACT_KEYS = [
 const SHA256 = /^sha256:[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const MAX_BINARY_SIZE = 8 * 1024 * 1024;
-const PRE_CONTRACT_CORE_COMMIT = "3397b71b3de370c75480a185ae9475d176f8352f";
-
-export function isKnownLegacyWindowsNativePin(commit) {
-  return commit === PRE_CONTRACT_CORE_COMMIT;
-}
 
 function validateApprovedWindowsNativeContract(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -166,25 +161,9 @@ function assertNoUnapprovedNativeAsset(destinationRoot) {
   if (fs.existsSync(target)) throw new Error("Windows package contains an unapproved native asset");
 }
 
-function isVerifiedPreContractCheckout(coreRoot, coreCommit) {
-  if (!isKnownLegacyWindowsNativePin(coreCommit)) return false;
-  if (typeof coreRoot !== "string" || !path.isAbsolute(coreRoot)) throw new Error("Pinned Core root is invalid");
-  const root = fs.realpathSync(coreRoot);
-  if (fs.existsSync(path.join(root, WINDOWS_NATIVE_CONTRACT_PATH))) return false;
-  let head;
-  try { head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(); }
-  catch { throw new Error("Pinned Core Git history is unavailable"); }
-  if (head !== coreCommit) throw new Error("Pinned Core checkout does not match the compatibility commit");
-  return true;
-}
-
 export function preparePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot,
   platform = process.platform, token, downloadAsset } = {}) {
   if (platform !== "win32") return null;
-  if (isVerifiedPreContractCheckout(coreRoot, coreCommit)) {
-    assertNoUnapprovedNativeAsset(destinationRoot);
-    return null;
-  }
   const { contract } = readCommittedWindowsNativeContract(coreRoot, coreCommit);
   if (isPendingWindowsNativeContract(contract)) {
     assertNoUnapprovedNativeAsset(destinationRoot);
@@ -197,10 +176,6 @@ export function preparePinnedWindowsNativeAsset({ coreRoot, coreCommit, destinat
 export function verifyStagedWindowsNativeAsset({ coreRoot, coreCommit, destinationRoot,
   platform = process.platform } = {}) {
   if (platform !== "win32") return null;
-  if (isVerifiedPreContractCheckout(coreRoot, coreCommit)) {
-    assertNoUnapprovedNativeAsset(destinationRoot);
-    return null;
-  }
   const { contract } = readCommittedWindowsNativeContract(coreRoot, coreCommit);
   if (isPendingWindowsNativeContract(contract)) {
     assertNoUnapprovedNativeAsset(destinationRoot);

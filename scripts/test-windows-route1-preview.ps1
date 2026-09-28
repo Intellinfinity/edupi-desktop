@@ -15,9 +15,19 @@ $env:EDUPI_DATA_ALLOWED_ROOT = $testRoot
 $env:PI_CODING_AGENT_DIR = $agentDir
 $env:PI_OFFLINE = "1"
 
+$executable = Join-Path $destination "pi-agent-desktop.exe"
+function Stop-InstalledPreviewProcesses {
+    $targets = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -eq $executable })
+    foreach ($target in $targets) { Stop-Process -Id $target.Id -Force -ErrorAction SilentlyContinue }
+    foreach ($target in $targets) { Wait-Process -Id $target.Id -Timeout 10 -ErrorAction SilentlyContinue }
+    $remaining = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -eq $executable })
+    if ($remaining.Count -ne 0) { throw "Installed preview process did not stop" }
+}
+try {
 $installation = Start-Process -FilePath $installers[0].FullName -ArgumentList "/S", "/D=$destination" -Wait -PassThru
 if ($installation.ExitCode -ne 0) { throw "Preview installer returned a nonzero exit code" }
-$executable = Join-Path $destination "pi-agent-desktop.exe"
 $resources = Join-Path $destination "resources"
 $bundledNode = Join-Path $resources "node/node.exe"
 $coreRoot = Join-Path $resources "edupi-core"
@@ -93,19 +103,11 @@ try {
     }
     Write-Output "Windows preview installer retained the approved native bytes, started with isolated data, and kept normal-mode G1 blocked."
 } finally {
-    $application.Refresh()
-    if (!$application.HasExited) {
-        Stop-Process -Id $application.Id -ErrorAction SilentlyContinue
-        Wait-Process -Id $application.Id -Timeout 10 -ErrorAction SilentlyContinue
-    }
+    Stop-InstalledPreviewProcesses
 }
 
 # Exercise the installed executable's native root and private-state guards,
 # without enabling G1 or touching any teacher's configured data directory.
-if (@(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -eq $executable }).Count -ne 0) {
-    throw "Normal-mode preview process still owns the single instance"
-}
 $canaryRoot = Join-Path $env:USERPROFILE "edupi-route1-canary-preview-$([guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $canaryRoot | Out-Null
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -118,6 +120,12 @@ $env:EDUPI_PROJECT_ROOT = $canaryRoot
 $env:EDUPI_DATA_ROOT = $canaryRoot
 $env:EDUPI_DATA_ALLOWED_ROOT = $env:USERPROFILE
 $env:EDUPI_ROUTE1_ISOLATED_CANARY = "1"
+$logRoots = @((Join-Path $env:LOCALAPPDATA "com.abcwyc.pi-agent"), (Join-Path $env:APPDATA "com.abcwyc.pi-agent"))
+$baselineLogSizes = @{}
+foreach ($log in @($logRoots | Where-Object { Test-Path $_ } |
+    ForEach-Object { Get-ChildItem $_ -Filter "server.log" -Recurse -ErrorAction SilentlyContinue })) {
+    $baselineLogSizes[$log.FullName] = $log.Length
+}
 $canary = Start-Process -FilePath $executable -ArgumentList "--safe-mode" -PassThru
 try {
     $verified = $false
@@ -125,10 +133,10 @@ try {
     for ($attempt = 0; $attempt -lt 45; $attempt++) {
         $canary.Refresh()
         if ($canary.HasExited) { throw "Installed Safe Mode canary exited before Core became ready" }
-        $logRoots = @((Join-Path $env:LOCALAPPDATA "com.abcwyc.pi-agent"), (Join-Path $env:APPDATA "com.abcwyc.pi-agent"))
         $logs = @($logRoots | Where-Object { Test-Path $_ } |
             ForEach-Object { Get-ChildItem $_ -Filter "server.log" -Recurse -ErrorAction SilentlyContinue })
         foreach ($log in $logs) {
+            if ($baselineLogSizes.ContainsKey($log.FullName) -and $log.Length -le $baselineLogSizes[$log.FullName]) { continue }
             $ports = [regex]::Matches((Get-Content $log.FullName -Raw), 'http://127\.0\.0\.1:(\d+)')
             if ($ports.Count -eq 0) { continue }
             $origin = "http://127.0.0.1:$($ports[$ports.Count - 1].Groups[1].Value)"
@@ -147,9 +155,8 @@ try {
     if (!$verified) { throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus" }
     Write-Output "Windows installed preview Safe Mode canary: Core/projection ready, exact pin, G1 pending, external send off."
 } finally {
-    $canary.Refresh()
-    if (!$canary.HasExited) {
-        Stop-Process -Id $canary.Id -ErrorAction SilentlyContinue
-        Wait-Process -Id $canary.Id -Timeout 10 -ErrorAction SilentlyContinue
-    }
+    Stop-InstalledPreviewProcesses
+}
+} finally {
+    Stop-InstalledPreviewProcesses
 }

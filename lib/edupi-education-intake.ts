@@ -43,7 +43,10 @@ export type TimetableImportSlot = {
   day_of_week: number;
   period: number;
   subject: string;
+  class_id?: string | null;
   class_name: string | null;
+  start_time?: string;
+  time_zone?: string;
   kind: "class" | "routine";
   notes: string | null;
 };

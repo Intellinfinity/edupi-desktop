@@ -34,7 +34,7 @@ type Props = {
   onSelect: (selection: CalendarItemSelection | null) => void;
   onTaskDetail: (task: TeacherTask) => void;
   onImportCalendar: (event: CalendarIntakeInput) => Promise<void>;
-  onImportTimetable: (slot: { slotId: string | null; dayOfWeek: number; period: number; subject: string; className: string | null; kind: "class" | "routine"; notes: string | null }) => Promise<void>;
+  onImportTimetable: (slot: { slotId: string | null; dayOfWeek: number; period: number; subject: string; classId: string | null; className: string | null; startTime: string | null; timeZone: string | null; kind: "class" | "routine"; notes: string | null }) => Promise<void>;
   onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean>;
 };
 
@@ -280,6 +280,8 @@ function CalendarDetailDrawer({ data, selection, onClose, onEdit, onDelete, dele
       ["节次", rawText(item.period)],
       ["科目 / 事务", rawText(item.subject) || selection.title],
       ["班级", rawText(item.class_name ?? item.className)],
+      ["上课时间", rawText(item.start_time)],
+      ["时区", rawText(item.time_zone)],
       ["类型", item.kind === "routine" ? "固定事务" : "课程"],
       ["备注", visibleTimetableNote(item.notes) || selection.detail],
     ] as Array<[string, unknown]>) { const text = rawText(value); if (text) rows.push({ label, value: text }); }
@@ -330,12 +332,16 @@ function IntakeComposer({ mode, anchorDate, calendarEvent, timetableSlot, busy, 
           location: String(form.get("location") || "") || null,
         });
       } else {
+        const startTime = String(form.get("startTime") || "") || null;
         await onImportTimetable({
           slotId: rawText(timetableSlot?.slot_id ?? timetableSlot?.id),
           dayOfWeek: Number(form.get("dayOfWeek")),
           period: Number(form.get("period")),
           subject: String(form.get("subject") || ""),
+          classId: String(form.get("classId") || "") || null,
           className: String(form.get("className") || "") || null,
+          startTime,
+          timeZone: startTime ? String(form.get("timeZone") || "") || null : null,
           kind: form.get("kind") === "routine" ? "routine" : "class",
           notes: String(form.get("notes") || "") || null,
         });
@@ -360,6 +366,9 @@ function IntakeComposer({ mode, anchorDate, calendarEvent, timetableSlot, busy, 
     <label><span>节次</span><input name="period" type="number" min={0} max={64} required defaultValue={rawText(timetableSlot?.period) || 1} /></label>
     <label><span>科目 / 事务</span><input name="subject" required maxLength={120} placeholder="如：数学" defaultValue={rawText(timetableSlot?.subject) || ""} /></label>
     <label><span>班级</span><input name="className" maxLength={120} placeholder="可不填" defaultValue={rawText(timetableSlot?.class_name ?? timetableSlot?.className) || ""} /></label>
+    <label><span>班级编号</span><input name="classId" maxLength={128} placeholder="如 7-1" defaultValue={rawText(timetableSlot?.class_id) || ""} /></label>
+    <label><span>上课时间</span><input name="startTime" type="time" defaultValue={rawText(timetableSlot?.start_time) || ""} /></label>
+    <label><span>时区</span><input name="timeZone" maxLength={100} defaultValue={rawText(timetableSlot?.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone} /></label>
     <label><span>类型</span><select name="kind" defaultValue={timetableSlot?.kind === "routine" ? "routine" : "class"}><option value="class">课程</option><option value="routine">固定事务</option></select></label>
   </>}<label className="is-wide"><span>备注</span><textarea name="notes" rows={3} maxLength={1000} placeholder="可不填" defaultValue={mode === "calendar" ? calendarEvent?.notes || "" : visibleTimetableNote(timetableSlot?.notes) || ""} /></label><footer>{error ? <span role="alert">{error}</span> : <span /> }<button type="button" onClick={onClose}>取消</button><button type="submit" className="is-primary" disabled={busy}>{busy ? "保存中…" : editingCalendar || editingTimetable ? "保存更改" : "写入 EduPi"}</button></footer></form></section>;
 }

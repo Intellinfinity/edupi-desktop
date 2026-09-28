@@ -4,14 +4,13 @@ import {
   EducationIntakeError,
   issueEducationIntake,
   type EducationIntakeCommand,
-  type TimetableImportSlot,
 } from "@/lib/edupi-education-intake";
 import { listStagedMaterials, settleStagedMaterial, type MaterialStagingDescriptor } from "@/lib/edupi-material-staging";
 import { intakeRecognizedMaterial } from "@/lib/edupi-material-intake-flow";
 import { MaterialRecognitionError } from "@/lib/edupi-material-recognition";
 import { MaterialRecognitionAdmissionError, withMaterialRecognitionLock } from "@/lib/edupi-material-recognition-lock";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
-import { stableScheduleSourceHash, stableTimetableSlotId } from "@/lib/edupi-schedule-upload";
+import { parseTimetableIntakeCommand } from "@/lib/edupi-timetable-intake";
 import { parseCalendarIntakeCommand } from "@/lib/edupi-calendar-intake-request";
 import { syncCalendarFile } from "@/lib/edupi-calendar-file-sync";
 import { CalendarSourceError } from "@/lib/edupi-calendar-sources";
@@ -44,38 +43,6 @@ function optionalText(value: unknown, max: number): string | null | undefined {
 function requiredText(value: unknown, max: number): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) throw new EducationIntakeError("invalid_envelope", "导入字段无效。");
   return value.trim();
-}
-
-function sourceFor(kind: "calendar" | "timetable", raw: readonly RawRecord[], stableSourceId?: string) {
-  const hash = stableScheduleSourceHash(raw);
-  const token = hash.slice("sha256:".length, "sha256:".length + 24);
-  return { source_id: stableSourceId || `desktop-${kind}-${token}`, source_kind: "teacher_message" as const, source_hash: hash, evidence_ids: [`${kind}-evidence-${token}`] };
-}
-
-function timetableCommand(body: RawRecord): EducationIntakeCommand {
-  if (!exactKeys(body, ["kind", "slots"]) || !Array.isArray(body.slots) || body.slots.length === 0 || body.slots.length > 200) {
-    throw new EducationIntakeError("invalid_envelope", "课表导入必须包含 1—200 个时段。");
-  }
-  const slots: TimetableImportSlot[] = body.slots.map((value) => {
-    const item = record(value);
-    if (!item || !exactKeys(item, ["slotId", "dayOfWeek", "period", "subject", "className", "kind", "notes"])
-      || !Number.isInteger(item.dayOfWeek) || Number(item.dayOfWeek) < 1 || Number(item.dayOfWeek) > 7
-      || !Number.isInteger(item.period) || Number(item.period) < 0 || Number(item.period) > 64) {
-      throw new EducationIntakeError("invalid_envelope", "课表时段字段无效。");
-    }
-    const kind = item.kind === undefined ? "class" : requiredText(item.kind, 20);
-    if (kind !== "class" && kind !== "routine") throw new EducationIntakeError("invalid_envelope", "课表类型无效。");
-    return {
-      slot_id: typeof item.slotId === "string" && item.slotId.trim() ? requiredText(item.slotId, 160) : stableTimetableSlotId(item),
-      day_of_week: Number(item.dayOfWeek),
-      period: Number(item.period),
-      subject: requiredText(item.subject, 120),
-      class_name: optionalText(item.className, 120) ?? null,
-      kind,
-      notes: optionalText(item.notes, 1000) ?? null,
-    };
-  });
-  return { command_type: "import_timetable", source: sourceFor("timetable", slots as unknown as RawRecord[]), slots };
 }
 
 function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean; calendarSourceId: string | null; calendarSourceFingerprint: string | null; documentSourceId: string | null; documentSourceFingerprint: string | null; documentPairingFingerprint: string | null; documentPairings: DocumentPairingChoice[] | null } {
@@ -201,7 +168,7 @@ export async function POST(request: Request) {
     const command = body.kind === "calendar"
       ? parseCalendarIntakeCommand(body)
       : body.kind === "timetable"
-        ? timetableCommand(body)
+        ? parseTimetableIntakeCommand(body)
         : (() => { throw new EducationIntakeError("invalid_envelope", "不支持的教育导入类型。"); })();
     const result = await issueEducationIntake(command);
     return NextResponse.json({ receipt: result.receipt });

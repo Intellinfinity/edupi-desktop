@@ -7,6 +7,7 @@ import test from "node:test";
 import { createJiti } from "jiti";
 
 const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
+const { parseTimetableIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-timetable-intake.ts");
 const { parseCalendarIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-calendar-intake-request.ts");
 const { MANUAL_CALENDAR_ISSUER, stableCalendarEventId, stableDocumentOccurrenceRef, stableDocumentOccurrenceVariantRef, stableDocumentScheduleSourceId, stableFileScheduleIssuer, stableOccurrenceCalendarEventId, stableRecognizedCalendarEventId, stableTimetableSlotId, stableScheduleSourceHash } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-schedule-upload.ts");
 const { stageMaterialInputs } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-material-staging.ts");
@@ -31,6 +32,9 @@ test("rejects unknown and unbounded intake shapes before Core dispatch", async (
     { kind: "calendar", events: [], secret: "no" },
     { kind: "calendar", events: [] },
     { kind: "timetable", slots: [] },
+    { kind: "timetable", slots: [{ dayOfWeek: 2, period: 2, subject: "数学", className: "七一班", classId: "七一班" }] },
+    { kind: "timetable", slots: [{ dayOfWeek: 2, period: 2, subject: "数学", classId: "class-7-1", startTime: "25:00", timeZone: "Asia/Shanghai" }] },
+    { kind: "timetable", slots: [{ dayOfWeek: 2, period: 2, subject: "数学", classId: "class-7-1", startTime: "09:00" }] },
     { kind: "material", stagingId: "bad", unknown: true },
     { kind: "unknown" },
     { kind: "calendar", events: [{ date: "2026-10-01", name: "教研", type: "meeting", sourceOccurrenceRef: "ref-1", timeInterval: { start: "2026-10-01T09:00", end: "2026-10-01T10:00+08:00", timeZone: "Asia/Shanghai" } }] },
@@ -42,6 +46,23 @@ test("rejects unknown and unbounded intake shapes before Core dispatch", async (
     assert.equal(response.status, 400);
     assert.equal((await response.json()).code, "invalid_envelope");
   }
+});
+
+test("teacher-confirmed timetable class ID reaches the Core envelope unchanged", async () => {
+  const { buildEducationIntakeCommandEnvelope } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-education-intake.ts");
+  const { buildEducationContract } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-education-contract.ts");
+  const command = parseTimetableIntakeCommand({ kind: "timetable", slots: [{ slotId: "slot-7-1", dayOfWeek: 2,
+    period: 2, subject: "数学", className: "七一班", classId: "class-7-1", startTime: "09:00", timeZone: "Asia/Shanghai", kind: "class" }] });
+  assert.equal(command.slots[0].class_id, "class-7-1");
+  assert.equal(command.slots[0].class_name, "七一班");
+  assert.equal(command.slots[0].start_time, "09:00");
+  assert.equal(command.slots[0].time_zone, "Asia/Shanghai");
+  const envelope = buildEducationIntakeCommandEnvelope({ snapshotId: "snapshot-before", command });
+  assert.equal(envelope.command.slots[0].class_id, "class-7-1");
+  assert.equal(buildEducationContract({ timetable: command.slots }).timetable[0].class_id, "class-7-1");
+  assert.equal(buildEducationContract({ timetable: command.slots }).timetable[0].start_time, "09:00");
+  assert.equal(parseTimetableIntakeCommand({ kind: "timetable", slots: [{ slotId: "slot-7-1", dayOfWeek: 2,
+    period: 2, subject: "数学", className: "七一班", classId: "class-7-2", kind: "class" }] }).source.source_hash === command.source.source_hash, false);
 });
 
 test("document pairing fields cannot be smuggled into another material kind", async () => {
@@ -112,6 +133,12 @@ test("derives stable semantic IDs for schedule uploads without caller IDs", () =
   const slot = { dayOfWeek: 1, period: 2, subject: " 数学 ", className: "七年级二班", kind: "class" };
   assert.equal(stableTimetableSlotId(slot), stableTimetableSlotId({ ...slot, subject: "数学" }));
   assert.notEqual(stableTimetableSlotId(slot), stableTimetableSlotId({ ...slot, period: 3 }));
+  assert.notEqual(stableTimetableSlotId({ ...slot, classId: "class-7-1" }),
+    stableTimetableSlotId({ ...slot, classId: "class-7-2" }),
+    "same-label classes must never share a new timetable slot ID");
+  assert.equal(stableTimetableSlotId({ ...slot, classId: "class-7-1", startTime: "09:00" }),
+    stableTimetableSlotId({ ...slot, classId: "class-7-1", startTime: "09:30" }),
+    "time edits revise one class slot rather than inventing another class identity");
   const first = { eventId: "a", date: "2026-09-01", name: "开学", type: "teaching" };
   const second = { eventId: "b", date: "2026-09-02", name: "班会", type: "meeting" };
   assert.equal(stableScheduleSourceHash([first, second]), stableScheduleSourceHash([second, first]));

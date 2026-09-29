@@ -1,11 +1,28 @@
 # 路线 1：Core a8fe471 安装版主动闭环验收
 
+## 2026-09-29 v0.3.50 签名安装实测
+
+- 本轮可执行验收结束后，已正常退出候选和本机模型桩，将唯一 `/Applications/EduPi.app` 恢复为未运行的公开 v0.3.45；严格签名和 Gatekeeper 再核通过。151 文件摘要仍与基线一致。v0.3.50 App 保留于 `/tmp/edupi-route1-draft-050.JPb0kN/EduPi-installed-050.app`，DMG 和隔离数据保留，DMG 已卸载。以下“临时运行”均为验收过程，不是当前安装状态。
+- macOS [CI 36574120908](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36574120908) 已成功，代码为 `acecf26`；签名包运行、updater key、Apple 公证、DMG 装订与最终验证通过。这次只构建 macOS，三平台资产证明及发布步骤有意跳过。Release `399167693` 保持 Draft，公开 feed 未更新。
+- 最终 DMG 资产 `598386165`，210315903 字节，SHA-256 `7f1b27b2b14216059c17428200493b79e3d0b27b2861562a132b6219e1c0e7aa`；独立下载摘要完全一致，App 严格签名与 App/DMG Gatekeeper 均为 `accepted / Notarized Developer ID`。下载与 CI 元数据保存在 `/tmp/edupi-route1-draft-050.JPb0kN/`。7897 代理的较长连接测试通过，随后显式用于下载；未修改系统代理规则。
+- 唯一 `/Applications/EduPi.app` 临时替换为签名 v0.3.50，原 v0.3.45 保留在 `/tmp/edupi-route1-draft-050.JPb0kN/EduPi-public-045.app`。通过 LaunchServices 启动原隔离根 `edupi-route1-canary-0x2ohcXU`，原生 PID `70787`、loopback `38471`；Core/投影 ready，包内 pin 与三份合同 hash 精确匹配 `22bf414`，保存的 G1 班科授权恢复，G2/G3 pending，`externalSend=false`。这是显式隔离运行，不是改变真实教师根。
+- 实际审核页验证过时快照：从另一入口将合成候选 revision 4 改为 5，旧页面点击“接受”被拒绝并显示“本次没有写入/刷新任务”；实际点击刷新后提示清除，Core 仍是 held/revision 5、审核历史 3 条，没有重交旧决定。之前一次 revision 3→4 被既有自动刷新提前协调，未触发错误，不能计为过时快照分支。刷新读取失败的 503 路径仍只有开发页面故障注入证据。
+- 安装版从原任务“继续协作”重新进入 `01a0ec52-5b49-708c-a169-033d1c294563`，原用户/助手消息均可见；发送一次明确合成的续聊后得到本机模型答复，离开返回任务，原绑定不变。任务详情又为 revision 5 写入 `synthetic / teaching_preparation / hold / useful / used=false`，页面显示“已评价”；Core 当前 records 为 2 条，另一条属于旧 revision 3，没有计入真人价值。
+- 原 execution 仍为 `draft_ready / attempt 2`，4 份文件及内容摘要均保持。Core 的 `normalizeCandidate()` 对 held 返回 `candidate_blocked`，因此暂缓时不投影产物，页面显示 0 项；这证明原始产物持久化，**不能证明暂缓后的产物入口可见**。本次不越过 Core 的状态过滤。
+- 正常退出 PID `70787` 后，按相同隔离启动参数重新启动唯一 App 为 PID `86908`，Core/投影重新 ready。安装版从任务再次打开原 Session，4 条消息全部可见；审核页回读“已评价”，Core records 仍为 2 条 synthetic，execution 仍为 attempt 2/4 个文件，没有新增备课调用。
+- 合成事项“路线 1 安装验收通知”的 task 为 `teacher-task-de88d509-a965-4be6-ba29-3dd95a105c80`，reminder 为 `8027cb37-ed6c-4bc7-88b5-1109111f92f8`。系统送达 `2026-09-29T14:47:21.260Z` 后经历上述 App 退出重启；用户实际点击并回复“已点击”，opened 为 `2026-09-29T14:53:58.143Z`。原生界面直接进入该 task 的对话并带入同一事项参考；通过 UI 输入发送后得到本机回复，Core 新绑定 `01a0eda9-e241-74fe-9fa6-12a43abb5a9c`，原数学任务绑定仍为 `01a0ec52…`。
+- 通知会话留下一条明确合成的未发送草稿，再切换数学会话，输入框为空且不含该草稿；返回通知会话时，同一新 Session、用户/助手消息及草稿均恢复。此项是实际系统点击→续聊发送→Core 绑定→离开重进的安装证据，非站内按钮替代；通知目标在 App 重启后仍可消费。
+- 真实跨到期系统睡眠仍未验。23:00 前复核周四任务 `teaching_before_class:timetable:timetable-slot-ada8fd74e4154e0a84cb16beb7ba2e99:2026-10-01`，dueDate `2026-09-30`、planned/not_generated，work case `work_case_8cc7a955978906a158f37351c9dfe073` 为 revision 0/0 产物。已询问用户是否今晚在上海 00:00 前睡眠、之后唤醒，尚未收到安排；按原约定恢复公开版，并暂停心跳以免空转。恢复入口是同一隔离根及保留的签名 .50 App，重新开始前须确认仍有未来到期点，不能把事后冷启动当跨到期睡眠。不改变系统时间、能源设置或 launchd，也不将进程暂停算作系统睡眠。本次不补写六领域 Live 或真人教学质量通过。
+
 ## 2026-09-29 v0.3.50 审核刷新收尾
 
+- `2026-09-29 13:52 UTC` 用户告知已解锁，桌面控制工具成功读取 Finder，锁屏阻塞已解除。CI 当前仍在 `Build, sign, and upload updater artifacts`，Draft 尚无资产；等待现有候选完成。心跳已同步这一实测状态，后续不得沿用旧锁屏结论。
+- [PR #287](https://github.com/Intellinfinity/edupi-desktop/pull/287) 已于 `2026-09-29T13:36:46Z` 合并到 main，merge commit `6eb1cad254434f635697cb0242aceeaadb641681`；最终 head `589b1d5` 的 npm/Rust [audit CI 36575795517](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36575795517) 双绿。代码交付完成，路线 1 安装验收仍部分完成；下文“PR Draft”均为历史状态。
 - 继续同一分支，保留现有改动。任务详情的过时快照提示增加“刷新任务”，复用现有工作区读取事件；读取失败可重试，不自动重交教师决定。反馈 effect 依赖与生成组件版本同步修正，没有新增依赖或执行通道。
 - `acecf26` 的本地定向审核/反馈/工作区 20 项、TypeScript、lint、`release:verify` 和 macOS `cargo test --locked` 41 项通过；lint 仅剩既有 intake 未使用类型告警。独立只读复审无 P1/P2；[PR audit CI 36574113348](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36574113348) 的 npm 与 Rust audit 双绿。
 - 使用隔离副本和真实开发页面执行 `playwright-cli -s=route1-refresh run-code --filename refresh-ui-check.js`，注入审核 POST 的 `409 stale_snapshot` 与一次工作区 GET `503`：页面出现刷新按钮，失败后保留重试，取消网络注入再刷新成功。两次刷新只有初始 1 次审核 POST，Core 回读仍为 held/revision 3，审核历史未新增，`externalSend=false`。1440×900、800×900 均操作并截图；800 宽需先收起覆盖内容的对象列表，首次未收起时点击超时不算通过。脚本及三张截图保留于 `/private/tmp/edupi-route1-refresh-KuMACg/`；这是页面故障注入验证，不冒充安装版证据。
-- v0.3.50 [macOS 签名 Draft CI 36574120908](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36574120908) 绑定 `acecf26`，尚在运行；没有触发 Windows 安装任务。
+- v0.3.50 [macOS 签名 Draft CI 36574120908](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36574120908) 绑定 `acecf26`，应用质量、配对 Core 和包内集成已通过，签名构建仍在运行；没有触发 Windows 安装任务。Mac 被桌面控制工具确认锁屏，已请求用户解锁；此时 `/Applications/EduPi.app` 仍是未运行的公开 v0.3.45，未再次替换。当前任务心跳 `edupi-1` 每 5 分钟跟进现有 CI，状态不变时静默，完成当前可执行验收后暂停。
+- 本轮收尾复核真实 Core memory/output、模型/认证配置及桌面偏好，共 151 文件摘要仍为 `2255059dd3bc283fc6c89d8af6c86f5f0f29874eae0c35ab2577643bfad2b2ad`；只读核对脚本为隔离目录中的 `real-data-fingerprint.mjs`。开发服务和测试浏览器已退出；原 Desktop 工作树仍在原分支且干净。
 - 用户已延后 Windows 安装验收；当前 Windows Safe Mode 失败继续保留，G1 默认关闭。代码合并与发布验收分开记录，真实通知点击、跨到期系统睡眠及六领域 Live 均未补证；公开 feed 仍 0.3.45。
 
 ## 2026-09-29 本轮收口状态（取代下方临时安装状态）

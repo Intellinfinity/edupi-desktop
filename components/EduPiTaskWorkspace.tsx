@@ -1,6 +1,6 @@
 "use client";
 
-import type { EducationWorkCase, TaskReviewAction, TeacherTask } from "@/lib/edupi-education-contract";
+import type { EducationWorkCandidate, EducationWorkCase, TaskReviewAction, TeacherTask } from "@/lib/edupi-education-contract";
 import type { TaskSessionBinding } from "@/lib/edupi-task-sessions";
 import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { taskDisplayTitle, taskStatusLabel, taskStatusTone, taskTypeLabel, type TaskStage } from "@/lib/edupi-workbench";
@@ -12,6 +12,7 @@ type Props = {
   task: TeacherTask;
   files?: GeneratedArtifact[];
   workReview?: boolean;
+  workCandidate?: EducationWorkCandidate | null;
   workCase: EducationWorkCase | null;
   stage: TaskStage;
   workspace: string;
@@ -78,6 +79,7 @@ export function EduPiTaskWorkspace(props: Props) {
           task={props.task}
           workCase={props.workCase}
           workReview={props.workReview}
+          workCandidate={props.workCandidate}
           files={props.files?.filter(file => file.task_id === props.task.id)}
           stage={props.stage}
           workspace={props.workspace}

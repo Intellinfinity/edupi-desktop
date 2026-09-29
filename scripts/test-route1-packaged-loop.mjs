@@ -94,6 +94,7 @@ async function startPackagedServer(label) {
     ...process.env, HOME: homeRoot, HOSTNAME: "127.0.0.1", PORT: String(port), NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
     PI_CODING_AGENT_DIR: agentDir, PI_DESKTOP_STATE_DIR: stateDir, PI_DESKTOP_API_TOKEN: token,
     PI_DESKTOP_INSTANCE_ID: "route1-packaged-loop", PI_WEB_PARENT_PID: String(process.pid), PI_OFFLINE: "1",
+    EDUPI_DESKTOP_ISOLATED_CANARY: "1",
     EDUPI_PROJECT_ROOT: dataRoot, EDUPI_DATA_ROOT: dataRoot, EDUPI_DATA_ALLOWED_ROOT: temp,
     EDUPI_CORE_ROOT: coreRoot, EDUPI_CORE_ALLOWED_ROOT: resources, EDUPI_CORE_VALIDATION_MODE: "bundled",
     EDUPI_HOME: path.join(dataRoot, ".edupi"), EDUPI_MEMORY_DIR: memoryDir,
@@ -261,7 +262,9 @@ try {
   assert.equal(target.scope?.class_id, "class-7-1");
   assert.equal(target.scope?.subject, "数学");
   const feedback = { command_id: "route1-synthetic-feedback-1", session_id: "route1-synthetic-session",
-    evidence_level: "synthetic", domain: "teaching_preparation", scope: target.scope,
+    // The UI defaults to real_teacher; the attested isolated Desktop server
+    // must force this test capture to synthetic before writing it to Core.
+    evidence_level: "real_teacher", domain: "teaching_preparation", scope: target.scope,
     signal: "surfaced", target: { kind: "work_candidate", target_id: candidate.candidateId,
       expected_revision: target.revision, expected_fingerprint: target.fingerprint },
     decision: "accept", usefulness: "useful", used: true, would_use_again: true,
@@ -275,6 +278,7 @@ try {
   assert.equal(feedbackReplay.result.replayed, true);
   const feedbackRead = await api(firstServer, "/api/edupi/teacher-feedback");
   assert.equal(feedbackRead.result.feedback.some(item => item.feedback_id === feedbackId), true);
+  assert.equal(feedbackRead.result.feedback.find(item => item.feedback_id === feedbackId).evidence_level, "synthetic");
   assert.equal(feedbackRead.result.summary.synthetic_excluded, 1);
   assert.equal(feedbackRead.result.summary.real_teacher_current, 0);
   const deactivated = await api(firstServer, "/api/edupi/proactivity", { enabled: false,

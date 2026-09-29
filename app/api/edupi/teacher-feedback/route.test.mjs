@@ -6,7 +6,15 @@ import { createJiti } from "jiti";
 const source = await fs.readFile(new URL("./route.ts", import.meta.url), "utf8");
 const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
 const { GET, POST } = await jiti.import("./route.ts");
-const { asRecord, bindFeedbackRecord } = await jiti.import("../../../../lib/edupi-teacher-feedback-binding.ts");
+const { asRecord, bindFeedbackRecord, feedbackRecordForRuntime } = await jiti.import("../../../../lib/edupi-teacher-feedback-binding.ts");
+
+test("isolated Route 1 canary feedback cannot enter real-teacher metrics", () => {
+  const original = { evidence_level: "real_teacher", command_id: "feedback-1" };
+  assert.deepEqual(feedbackRecordForRuntime(original, true), { ...original, evidence_level: "synthetic" });
+  assert.deepEqual(feedbackRecordForRuntime(original, false), original);
+  assert.equal(original.evidence_level, "real_teacher");
+  assert.match(source, /EDUPI_DESKTOP_ISOLATED_CANARY === "1"/);
+});
 
 test("feedback reads and writes require the desktop process token before Core access", async () => {
   const previousToken = process.env.PI_DESKTOP_API_TOKEN;

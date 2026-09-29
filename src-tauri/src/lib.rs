@@ -2104,6 +2104,7 @@ fn start_packaged_server(
         .env("PI_DESKTOP_STATE_DIR", &desktop_state_dir)
         .env("PI_WEB_PARENT_PID", std::process::id().to_string())
         .env("EDUPI_SAFE_MODE", if safe_mode { "1" } else { "0" })
+        .env("EDUPI_DESKTOP_ISOLATED_CANARY", if isolated_canary { "1" } else { "0" })
         .env("EDUPI_WINDOWS_G1_CANARY", windows_g1_canary)
         .env("EDUPI_MOBILE_BRIDGE_ENABLED", if mobile_enabled { "1" } else { "0" })
         .env(DESKTOP_API_TOKEN_ENV, desktop_api_token)

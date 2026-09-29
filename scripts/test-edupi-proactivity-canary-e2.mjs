@@ -173,15 +173,26 @@ try {
   assert.equal(enabledBody.externalSend, false);
   assert.equal((await (await messageRoute.GET(request("http://localhost/api/edupi/proactivity/messages"))).json()).status, "enabled");
 
-  const outOfScope = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
-    sessionId, messageId: "canary-out-of-scope", text: "请跟进学生张三的课堂观察", occurredAt: new Date().toISOString(),
-  }));
-  const outOfScopeBody = await outOfScope.json();
-  assert.equal(outOfScope.status, 200, JSON.stringify(outOfScopeBody));
-  assert.equal(outOfScopeBody.status, "captured");
-  assert.equal(outOfScopeBody.reason, "domain_out_of_scope");
-  assert.equal(ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot })
-    .some((item) => item.messageId === "canary-out-of-scope"), false);
+  for (const [domain, text] of [
+    ["student-followup", "请跟进学生张三的课堂观察"],
+    ["lesson-reflection", "请做这节课的课后复盘"],
+    ["calendar-administration", "请整理校历行政截止事项"],
+    ["parent-communication", "请起草给家长的沟通草稿"],
+    ["safety-privacy", "请核对学生隐私和安全风险"],
+  ]) {
+    const messageId = `canary-held-${domain}`;
+    const response = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
+      sessionId, messageId, text, occurredAt: new Date().toISOString(),
+    }));
+    const result = await response.json();
+    assert.equal(response.status, 200, JSON.stringify({ domain, result }));
+    assert.equal(result.status, "captured", JSON.stringify({ domain, result }));
+    assert.equal(result.reason, "domain_out_of_scope", JSON.stringify({ domain, result }));
+    assert.equal(result.externalSend, false);
+    assert.equal(result.goalId == null, true);
+    assert.equal(ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot })
+      .some((item) => item.messageId === messageId), false);
+  }
 
   const messageBody = { sessionId, messageId: "canary-message-1", text: "帮我准备明天的数学教案", occurredAt: new Date().toISOString() };
   const firstMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));

@@ -19,11 +19,18 @@ $executable = Join-Path $destination "pi-agent-desktop.exe"
 function Stop-InstalledPreviewProcesses {
     $targets = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -eq $executable })
-    foreach ($target in $targets) { Stop-Process -Id $target.Id -Force -ErrorAction SilentlyContinue }
-    foreach ($target in $targets) { Wait-Process -Id $target.Id -Timeout 10 -ErrorAction SilentlyContinue }
-    $remaining = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -eq $executable })
-    if ($remaining.Count -ne 0) { throw "Installed preview process did not stop" }
+    foreach ($target in $targets) {
+        # The installed shell owns a local server child. Stop the exact test
+        # instance and its children together before starting the Safe Mode run.
+        & (Join-Path $env:SystemRoot "System32/taskkill.exe") /PID $target.Id /T /F | Out-Null
+    }
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        $remaining = @(Get-Process -Name "pi-agent-desktop" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -eq $executable })
+        if ($remaining.Count -eq 0) { return }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "Installed preview process did not stop: $($remaining.Id -join ',')"
 }
 try {
 $installation = Start-Process -FilePath $installers[0].FullName -ArgumentList "/S", "/D=$destination" -Wait -PassThru

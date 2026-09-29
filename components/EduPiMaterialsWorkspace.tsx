@@ -16,6 +16,7 @@ import { EduPiIconButton, EduPiPagination } from "./EduPiActionIcon";
 import { resolveScheduleSourceSelection, type ScheduleSourceOption } from "@/lib/edupi-schedule-source-selection";
 import type { DocumentPairingItem, DocumentPairingPreview, DocumentPairingSubmission } from "@/lib/edupi-document-pairing-contract";
 import { documentPairingSubmission } from "@/lib/edupi-document-pairing-selection";
+import { hasUnboundSameNameClass, materialClassOptions } from "@/lib/edupi-material-class-options";
 
 const PAGE_SIZE = 8;
 
@@ -63,7 +64,9 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   const [pairingChoices, setPairingChoices] = useState<Record<string, string>>({});
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pairingError, setPairingError] = useState("");
-  const classes = useMemo(() => [...new Set((context?.classes || []).map(value => value.trim()).filter(Boolean))], [context?.classes]);
+  const classOptions = useMemo(() => materialClassOptions(data.timetable, context?.classes || []), [context?.classes, data.timetable]);
+  const classes = useMemo(() => classOptions.map(option => option.value), [classOptions]);
+  const unboundSameNameClass = useMemo(() => hasUnboundSameNameClass(data.timetable), [data.timetable]);
   const generatedError = data.generatedArtifactsUnavailable;
   const materialIntakeReady = data.capabilities.materialIntake.enabled;
   const calendarIntakeReady = materialIntakeReady && data.capabilities.calendar.enabled && data.capabilities.entityDelete.enabled;
@@ -177,7 +180,9 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
     setPairingChoices({});
     setPairingError("");
     if (item.kind === "calendar" || documentScheduleSource(item)) void loadScheduleSources();
-    setIntakeDraft({ stagingId: item.staging_id, scheduleSourceId: "", ...defaultMaterialIntakeMetadata(item.original_name, context) });
+    const defaults = defaultMaterialIntakeMetadata(item.original_name, context);
+    setIntakeDraft({ stagingId: item.staging_id, scheduleSourceId: "", ...defaults,
+      classId: classOptions.some(option => option.value === defaults.classId) ? defaults.classId : "" });
   };
   const previewPairings = async (item: MaterialStagingDescriptor) => {
     const selectedSource = resolveScheduleSourceSelection(intakeDraft?.scheduleSourceId || "", scheduleSources).source;
@@ -287,7 +292,8 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
               <label>材料名称<input required maxLength={240} value={intakeDraft.title} onChange={(event) => setIntakeDraft({ ...intakeDraft, title: event.target.value })} /></label>
               <label>材料类型<select value={intakeDraft.materialKind} onChange={(event) => setIntakeDraft({ ...intakeDraft, materialKind: event.target.value as MaterialIntakeMetadata["materialKind"] })}><option value="worksheet">学案 / 练习</option><option value="lesson_note">教案 / 备课</option><option value="assessment">测验 / 作业</option><option value="classroom_record">课堂记录</option><option value="other">其他</option></select></label>
               <label>学科<input required maxLength={120} value={intakeDraft.subject} onChange={(event) => setIntakeDraft({ ...intakeDraft, subject: event.target.value })} /></label>
-              <label>班级{classes.length ? <select required value={intakeDraft.classId} onChange={(event) => setIntakeDraft({ ...intakeDraft, classId: event.target.value })}><option value="">选择班级</option>{classes.map(item => <option value={item} key={item}>{item}</option>)}</select> : <input required maxLength={160} value={intakeDraft.classId} onChange={(event) => setIntakeDraft({ ...intakeDraft, classId: event.target.value })} />}</label>
+              <label>班级{classOptions.length ? <select required value={intakeDraft.classId} onChange={(event) => setIntakeDraft({ ...intakeDraft, classId: event.target.value })}><option value="">选择班级</option>{classOptions.map(item => <option value={item.value} key={item.value}>{item.label}</option>)}</select> : <input required maxLength={160} value={intakeDraft.classId} onChange={(event) => setIntakeDraft({ ...intakeDraft, classId: event.target.value })} />}</label>
+              {unboundSameNameClass ? <small>同名旧课表请先补班级编号</small> : null}
               {documentSchedule && documentScheduleReady ? <><label>日程或课表来源<select value={intakeDraft.scheduleSourceId} onChange={(event) => {
                 setIntakeDraft({ ...intakeDraft, scheduleSourceId: event.target.value });
                 setPairingPreview(null); setPairingChoices({}); setPairingError("");

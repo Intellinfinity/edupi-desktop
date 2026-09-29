@@ -10,6 +10,10 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
+export function feedbackRecordForRuntime(record: Record<string, unknown>, isolatedCanary: boolean): Record<string, unknown> {
+  return isolatedCanary ? { ...record, evidence_level: "synthetic" } : record;
+}
+
 function feedbackFailure(code: string, message: string): Error & { code: string } {
   return Object.assign(new Error(message), { code });
 }

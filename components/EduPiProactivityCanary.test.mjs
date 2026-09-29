@@ -31,6 +31,26 @@ test("active canary view has one stop action", () => {
   assert.doesNotMatch(html, /<select/);
 });
 
+test("Windows normal mode leaves G1 off and names the Safe Mode restart boundary", () => {
+  const disabled = { ...base, requiresSafeMode: true };
+  const disabledHtml = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: disabled,
+    selectedKey: JSON.stringify(["class-7-1", "数学"]), busy: false, message: null, onSelect() {}, onToggle() {} }));
+  assert.match(disabledHtml, /安全模式可试用/);
+  assert.match(disabledHtml, /Windows 试用需用隔离数据目录以安全模式启动/);
+  assert.match(disabledHtml, /<button[^>]*disabled/);
+
+  const persisted = { ...disabled, activation: { ...base.activation, enabled: true, source: "desktop_canary",
+    configurationStatus: "ready", scope: { classId: "class-7-1", subject: "数学" } },
+  grant: { status: "active", grantVersion: 1, endsAt: "2026-09-30T08:00:00.000Z",
+    modelBudget: { usedCalls: 1, maxCalls: 12, remainingCalls: 11, usageUnverified: false } },
+  capabilities: { ambientPlanning: false, ownerIntent: false, attentionDelivery: false, teacherFeedback: false } };
+  const persistedHtml = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: persisted,
+    selectedKey: JSON.stringify(["class-7-1", "数学"]), busy: false, message: null, onSelect() {}, onToggle() {} }));
+  assert.match(persistedHtml, /安全模式待启动/);
+  assert.doesNotMatch(persistedHtml, /已启用/);
+  assert.match(persistedHtml, />停止主动运行</);
+});
+
 test("an exhausted active grant is not shown as running", () => {
   const exhausted = { ...base, activation: { ...base.activation, enabled: true, source: "desktop_canary", configurationStatus: "ready",
     scope: { classId: "class-7-1", subject: "数学" } },

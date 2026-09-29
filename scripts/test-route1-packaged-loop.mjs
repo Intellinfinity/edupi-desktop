@@ -94,6 +94,7 @@ async function startPackagedServer(label) {
     ...process.env, HOME: homeRoot, HOSTNAME: "127.0.0.1", PORT: String(port), NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
     PI_CODING_AGENT_DIR: agentDir, PI_DESKTOP_STATE_DIR: stateDir, PI_DESKTOP_API_TOKEN: token,
     PI_DESKTOP_INSTANCE_ID: "route1-packaged-loop", PI_WEB_PARENT_PID: String(process.pid), PI_OFFLINE: "1",
+    EDUPI_DESKTOP_ISOLATED_CANARY: "1",
     EDUPI_PROJECT_ROOT: dataRoot, EDUPI_DATA_ROOT: dataRoot, EDUPI_DATA_ALLOWED_ROOT: temp,
     EDUPI_CORE_ROOT: coreRoot, EDUPI_CORE_ALLOWED_ROOT: resources, EDUPI_CORE_VALIDATION_MODE: "bundled",
     EDUPI_HOME: path.join(dataRoot, ".edupi"), EDUPI_MEMORY_DIR: memoryDir,
@@ -222,6 +223,10 @@ try {
   assert.equal(modelCalls, 1);
   const artifactCount = ready.workCase.artifactIds.length;
   assert.equal(artifactCount, 4);
+  const artifactId = ready.workCase.artifactIds[0];
+  const draftRead = await api(firstServer, `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(artifactId)}`);
+  assert.equal(draftRead.artifact.artifact_id, artifactId, "scoped draft must be readable for teacher review");
+  assert.equal(draftRead.artifact.revision, 1);
   assert.equal(ready.data.generatedArtifacts.filter(item => item.task_id === taskId && item.available).length, artifactCount);
 
   const repeatEnsure = await api(firstServer, "/api/edupi/preparation", { action: "ensure" });
@@ -257,7 +262,9 @@ try {
   assert.equal(target.scope?.class_id, "class-7-1");
   assert.equal(target.scope?.subject, "数学");
   const feedback = { command_id: "route1-synthetic-feedback-1", session_id: "route1-synthetic-session",
-    evidence_level: "synthetic", domain: "teaching_preparation", scope: target.scope,
+    // The UI defaults to real_teacher; the attested isolated Desktop server
+    // must force this test capture to synthetic before writing it to Core.
+    evidence_level: "real_teacher", domain: "teaching_preparation", scope: target.scope,
     signal: "surfaced", target: { kind: "work_candidate", target_id: candidate.candidateId,
       expected_revision: target.revision, expected_fingerprint: target.fingerprint },
     decision: "accept", usefulness: "useful", used: true, would_use_again: true,
@@ -271,11 +278,15 @@ try {
   assert.equal(feedbackReplay.result.replayed, true);
   const feedbackRead = await api(firstServer, "/api/edupi/teacher-feedback");
   assert.equal(feedbackRead.result.feedback.some(item => item.feedback_id === feedbackId), true);
+  assert.equal(feedbackRead.result.feedback.find(item => item.feedback_id === feedbackId).evidence_level, "synthetic");
   assert.equal(feedbackRead.result.summary.synthetic_excluded, 1);
   assert.equal(feedbackRead.result.summary.real_teacher_current, 0);
   const deactivated = await api(firstServer, "/api/edupi/proactivity", { enabled: false,
     classId: null, subject: null, expectedUpdatedAt: activated.activation.updatedAt });
   assert.equal(deactivated.activation.enabled, false);
+  const stoppedRead = await api(firstServer, `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(artifactId)}`);
+  assert.equal(stoppedRead.artifact.content, draftRead.artifact.content,
+    "stopping autonomous G1 must not hide an existing teacher draft");
 
   await stop(firstServer);
   firstServer = undefined;
@@ -296,11 +307,17 @@ try {
   const stoppedCanary = await api(secondServer, "/api/edupi/proactivity", { enabled: false,
     classId: null, subject: null, expectedUpdatedAt: reactivated.activation.updatedAt });
   assert.equal(stoppedCanary.activation.enabled, false);
+  const manualRevision = await api(secondServer, "/api/edupi/preparation-artifact", { artifactId,
+    expectedRevision: stoppedRead.artifact.current_revision, content: "隔离教师手工修订：2x + 3 = 7，x = 2。" });
+  assert.equal(manualRevision.artifact.revision, 2);
+  assert.equal((await api(secondServer, `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(artifactId)}`)).artifact.content,
+    "隔离教师手工修订：2x + 3 = 7，x = 2。\n");
   assert.equal(modelCalls, 1, "restart duplicated draft generation");
   success = true;
   console.log(JSON.stringify({ status: "passed", platform: process.platform, coreCommit: status.compatibility.actual.coreCommit,
     taskId, artifactCount, modelCalls, reminderId: reminder.id, notificationFailureDeduped: true,
-    review: "accepted", syntheticFeedbackExcluded: true, restartPreserved: true, externalSend: false }));
+    review: "accepted", syntheticFeedbackExcluded: true, restartPreserved: true,
+    stoppedDraftReadAndManualRevision: true, externalSend: false }));
 } finally {
   await stop(firstServer);
   await stop(secondServer);

@@ -47,7 +47,7 @@ export class TeacherFeedbackError extends Error {
 
 export function canRetryFeedbackEligibility(error: unknown): boolean {
   return !(error instanceof TeacherFeedbackError)
-    || ["feedback_runtime_unavailable", "owner_control_credential_unavailable"].includes(error.code);
+    || ["feedback_runtime_unavailable", "owner_control_credential_unavailable", "activation_pending", "owner_uninitialized"].includes(error.code);
 }
 
 function id(value: unknown, field: string, maxLength = 160): string {

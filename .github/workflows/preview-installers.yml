@@ -2,6 +2,35 @@ name: Build preview installers
 
 on:
   workflow_dispatch:
+    inputs:
+      native_asset_probe_only:
+        description: Check private Core asset access without building installers
+        type: boolean
+        default: false
+      native_asset_probe_core_commit:
+        description: Optional exact Core commit for the Windows staging path
+        type: string
+        default: ""
+      preview_installed_smoke_run_id:
+        description: Recheck the Windows NSIS artifact from a completed preview run
+        type: string
+        default: ""
+      preview_installed_smoke_sha:
+        description: Exact Desktop source commit of the completed preview run
+        type: string
+        default: ""
+      native_asset_probe_id:
+        description: Optional private Core release asset ID for a read-only Windows download probe
+        type: string
+        default: ""
+      native_asset_probe_sha256:
+        description: Expected raw asset SHA-256 with sha256 prefix
+        type: string
+        default: ""
+      native_asset_probe_size:
+        description: Expected raw asset byte count
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -12,6 +41,7 @@ concurrency:
 
 jobs:
   quality:
+    if: ${{ !inputs.native_asset_probe_only && inputs.preview_installed_smoke_run_id == '' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -27,6 +57,7 @@ jobs:
 
   package:
     needs: quality
+    if: ${{ !inputs.native_asset_probe_only && inputs.preview_installed_smoke_run_id == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +95,7 @@ jobs:
           repository: Intellinfinity/edupi
           ref: ${{ steps.core.outputs.commit }}
           path: .edupi-core-runtime
+          fetch-depth: 0
           # Prefer a repository-scoped read token when organization policy disables deploy keys.
           ssh-key: ${{ secrets.EDUPI_CORE_READ_TOKEN == '' && secrets.EDUPI_CORE_DEPLOY_KEY || '' }}
           token: ${{ secrets.EDUPI_CORE_READ_TOKEN || github.token }}
@@ -90,6 +122,9 @@ jobs:
           node --test --test-name-pattern
           "bundled validation rejects|external mode still requires"
           scripts/packaged-core-bundle.test.mjs
+      - name: Verify Windows native asset preflight
+        if: runner.os == 'Windows'
+        run: node --test scripts/windows-native-asset.test.mjs
       - name: Verify paired timetable source alias
         if: runner.os != 'Windows'
         env:
@@ -99,6 +134,12 @@ jobs:
         env:
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run desktop:prepare
+      - name: Stage Core-approved Windows native asset
+        if: runner.os == 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+          EDUPI_CORE_READ_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+        run: npm run desktop:stage-windows-native
       - name: Verify bundled offline OCR
         env:
           EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
@@ -111,6 +152,14 @@ jobs:
         env:
           EDUPI_STAGED_RESOURCES: ${{ github.workspace }}/src-tauri/resources
         run: npm run test:staged-openconnector
+      - name: Verify staged Windows native asset
+        if: runner.os == 'Windows'
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: npm run desktop:verify-windows-native
+      - name: Test Windows native source guard
+        if: runner.os == 'Windows'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib windows_native_source_guard
       - name: Build unsigned preview installer
         shell: bash
         env:
@@ -147,3 +196,162 @@ jobs:
           path: ${{ matrix.artifact_path }}
           if-no-files-found: error
           retention-days: 7
+
+  native-asset-probe:
+    if: inputs.native_asset_probe_only && inputs.preview_installed_smoke_run_id == ''
+    runs-on: windows-latest
+    steps:
+      - name: Probe private Core native asset with the scoped read secret
+        if: inputs.native_asset_probe_core_commit == ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+          PROBE_ASSET_ID: ${{ inputs.native_asset_probe_id }}
+          PROBE_ASSET_SHA256: ${{ inputs.native_asset_probe_sha256 }}
+          PROBE_ASSET_SIZE: ${{ inputs.native_asset_probe_size }}
+        run: |
+          set -euo pipefail
+          [[ "$PROBE_ASSET_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$PROBE_ASSET_SHA256" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$PROBE_ASSET_SIZE" =~ ^[1-9][0-9]*$ ]]
+          test -n "$GH_TOKEN"
+          test -n "$RUNNER_TEMP"
+          asset="$RUNNER_TEMP/edupi-native-probe-$GITHUB_RUN_ID.node"
+          trap 'rm -f "$asset"' EXIT
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/Intellinfinity/edupi/releases/assets/$PROBE_ASSET_ID" > "$asset"
+          actual_size="$(wc -c < "$asset" | tr -d '[:space:]')"
+          actual_sha256="sha256:$(sha256sum < "$asset" | cut -d ' ' -f 1)"
+          magic="$(od -An -tx1 -N2 "$asset" | tr -d '[:space:]')"
+          echo "Asset probe received $actual_size bytes with magic $magic."
+          if [ "$magic" != '4d5a' ]; then
+            echo 'Asset probe did not receive a PE binary.' >&2
+            exit 1
+          fi
+          test "$actual_size" = "$PROBE_ASSET_SIZE"
+          echo "Asset probe SHA-256: $actual_sha256"
+          test "$actual_sha256" = "$PROBE_ASSET_SHA256"
+          echo 'Private Core native asset bytes matched the scoped read-token probe.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Check out Desktop staging code
+        if: inputs.native_asset_probe_core_commit != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Use Node 22 for native staging probe
+        if: inputs.native_asset_probe_core_commit != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+      - name: Check out exact Core source for staging probe
+        if: inputs.native_asset_probe_core_commit != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Intellinfinity/edupi
+          ref: ${{ inputs.native_asset_probe_core_commit }}
+          path: .edupi-core-runtime
+          fetch-depth: 0
+          token: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+          persist-credentials: false
+      - name: Preserve exact Core contract bytes for staging probe
+        if: inputs.native_asset_probe_core_commit != ''
+        shell: bash
+        run: |
+          git -C .edupi-core-runtime config core.autocrlf false
+          git -C .edupi-core-runtime checkout-index --all --force
+          git -C .edupi-core-runtime archive HEAD | tar -x -C .edupi-core-runtime
+      - name: Stage Core-approved native asset in temporary Windows directory
+        if: inputs.native_asset_probe_core_commit != ''
+        shell: bash
+        env:
+          EDUPI_CORE_READ_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+          PROBE_CORE_COMMIT: ${{ inputs.native_asset_probe_core_commit }}
+          PROBE_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { preparePinnedWindowsNativeAsset } from './scripts/windows-native-asset.mjs';
+          const temporaryRoot = process.env.RUNNER_TEMP;
+          if (!temporaryRoot || !path.isAbsolute(temporaryRoot)) throw new Error('Windows runner temp root is invalid');
+          const destinationRoot = fs.mkdtempSync(path.join(temporaryRoot, 'edupi-native-stage-'));
+          const runId = process.env.GITHUB_RUN_ID;
+          if (!/^[1-9][0-9]*$/.test(runId || '')) throw new Error('Windows probe run identity is invalid');
+          const retainedAsset = path.join(temporaryRoot, `edupi-approved-native-${runId}.node`);
+          let complete = false;
+          try {
+            const result = preparePinnedWindowsNativeAsset({ coreRoot: process.env.PROBE_CORE_ROOT,
+              coreCommit: process.env.PROBE_CORE_COMMIT, destinationRoot });
+            if (!result) throw new Error('Core native contract was not approved');
+            fs.copyFileSync(result.path, retainedAsset, fs.constants.COPYFILE_EXCL);
+            fs.appendFileSync(process.env.GITHUB_ENV, `EDUPI_NATIVE_ASSET_PROBE_PATH=${retainedAsset}\n`);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `Windows native staging passed: ${result.size} bytes, ${result.digest}.\n`);
+            complete = true;
+          } finally {
+            fs.rmSync(destinationRoot, { recursive: true, force: true });
+            if (!complete) fs.rmSync(retainedAsset, { force: true });
+          }
+          NODE
+      - name: Use Rust toolchain for source guard probe
+        if: inputs.native_asset_probe_core_commit != ''
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+      - name: Test Windows native source guard in protected fixture
+        if: inputs.native_asset_probe_core_commit != ''
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":[]}}'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib windows_native_source_guard
+      - name: Load approved native asset while source guard is held
+        if: inputs.native_asset_probe_core_commit != ''
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":[]}}'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib held_approved_addon_loads_in_node_22 -- --ignored
+      - name: Remove temporary approved native asset
+        if: always() && inputs.native_asset_probe_core_commit != ''
+        run: >-
+          node -e "const fs=require('node:fs'),path=require('node:path');
+          const id=process.env.GITHUB_RUN_ID;
+          if(!/^[1-9][0-9]*$/.test(id||'')) process.exit(1);
+          fs.rmSync(path.join(process.env.RUNNER_TEMP,'edupi-approved-native-'+id+'.node'),{force:true})"
+
+  installed-preview-smoke:
+    if: inputs.preview_installed_smoke_run_id != ''
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out the current installer verification script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download the exact completed preview artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_installed_smoke_run_id }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.preview_installed_smoke_sha }}
+        run: |
+          if ($env:PREVIEW_RUN_ID -notmatch '^[1-9][0-9]*$' -or $env:EXPECTED_SOURCE_SHA -notmatch '^[a-f0-9]{40}$') {
+            throw "Preview run identity is invalid"
+          }
+          $run = gh api "repos/Intellinfinity/edupi-desktop/actions/runs/$env:PREVIEW_RUN_ID" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.name -ne "Build preview installers" -or
+              $run.conclusion -ne "success" -or $run.head_sha -ne $env:EXPECTED_SOURCE_SHA -or
+              $run.head_repository.full_name -ne "Intellinfinity/edupi-desktop") {
+            throw "Preview run is not the accepted commit-bound build"
+          }
+          $target = Join-Path $env:RUNNER_TEMP "edupi-preview-smoke-$env:GITHUB_RUN_ID"
+          New-Item -ItemType Directory -Path $target | Out-Null
+          gh run download "$env:PREVIEW_RUN_ID" --repo Intellinfinity/edupi-desktop --name EduPi-Windows-x64 --dir "$target"
+          if ($LASTEXITCODE -ne 0) { throw "Windows preview artifact download failed" }
+          "Preview source commit: $($run.head_sha)" >> $env:GITHUB_STEP_SUMMARY
+      - name: Install and verify the preview NSIS in isolation
+        shell: pwsh
+        env:
+          EDUPI_PREVIEW_INSTALLER_DIR: ${{ runner.temp }}/edupi-preview-smoke-${{ github.run_id }}
+        run: ./scripts/test-windows-route1-preview.ps1
+      - name: Remove downloaded runner copy
+        if: always()
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP "edupi-preview-smoke-$env:GITHUB_RUN_ID"
+          if ((Test-Path $target) -and $target.StartsWith((Join-Path $env:RUNNER_TEMP "edupi-preview-smoke-"))) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+          }

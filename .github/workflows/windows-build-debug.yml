@@ -89,6 +89,7 @@ jobs:
           repository: Intellinfinity/edupi
           ref: ${{ steps.core.outputs.commit }}
           path: .edupi-core-runtime
+          fetch-depth: 0
           # Prefer a repository-scoped read token when organization policy disables deploy keys.
           ssh-key: ${{ secrets.EDUPI_CORE_READ_TOKEN == '' && secrets.EDUPI_CORE_DEPLOY_KEY || '' }}
           token: ${{ secrets.EDUPI_CORE_READ_TOKEN || github.token }}
@@ -146,6 +147,21 @@ jobs:
           NODE_OPTIONS: "--require ./scripts/trace-stray-scandir.cjs --stack-trace-limit=60"
           EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
         run: npm run desktop:prepare
+
+      - name: Stage Core-approved Windows native asset
+        shell: bash
+        continue-on-error: true
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+          EDUPI_CORE_READ_TOKEN: ${{ secrets.EDUPI_CORE_READ_TOKEN }}
+        run: npm run desktop:stage-windows-native
+
+      - name: Verify staged Windows native asset
+        shell: bash
+        continue-on-error: true
+        env:
+          EDUPI_CORE_ROOT: ${{ github.workspace }}/.edupi-core-runtime
+        run: npm run desktop:verify-windows-native
 
       - name: Show what got staged
         shell: bash

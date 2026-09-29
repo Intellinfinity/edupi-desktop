@@ -42,7 +42,12 @@ export function inspectProactivityCatchUp(value: unknown): { queued: number; nee
   });
   if (codes.includes("budget_exhausted")) throw new EduPiProactivityRuntimeError("proactivity_budget_exhausted");
   if (codes.includes("permission_denied")) throw new EduPiProactivityRuntimeError("proactivity_grant_denied");
-  if (tasks.length === 0 && failures.length > 0) throw new EduPiProactivityRuntimeError("proactivity_preparation_blocked");
+  // Core emits completed_source_changed only after validating current sources
+  // and finding a durable prior draft with an older signature. A generic
+  // stale_source may instead mean deleted or unreadable material and blocks.
+  if (tasks.length === 0 && codes.some(code => code !== "completed_source_changed")) {
+    throw new EduPiProactivityRuntimeError("proactivity_preparation_blocked");
+  }
   return { queued: tasks.length, needsAttention: failures.length > 0 };
 }
 

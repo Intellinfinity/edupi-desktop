@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { isAbsolute, resolve } from "node:path";
 import type { ResolvedEduPiCore, ResolvedEduPiDataRoot } from "./edupi-core-root";
 import { getPendingEduPiRuntime } from "./edupi-runtime-supervisor";
+import { coreRuntimeCanaryEnvironment } from "./safe-mode";
 
 const MAX_REQUEST_BYTES = 256 * 1024;
 const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
@@ -37,6 +38,7 @@ function allowedEnvironment(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiD
     EDUPI_OUTPUT_DIR: dataRoot.outputDir,
     EDUPI_LOCK_DIR: dataRoot.lockDir,
     EDUPI_CORE_COMMIT: runtime.coreCommit,
+    ...coreRuntimeCanaryEnvironment(process.platform, process.env),
     ...(configuredStateDir && isAbsolute(configuredStateDir) ? { PI_DESKTOP_STATE_DIR: resolve(configuredStateDir) } : {}),
   };
 }

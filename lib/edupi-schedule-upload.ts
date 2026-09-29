@@ -96,11 +96,13 @@ export function stableRecognizedCalendarEventId(value: { date?: unknown; endDate
   return `${stableCalendarEventId(value)}-${stableScheduleToken(details).slice(0, 16)}`;
 }
 
-export function stableTimetableSlotId(value: { dayOfWeek?: unknown; period?: unknown; subject?: unknown; className?: unknown; kind?: unknown }): string {
+export function stableTimetableSlotId(value: { dayOfWeek?: unknown; period?: unknown; subject?: unknown; classId?: unknown; className?: unknown; kind?: unknown }): string {
+  const classId = normalizedScheduleText(value.classId);
   return `timetable-slot-${stableScheduleToken({
     day_of_week: value.dayOfWeek,
     period: value.period,
     subject: normalizedScheduleText(value.subject),
+    ...(classId ? { class_id: classId } : {}),
     class_name: normalizedScheduleText(value.className),
     kind: normalizedScheduleText(value.kind),
   })}`;

@@ -4,7 +4,7 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { hasJsonContentType } from "@/lib/request-security";
 import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
-import { asRecord, bindFeedbackRecord } from "@/lib/edupi-teacher-feedback-binding";
+import { asRecord, bindFeedbackRecord, feedbackRecordForRuntime } from "@/lib/edupi-teacher-feedback-binding";
 import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 
 export const runtime = "nodejs";
@@ -92,7 +92,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: response.ok === true, ready: true, result: response.result ?? null, errorCode: response.error_code ?? null, externalSend: false });
     }
     if (!body.record || typeof body.record !== "object" || Array.isArray(body.record)) return jsonError("反馈记录无效", 400);
-    const record = await bindFeedbackRecord(host, boundOwner, body.record as Record<string, unknown>);
+    const record = feedbackRecordForRuntime(
+      await bindFeedbackRecord(host, boundOwner, body.record as Record<string, unknown>),
+      process.env.EDUPI_DESKTOP_ISOLATED_CANARY === "1",
+    );
     const response = await host.callOwnerControl("teacher_feedback_record", record);
     return NextResponse.json({ ok: response.ok === true, ready: true, result: response.result ?? null, errorCode: response.error_code ?? null, externalSend: false });
   } catch (error) {

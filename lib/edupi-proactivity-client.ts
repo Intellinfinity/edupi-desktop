@@ -3,6 +3,7 @@ import { fetchDesktopApi } from "./desktop-native";
 export type EduPiProactivityState = {
   ok: true;
   degraded?: boolean;
+  requiresSafeMode?: boolean;
   activation: { enabled: boolean; source: "default" | "desktop_canary" | "environment"; configurationStatus: "missing" | "ready" | "legacy" | "stop_pending" | "mismatched" | "invalid"; scope: { classId: string; subject: string } | null; updatedAt: string | null };
   scopes: Array<{ classId: string; className: string | null; subject: string; slotCount: number; materialCount: number; ready: boolean }>;
   grant: { status: "active" | "paused" | "revoked" | "expired"; grantVersion: number; endsAt: string;
@@ -33,6 +34,7 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
   const capabilities = state?.capabilities === null ? null : record(state?.capabilities);
   const initialScan = state?.initialScan === undefined ? null : record(state?.initialScan);
   if (state?.ok !== true || state.externalSend !== false || state.degraded !== undefined && typeof state.degraded !== "boolean"
+    || state.requiresSafeMode !== undefined && typeof state.requiresSafeMode !== "boolean"
     || !activation || typeof activation.enabled !== "boolean"
     || !["default", "desktop_canary", "environment"].includes(String(activation.source))
     || !["missing", "ready", "legacy", "stop_pending", "mismatched", "invalid"].includes(String(activation.configurationStatus))

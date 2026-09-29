@@ -16,6 +16,7 @@ import { clearEduPiProactivityStopIntent, readEduPiProactivityActivation, writeE
 import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantStatus } from "@/lib/edupi-proactivity-runtime";
 import { clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
   quarantineEduPiRuntime, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
+import { canStartEduPiProactivity } from "@/lib/safe-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,6 +95,7 @@ async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivit
   return {
     ok: true,
     degraded,
+    requiresSafeMode: process.platform === "win32" && !canStartEduPiProactivity(),
     activation: publicActivation(activation),
     scopes: currentContext.scopes,
     grant,
@@ -277,6 +279,10 @@ export async function POST(request: Request) {
       || body.enabled && (typeof body.classId !== "string" || !body.classId.trim() || typeof body.subject !== "string" || !body.subject.trim())
       || !body.enabled && (body.classId !== null || body.subject !== null)) {
       return NextResponse.json({ ok: false, error: "主动运行设置无效", externalSend: false }, { status: 400 });
+    }
+    if (body.enabled && !canStartEduPiProactivity()) {
+      return NextResponse.json({ ok: false, code: "proactivity_safe_mode_required",
+        error: "Windows 主动运行仅可在隔离安全模式试用", externalSend: false }, { status: 409 });
     }
     const roots = resolveEduPiBridgeRoots();
     return await withMutationLock(roots.dataRoot.root, async () => {

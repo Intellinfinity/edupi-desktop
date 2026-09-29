@@ -473,6 +473,8 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
     assert.match(workflow, /contracts\/edupi-core-compat\.json/);
     assert.match(workflow, /repository: Intellinfinity\/edupi/);
     assert.match(workflow, /ref: \$\{\{ steps\.core\.outputs\.commit \}\}/);
+    assert.match(workflow, /path: \.edupi-core-runtime\s+fetch-depth: 0/u,
+      "native source ancestry requires the pinned Core history");
     assert.match(workflow, /ssh-key: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN == '' && secrets\.EDUPI_CORE_DEPLOY_KEY \|\| '' \}\}/);
     assert.match(
       workflow,
@@ -487,6 +489,23 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
     assert.match(workflow, /EDUPI_CORE_ROOT: \$\{\{ github\.workspace \}\}\/\.edupi-core-runtime/);
     assert.doesNotMatch(workflow, /git checkout (main|master|latest)/i);
   }
+});
+
+test("Windows packaging stages only the Core-approved native asset with the scoped read token", async () => {
+  const prepare = await readFile(join(root, "scripts", "prepare-desktop.mjs"), "utf8");
+  assert.doesNotMatch(prepare, /preparePinnedWindowsNativeAsset/u,
+    "the official build must stage the private asset after Next preparation");
+  for (const name of ["preview-installers.yml", "release.yml"]) {
+    const workflow = await readFile(join(root, ".github", "workflows", name), "utf8");
+    const prepareStep = workflow.slice(workflow.indexOf("name: Prepare packaged"), workflow.indexOf("name: Stage Core-approved Windows native asset"));
+    assert.doesNotMatch(prepareStep, /EDUPI_CORE_READ_TOKEN/u);
+    assert.match(workflow, /name: Stage Core-approved Windows native asset\s+if: runner\.os == 'Windows'[\s\S]*?EDUPI_CORE_READ_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}[\s\S]*?run: npm run desktop:stage-windows-native/u);
+    assert.match(workflow, /name: Verify staged Windows native asset[\s\S]*?run: npm run desktop:verify-windows-native/u);
+  }
+  const debug = await readFile(join(root, ".github", "workflows", "windows-build-debug.yml"), "utf8");
+  assert.match(debug, /name: Stage Core-approved Windows native asset[\s\S]*?EDUPI_CORE_READ_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}[\s\S]*?run: npm run desktop:stage-windows-native/u);
+  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  assert.match(pkg.scripts["desktop:build"], /desktop:prepare.*desktop:stage-windows-native.*desktop:verify-windows-native.*tauri build/u);
 });
 
 test("all packaged platform configs carry the bundled Core and third-party notices", async () => {
@@ -540,10 +559,30 @@ test("release and preview verify the bundled read-only OpenConnector catalog", a
 
 test("preview installs Desktop dependencies before the paired Core runtime test", async () => {
   const workflow = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
-  const packageJob = workflow.slice(workflow.indexOf("  package:"));
+  const packageJob = workflow.slice(workflow.indexOf("  package:"), workflow.indexOf("  native-asset-probe:"));
+  const probeJob = workflow.slice(workflow.indexOf("  native-asset-probe:"), workflow.indexOf("  installed-preview-smoke:"));
+  assert.match(workflow, /quality:\s+if: \$\{\{ !inputs\.native_asset_probe_only && inputs\.preview_installed_smoke_run_id == '' \}\}/u);
+  assert.match(packageJob, /needs: quality\s+if: \$\{\{ !inputs\.native_asset_probe_only && inputs\.preview_installed_smoke_run_id == '' \}\}/u);
   assert.match(packageJob, /Install Core runtime dependencies[\s\S]*?- run: npm ci[\s\S]*?Verify paired Core runtime/u);
   assert.match(packageJob, /name: Verify paired Core runtime\s+if: runner\.os != 'Windows'/u);
   assert.match(packageJob, /name: Verify paired Core bundle on Windows\s+if: runner\.os == 'Windows'/u);
+  assert.match(packageJob, /name: Verify Windows native asset preflight\s+if: runner\.os == 'Windows'\s+run: node --test scripts\/windows-native-asset\.test\.mjs/u);
+  assert.match(probeJob, /if: inputs\.native_asset_probe_only/u);
+  assert.match(workflow, /native_asset_probe_core_commit:/u);
+  assert.match(probeJob, /name: Check out exact Core source for staging probe[\s\S]*?fetch-depth: 0/u);
+  assert.match(probeJob, /name: Stage Core-approved native asset in temporary Windows directory[\s\S]*?preparePinnedWindowsNativeAsset/u);
+  assert.match(probeJob, /name: Test Windows native source guard in protected fixture[\s\S]*?TAURI_CONFIG: '\{"bundle":\{"resources":\[\]\}\}'[\s\S]*?cargo test --locked --manifest-path src-tauri\/Cargo\.toml --lib windows_native_source_guard/u);
+  assert.match(probeJob, /name: Load approved native asset while source guard is held[\s\S]*?held_approved_addon_loads_in_node_22 -- --ignored/u);
+  assert.match(probeJob, /name: Remove temporary approved native asset[\s\S]*?if: always\(\)/u);
+  assert.match(packageJob, /name: Test Windows native source guard\s+if: runner\.os == 'Windows'\s+run: cargo test --locked --manifest-path src-tauri\/Cargo\.toml --lib windows_native_source_guard/u);
+  assert.match(probeJob, /fs\.rmSync\(destinationRoot, \{ recursive: true, force: true \}\)/u);
+  assert.match(probeJob, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
+  assert.match(probeJob, /Accept: application\/octet-stream/u);
+  assert.match(probeJob, /sha256sum < "\$asset"/u);
+  assert.match(probeJob, /magic.*4d5a/su);
+  assert.match(probeJob, /trap 'rm -f "\$asset"' EXIT/u);
+  assert.doesNotMatch(probeJob, /actions\/upload-artifact|tauri-action|\.node.*resources/u);
+  assert.doesNotMatch(packageJob, /GH_TOKEN: \$\{\{ secrets\.EDUPI_CORE_READ_TOKEN \}\}/u);
 });
 
 test("published install workflows require an explicit release tag", async () => {
@@ -554,4 +593,29 @@ test("published install workflows require an explicit release tag", async () => 
   }
   const windows = await readFile(join(root, ".github", "workflows", "windows-build-debug.yml"), "utf8");
   assert.doesNotMatch(windows, /\$\(ls "\$d" \| wc -l\)/u);
+});
+
+test("Windows preview checks native bytes, normal refusal and isolated Safe Mode boot", async () => {
+  const smoke = await readFile(join(root, "scripts", "test-windows-route1-preview.ps1"), "utf8");
+  assert.match(smoke, /contracts\/windows-runtime-attestation-v1\.json/u);
+  assert.match(smoke, /binary_size/u);
+  assert.match(smoke, /Get-FileHash \$nativeAsset -Algorithm SHA256/u);
+  assert.match(smoke, /binary_sha256/u);
+  assert.match(smoke, /native_attestation_required/u);
+  assert.match(smoke, /g1Installed: false/u);
+  assert.match(smoke, /EDUPI_ROUTE1_ISOLATED_CANARY = "1"/u);
+  assert.match(smoke, /ArgumentList "--safe-mode"/u);
+  assert.match(smoke, /api\/edupi\/status\?summary=1/u);
+  assert.match(smoke, /g1_processor -eq "activation_pending"/u);
+});
+
+test("a preview installer can be rechecked on Windows without rebuilding or publishing", async () => {
+  const source = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
+  const workflow = source.slice(source.indexOf("  installed-preview-smoke:"));
+  assert.match(source, /workflow_dispatch:/u);
+  assert.match(workflow, /contents: read/u);
+  assert.match(workflow, /actions: read/u);
+  assert.match(workflow, /gh run download "\$env:PREVIEW_RUN_ID"[\s\S]*?EduPi-Windows-x64/u);
+  assert.match(workflow, /test-windows-route1-preview\.ps1/u);
+  assert.doesNotMatch(workflow, /tauri build|release upload|contents: write|EDUPI_CORE_READ_TOKEN/u);
 });

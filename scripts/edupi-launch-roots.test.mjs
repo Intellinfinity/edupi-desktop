@@ -145,6 +145,8 @@ test("explicit allowed roots are forwarded and launcher watchdog entrypoints rem
   assert.match(rust, /\.env\("EDUPI_CORE_VALIDATION_MODE", roots\.core_validation_mode\)/);
   assert.match(rust, /\.env\("EDUPI_DATA_ALLOWED_ROOT", &roots\.data_allowed_root\)/);
   assert.match(rust, /\.env\("PI_DESKTOP_STATE_DIR", &desktop_state_dir\)/);
+  assert.match(rust, /\.env\("EDUPI_DESKTOP_ISOLATED_CANARY", if isolated_canary \{ "1" \} else \{ "0" \}\)/);
+  assert.match(rust, /\.env_remove\(ROUTE1_ISOLATED_CANARY_ENV\)/);
   assert.match(rust, /resources\/edupi-core/);
   assert.match(rust, /edupiDataRoot/);
   assert.match(rust, /get_edupi_root_status/);

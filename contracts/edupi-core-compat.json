@@ -2,11 +2,11 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "3397b71b3de370c75480a185ae9475d176f8352f",
+    "core_commit": "22bf414c6715c312a62a04c1ed02d5fa5f51d1c8",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:7f60717cac718c83b04ab4aed1e74609622b0983d8d8e7134cdc5249a9ee4376",
-    "runtime_component_manifest_hash": "sha256:d23e31e5127959ac1b0a4d099a7c868e6b70b26104d43044182a4de821203082",
-    "runtime_schema_hash": "sha256:8e54f23a43ac567e3743802c127914197117f266524566c31c08fe8b551f8439"
+    "component_manifest_hash": "sha256:351d8fd6b02a3bf07cc037b9c6ba1c7ceaaf9e37f9b0fa665105c66b68dd7577",
+    "runtime_component_manifest_hash": "sha256:4c21528e73509ccb5e6bf9876a5b75d1a5aca3aced2e4cf347c81ad3f1af469c",
+    "runtime_schema_hash": "sha256:8b4d701c64fd191019bee627eae7f9b2fbc533c0adbd41df4110ffc7719da9b8"
   },
   "contract_identities": [
     {
@@ -164,7 +164,13 @@
     "https://github.com/Intellinfinity/edupi/pull/191",
     "https://github.com/Intellinfinity/edupi/pull/192",
     "https://github.com/Intellinfinity/edupi/pull/193",
-    "https://github.com/Intellinfinity/edupi/pull/204"
+    "https://github.com/Intellinfinity/edupi/pull/204",
+    "https://github.com/Intellinfinity/edupi/pull/211",
+    "https://github.com/Intellinfinity/edupi/pull/212",
+    "https://github.com/Intellinfinity/edupi/pull/213",
+    "https://github.com/Intellinfinity/edupi/pull/214",
+    "https://github.com/Intellinfinity/edupi/pull/215",
+    "https://github.com/Intellinfinity/edupi-desktop/pull/287"
   ],
-  "change_note": "Desktop pin to Core #204 scoped G1: Runtime schema and both component manifests changed; bridge v1.1 and occurrence v1.2 identities remain unchanged. Packaged G1 is default-off, requiring one exact class/subject owner grant and durable model budget. G2 and G3/G4 Live remain activation_pending outside isolated permitted canaries. G5 recipients, unconfirmed material evidence, and term/lesson attribution remain unverified; external_send=false."
+  "change_note": "Desktop pin to Core #215: Runtime schema and bridge/occurrence identities remain unchanged; both component manifests track exact canonical class-ID source fencing and teacher draft readback. Same-ID cross-class timetable changes are held; unbound legacy rows remain separate until teacher confirmation. A stopped isolated Windows Safe Mode canary retains native root admission for owner-control and teacher readback, while autonomous G1 still requires the current exact class/subject/source grant and durable model budget. Direct Core CLI canary is unsupported. G2 and G3/G4 Live remain activation_pending outside separately permitted canaries. G5 recipients, unconfirmed material evidence, and term/lesson attribution remain unverified; external_send=false."
 }

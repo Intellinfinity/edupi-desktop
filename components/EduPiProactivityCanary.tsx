@@ -96,7 +96,7 @@ function EduPiMissedOpportunityFeedback({ scopes, enabled }: { scopes: FeedbackS
 export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, onSelect, onToggle }: ViewProps) {
   const active = state.activation.enabled;
   const recoveryPending = !active && state.activation.scope !== null;
-  const operational = active && state.grant?.status === "active" && state.capabilities !== null
+  const operational = active && !state.requiresSafeMode && state.grant?.status === "active" && state.capabilities !== null
     && Object.values(state.capabilities).every(Boolean) && !state.grant.modelBudget.usageUnverified
     && state.grant.modelBudget.remainingCalls > 0;
   const budgetExhausted = active && state.grant?.modelBudget.remainingCalls === 0;
@@ -110,13 +110,13 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
       <span><strong id="edupi-proactivity-canary-title">课前准备试用</strong><small>{active && state.grant
         ? `${currentLabel} · 剩余 ${state.grant.modelBudget.remainingCalls} 次`
         : recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用`}</small></span>
-      {active ? <em className={operational ? "is-ready" : undefined}>{budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复"}</em>
+      {active ? <em className={operational ? "is-ready" : undefined}>{state.requiresSafeMode ? "安全模式待启动" : budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复"}</em>
         : <em>{recoveryPending ? state.activation.configurationStatus === "legacy" ? "旧授权待停止" : "停止待恢复"
-          : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭"}</em>}
+          : state.requiresSafeMode ? "安全模式可试用" : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭"}</em>}
     </div>
     {!active && !recoveryPending && ready.length > 0 ? <label><span>班级与学科</span><select aria-label="主动备课班级与学科" value={selectedKey} disabled={busy} onChange={(event) => onSelect(event.target.value)}>{ready.map((scope) => <option key={scopeKey(scope)} value={scopeKey(scope)}>{scope.className || scope.classId} · {scope.subject}</option>)}</select></label> : null}
-    <button className={!active && !recoveryPending ? "edupi-admin-primary" : undefined} type="button" disabled={busy || !active && !recoveryPending && !current} onClick={onToggle}>{busy ? "处理中…" : active ? "停止主动运行" : recoveryPending ? state.activation.configurationStatus === "legacy" ? "停止旧授权" : "重试停止" : "启用试用"}</button>
-    {message ? <p role="status" aria-live="polite">{message}</p> : !active && ready.length === 0 ? <p role="status">需要一条带班级 ID 的课表和同范围材料。</p> : null}
+    <button className={!active && !recoveryPending ? "edupi-admin-primary" : undefined} type="button" disabled={busy || !active && !recoveryPending && (!current || state.requiresSafeMode)} onClick={onToggle}>{busy ? "处理中…" : active ? "停止主动运行" : recoveryPending ? state.activation.configurationStatus === "legacy" ? "停止旧授权" : "重试停止" : "启用试用"}</button>
+    {message ? <p role="status" aria-live="polite">{message}</p> : !active && state.requiresSafeMode ? <p role="status">Windows 试用需用隔离数据目录以安全模式启动。</p> : !active && ready.length === 0 ? <p role="status">需要一条带班级 ID 的课表和同范围材料。</p> : null}
   </section>;
 }
 

@@ -1,11 +1,51 @@
 # EduPi 产品闭环 PR 路线图
 
-## 2026-09-27 路线 1 最新门禁（取代下文旧候选快照）
+## 2026-09-29 v0.3.50 代码收尾
+
+- 路线 1 保持部分验收。v0.3.50 补任务详情的明确刷新及失败重试，复用现有接口；Core pin 仍为 `22bf414`，G1 默认关闭。局部检查与独立复审通过，正在推进 macOS 候选 CI 和 PR #287 合并；Windows 安装验收按用户要求延期，不继续排查。发布门、真实睡眠和系统通知点击仍独立待验，详见[验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+
+## 2026-09-29 路线 1 当前状态（取代下方临时安装状态）
+
+- v0.3.49 已完成三平台签名 Draft 和 macOS 隔离正式安装实测；单班草稿、站内续聊、任务审核暂缓、synthetic 反馈及重启保留均有证据。系统通知实际点击、跨到期实睡和 Windows Safe Mode 安装仍缺，任务详情遇 409 后缺直达刷新。状态为**部分验收**；#287 与 Release 均 Draft，公开 feed 仍 0.3.45。完整证据及失败路径见[路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 本轮测试结束已停止隔离 G1 App 进程/本机模型桩，并把唯一 `/Applications/EduPi.app` 恢复为签名 v0.3.45；0.3.49 DMG/备份及隔离 Core 数据保留，真实教师根与模型/认证配置 9 项摘要不变。下方关于 0.3.49 “当前临时安装/active”的文字是历史中间状态，不代表本轮收口。
+
+## 2026-09-29 路线 1 签名安装现状（取代下文旧候选状态）
+
+- v0.3.49 签名 Draft run `36525542297` 全绿且 Mac 公证/装订通过；唯一 `/Applications/EduPi.app` 暂时为该签名候选，公开 feed 仍 0.3.45。隔离单班的课表/PDF/确认摘录及合成周次已在安装版触发后台 4 份草稿；站内提醒续聊和同任务 Session 两条消息持久回读通过。来源冲突导致旧草稿 stale，页面明确保留原安排后第二次生成；来源稳定后不再重复。真实教师根与模型配置 9 项摘要保持。详见[实际验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 状态仍为**部分验收、未发布**：签名版任务详情审核连续遇过时快照，只能经“今天”刷新后写入暂缓；签名版价值反馈尚未记录。原生通知账本有 delivered，无点击；跨到期真实睡眠未验；Windows 预览 `36525434938` Safe Mode 隔离启动没有 Core 状态而失败。用户优先 macOS，Windows 安装验收延期，不降级发布门。#287 与 Release 均继续 Draft。
+- 后续签名版已通过任务详情写入 1 条 synthetic 价值反馈，普通退出/冷启后 4 份草稿、同任务 Session 与 2 条消息、反馈均重读保持，稳定来源没有再次模型调用；这取代上条“反馈尚未记录”。仍缺系统通知手动点击、真实跨到期系统睡眠、任务详情过时快照的一步刷新、Windows Safe Mode 运行门和最终 PR/发布。Mac 自动锁屏阻断剩余 UI；测试根 G1 仍只在精确班科内 active，外发关闭。
+
+## 2026-09-29 路线 1 状态（取代下文旧候选快照）
+
+- Desktop `1b614ee` 精确配对 Core `22bf414` 且 G1 默认关闭；macOS 未签名隔离 `.app` 完成真实任务审核拒绝、Core 回读和审核详情反馈入口的合成写回。发现并修复 canary 反馈误记为真人的壳→服务信任边界；旧测试根的一条误标记录不计入价值验收，新记录和干净包内 E2 均强制 `synthetic`。重复点击已评价任务不再写新记录。状态为**已实现待正式安装验收**，不是发布完成。
+- 同一 G1 精确 grant 下，学生跟进、课后复盘、校历行政、家校沟通、安全隐私的合成消息均被 `domain_out_of_scope` 收住，未建 Goal/外发；状态为**安全 hold 的服务级证据**，不是五域 Desktop Live 已实现。G2/G3/G4 Live 默认关闭，G5 关系/材料/课次及学期归属仍须核实。
+- #287 仍 Draft，最新预览 `36440865994` 因 Windows 安装脚本清理失败而非全绿；已改精确进程树清理，待 CI 复测。用户本轮要求 macOS 路线 1 优先、Windows 安装验收延后；不降低 CI 和安全门，也不将 Windows 项勾为完成。正式签名/公证 v0.3.49、唯一安装副本、真实跨到期睡眠和本版系统通知点击仍未验。详见[逐项验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+
+## 2026-09-28 路线 1 最新门禁（取代下文旧候选快照）
+
+- 最新包内与未签名 Mac canary 已在 Core `22bf414` 上验证班级编号/课次时间/材料同范围绑定，1 次后台调用生成 4 份内部草稿；停用暂停 grant 且草稿可读，真实 9 项教师文件摘要不变。合成图标不支持数学内容质量验收，Mac 锁屏阻止新包教师审核 UI。并行预览 `36434622199` 的 Windows 原生守护与 NSIS 成功，安装脚本因同路径测试进程残留在正常模式阶段停止；已修精确清理，最终新 pin 仍须再跑 Windows Safe Mode 正向安装。详见[验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- Core [#215](https://github.com/Intellinfinity/edupi/pull/215) 已在 Windows/质量 CI 双绿和独立复审后合并 `22bf414`；Desktop v0.3.49 精确更新 Core pin，Runtime schema 仍 `8b4d701c…`，Runtime/Desktop 清单为 `4c21528e…` / `351d8fd6…`。同名双班的课表 ID、材料范围和旧无编号投影已加安全回归；教师页面新增明确班级编号与课次时间绑定，尚待安装版操作。#287 仍 Draft，当前并行预览 `36434622199` 仅检验上一提交的 Windows 私有状态句柄修复；最终配对需另跑三平台 CI、签名安装与六领域逐项验收。下条旧 #214 pin 仅是历史。
+- [预览 `36416523796`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36416523796) 质量/Mac 包成功，Windows 私有状态守护 2 项句柄共享测试失败而阻止 NSIS；已改为持有数据读取权限以参与 NT 共享校验，下一次 Windows CI 未通过前 G1 仍关闭。Mac 未签名 UI 另揭示课表只存班名、没有稳定班级编号，主动备课候选为 0；现补显式班级编号/上课时间/时区及材料同编号选择，待安装版重验。详见[路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- Core [#214](https://github.com/Intellinfinity/edupi/pull/214) 已通过 Windows/质量 CI 并合并 `748f9b5`；Desktop v0.3.49 已精确 pin 相同 commit、Runtime schema `8b4d701c…`、Runtime/Desktop 清单 `ef1dbede…` / `80d26d1a…`。本机包内闭环新增停用后草稿读取和教师手工修订 revision 2 回读，原有 4 产物/1 模型调用/审核/合成反馈/重启去重继续通过；新 Windows 根 admission 保持 G1 默认关闭但允许停用后 Core 读回。#287 仍 Draft，v0.3.49 正式 CI/签名安装、Windows 正向安装流程、真实跨到期睡眠与五个非 G1 领域 Desktop 消费仍未完成；不能将 staged 证据当正式版验收。
+- v0.3.48 的三平台签名 Draft 与 Apple 公证作业全绿，macOS 隔离正式安装版验证了通知真实点击、同任务续聊/会话持久、正常/Safe Mode 重启和真实教师文件摘要不变；但安装版材料暂存目录误放在 Core 根内，被安全边界拒绝，因此 **Draft 不发布**，唯一正式 App/公开 feed 保持 v0.3.45。v0.3.49 代码已将 canary 状态移出 Core 根，未签名本地 `.app` 跑通材料 intake 和 1 次模型调用生成 4 份内部草稿；受管草稿正文读取和 Windows 停用后根 admission 的缺陷正由独立 Core/Desktop 修复，正式签名安装、Windows 正向链、真实跨到期系统睡眠及六领域尚未通过。细节与证据见[路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)；下条 v0.3.48“待签名安装”是历史快照。
+- 最新配对已取代下一条合并前快照：Core [#213](https://github.com/Intellinfinity/edupi/pull/213) 在 [CI `36374708664`](https://github.com/Intellinfinity/edupi/actions/runs/36374708664) 质量/Windows 双绿与独立安全复审后合并 `453e303`；Runtime schema `8b4d701c…`、Runtime component manifest `adfbb5d…`，Desktop manifest `2fdf719f…` 不变。Desktop v0.3.48 已更新精确 pin，仅把 Core 明确验证过当前来源和历史完成草稿的 `completed_source_changed` 当作需核对；普通 `stale_source` 继续阻断。新配对的合同/闭包 13/13、默认关闭 Runtime 与对话反馈 E2、staged 完整闭环（4 产物、1 模型调用、审核与 synthetic 反馈、重启无重做）、全量 Node 1819 passed/26 skipped/0 failed 和静态/审计已通过。#287 仍 Draft，v0.3.48 三平台 CI、签名安装、六领域及睡眠/通知点击仍待验；正式 App/feed 不变为 v0.3.45。下一条的 #213 待合并状态仅是历史。
+- v0.3.47 签名 Draft [run `36365475375`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36365475375) 三平台和 Apple 公证作业成功，Mac 下载摘要/`codesign`/Gatekeeper 通过，但隔离包内完整闭环在停用重启后重新启用时两次返回 `proactivity_preparation_blocked`；Core 先记授权恢复前 `permission_denied`，再记旧草稿 `stale_source`。该 Draft 保持未发布，真实 `/Applications/EduPi.app` 仍 v0.3.45。宽放所有 `stale_source` 的本地试验因材料缺失/课表漂移可被误归类而经独立复审否决，未提交、其 staged 通过不算新配对证据。Core [#213](https://github.com/Intellinfinity/edupi/pull/213) 已在干净独立分支增加仅完成草稿且当前来源有效时的 `completed_source_changed`，本机 Core 全量/定向测试通过，Windows CI 及合并待完成；Desktop v0.3.48 只认可该新码，仍需更新精确 pin、重新打包和逐项安装验收。详见[路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 当前配对：Core [#212](https://github.com/Intellinfinity/edupi/pull/212) 在最终 [Windows/质量 CI `36360296383`](https://github.com/Intellinfinity/edupi/actions/runs/36360296383) 双绿及独立复审后合并 `8fe5fae`，仅提供默认关闭、需 Desktop 来源守护的 Windows 内部 canary 合同；直接 Core CLI `=1` 未获安全许可。Desktop #287 `e8d920d` 精确 pin 新 Core，v0.3.47 候选已准备；Runtime schema 不变，两份 manifest 分别配对为 `2fdf719f…` / `cf7aaeb8…`。本地合同 10/10、闭包 3/3、隔离后台/对话反馈 E2、1843 项 Node 测试中 1817 通过/26 跳过、静态与审计通过。新 pin [完整预览 `36361825497`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36361825497) 质量/macOS DMG/Windows NSIS 三绿；[独立 Windows 预览安装复验 `36364307325`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36364307325) 通过批准资产/清单/正常模式拒绝/单实例检查，复验的 quality/package 有意跳过。#287 `fbe794c` 独立只读复审未见可证实代码阻塞，仍保持 Draft；正式签名、Windows 安装资源 ACL 正向验证、六领域桌面流程、真实模型/通知点击/跨到期睡眠/教师审核均未验，不得以预览通过冒充路线 1 完成。
+- 最新安全增量：Core #212 Draft 的 `188fde7` 在 [CI `36351848853`](https://github.com/Intellinfinity/edupi/actions/runs/36351848853) Windows/质量双绿，隔离根的 owner/SQLite/safe_store、deterministic G1 单次草稿/重放不重做及弱 ACL journal 拒绝通过；后续四账本与真正 Live/正式安装继续未验。Desktop #287 的 [Windows 来源护栏探针 `36353475290`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36353475290) 以受限 Secret 取批准资产，6 项 ACL/路径测试及持句柄真 Node22 加载 1 项通过；双 stop 竞态已用单锁修复，macOS 真实子进程回归通过。该 probe 没有 NSIS 安装资源路径、quality/package 或教师流程证据，#287/#212 均仍 Draft；不能提前 repin、合并、发布。
+- Desktop [完整预览 `36354201144`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36354201144) 的 quality、macOS app/dmg、Windows NSIS 三项全绿；quality 1843 total / 1816 passed / 27 skipped / 0 failed。Windows 临时安装预览包并只证明旧 Core `3397b71` 的正常模式拒绝，非批准 Core 安装验收；Mac 包为未签名预览。当前只有课前准备的 grant，其他五域默认为 `held/domain_not_authorized`，Desktop 不得借 G1 代替逐域精确授权/许可；G2/G3/G4 Live 与 G5 未核实关系/材料继续关住。
+- 最新 Core 来源门：[#211](https://github.com/Intellinfinity/edupi/pull/211) 已合并 `ecaeb294`，[最终 CI `36340950913`](https://github.com/Intellinfinity/edupi/actions/runs/36340950913) Windows/质量双绿，固定 181248 字节 native asset 可在受保护 NTFS 加载且单字节篡改被拒；**生产 root/writer/G1 仍关闭**。Desktop `50fd12d` 把 Windows G1 限到显式标记的当前用户 home 下独立命名根、包内 Core、Safe Mode 和当前单班单科许可；普通启动强制 canary 标记为 0，隔离状态/模型目录不沿用真实配置，手机桥接关闭。系统 TEMP 在 Core 真 Windows 核验中已被拒，不能绕过规范路径/ACL 门。Desktop `2403606` 将 Core 只读 token 缩到 Next 构建后的独立 staging 步骤，打包前再次无 token 验证；1842 项测试中 1816 通过、26 跳过、0 失败，TypeScript/lint/actionlint、macOS Cargo 37/37 通过。旧预览 `36344329083` 因凭据范围重构取消，不算 CI 通过。Windows 真 Tauri/NSIS 与正式安装仍未验，Desktop pin 仍 `3397b71`，#287 保持 Draft。Core root/writer [#212](https://github.com/Intellinfinity/edupi/pull/212) 仍为 Draft。
 
 - 范围/预算：Core #204 已合并 `3397b71`；Desktop #285 已合并 `38d8c95`，compat pin 精确为 Core `3397b71`。最终预览 CI `36296800201` 全绿，隔离包内单班草稿/通知失败/审核/synthetic 反馈/重启有工程证据。状态为**已实现待正式安装验收**，不能记为六领域完成。
 - 授权租约：Core #207 已合并 `c61a841`，旧 grant 在暂停/恢复或版本更新后不能继续调用或提交；当前 Desktop pin 仍停在 #204，尚未消费这项增强。状态为**Core 已实现、Desktop 待重新配对**。
 - Windows 根：Core #205 已合并 `ed0499d`，但仅只读原生探针通过；Windows 实际写入、SQLite、并发替换与模块来源证明未完，G1 仍返回 `native_attestation_required`。状态为**部分实现**；完整安全修复合并后才更新 Desktop pin。
+- Core #206 后续合并 `a595f5a`，真 Windows 受保护目录、SQLite WAL/SHM 继承和 inherit-only ACL 拒绝已验证；批准资产/可执行加载与实际 Core writer 仍无，`windows_g1:disabled`。这增加安全基础证据，不改变上段**部分实现**与 Desktop 不 repin 的状态。
+- Core #209 合并 `4579b79`，真 Windows 受保护输出目录的 O_RDWR 刷盘通过并修正 C3 调用点分类；完整 owner 生命周期仍未验。Desktop Draft #287 已把 Windows Normal Mode 的 G1 启用请求与 supervisor 启动均关住，Safe→Normal 状态和 Tauri 重启代码已修，本机全量/静态/Cargo 测试通过；安装版仍未验收，PR 保持 Draft。
+- Core #210 合并 `4845cde`，真 NULL DACL 拒绝通过；Desktop #287 预览 `36320878317` 与 `36327042388` 三项作业全绿。私有 Draft 资产旧探针 `36329205990` 返回 403；改为 prerelease 后，独立 Windows 探针 [`36336815225`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36336815225) 用**同一只读 Secret** 验证了 181248 字节 PE 与固定 SHA-256，资产读取阻塞已解除。该 probe-only run 未打安装包；Core loader、writer 和生产 Windows 根证明仍待通过，G1 继续 fail-closed，Desktop 不 repin、不发布。
+- Desktop #287 `0c3208b` 已接 CI 受限凭据与包内固定资产 staging，合同/来源祖先/原始字节验证失败即不入包；1840 项测试中 1814 通过、26 跳过、0 失败，TypeScript/lint/audit/actionlint 通过。Core #211 当时仍是 Draft，现以本节首条合并记录为准；Windows 真批准合同打包与 root/writer 未验，本项继续**部分实现**。
+- Desktop [Windows staging 探针 `36339707485`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36339707485) 已对 #211 精确提交 `bcd3f97` 实跑正式 staging 函数，固定资产读取、祖先与 SHA 核验、临时落盘及清理均通过；不含 NSIS 或安装。#211 早期 CI 失败已由本节首条最终双绿取代，G1/root/writer 门不变。
 - 发布/安装：v0.3.46 正式 run `36298536318` 已取消，Release 保持 Draft（4 个 Linux 资产），公开 feed 与唯一正式 App 仍为 v0.3.45。状态为**未发布、正式安装未验**；Windows 根过门后再做签名/公证和 macOS/Windows 六领域逐域验收。系统通知真实点击、跨到期实睡、真人反馈和真实材料内容质量均未验，不能用源码或 canary 结果补勾。逐域矩阵见[路线 1 验收](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。
+- 六领域 Desktop 消费：当前普通对话 canary 只让课前准备继续，其他五领域返回 `domain_out_of_scope` 并撤回。状态为**部分实现**，不是“六领域只待安装验收”；后续必须在 Core 许可范围内补 Desktop 路由，再按允许/澄清/hold 分别验收。
+- Windows 同身份威胁边界：真实 Windows runner 已证实同教师账号可在持有无 DELETE 共享的目录句柄时改名根。首次 G1 安装 canary 须在 Safe Mode 暂停第三方 Plugin/Skill；这只减小同身份扩展风险，不等于正常模式抗恶意插件。若要覆盖该攻击，需受管 VFS/独立写者或进程隔离。现有 Core 门继续 fail-closed，不能因改名后身份漂移检测通过就放行。
 
 ## 2026-09-27 路线 1 正式版候选（未发布）
 

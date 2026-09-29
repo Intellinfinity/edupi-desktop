@@ -1,9 +1,30 @@
 # 自动下载安装
 
+## 2026-09-29 v0.3.50 候选准备
+
+- 候选版本与组件清单已同步为 v0.3.50，只补审核过时快照后的刷新入口。准备执行 macOS 签名 Draft CI；此轮不运行已延期的 Windows 安装验收，不更新公开 feed。此前 v0.3.49 的公证证据不替代 v0.3.50 安装验证。
+
+## 2026-09-29 v0.3.49 Draft 验收后恢复正式版
+
+- 已独立验证 0.3.49 Draft DMG SHA、严格签名、Gatekeeper 与 CI 公证装订，并在唯一正式安装路径做隔离验收；签名版的站内续聊、暂缓审核、synthetic 反馈和重启保留通过。系统通知点击、跨到期实睡、Windows Safe Mode 与最终发布门未通过，Release/PR 保持 Draft，公开 feed 仍 0.3.45。
+- 验收收口后已退出隔离 App 与本机模型桩，将 `/Applications/EduPi.app` 恢复为原公开签名 v0.3.45，唯一副本签名/Gatekeeper 再核通过；签名候选资产和隔离测试证据可恢复，真实教师根/配置 9 项摘要不变。下方临时安装 0.3.49 的段落是中间状态。
+
+## 2026-09-29 v0.3.49 签名 Draft（安装验收仍开放）
+
+- [run 36525542297](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36525542297) 三平台签名构建和 macOS 公证装订成功，9 项资产指纹 `sha256:7abe22c7f0351e2c321097a21fa419210d50266af81b6315eda1a7afb1937dd9`；DMG 下载摘要、App/DMG Gatekeeper 与 App 严格签名核验通过。本机 stapler 因 CloudKit TLS `-1200` 无结论。唯一正式安装路径临时为 0.3.49，旧 0.3.45 已独立备份；公开 feed 仍 0.3.45，Release/PR 均 Draft，不发布。
+- 正式安装版单班内部草稿和站内续聊已部分验收，但签名版价值反馈、系统通知真实点击、跨到期真实睡眠，以及 Windows Safe Mode 正向安装未通过。Windows [预览 36525434938](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36525434938) 失败，不把签名构建全绿替代安装运行证据。
+- 后续签名版价值反馈已实际写入 Core 且只计 synthetic，退出重启后原会话、草稿和反馈保持；上条“价值反馈未通过”是中间状态。系统通知点击、跨到期实睡、Windows Safe Mode 正向安装和发布仍未通过，不能更新 feed。
+
+## 2026-09-29 v0.3.49 路线 1 候选（尚未签名发布）
+
+- 精确 Core pin 为 `22bf414`；未签名 macOS 隔离 `.app` 已完成任务审核及合成反馈写回，且修复隔离反馈必须标记 synthetic 的服务端边界。旧一次错误标记只在隔离测试根保留为失败证据。
+- 正式 `/Applications/EduPi.app` 与公开 updater feed 仍为 v0.3.45。#287 为 Draft，预览 `36440865994` 的 Windows 安装脚本未通过；v0.3.49 尚无签名 Draft、Apple 公证/装订、正式安装或公开更新，不能承接 v0.3.48 已否决的安装证据。用户目前优先 macOS 路线 1，Windows 安装验收延期但未取消。
+
 ## 2026-09-27 v0.3.46 发布暂停（最新状态）
 
 - Core #204 的范围/预算和 Desktop #285 的默认关闭/精确 pin 已合并；最终预览 CI `36296800201` 全绿。Core #205 的 Windows 只读探针已合并，但 G1 仍正确拒绝 `native_attestation_required`，正式发布不能把此项视为通过。
 - Core #207 的旧授权租约安全栅栏已合并，但 Desktop 仍 pin #204 的 `3397b71`，未包含 #207。等 Windows 完整根证明后一次性更新 pin 与两份组件清单，不用旧 Draft 资产发布。
+- Core #206 已合并 `a595f5a`，只增加 Windows 隔离根/SQLite 侧文件证据和 `pending` 非执行资产合同；`native_attestation_required` 与 G1 关闭未变。该 PR 不是正式安装或发布门通过，Desktop pin 暂不移动。
 - 正式 run [`36298536318`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36298536318) 已取消，manifest/notify job 未发布；[v0.3.46 Release](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.46) 仍为 Draft，仅 4 个 Linux 资产。公开 updater feed 和唯一 `/Applications/EduPi.app` 保持 v0.3.45；v0.3.46 尚无 Apple 公证、7 键 feed 或正式安装版验收。待 Windows 完整根证明、安全复审、Core/Desktop 重新配对后再正式构建，不沿用已取消 run 的残留资产作为完成证据。
 - 下一候选不能复用旧 v0.3.46 Draft：它绑定 Desktop `38d8c95`，而新 Core pin 与安全/发布门代码将产生新提交。保留 Draft 作失败记录，后续递增版本创建新 Draft；正式 workflow 改为 `draft` 构建和 `publish` 发布两次显式 dispatch，安装验收前不会自动更新公开 feed。
 

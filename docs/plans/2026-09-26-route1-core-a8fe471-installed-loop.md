@@ -1,8 +1,14 @@
 # Route 1: Core a8fe471 Installed Proactive Loop
 
+## 2026-09-29 顺序说明
+
+用户现在要求先完成 macOS 路线 1，Windows 安装版实测延后；原计划的 Windows 验收条件保留为未验，不用本机源码、Mac 结果或预览构建替代。当前 G1 单班闭环已到未签名隔离 `.app` 的审核/合成反馈，签名 Draft、唯一正式安装、真实跨到期睡眠和新版本系统通知点击仍在验收门内。五个非 G1 领域先验证默认 hold，不开放 Core 未许可的 Live 执行。
+
 ## 2026-09-27 执行顺序修订
 
 这份计划沿用原路线 1 编号；下方旧候选快照保留历史。Core #204（范围/来源/耐久预算）、Core #207（旧授权租约栅栏）和 Desktop #285（默认关闭）已合并；Desktop 仍 pin #204 的 `3397b71`，尚未消费 #207。Core #205 只交付 Windows 原生只读探针，Windows G1 仍拒绝。v0.3.46 正式构建已取消，Release 保持 Draft，公开 feed 和唯一正式 App 仍为 v0.3.45。
+
+Core #206 已在真 Windows/ Linux 双绿和独立复审后合并 `a595f5a`，把受保护目录与真实 SQLite 侧文件验证加入隔离证据，但原生资产合同仍 `pending`、无生产可执行加载、Core writer/G1 未运行；它不改变上段的发布和 pin 门禁。
 
 1. 完成 Windows 根证明：在真实 Windows runner 上覆盖原生根、现有文件与创建写入、SQLite DB/WAL/SHM、并发替换和模块来源。仅当 Core 安全复审、测试及 CI 均通过且 `native_attestation_required` 能被真实证明取代时，合入 Core 修复；不得由 Desktop 伪造 attestation。
 2. 在新 Core main 上重新核对 Runtime schema、Runtime component manifest、Desktop component manifest 与打包闭包，更新 Desktop 单一 compat pin。保留 G1 默认关闭、预算/来源限制、G2/G3/G4 Live 默认关闭和 `external_send=false`。

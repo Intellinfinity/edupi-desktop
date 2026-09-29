@@ -384,6 +384,9 @@ test("timetable entries patch only the selected Core object", async () => {
 
   for (const source of [calendarWorkspace, panel, workspaceViews]) {
     assert.match(source, /slotId: string \| null/);
+    assert.match(source, /classId: string \| null/);
+    assert.match(source, /startTime: string \| null/);
+    assert.match(source, /timeZone: string \| null/);
   }
   assert.match(calendarWorkspace, /editingTimetableId/);
   assert.match(calendarWorkspace, /timetableSlot/);
@@ -392,6 +395,9 @@ test("timetable entries patch only the selected Core object", async () => {
   assert.match(calendarWorkspace, /defaultValue=\{rawText\(timetableSlot\?\.period\)/);
   assert.match(calendarWorkspace, /defaultValue=\{rawText\(timetableSlot\?\.subject\)/);
   assert.match(calendarWorkspace, /defaultValue=\{rawText\(timetableSlot\?\.class_name \?\? timetableSlot\?\.className\)/);
+  assert.match(calendarWorkspace, /defaultValue=\{rawText\(timetableSlot\?\.class_id\)/);
+  assert.match(calendarWorkspace, /name="classId"/);
+  assert.match(calendarWorkspace, /name="startTime" type="time"/);
   assert.match(calendarWorkspace, /defaultValue=\{timetableSlot\?\.kind === "routine" \? "routine" : "class"\}/);
   assert.match(calendarWorkspace, /visibleTimetableNote\(timetableSlot\?\.notes\) \|\| ""/);
   assert.match(calendarWorkspace, /selection\.kind === "timetable"/);

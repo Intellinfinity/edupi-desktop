@@ -1760,6 +1760,7 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-review-notice,
 .edupi-review-message { margin-top: 12px; padding: 10px 11px; border-radius: 7px; background: var(--ep-orange-soft); color: var(--ep-orange); font-size: 12px; }
 .edupi-review-message { background: var(--ep-blue-soft); color: var(--ep-blue); }
+.edupi-review-message button { margin-left: 10px; padding: 3px 8px; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; font: inherit; }
 .edupi-review-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .edupi-review-actions button { height: 33px; padding: 0 12px; border: 1px solid var(--ep-border-strong); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 12px; }
 .edupi-review-actions button.is-primary { border-color: var(--ep-blue); background: var(--ep-blue); color: white; }

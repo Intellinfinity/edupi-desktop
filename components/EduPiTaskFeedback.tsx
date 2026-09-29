@@ -72,7 +72,7 @@ export function EduPiTaskFeedback({ task, candidate }: { task: TeacherTask; cand
       if (current) setRecorded(currentTaskFeedback(records, candidate) !== null);
     }).catch(() => {});
     return () => { current = false; };
-  }, [desktop, candidate?.candidateId, candidate?.revision, decision]);
+  }, [desktop, candidate, decision]);
   if (!desktop || !candidate || !decision || task.trigger !== "teaching_before_class"
     || candidate.evidenceIds.length === 0 && candidate.sourceIds.length === 0) return null;
 

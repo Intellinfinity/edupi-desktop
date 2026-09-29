@@ -1,5 +1,25 @@
 # 路线 1：Core a8fe471 安装版主动闭环验收
 
+## 2026-09-29 v0.3.50 审核刷新收尾
+
+- 继续同一分支，保留现有改动。任务详情的过时快照提示增加“刷新任务”，复用现有工作区读取事件；读取失败可重试，不自动重交教师决定。反馈 effect 依赖与生成组件版本同步修正，没有新增依赖或执行通道。
+- 本地定向审核/反馈/工作区 20 项、TypeScript、lint、`release:verify` 和 macOS `cargo test --locked` 41 项通过；lint 仅剩既有 intake 未使用类型告警。独立只读复审无 P1/P2。v0.3.50 尚待页面操作和签名 macOS 候选 CI，不能沿用 v0.3.49 证明新按钮已安装验收。
+- 用户已延后 Windows 安装验收；当前 Windows Safe Mode 失败继续保留，G1 默认关闭。代码合并与发布验收分开记录，真实通知点击、跨到期系统睡眠及六领域 Live 均未补证；公开 feed 仍 0.3.45。
+
+## 2026-09-29 本轮收口状态（取代下方临时安装状态）
+
+- 签名 0.3.49 的隔离安装版已完成任务审核暂缓、Core revision 3 回读和 1 条 `synthetic / teaching_preparation / hold / partial / used=false` 价值反馈。正常退出重启同一签名 App 后，Core/投影、4 份当前草稿、原 Session 两条消息、任务绑定和反馈记录均保留；无新的稳定来源模型调用。系统通知交付账本为 delivered 2 / opened 0；系统通知窗口被 UI 控制工具阻断，需教师手动点击，不能用站内续聊代替。跨 9 月 30 日 00:00 的真实睡眠未执行。任务详情审核曾连续因来源变化返回 409，最终通过“今天→刷新待办”才安全写入，详情缺直达刷新按钮。
+- Windows 预览 `36525434938` Safe Mode 隔离启动没有 Core 状态，未通过；PR #287 和 Release 398843435 继续 Draft，公开 updater feed 保持 0.3.45。考虑到未验收门，已停止唯一正式安装版中的隔离测试进程和本机模型桩，并将 `/Applications/EduPi.app` 原位恢复为公开签名 v0.3.45；签名候选 DMG、0.3.49 `.app` 备份和隔离测试根保留可恢复。恢复后唯一 `/Applications/EduPi.app` 的严格签名及 Gatekeeper 均通过，真实教师数据/模型/授权配置 9 项摘要再次一致。未改真实数据根或 launchd，未自动外发。本条取代下文“0.3.49 临时安装且 G1 active”的中间状态，路线 1 **部分验收，不是发布完成**。
+
+## 2026-09-29 签名 Draft 安装实测（未通过完整发布门）
+
+- [签名 Draft run 36525542297](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36525542297) 的 Linux、Windows、macOS 构建、公证、DMG 装订和资产证明全绿；Release 398843435 仍为 Draft，9 项资产指纹 `sha256:7abe22c7f0351e2c321097a21fa419210d50266af81b6315eda1a7afb1937dd9`。独立下载 DMG 210315954 字节、SHA-256 `6af0e8873a02792bfa0e7ee0b76fe27e624c47e372e34370c4602d357b4f4f7d` 与资产摘要一致；严格签名与 App/DMG Gatekeeper 均返回 `accepted / Notarized Developer ID`。本机 `stapler validate` 因 Apple CloudKit TLS `-1200` 无结论，CI 装订核验成功。原 v0.3.45 已备份；唯一 `/Applications/EduPi.app` 临时安装同一签名 0.3.49，正式安装路径仅一个可见副本，公开 feed 仍 0.3.45。
+- 安装版在全新 0700 隔离教师根 `edupi-route1-canary-0x2ohcXU` 冷启：Core/投影 ready、精确 Core `22bf414`、G1/G2/G3 默认 pending、`externalSend=false`。页面录入一名合成教师、周三第 2 节数学 `class-7-1`/09:00/Asia-Shanghai、PDF 材料，并核对备课正文为 confirmed revision 1；Core 后置回读对应课表/材料/摘录。`.txt` 不支持而被 UI 拒绝，第一次 PDF 接入因测试模型不识别日程提取提示返回 `prompt_failed`，修正本机模型桩后接入成功，没有绕过确认。第 1 周校历是从已安装服务 API 写入并显式注明的合成测试周次，**不是教师在页面核实的真实校历**；不能用于真实学期归属验收。
+- 精确单班 G1 显式启用后，在无人点击“立即检查”的下一次内部检查中自动得到 4 份内部草稿、1 次本机模型调用。答案页在正式界面打开，三道方程及代入均正确；这只验证合成材料/桩输出，非真实模型教学质量。另一个校历节点保持 planned，未越权生成。站内“已准备”提醒→继续聊→输入自己的问题→本机回答，Core 同任务绑定 Session `01a0ec52-5b49-708c-a169-033d1c294563`；会话 API 读回 1 用户/1 助手消息。离开再进入原会话的页面动作、系统通知点击未验。
+- 为准备跨到期睡眠，第二条同班同学科周四第 2 节导入被 Core 判为潜在改课冲突并暂缓，周三来源因此暂不可用，旧 execution 为 stale；页面明确选择“保留原安排”后，周三和独立周四第 3 节同时可见。来源发生过变化，周三生成因此增加为 attempt 2、模型桩共 2 次；之后稳定来源的自动重扫仍为同一 execution、4 份当前产物，没有第 3 次调用。周四课次当前 planned/due 2026-09-30，尚未发生跨到期真实系统睡眠。若把冲突引起的重生误写成“重复事件无重做”会掩盖来源变化，故两类证据分列。
+- 教师任务详情的审核在来源变化后两次收到 `stale_snapshot` 且均未写入；转到“今天”明确刷新待办后，暂缓决定经页面及 Core 回读为 candidate revision 3、状态 held。详情页缺少直达刷新入口，是尚待修的可用性欠项。签名版价值反馈尚未写入；G1 已在页面停止，`teacher_feedback` 当前未启用。系统提醒的交付账本显示 2 次 delivered、0 次 opened；macOS 通知窗口被当前 UI 控制工具禁止操作，需要教师手动点击，不能宣称通知续聊通过。真实教师根、模型与授权配置 9 项摘要在安装和隔离运行后仍一致。Windows [预览 36525434938](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36525434938) 的质量/Mac 包通过，Windows NSIS 与正常模式 fail-closed 通过，但 Safe Mode 隔离启动未读到 Core 状态，CI 失败。PR #287 继续 Draft，Release 不发布。
+- 上条反馈待验状态已被后续实际操作取代：重新启用精确单班 G1 后，签名版任务详情的“评价本次准备”已通过页面写入，Core `teacher-feedback-v1.json` 只含 1 条当前 `synthetic / teaching_preparation / hold / partial / used=false`；页面显示“已评价”。普通退出并冷启同一 `/Applications/EduPi.app` 后，Core/投影 ready、G1 active、旧 execution 仍为 attempt 2/4 产物、同任务 Session `01a0ec52-5b49-708c-a169-033d1c294563` 和 2 条会话消息、反馈记录 1 条均保留，未新建 execution 或再次模型调用。系统通知点击仍 0，重新进入同一会话的页面动作遇锁屏而未验，跨到期睡眠与 Windows Safe Mode 仍未验。测试根 G1 当前为 active、仅 `class-7-1 / 数学`、预算上限 12、`externalSend=false`；Mac 再次锁屏，不能通过 UI 停止。正式安装版仍为签名 Draft，公开 feed 不变。
+
 ## 2026-09-29 当前验收门（取代下文旧候选状态）
 
 - Desktop 代码提交 `1b614ee` 配对 Core `22bf414c6715c312a62a04c1ed02d5fa5f51d1c8`，Runtime schema、Runtime/Desktop component manifest 与 compat pin 未变。macOS 未签名独立 `.app` 0.3.49 在隔离教师根中重启后，真实页面从“教学任务→教师审核”重新打开同一份手工修订草稿；因合成图标没有数学依据，填写理由并**拒绝**任务。页面历史及 Core 教育投影读回同一 candidate `revision=2`、`status=rejected` 和审核回执。测试材料不算教学内容质量通过。

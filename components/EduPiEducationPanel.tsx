@@ -324,7 +324,12 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   useEffect(() => { if (initialModule === "context") setContextOpen(true); }, [initialModule]);
 
   useEffect(() => {
-    const refresh = () => { void loadWorkspace().catch(() => {}); };
+    const refresh = (event: Event) => {
+      if (event.type === "edupi-education-refresh") setReviewMessage(null);
+      void loadWorkspace().catch(() => {
+        if (event.type === "edupi-education-refresh") setReviewMessage("任务读取失败，请重试。");
+      });
+    };
     window.addEventListener("edupi-preparation-updated", refresh);
     window.addEventListener("edupi-artifacts-updated", refresh);
     window.addEventListener("edupi-education-refresh", refresh);

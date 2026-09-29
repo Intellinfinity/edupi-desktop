@@ -109,7 +109,7 @@ function renderInspectorData(data) {
   }));
 }
 
-function renderTaskWorkspaceData(data) {
+function renderTaskWorkspaceData(data, reviewMessage = null) {
   const taskValue = data.tasks[0];
   const boundWorkCase = data.workCases.find((candidate) => candidate.taskId === taskValue.id) ?? null;
   return renderToStaticMarkup(React.createElement(EduPiTaskWorkspace, {
@@ -121,7 +121,7 @@ function renderTaskWorkspaceData(data) {
     reviewEnabled: true,
     reviewReason: "Core review enabled",
     reviewBusy: null,
-    reviewMessage: null,
+    reviewMessage,
     agentSession: null,
     taskSessionBusy: false,
     taskSessionError: null,
@@ -131,6 +131,12 @@ function renderTaskWorkspaceData(data) {
     onOpenFile() {},
   }));
 }
+
+test("task review offers an explicit refresh after a stale Core snapshot without resubmitting the decision", () => {
+  const html = renderTaskWorkspaceData(dataFor(workCase(["artifact-1"])), "内容已更新，本次没有写入；请刷新待办后重新决定。");
+  assert.match(html, /刷新任务/);
+  assert.doesNotMatch(renderTaskWorkspaceData(dataFor(workCase(["artifact-1"]))), /刷新任务/);
+});
 
 test("review board excludes a task whose Core work case has no artifacts", () => {
   const html = renderBoard(workCase([]));

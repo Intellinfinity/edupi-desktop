@@ -2,6 +2,7 @@
 
 ## 2026-09-29 v0.3.50 签名安装实测
 
+- 本轮可执行验收结束后，已正常退出候选和本机模型桩，将唯一 `/Applications/EduPi.app` 恢复为未运行的公开 v0.3.45；严格签名和 Gatekeeper 再核通过。151 文件摘要仍与基线一致。v0.3.50 App 保留于 `/tmp/edupi-route1-draft-050.JPb0kN/EduPi-installed-050.app`，DMG 和隔离数据保留，DMG 已卸载。以下“临时运行”均为验收过程，不是当前安装状态。
 - macOS [CI 36574120908](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36574120908) 已成功，代码为 `acecf26`；签名包运行、updater key、Apple 公证、DMG 装订与最终验证通过。这次只构建 macOS，三平台资产证明及发布步骤有意跳过。Release `399167693` 保持 Draft，公开 feed 未更新。
 - 最终 DMG 资产 `598386165`，210315903 字节，SHA-256 `7f1b27b2b14216059c17428200493b79e3d0b27b2861562a132b6219e1c0e7aa`；独立下载摘要完全一致，App 严格签名与 App/DMG Gatekeeper 均为 `accepted / Notarized Developer ID`。下载与 CI 元数据保存在 `/tmp/edupi-route1-draft-050.JPb0kN/`。7897 代理的较长连接测试通过，随后显式用于下载；未修改系统代理规则。
 - 唯一 `/Applications/EduPi.app` 临时替换为签名 v0.3.50，原 v0.3.45 保留在 `/tmp/edupi-route1-draft-050.JPb0kN/EduPi-public-045.app`。通过 LaunchServices 启动原隔离根 `edupi-route1-canary-0x2ohcXU`，原生 PID `70787`、loopback `38471`；Core/投影 ready，包内 pin 与三份合同 hash 精确匹配 `22bf414`，保存的 G1 班科授权恢复，G2/G3 pending，`externalSend=false`。这是显式隔离运行，不是改变真实教师根。
@@ -11,7 +12,7 @@
 - 正常退出 PID `70787` 后，按相同隔离启动参数重新启动唯一 App 为 PID `86908`，Core/投影重新 ready。安装版从任务再次打开原 Session，4 条消息全部可见；审核页回读“已评价”，Core records 仍为 2 条 synthetic，execution 仍为 attempt 2/4 个文件，没有新增备课调用。
 - 合成事项“路线 1 安装验收通知”的 task 为 `teacher-task-de88d509-a965-4be6-ba29-3dd95a105c80`，reminder 为 `8027cb37-ed6c-4bc7-88b5-1109111f92f8`。系统送达 `2026-09-29T14:47:21.260Z` 后经历上述 App 退出重启；用户实际点击并回复“已点击”，opened 为 `2026-09-29T14:53:58.143Z`。原生界面直接进入该 task 的对话并带入同一事项参考；通过 UI 输入发送后得到本机回复，Core 新绑定 `01a0eda9-e241-74fe-9fa6-12a43abb5a9c`，原数学任务绑定仍为 `01a0ec52…`。
 - 通知会话留下一条明确合成的未发送草稿，再切换数学会话，输入框为空且不含该草稿；返回通知会话时，同一新 Session、用户/助手消息及草稿均恢复。此项是实际系统点击→续聊发送→Core 绑定→离开重进的安装证据，非站内按钮替代；通知目标在 App 重启后仍可消费。
-- 真实跨到期系统睡眠仍未验。23:00 前复核周四任务 `teaching_before_class:timetable:timetable-slot-ada8fd74e4154e0a84cb16beb7ba2e99:2026-10-01`，dueDate `2026-09-30`、planned/not_generated，work case `work_case_8cc7a955978906a158f37351c9dfe073` 为 revision 0/0 产物。已询问用户是否今晚在上海 00:00 前睡眠、之后唤醒；不改变系统时间、能源设置或 launchd，也不将进程暂停算作系统睡眠。当前 App/本机模型桩仍在隔离运行，公开版备份完好；原始教师资料和配置 151 文件摘要保持。本次不补写六领域 Live 或真人教学质量通过。
+- 真实跨到期系统睡眠仍未验。23:00 前复核周四任务 `teaching_before_class:timetable:timetable-slot-ada8fd74e4154e0a84cb16beb7ba2e99:2026-10-01`，dueDate `2026-09-30`、planned/not_generated，work case `work_case_8cc7a955978906a158f37351c9dfe073` 为 revision 0/0 产物。已询问用户是否今晚在上海 00:00 前睡眠、之后唤醒，尚未收到安排；按原约定恢复公开版，并暂停心跳以免空转。恢复入口是同一隔离根及保留的签名 .50 App，重新开始前须确认仍有未来到期点，不能把事后冷启动当跨到期睡眠。不改变系统时间、能源设置或 launchd，也不将进程暂停算作系统睡眠。本次不补写六领域 Live 或真人教学质量通过。
 
 ## 2026-09-29 v0.3.50 审核刷新收尾
 

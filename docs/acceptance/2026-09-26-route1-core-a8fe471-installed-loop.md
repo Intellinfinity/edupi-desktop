@@ -1,5 +1,20 @@
 # 路线 1：Core a8fe471 安装版主动闭环验收
 
+## 2026-09-30 夜间实际结果
+
+- **后台跨日期到期执行通过，真实跨到期睡眠仍未验。** 首次到期后观察先只读文件与系统电源记录，没有打开 WebView、请求安装服务 HTTP 或点击检查。目标周四课次于上海 `00:00:21.333` 自动生成 4 份草稿，execution 为 `draft_ready / attempt 1`，本机模型仅记录 1 次备课调用；App 始终为原 PID `1463`。四个产物文件均独立核对内容 SHA-256 通过。
+- 第二次只读观察在 UTC `16:06:38` 完成，已跨过 Core `16:05:21` 的下一次自动检查：同一 execution、4 个 artifact ID/摘要、1 次模型调用均未改变，没有重复生成。观察证据为 `/tmp/edupi-route1-draft-050.JPb0kN/sleep-observation-1602.json` 与 `sleep-observation-1605.json`，睡前 `sleep-baseline.json` 未覆盖。API 后置核对 Core/投影 ready、精确 `22bf414`、G1 单班数学、G2/G3 pending、外发 false；原两条 Session 仍分别有 4/2 条消息，synthetic 反馈仍 2 条。
+- 本次观察区间内 `pmset` 的 Sleep/Wake 事件为空，独立回查最后一次完整唤醒仍为 9 月 29 日 `20:09:03 +0800`，而电源日志持续更新至 9 月 30 日 `00:08:17`。没有取得跨 00:00 的真实系统睡眠证据，不能把上述普通后台到期执行改写为睡眠恢复通过。原定课次已经执行，下次须选择仍未到期的合法隔离课次，不能冷启或重放本任务补出“睡眠”结果。
+- 自动草稿还产生了同任务 ready 提醒 `83dcad72-5373-4892-bf4c-6fc78ece5fdb`，系统于 UTC `16:00:32.618` 接受，opened 仍为空；这是新 G1 草稿的送达证据，和前一轮用户真实点击的 teacher-created 通知分别记录。
+- 已通过原生应用正常退出候选，停止精确的本机模型 PID `7184`，把唯一 `/Applications/EduPi.app` 恢复为未运行的公开 v0.3.45；严格签名与 Gatekeeper 通过，151 文件真实资料摘要仍为原基线。签名 .50 候选和全部隔离数据/观察证据保留，心跳暂停。Release `399167693` 仍 Draft，未改 feed、真实数据根、launchd、时钟或能源设置；Windows 与六领域 Live、真人价值仍不宣称通过。本条取代下方“夜间等待/后台运行”的临时状态。
+
+## 2026-09-29 夜间睡眠验收准备
+
+- 用户已明确选择“今晚完成睡眠验收”。本条取代下方本轮结束恢复公开版的临时状态：已复用验过的签名 v0.3.50，再次放到唯一 `/Applications/EduPi.app`；公开 v0.3.45 保留于 `/tmp/edupi-route1-draft-050.JPb0kN/EduPi-public-045.app`。同一隔离根运行，App PID `1463`，窗口已关闭留后台；本机合成模型仅监听 53021，独立进程 PID `7184`，日志为同目录 `sleep-model.log`。未使用 launchd，未改系统时间或电源设置，151 文件真实资料摘要仍不变。
+- 睡前确认 Core/投影 ready、精确 `22bf414`、G1 active 且 scope 仅 `class-7-1 / 数学`、G2/G3 pending、外发 false。目标周四课次仍 planned/not_generated、0 产物，无该任务 execution；到期边界为上海 `2026-09-30 00:00`，即 UTC `2026-09-29T16:00:00Z`。反馈仍为 2 条 synthetic。睡前观察保存在 `/tmp/edupi-route1-draft-050.JPb0kN/sleep-baseline.json`。
+- 唤醒后先运行同目录 `observe-sleep.mjs`，它只读原始执行账本、本机模型日志和真实 `pmset` 睡眠/唤醒事件，不请求 HTTP 或打开 WebView。必须先取得跨到期的真实睡眠区间、同一 App 进程及自动新增的目标 execution/产物，才读 API 核对合同；若尚未生成，给 Core 最多一个 5 分钟检查周期加 1 分钟余量，期间不手动触发检查或重启。重复扫描不应增加模型调用或产物。窗口/模型进程退出、没有跨到期睡眠或仅发生事后冷启时不得记通过。
+- 当前仍是**已准备待实际睡眠验收**。心跳恢复，但 UTC 16:00 前静默，不重复 CI/安装/已通过测试；完成唤醒核对后正常退出隔离 App、停止本机模型并恢复公开版，再暂停心跳。Windows 与六领域 Live、真人教学质量的未验边界保留。
+
 ## 2026-09-29 v0.3.50 签名安装实测
 
 - 本轮可执行验收结束后，已正常退出候选和本机模型桩，将唯一 `/Applications/EduPi.app` 恢复为未运行的公开 v0.3.45；严格签名和 Gatekeeper 再核通过。151 文件摘要仍与基线一致。v0.3.50 App 保留于 `/tmp/edupi-route1-draft-050.JPb0kN/EduPi-installed-050.app`，DMG 和隔离数据保留，DMG 已卸载。以下“临时运行”均为验收过程，不是当前安装状态。

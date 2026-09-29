@@ -3,7 +3,9 @@
 ## 2026-09-29 v0.3.50 审核刷新收尾
 
 - 继续同一分支，保留现有改动。任务详情的过时快照提示增加“刷新任务”，复用现有工作区读取事件；读取失败可重试，不自动重交教师决定。反馈 effect 依赖与生成组件版本同步修正，没有新增依赖或执行通道。
-- 本地定向审核/反馈/工作区 20 项、TypeScript、lint、`release:verify` 和 macOS `cargo test --locked` 41 项通过；lint 仅剩既有 intake 未使用类型告警。独立只读复审无 P1/P2。v0.3.50 尚待页面操作和签名 macOS 候选 CI，不能沿用 v0.3.49 证明新按钮已安装验收。
+- `acecf26` 的本地定向审核/反馈/工作区 20 项、TypeScript、lint、`release:verify` 和 macOS `cargo test --locked` 41 项通过；lint 仅剩既有 intake 未使用类型告警。独立只读复审无 P1/P2；[PR audit CI 36574113348](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36574113348) 的 npm 与 Rust audit 双绿。
+- 使用隔离副本和真实开发页面执行 `playwright-cli -s=route1-refresh run-code --filename refresh-ui-check.js`，注入审核 POST 的 `409 stale_snapshot` 与一次工作区 GET `503`：页面出现刷新按钮，失败后保留重试，取消网络注入再刷新成功。两次刷新只有初始 1 次审核 POST，Core 回读仍为 held/revision 3，审核历史未新增，`externalSend=false`。1440×900、800×900 均操作并截图；800 宽需先收起覆盖内容的对象列表，首次未收起时点击超时不算通过。脚本及三张截图保留于 `/private/tmp/edupi-route1-refresh-KuMACg/`；这是页面故障注入验证，不冒充安装版证据。
+- v0.3.50 [macOS 签名 Draft CI 36574120908](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36574120908) 绑定 `acecf26`，尚在运行；没有触发 Windows 安装任务。
 - 用户已延后 Windows 安装验收；当前 Windows Safe Mode 失败继续保留，G1 默认关闭。代码合并与发布验收分开记录，真实通知点击、跨到期系统睡眠及六领域 Live 均未补证；公开 feed 仍 0.3.45。
 
 ## 2026-09-29 本轮收口状态（取代下方临时安装状态）

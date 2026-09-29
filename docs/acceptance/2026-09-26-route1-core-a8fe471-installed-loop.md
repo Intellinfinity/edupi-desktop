@@ -1,5 +1,12 @@
 # 路线 1：Core a8fe471 安装版主动闭环验收
 
+## 2026-09-29 当前验收门（取代下文旧候选状态）
+
+- Desktop 代码提交 `1b614ee` 配对 Core `22bf414c6715c312a62a04c1ed02d5fa5f51d1c8`，Runtime schema、Runtime/Desktop component manifest 与 compat pin 未变。macOS 未签名独立 `.app` 0.3.49 在隔离教师根中重启后，真实页面从“教学任务→教师审核”重新打开同一份手工修订草稿；因合成图标没有数学依据，填写理由并**拒绝**任务。页面历史及 Core 教育投影读回同一 candidate `revision=2`、`status=rejected` 和审核回执。测试材料不算教学内容质量通过。
+- 审核详情原先没有价值反馈入口，现加入可重入的“评价本次准备”。隔离 app 实际操作“内容有误→记录评价→界面确认”，再从 Core `teacher-feedback-v1.json` 读回。第一次测试发现壳已识别隔离根，但未把该事实传给包内服务，导致一条合成反馈误标 `real_teacher`；它只存在于 `edupi-route1-canary-k53poJ` 测试根，**此根不得用于真人价值指标**。修复后，壳只将已核实的隔离状态传给服务端，服务端强制 `synthetic`；同根第二条 UI 反馈读回 `evidence_level=synthetic`，包内干净隔离根对客户端故意传 `real_teacher` 的反馈仍读回 synthetic，`synthetic_excluded=1`、`real_teacher_current=0`。再重启独立 `.app`，G1 停用时点击“评价”仅显示暂不可用；恢复同班许可后同一候选显示“已评价”，Core 记录数保持 2 未重复写。系统暂缓且没有教师审核人的候选现在不显示评价。未触及正式教师根；旧误标记录保留作失败证据，不隐匿或删除。
+- 本次代码级证据：`npm test` 1850 total / 1824 passed / 26 skipped / 0 failed；TypeScript、lint（0 error、1 项既有 warning）、`npm run security:audit`（无 high，4 项 moderate）、`release:verify`、Cargo 41/41 均通过。精确 Core staged 包内闭环仍为 4 草稿/1 模型调用/通知失败去重/审核/反馈/重启无重做/`externalSend=false`。五个非 G1 领域的合成自然对话在单班数学 G1 grant 下均返回 `domain_out_of_scope`、不产生 Goal 或待提取绑定，默认 hold；这只是服务级安全路径，不是六域安装版逐页验收。
+- [预览 CI `36440865994`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36440865994) 的质量和 Mac 包成功，Windows 原生守护 15 passed/1 ignored 与 NSIS 构建成功，但正常模式测试进程退出检查失败，Safe Mode 正向验收未执行。脚本已改为只对本次精确安装路径的进程树执行终止，**尚待 Windows runner 复测**。用户当前优先完成 macOS 路线 1，Windows 安装版验收延后，不能勾选；PR #287 仍 Draft，正式 `/Applications/EduPi.app` 和公开 feed 仍 v0.3.45。新候选签名/公证、唯一正式安装副本、跨到期真实睡眠、v0.3.49 系统通知成功点击及六域安装版流程均未验。
+
 ## 2026-09-28 最新验收门（取代下文旧候选状态）
 
 - 最新 v0.3.49 配对在 `22bf414` Core main 上重新 `desktop:prepare`（2176 文件）后，包内冷启 Core/投影 ready、G1/G2/G3 默认 pending，隔离闭环仍为 4 份草稿/1 次模型调用/失败去重/审核/synthetic 反馈/重启不重做/停用后读取及手修 revision 2、`externalSend=false`。本机未签名独立 `.app` 另外用真实页面背后的教师导入 API 对旧课表填入 `class-7-1`、09:00、`Asia/Shanghai`，Core 回执 accepted；同编号材料 intake 和真实内容核对后 scope 从 0 变为 ready，明确启用产生同任务 4 份内部草稿且正文读取成功，停用回执 `grantPaused=true`、G1 恢复 pending、正文仍可读。材料是合成 EduPi 图标，模型明确指出不含数学依据，**不算教学内容质量通过**；Mac 自动锁屏，教师审核/通知点击等 UI 尚未在该新包完成。真实数据/配置 9 项摘要再核不变。并行 [预览 `36434622199`](https://github.com/Intellinfinity/edupi-desktop/actions/runs/36434622199) 的 quality/Mac 包、Windows 原生守护与 NSIS 构建均通过；Windows 安装脚本在正常模式安全拒绝后因同路径残留测试进程而停止，Safe Mode 正向启动**未执行**。脚本现精确按本次隔离安装路径终止所有测试实例，待最终 pin 预览重试。此段取代下文“Windows 守护仍待复测”的旧状态，但不把未签名本机版或脚本中间步骤当正式安装验收。

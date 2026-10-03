@@ -11,7 +11,11 @@ versions. A lock-only audit is therefore insufficient.
 `scripts/prepare-security-dependencies.mjs` runs after installation and replaces
 only those two nested directories with the project's exact registry packages:
 Undici 8.10.2 and brace-expansion 5.0.12. No SDK source or session format changes.
+The installed SDK manifest's Undici requirement is updated to match those bytes;
+its original exact 8.9.0 requirement would otherwise leave `npm ls` invalid.
 The root lock also records the patched packages and registry integrity hashes.
+The installation patch invalidates npm's generated hidden lock after replacing
+files, so `npm ls` reads the patched tree instead of cached shrinkwrap metadata.
 After regenerating that lock, check both nested entries; upstream shrinkwrap may
 reintroduce its old values. Do not bypass the installed-tree regression test.
 

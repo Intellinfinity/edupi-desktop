@@ -1,4 +1,4 @@
-import { cp, lstat, readFile, rm } from "node:fs/promises";
+import { cp, lstat, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +28,12 @@ export async function prepareSecurityDependencies(projectRoot = root) {
     await rm(destination, { recursive: true, force: true });
     await cp(source, destination, { recursive: true, dereference: false });
   }
+  // Keep the installed package's exact requirement aligned with its new bytes.
+  // Otherwise npm still validates Undici against Pi's original 8.9.0 pin.
+  sdkManifest.dependencies = { ...sdkManifest.dependencies, undici: patches.undici };
+  await writeFile(join(sdk, "package.json"), `${JSON.stringify(sdkManifest, null, 2)}\n`);
+  // cp preserves timestamps; npm's hidden lock can otherwise report old bytes.
+  await rm(join(modules, ".package-lock.json"), { force: true });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

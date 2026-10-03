@@ -55,6 +55,7 @@ test("Pi security patching is repeatable and refuses a symlink destination", asy
   try {
     await mkdir(path.join(sdk, "node_modules"), { recursive: true });
     await writeFile(path.join(sdk, "package.json"), JSON.stringify({ version: "0.84.1" }));
+    await writeFile(path.join(root, "node_modules/.package-lock.json"), "{}");
     for (const [name, version] of Object.entries({ undici: "8.10.2", "brace-expansion": "5.0.12" })) {
       const source = path.join(root, "node_modules", name);
       await mkdir(source);
@@ -62,6 +63,8 @@ test("Pi security patching is repeatable and refuses a symlink destination", asy
       await writeFile(path.join(source, "index.js"), "patched");
     }
     await prepareSecurityDependencies(root);
+    assert.equal(JSON.parse(await readFile(path.join(sdk, "package.json"), "utf8")).dependencies.undici, "8.10.2");
+    await assert.rejects(readFile(path.join(root, "node_modules/.package-lock.json")), { code: "ENOENT" });
     await prepareSecurityDependencies(root);
     const destination = path.join(sdk, "node_modules/undici");
     assert.equal(await readFile(path.join(destination, "index.js"), "utf8"), "patched");

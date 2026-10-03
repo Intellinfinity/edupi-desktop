@@ -15,6 +15,9 @@ test("dependency security is checked on PRs, main, and a daily schedule", async 
   assert.match(workflow, /branches:\s*\n\s*- main/);
   assert.match(workflow, /cron: "17 3 \* \* \*"/);
   assert.match(workflow, /run: npm run security:audit/);
+  assert.match(workflow, /npm ci\s+npm ls fast-glob undici brace-expansion --all\s+node --test scripts\/dependency-security\.test\.mjs/);
+  assert.match(workflow, /if: github\.event_name != 'schedule'/);
+  assert.match(workflow, /npm test\s+node_modules\/\.bin\/tsc --noEmit\s+npm run lint/);
   assert.match(workflow, /run: cargo install cargo-audit --locked/);
   assert.match(workflow, /run: cargo audit --file src-tauri\/Cargo\.lock/);
   assert.doesNotMatch(workflow, /rustsec\/audit-check/);

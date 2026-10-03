@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "23 2 * * *"
   workflow_dispatch:
+    inputs:
+      detect_only:
+        description: Check upstream without preparing or publishing a review branch
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -12,13 +17,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  EDUPI_SOURCE_REPOSITORY: PIGU-PPPgu/edupi-desktop
+  EDUPI_SOURCE_REPOSITORY: Intellinfinity/edupi-desktop
   UPSTREAM_DESKTOP_URL: https://github.com/abcwyc/pi-agent-desktop.git
   SYNC_BRANCH: sync/upstream-desktop
 
 jobs:
   detect:
-    if: github.repository == 'PIGU-PPPgu/edupi-desktop'
+    if: github.repository == 'Intellinfinity/edupi-desktop'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -73,7 +78,7 @@ jobs:
 
   prepare:
     needs: detect
-    if: needs.detect.outputs.changed == 'true'
+    if: needs.detect.outputs.changed == 'true' && !inputs.detect_only
     runs-on: ubuntu-latest
     permissions:
       contents: read

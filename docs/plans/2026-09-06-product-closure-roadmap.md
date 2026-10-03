@@ -1,5 +1,11 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-10-04 依赖安全与同步修复
+
+- 9 月 30 日至 10 月 3 日的 npm 审计红叉已本地复现，计 12 项依赖告警；修复后标准 `npm audit --audit-level=high` 为 0 漏洞，不改门槛或添加豁免。Next/ESLint 配对更新到 16.3.8，Undici 8.10.2，OpenConnector 的 Nodemailer 10.0.10；Pi SDK 保持 0.84.1。为其 shrinkwrap 增加窄范围安装补丁和实际加载版本检查；Next lint 的无补丁 braces 链通过小型目录匹配适配器移除，所有原 lint 规则保持。实现说明见[依赖补丁](../security-dependency-patches.md)。
+- 上游同步仓库改为 `Intellinfinity/edupi-desktop`，增加只检测的手动验证入口，不自动合入上游代码。另修复 15 项历史测试的到期时钟：固定测试时钟在 fixture 日期，生产授权逻辑不变。全量 1858 项中 1832 通过、26 既有跳过、0 失败；TypeScript、lint、workflow actionlint、版本清单通过。包内无 WebView Core 冷启、连接器目录/Console 及执行拒绝验证通过，包内实际库版本也已核对。
+- 状态为**已实现待 CI/合并**。本轮不重新构建 Windows 安装包、不改 Core pin/真实数据根/launchd；本机和公开 feed 仍 v0.3.45，不能把源码依赖修复宣称为正式安装升级完成。尚未为此变更生成新的签名候选。
+
 ## 2026-09-29 v0.3.50 代码收尾
 
 - 路线 1 保持部分验收。PR #287 已合并为 `6eb1cad`，v0.3.50 macOS 签名、公证与安装实测已验证审核刷新、synthetic 反馈、重启保留、用户真实系统通知点击续聊及草稿隔离。9 月 30 日到期后 21 秒自动生成 4 草稿，后续自动检查不重做，但系统日志没有跨到期睡眠证据，睡眠恢复仍未验。本轮已退出隔离进程并恢复公开 v0.3.45，心跳暂停，证据/候选保留。Windows 验收延期，候选未发布，六领域 Live 与真人价值不宣称通过。详见[验收记录](../acceptance/2026-09-26-route1-core-a8fe471-installed-loop.md)。

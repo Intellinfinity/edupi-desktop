@@ -5,6 +5,9 @@ on:
     paths:
       - "package.json"
       - "package-lock.json"
+      - "scripts/prepare-security-dependencies.mjs"
+      - "scripts/dependency-security.test.mjs"
+      - "vendor/next-root-glob/**"
       - ".github/dependabot.yml"
       - ".github/workflows/security-audit.yml"
       - "src-tauri/Cargo.toml"
@@ -16,6 +19,9 @@ on:
     paths:
       - "package.json"
       - "package-lock.json"
+      - "scripts/prepare-security-dependencies.mjs"
+      - "scripts/dependency-security.test.mjs"
+      - "vendor/next-root-glob/**"
       - ".github/dependabot.yml"
       - ".github/workflows/security-audit.yml"
       - "src-tauri/Cargo.toml"
@@ -43,6 +49,19 @@ jobs:
 
       - name: Fail on high or critical dependency vulnerabilities
         run: npm run security:audit
+
+      - name: Verify the installed dependency tree
+        run: |
+          npm ci
+          npm ls fast-glob undici brace-expansion --all
+          node --test scripts/dependency-security.test.mjs
+
+      - name: Verify application compatibility
+        if: github.event_name != 'schedule'
+        run: |
+          npm test
+          node_modules/.bin/tsc --noEmit
+          npm run lint
 
   rust-audit:
     runs-on: ubuntu-latest

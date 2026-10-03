@@ -34,14 +34,24 @@ test("desktop upstream detection is scheduled, read-only, and source scoped", ()
   assert.match(workflow, /on:\s*\n\s*schedule:\s*\n\s*- cron:/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /\n\s+(push|pull_request|pull_request_target|repository_dispatch|workflow_run):/);
-  assert.match(workflow, /if: github\.repository == 'PIGU-PPPgu\/edupi-desktop'/);
-  assert.match(workflow, /EDUPI_SOURCE_REPOSITORY: PIGU-PPPgu\/edupi-desktop/);
+  assert.ok(workflow.includes(`if: github.repository == '${EDUPI_RELEASE_REPOSITORY}'`));
+  assert.ok(workflow.includes(`EDUPI_SOURCE_REPOSITORY: ${EDUPI_RELEASE_REPOSITORY}`));
+  assert.doesNotMatch(workflow, /PIGU-PPPgu\/edupi-desktop/);
 
   const detect = workflow.slice(workflow.indexOf("\n  detect:"), workflow.indexOf("\n  prepare:"));
   assert.match(detect, /permissions:\s*\n\s*contents: read/);
   assert.doesNotMatch(detect, /contents: write|pull-requests: write/);
   assert.match(detect, /repository: \$\{\{ env\.EDUPI_SOURCE_REPOSITORY \}\}/);
   assert.match(detect, /persist-credentials: false/);
+});
+
+test("manual upstream diagnostics cannot prepare or publish a review branch", () => {
+  assert.match(workflow, /detect_only:[\s\S]*?type: boolean\s+default: false/);
+  const prepare = workflow.slice(workflow.indexOf("\n  prepare:"), workflow.indexOf("\n  publish-review:"));
+  assert.match(prepare, /if: needs\.detect\.outputs\.changed == 'true' && !inputs\.detect_only/);
+  const publish = workflow.slice(workflow.indexOf("\n  publish-review:"));
+  assert.match(publish, /needs: \[detect, prepare\]/);
+  assert.doesNotMatch(publish, /always\(\)/);
 });
 
 test("desktop upstream is fetched as an attribution-only remote", () => {

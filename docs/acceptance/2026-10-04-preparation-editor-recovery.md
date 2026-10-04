@@ -6,7 +6,7 @@
 
 A3 [PR #294](https://github.com/Intellinfinity/edupi-desktop/pull/294) 已合并为 `ade8b40afb3f1d768614ff5bf49e526227e6a8d6`；[CI 37202667865](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37202667865) 在 `b624562` 上完成干净依赖安装、Node 全量测试、TypeScript、lint、npm 与 Rust 安全审计，无 Windows 构建。
 
-- Core main、compat pin 与实际服务均为 `22bf414c6715c312a62a04c1ed02d5fa5f51d1c8`，桥接 `edupi-bridge-v1.1`，12 个公开命令。
+- 本记录的页面实测使用 Core `22bf414c6715c312a62a04c1ed02d5fa5f51d1c8`，桥接 `edupi-bridge-v1.1`，12 个公开命令。随后 main 的 #216 配对单独记于 [Core #216 验收](2026-10-04-core-216-pairing.md)，不借用本段声明新包已验。
 - Runtime IPC schema `sha256:8b4d701c64fd191019bee627eae7f9b2fbc533c0adbd41df4110ffc7719da9b8`；Runtime component manifest `sha256:4c21528e73509ccb5e6bf9876a5b75d1a5aca3aced2e4cf347c81ad3f1af469c`；Desktop component manifest `sha256:351d8fd6b02a3bf07cc037b9c6ba1c7ceaaf9e37f9b0fa665105c66b68dd7577`。本批未改 pin、合同、生成/外发许可或 Core 源码。
 - macOS、Next.js 源码服务 `127.0.0.1:30151`、真实固定 Core 与确定性本地模型；仅合成 703 班数学数据。正式 `/Applications/EduPi.app` 与公开 feed 仍为 v0.3.45，本轮未启动或替换。
 
@@ -60,6 +60,8 @@ A3 [PR #294](https://github.com/Intellinfinity/edupi-desktop/pull/294) 已合并
 
 实现 `ae8b42f`，对应原 R18/R20 及计划 B，仍为部分验收。
 
+首轮 [CI 37203909001](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37203909001) 因两条旧界面结构断言失败：旧“Agent 正在运行”文案和工具条绝对定位。`2d0835c` 将它们更新为本轮已实测的“正在协作”和独立布局行，并新增不展示 Session 技术说明的守卫；没有删除测试或降低门槛。后续 CI 跟随 [PR #295](https://github.com/Intellinfinity/edupi-desktop/pull/295)。
+
 1. 实测进入已有草稿的“Agent 执行”后，首个准备状态 GET 的 ready 回包触发 `onReady`，自动跳回产物，导致“开始协作”不可点击。现仅教师主动发起准备时，完成回包或轮询才跳到产物；被动读取仍刷新状态但保持当前阶段。初读 ready、被动 running → ready 的两项行为回归先红后绿；主动发起、切任务与卸载旧回包测试仍通过。
 2. 真实 Core 层级 widget 把 `edupi-layers / 感知 → 记忆 → 潜意识…` 展示在每段聊天上方。教师界面已由实际状态组件表达进度，因此仅教师分支过滤这个旧 widget；不删除运行数据、不隐藏其他扩展提示。`teacherMode` 明确由教师 AppShell 分支传入，普通分支默认 false，4 项渲染/实际调用点守卫通过。独立复审指出过仅根据回调判断会误覆盖普通 Pi 的问题，已修正；普通 Pi 分支保留是组件与调用点证据，不冒充该分支已做页面操作。
 3. 移除层级条后，800px 截图暴露工具图标遮住首条消息。工具条改为正常布局，正文不再被覆盖；弹窗仍能打开、关闭。协作卡不再默认显示 Session 哈希或建立独立 Session 的说明。
@@ -79,6 +81,8 @@ A3 [PR #294](https://github.com/Intellinfinity/edupi-desktop/pull/294) 已合并
 ## 证据与未验
 
 本机证据目录 `/tmp/edupi-editor-evidence-qhnj1b`：`conflict-final-800.png`、`read-failure-1440.png`、`index-gap-managed.png`、`ordinary-file-1440.png`、`task-chat-final-800.png`、`artifact-chat-final-1440.png`、`unit-tests.log`、`chat-model.mjs`。页面根由 `--ui-checkpoint` 生成，清理后不能把已删除的合成根当作保留的原始账本。
+
+本批结束已先停 Next/Core，再停合成模型并用 checkpoint 的 `done` 清理一次性 fixture；三个测试端口 30151/49733/52715 均无监听。截图、脚本和记录保留，未删除真实教师数据或原工作树文件。
 
 - A1 教师暂缓后的只读产物合同未实现；Desktop 没有绕过 Core held/来源/完整性检查。
 - 完整 A4 从 UI 上传到生成、审核、续聊、反馈未在本轮走完；B 的学生/教师信息入口、附件保护与发送失败恢复未完整操作；C–D 仍待逐项复核。

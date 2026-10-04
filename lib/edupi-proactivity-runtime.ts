@@ -1,16 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { EduPiRuntimeHandle } from "./edupi-runtime-supervisor";
-import { EduPiProactivityControlError } from "./edupi-proactivity-control";
+import { EduPiProactivityControlError, type EduPiProactivityGrantBinding } from "./edupi-proactivity-control";
+import type { EduPiProactivityDomain } from "./edupi-proactivity-config";
 
 const HASH = /^sha256:[a-f0-9]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
-
-type GrantBinding = {
-  grantId: string;
-  endsAt: string;
-  spec: { scope: { class_id: string; subject: string }; domains: ["teaching_preparation"]; actions: ["prepare", "update"];
-    source_ids: string[]; starts_at: string; ends_at: string; budget: { id: string; max_calls: number } };
-};
 
 type OwnerGrant = { id: string; version: number; status: "active" | "paused" | "revoked"; ends_at: string };
 type EffectiveGrantStatus = OwnerGrant["status"] | "expired";
@@ -109,7 +103,7 @@ function receipt(value: unknown, ownerId: string, grantId: string | null): { gra
 export async function ensureProactivityGrant(
   host: Pick<EduPiRuntimeHandle, "call" | "callOwnerControl">,
   rootRef: string,
-  binding: GrantBinding,
+  binding: EduPiProactivityGrantBinding,
 ): Promise<{ ownerId: string; grantId: string; grantVersion: number; status: "active"; endsAt: string }> {
   let state = await readOwner(host, rootRef);
   let ownerId = state.owner?.id || null;
@@ -177,17 +171,18 @@ export async function readProactivityGrantStatus(
   rootRef: string,
   grantId: string | null,
   now = Date.now(),
+  domain: EduPiProactivityDomain = "teaching_preparation",
 ): Promise<{ status: EffectiveGrantStatus; grantVersion: number; endsAt: string;
-  modelBudget: Pick<OwnerBudget, "usedCalls" | "maxCalls" | "remainingCalls" | "usageUnverified"> } | null> {
+  modelBudget: Pick<OwnerBudget, "usedCalls" | "maxCalls" | "remainingCalls" | "usageUnverified"> | null } | null> {
   if (grantId === null) return null;
   const state = await readOwner(host, rootRef);
   const grant = state.grants.find((item) => item.id === grantId);
-  const budget = state.g1ModelBudget?.find(item => item.grantId === grantId);
-  if (grant && !budget) invalid();
+  const budget = domain === "teaching_preparation" ? state.g1ModelBudget?.find(item => item.grantId === grantId) : null;
+  if (grant && domain === "teaching_preparation" && !budget) invalid();
   return grant ? { status: grant.status === "active" && Date.parse(grant.ends_at) <= now ? "expired" : grant.status,
     grantVersion: grant.version, endsAt: grant.ends_at,
-    modelBudget: { usedCalls: budget!.usedCalls, maxCalls: budget!.maxCalls,
-      remainingCalls: budget!.remainingCalls, usageUnverified: budget!.usageUnverified } } : null;
+    modelBudget: budget ? { usedCalls: budget.usedCalls, maxCalls: budget.maxCalls,
+      remainingCalls: budget.remainingCalls, usageUnverified: budget.usageUnverified } : null } : null;
 }
 
 export async function readProactivityOwnerContext(

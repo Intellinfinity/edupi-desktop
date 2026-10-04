@@ -3,8 +3,23 @@ import type { EduPiProactivityScope } from "./edupi-proactivity-config";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
 export const EDUPI_PROACTIVITY_CONVERSATION_ID = "desktop-ambient-canary-v1";
+export const EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID = "desktop-student-followup-canary-v1";
 export const EDUPI_PROACTIVITY_DURATION_DAYS = 7;
 export const EDUPI_PROACTIVITY_MAX_CALLS = 12;
+export const EDUPI_STUDENT_FOLLOWUP_MAX_CALLS = 4;
+
+export type EduPiProactivityGrantBinding = {
+  grantId: string;
+  endsAt: string;
+  spec: {
+    scope: { class_id: string; subject: string };
+    source_ids: string[];
+    starts_at: string;
+    ends_at: string;
+    budget: { id: string; max_calls: number };
+  } & ({ domains: ["teaching_preparation"]; actions: ["prepare", "update"] }
+    | { domains: ["student_followup"]; actions: ["update"] });
+};
 
 type RawRecord = Record<string, unknown>;
 type InternalScope = {
@@ -83,17 +98,36 @@ export function buildProactivityScopeCandidates(workspace: unknown, teacherMater
   }));
 }
 
+export function buildStudentFollowupScopeCandidates(workspace: unknown): EduPiProactivityScopeCandidate[] {
+  const value = record(workspace);
+  const slots = Array.isArray(value?.timetable) ? value.timetable.slice(0, 500).map(record) : [];
+  const students = Array.isArray(value?.students) ? value.students.slice(0, 500).map(record) : [];
+  return internalScopes(workspace, []).filter((item) => item.subject === "数学").slice(0, 50).map((item) => {
+    const matchingSlots = slots.filter((slot) => slot?.kind === "class" && slot.class_id === item.classId && slot.subject === item.subject);
+    const classNames = new Set(matchingSlots.map((slot) => text(slot?.class_name, 120)));
+    const className = classNames.size === 1 ? [...classNames][0] : null;
+    // Only the current Core projection supplies the class mapping. Names and
+    // student identities in conversation text remain Core's responsibility.
+    const classIds = new Set(slots.filter((slot) => slot?.kind === "class" && slot.class_name === className && slot.subject === item.subject)
+      .map((slot) => slot?.class_id));
+    return {
+      classId: item.classId,
+      className: className ?? null,
+      subject: item.subject,
+      slotCount: item.slotIds.length,
+      materialCount: 0,
+      ready: Boolean(className && classIds.size === 1 && classIds.has(item.classId)
+        && students.some((student) => student?.class_name === className)),
+    };
+  });
+}
+
 export function buildProactivityGrantBinding(
   scope: EduPiProactivityScope,
   workspace: unknown,
   teacherMaterials: unknown,
   now = new Date().toISOString(),
-): {
-  grantId: string;
-  endsAt: string;
-  spec: { scope: { class_id: string; subject: string }; domains: ["teaching_preparation"]; actions: ["prepare", "update"];
-    source_ids: string[]; starts_at: string; ends_at: string; budget: { id: string; max_calls: number } };
-} {
+): EduPiProactivityGrantBinding {
   const current = internalScopes(workspace, teacherMaterials).find((item) => item.classId === scope.classId && item.subject === scope.subject);
   if (!current || current.slotIds.length === 0 || current.materialIds.length === 0) {
     throw new EduPiProactivityControlError("proactivity_scope_unavailable");
@@ -120,6 +154,33 @@ export function buildProactivityGrantBinding(
       starts_at: startsAt,
       ends_at: endsAt,
       budget: { id: `budget_v2_${token}`, max_calls: EDUPI_PROACTIVITY_MAX_CALLS },
+    },
+  };
+}
+
+export function buildStudentFollowupGrantBinding(
+  scope: EduPiProactivityScope,
+  workspace: unknown,
+  now = new Date().toISOString(),
+): EduPiProactivityGrantBinding {
+  const current = buildStudentFollowupScopeCandidates(workspace).find((item) => item.classId === scope.classId && item.subject === scope.subject);
+  const instant = new Date(now);
+  if (!current?.ready || !Number.isFinite(instant.getTime()) || instant.toISOString() !== now) {
+    throw new EduPiProactivityControlError("proactivity_scope_unavailable");
+  }
+  const token = crypto.createHash("sha256").update(`${scope.classId}\0${scope.subject}`, "utf8").digest("hex").slice(0, 32);
+  const endsAt = new Date(instant.getTime() + EDUPI_PROACTIVITY_DURATION_DAYS * 86_400_000).toISOString();
+  return {
+    grantId: `desktop_student_followup_v1_${token}`,
+    endsAt,
+    spec: {
+      scope: { class_id: scope.classId, subject: scope.subject },
+      domains: ["student_followup"],
+      actions: ["update"],
+      source_ids: [opaqueSource("conversation", EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID)],
+      starts_at: new Date(instant.getTime() - 60_000).toISOString(),
+      ends_at: endsAt,
+      budget: { id: `student_followup_budget_v1_${token}`, max_calls: EDUPI_STUDENT_FOLLOWUP_MAX_CALLS },
     },
   };
 }

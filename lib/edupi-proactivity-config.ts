@@ -9,6 +9,7 @@ const HASH = /^sha256:[a-f0-9]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
 
 export type EduPiProactivityScope = { classId: string; subject: string };
+export type EduPiProactivityDomain = "teaching_preparation" | "student_followup";
 export type EduPiProactivityActivation = {
   enabled: boolean;
   source: "default" | "desktop_canary" | "environment";
@@ -40,6 +41,12 @@ export class EduPiProactivityConfigError extends Error {
 }
 
 function fail(): never { throw new EduPiProactivityConfigError(); }
+
+function fileName(domain: EduPiProactivityDomain, stop = false): string {
+  if (domain === "teaching_preparation") return stop ? STOP_FILE_NAME : FILE_NAME;
+  if (domain === "student_followup") return stop ? "edupi-student-followup-stop.json" : "edupi-student-followup.json";
+  return fail();
+}
 
 function validSubject(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= 128 && !/[\u0000-\u001f\u007f]/u.test(value);
@@ -102,11 +109,11 @@ function dataRootHash(dataRoot: string): string {
   return `sha256:${crypto.createHash("sha256").update(root, "utf8").digest("hex")}`;
 }
 
-function readStored(stateDir: string | undefined): { status: "missing" | "ready" | "invalid"; value: StoredConfig | null } {
+function readStored(stateDir: string | undefined, domain: EduPiProactivityDomain): { status: "missing" | "ready" | "invalid"; value: StoredConfig | null } {
   if (!stateDir) return { status: "missing", value: null };
   let root: string;
   try { root = secureRoot(stateDir); } catch { return { status: "invalid", value: null }; }
-  const file = path.join(root, FILE_NAME);
+  const file = path.join(root, fileName(domain));
   let descriptor: number | undefined;
   try {
     try { descriptor = fs.openSync(file, fs.constants.O_RDONLY | NOFOLLOW); }
@@ -129,10 +136,10 @@ function readStored(stateDir: string | undefined): { status: "missing" | "ready"
   finally { if (descriptor !== undefined) try { fs.closeSync(descriptor); } catch { /* read-only cleanup */ } }
 }
 
-function readStopIntent(stateDir: string | undefined, dataRoot: string): StoredStopIntent | null {
+function readStopIntent(stateDir: string | undefined, dataRoot: string, domain: EduPiProactivityDomain): StoredStopIntent | null {
   if (!stateDir) return null;
   const root = secureRoot(stateDir);
-  const file = path.join(root, STOP_FILE_NAME);
+  const file = path.join(root, fileName(domain, true));
   let descriptor: number | undefined;
   try {
     try { descriptor = fs.openSync(file, fs.constants.O_RDONLY | NOFOLLOW); }
@@ -153,17 +160,17 @@ function readStopIntent(stateDir: string | undefined, dataRoot: string): StoredS
 }
 
 export function writeEduPiProactivityStopIntent(input: { scope: EduPiProactivityScope; grantId: string },
-  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot, now = new Date().toISOString() }:
-    { stateDir?: string; dataRoot: string; now?: string }): void {
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot, now = new Date().toISOString(), domain = "teaching_preparation" }:
+    { stateDir?: string; dataRoot: string; now?: string; domain?: EduPiProactivityDomain }): void {
   const root = secureRoot(stateDir);
-  const existing = readStopIntent(root, dataRoot);
+  const existing = readStopIntent(root, dataRoot, domain);
   if (existing && (existing.grant_id !== input.grantId || existing.scope.class_id !== input.scope.classId
     || existing.scope.subject !== input.scope.subject)) fail();
   const value: StoredStopIntent = { version: 1, data_root_hash: dataRootHash(dataRoot),
     scope: { class_id: input.scope.classId, subject: input.scope.subject }, grant_id: input.grantId, updated_at: now };
   if (!validStopIntent(value)) fail();
-  const file = path.join(root, STOP_FILE_NAME);
-  const temporary = path.join(root, `.edupi-proactivity-stop.${crypto.randomUUID()}.tmp`);
+  const file = path.join(root, fileName(domain, true));
+  const temporary = path.join(root, `.${fileName(domain, true)}.${crypto.randomUUID()}.tmp`);
   let descriptor: number | undefined;
   try {
     descriptor = fs.openSync(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | NOFOLLOW, 0o600);
@@ -174,7 +181,7 @@ export function writeEduPiProactivityStopIntent(input: { scope: EduPiProactivity
     fs.renameSync(temporary, file);
     if (process.platform !== "win32") fs.chmodSync(file, 0o600);
     syncStateDirectory(root);
-    if (JSON.stringify(readStopIntent(root, dataRoot)) !== JSON.stringify(value)) fail();
+    if (JSON.stringify(readStopIntent(root, dataRoot, domain)) !== JSON.stringify(value)) fail();
   } catch { fail(); }
   finally {
     if (descriptor !== undefined) try { fs.closeSync(descriptor); } catch { /* cleanup */ }
@@ -182,16 +189,16 @@ export function writeEduPiProactivityStopIntent(input: { scope: EduPiProactivity
   }
 }
 
-export function clearEduPiProactivityStopIntent({ stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot, grantId }:
-  { stateDir?: string; dataRoot: string; grantId: string }): void {
+export function clearEduPiProactivityStopIntent({ stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot, grantId, domain = "teaching_preparation" }:
+  { stateDir?: string; dataRoot: string; grantId: string; domain?: EduPiProactivityDomain }): void {
   const root = secureRoot(stateDir);
-  const existing = readStopIntent(root, dataRoot);
+  const existing = readStopIntent(root, dataRoot, domain);
   if (!existing) return;
   if (existing.grant_id !== grantId) fail();
   try {
-    fs.unlinkSync(path.join(root, STOP_FILE_NAME));
+    fs.unlinkSync(path.join(root, fileName(domain, true)));
     syncStateDirectory(root);
-    if (readStopIntent(root, dataRoot) !== null) fail();
+    if (readStopIntent(root, dataRoot, domain) !== null) fail();
   } catch { fail(); }
 }
 
@@ -210,12 +217,13 @@ export function readEduPiProactivityActivation({
   stateDir = process.env.PI_DESKTOP_STATE_DIR,
   dataRoot,
   env = process.env,
-}: { stateDir?: string; dataRoot: string; env?: Record<string, string | undefined> }): EduPiProactivityActivation {
-  const stop = readStopIntent(stateDir, dataRoot);
+  domain = "teaching_preparation",
+}: { stateDir?: string; dataRoot: string; env?: Record<string, string | undefined>; domain?: EduPiProactivityDomain }): EduPiProactivityActivation {
+  const stop = readStopIntent(stateDir, dataRoot, domain);
   if (stop) return { enabled: false, source: "desktop_canary", configurationStatus: "stop_pending",
     scope: { classId: stop.scope.class_id, subject: stop.scope.subject }, grantId: stop.grant_id,
     updatedAt: stop.updated_at };
-  const stored = readStored(stateDir);
+  const stored = readStored(stateDir, domain);
   let rootHash: string | null = null;
   try { rootHash = dataRootHash(dataRoot); } catch { /* fail closed below */ }
   const matches = stored.status === "ready" && stored.value?.data_root_hash === rootHash;
@@ -225,13 +233,13 @@ export function readEduPiProactivityActivation({
       : publicActivation(stored.value, "desktop_canary")
     : { enabled: false, source: "default", configurationStatus: stored.status === "ready" ? "mismatched" : stored.status,
       scope: null, grantId: null, updatedAt: null };
-  return env.EDUPI_AMBIENT_PLANNING === "1" ? { ...base, enabled: true, source: "environment" } : base;
+  return domain === "teaching_preparation" && env.EDUPI_AMBIENT_PLANNING === "1" ? { ...base, enabled: true, source: "environment" } : base;
 }
 
 export function writeEduPiProactivityConfig(
   input: { enabled: boolean; scope: EduPiProactivityScope | null; grantId: string | null },
-  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot, now = new Date().toISOString() }:
-    { stateDir?: string; dataRoot: string; now?: string },
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot, now = new Date().toISOString(), domain = "teaching_preparation" }:
+    { stateDir?: string; dataRoot: string; now?: string; domain?: EduPiProactivityDomain },
 ): EduPiProactivityActivation {
   let canonicalNow: string;
   try { canonicalNow = new Date(now).toISOString(); } catch { fail(); }
@@ -249,8 +257,8 @@ export function writeEduPiProactivityConfig(
     updated_at: canonicalNow,
   };
   if (!validStored(value)) fail();
-  const file = path.join(root, FILE_NAME);
-  const temporary = path.join(root, `.edupi-proactivity.${crypto.randomUUID()}.tmp`);
+  const file = path.join(root, fileName(domain));
+  const temporary = path.join(root, `.${fileName(domain)}.${crypto.randomUUID()}.tmp`);
   let descriptor: number | undefined;
   try {
     descriptor = fs.openSync(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | NOFOLLOW, 0o600);
@@ -265,7 +273,7 @@ export function writeEduPiProactivityConfig(
     fs.renameSync(temporary, file);
     if (process.platform !== "win32") fs.chmodSync(file, 0o600);
     syncStateDirectory(root);
-    const committed = readStored(root);
+    const committed = readStored(root, domain);
     if (committed.status !== "ready" || JSON.stringify(committed.value) !== JSON.stringify(value)) fail();
   } catch { fail(); }
   finally {

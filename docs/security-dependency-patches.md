@@ -2,27 +2,23 @@
 
 The npm high/critical gate remains unchanged. No advisory is allowlisted.
 
-## Pi 0.84.1
+## Pi 1.0.2
 
-Pi publishes `npm-shrinkwrap.json`. npm 10 can reinstall its Undici 8.9.0 and
-brace-expansion 5.0.9 even when the project lock and overrides name patched
-versions. A lock-only audit is therefore insufficient.
+The four Desktop Pi packages are fixed to the Core 1.0.2 baseline. Upstream
+removed its published shrinkwrap in 1.0.1 and now resolves secure Undici,
+brace-expansion and minimatch versions without modifying installed packages.
+The old 0.84.1 postinstall replacement script has been removed. `npm ci` and
+the installed-tree regression still verify actual resolutions, not just the lock.
 
-`scripts/prepare-security-dependencies.mjs` runs after installation and replaces
-only those two nested directories with the project's exact registry packages:
-Undici 8.10.2 and brace-expansion 5.0.12. No SDK source or session format changes.
-The installed SDK manifest's Undici requirement is updated to match those bytes;
-its original exact 8.9.0 requirement would otherwise leave `npm ls` invalid.
-The root lock also records the patched packages and registry integrity hashes.
-The installation patch invalidates npm's generated hidden lock after replacing
-files, so `npm ls` reads the patched tree instead of cached shrinkwrap metadata.
-After regenerating that lock, check both nested entries; upstream shrinkwrap may
-reintroduce its old values. Do not bypass the installed-tree regression test.
+Undici remains explicitly pinned to 8.10.2. npm 10 failed to resolve the previous
+`$undici` override during the major upgrade; the explicit version preserves the
+same security bound and matches Core. The high/critical audit gate is unchanged.
 
-CI does a clean install and tests the versions actually resolved from the SDK,
-as well as the full lockfile. Installing with `--ignore-scripts` is insufficient;
-run the preparation script before using that installation. Remove this workaround
-when a compatible, tested Pi release fixes the published shrinkwrap.
+`core_sdk` in the compatibility manifest binds the Desktop SDK and Core Durable
+versions. Release verification rejects a stale Desktop Pi version, and Core
+staging verifies Core's package versions and the fixed Durable bundle's identity
+against the runtime component manifest. Durable remains a Core-owned, default-off
+internal executor; Desktop does not create a second execution database.
 
 ## OpenConnector 1.6.5
 

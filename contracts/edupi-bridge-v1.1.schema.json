@@ -8345,6 +8345,11 @@
                         "maxLength": 2000,
                         "type": "string"
                       },
+                      "next_step": {
+                        "maxLength": 1000,
+                        "minLength": 1,
+                        "type": "string"
+                      },
                       "observed_event_ids": {
                         "items": {
                           "maxLength": 160,
@@ -8561,7 +8566,8 @@
                       "external_send",
                       "observed_event_ids",
                       "internal_draft_summary",
-                      "permission_state"
+                      "permission_state",
+                      "next_step"
                     ],
                     "type": "object"
                   },

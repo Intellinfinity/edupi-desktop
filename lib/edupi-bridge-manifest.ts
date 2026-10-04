@@ -4,9 +4,9 @@ import { BRIDGE_COMMAND_TYPES, type CoreCommandType } from "./edupi-bridge-contr
 export type EduPiBridgeContractIdentity = {
   contract_id: "edupi-bridge-v1.1";
   contract_version: "1.1";
-  schema_hash: "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f";
+  schema_hash: "sha256:f61408ae1cf040abbf8e24e7f9b68c1f307215dd6141f55110fdabf1b2612d74";
   fixture_manifest_path: "fixtures/bridge/v1.1/fixture-manifest.json";
-  fixture_manifest_hash: "sha256:7e32693b41dbcaa724f62b97babdd2c015b2f4b2afcb0027f933ba6489ee4f18";
+  fixture_manifest_hash: "sha256:16960512e7088be0342a1e1f549e7e062b48132453b2fdacf01e94a59b981c47";
   supported_commands: CoreCommandType[];
   supported_projections: ["education_workspace"];
   depends_on: [];
@@ -25,7 +25,8 @@ export type ScheduleOccurrenceContractIdentity = {
 export type EduPiCompatManifest = {
   compat_manifest_version: "1.0";
   core_repository: "edupi";
-  core_runtime: { core_commit: "00d05a1ecb8f4bbc461305337b7059a02e757b69"; component_manifest_path: "contracts/edupi-desktop-component-manifest.json"; component_manifest_hash: "sha256:fd150b8384542e84333f5a12924f09b5190de34a831f5b950f0b225c18b01269"; runtime_component_manifest_hash: "sha256:356666c4a97417aebf1b98eb6f4948f0b79bbe02298acd5d791a2c54d61fd018"; runtime_schema_hash: "sha256:8b4d701c64fd191019bee627eae7f9b2fbc533c0adbd41df4110ffc7719da9b8" };
+  core_sdk: { pi: "1.0.2"; pi_durable: "1.0.2" };
+  core_runtime: { core_commit: "4f0bab6eb339944c0354d03e7bdd7b008a4866cf"; component_manifest_path: "contracts/edupi-desktop-component-manifest.json"; component_manifest_hash: "sha256:8cee54a68830e2b37f7467fb14ad11f429f5d2a8fbe5e7614b898339aadcab22"; runtime_component_manifest_hash: "sha256:a9b0da22070cd1bffbd75d0905f8a8abcdee72de9a11062eac94a1f28dc2e379"; runtime_schema_hash: "sha256:5d7080f29011969c134a8b84e2e3497dcae1d27ee6531db04d8e51105d53c521" };
   contract_identities: [EduPiBridgeContractIdentity, ScheduleOccurrenceContractIdentity];
   cumulative_projection_manifest: null | Record<string, unknown>;
   supported_commands: CoreCommandType[];
@@ -39,10 +40,11 @@ export type EduPiCompatManifest = {
 export function loadEduPiCompatManifest(): EduPiCompatManifest {
   const manifest = manifestJson as unknown as EduPiCompatManifest;
   if (manifest.compat_manifest_version !== "1.0" || manifest.core_repository !== "edupi") throw new Error("Invalid EduPi compatibility manifest");
-  if (!manifest.core_runtime || manifest.core_runtime.core_commit !== "00d05a1ecb8f4bbc461305337b7059a02e757b69" || manifest.core_runtime.component_manifest_path !== "contracts/edupi-desktop-component-manifest.json" || manifest.core_runtime.component_manifest_hash !== "sha256:fd150b8384542e84333f5a12924f09b5190de34a831f5b950f0b225c18b01269" || manifest.core_runtime.runtime_component_manifest_hash !== "sha256:356666c4a97417aebf1b98eb6f4948f0b79bbe02298acd5d791a2c54d61fd018" || manifest.core_runtime.runtime_schema_hash !== "sha256:8b4d701c64fd191019bee627eae7f9b2fbc533c0adbd41df4110ffc7719da9b8") throw new Error("Invalid EduPi core_runtime identity");
+  if (manifest.core_sdk?.pi !== "1.0.2" || manifest.core_sdk.pi_durable !== "1.0.2") throw new Error("Invalid EduPi Core SDK pairing");
+  if (!manifest.core_runtime || manifest.core_runtime.core_commit !== "4f0bab6eb339944c0354d03e7bdd7b008a4866cf" || manifest.core_runtime.component_manifest_path !== "contracts/edupi-desktop-component-manifest.json" || manifest.core_runtime.component_manifest_hash !== "sha256:8cee54a68830e2b37f7467fb14ad11f429f5d2a8fbe5e7614b898339aadcab22" || manifest.core_runtime.runtime_component_manifest_hash !== "sha256:a9b0da22070cd1bffbd75d0905f8a8abcdee72de9a11062eac94a1f28dc2e379" || manifest.core_runtime.runtime_schema_hash !== "sha256:5d7080f29011969c134a8b84e2e3497dcae1d27ee6531db04d8e51105d53c521") throw new Error("Invalid EduPi core_runtime identity");
   const identity = manifest.contract_identities.find((item) => item.contract_id === "edupi-bridge-v1.1") as EduPiBridgeContractIdentity | undefined;
   const occurrence = manifest.contract_identities.find((item) => item.contract_id === "edupi-schedule-occurrence-v1.2") as ScheduleOccurrenceContractIdentity | undefined;
-  if (manifest.contract_identities.length !== 2 || !identity || identity.contract_version !== "1.1" || identity.schema_hash !== "sha256:7f0cffd21c60f9ffa3409dcdb56c3b6683e81377ca3290741344c87a80123e7f" || identity.fixture_manifest_path !== "fixtures/bridge/v1.1/fixture-manifest.json" || identity.fixture_manifest_hash !== "sha256:7e32693b41dbcaa724f62b97babdd2c015b2f4b2afcb0027f933ba6489ee4f18" || identity.depends_on.length !== 0) throw new Error("Invalid EduPi v1.1 contract identity");
+  if (manifest.contract_identities.length !== 2 || !identity || identity.contract_version !== "1.1" || identity.schema_hash !== "sha256:f61408ae1cf040abbf8e24e7f9b68c1f307215dd6141f55110fdabf1b2612d74" || identity.fixture_manifest_path !== "fixtures/bridge/v1.1/fixture-manifest.json" || identity.fixture_manifest_hash !== "sha256:16960512e7088be0342a1e1f549e7e062b48132453b2fdacf01e94a59b981c47" || identity.depends_on.length !== 0) throw new Error("Invalid EduPi v1.1 contract identity");
   if (!occurrence || occurrence.contract_version !== "1.2" || occurrence.schema_path !== "contracts/edupi-schedule-occurrence-v1.2.schema.json" || occurrence.schema_hash !== "sha256:b739852f427520f787ad32c7f41b258976a3b41d60fa6116439696c1495b97cb" || occurrence.supported_commands.length !== 1 || occurrence.supported_commands[0] !== "import_calendar" || occurrence.supported_projections.length !== 1 || occurrence.supported_projections[0] !== "schedule_occurrence" || occurrence.depends_on.length !== 1 || occurrence.depends_on[0] !== "edupi-bridge-v1.1") throw new Error("Invalid EduPi v1.2 occurrence contract identity");
   const supportedCommands = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"] as const;
   const hasExactCommands = (value: unknown): boolean => Array.isArray(value)

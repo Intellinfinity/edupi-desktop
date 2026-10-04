@@ -19,6 +19,32 @@ import { fileURLToPath } from "node:url";
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCOPE = "@earendil-works/";
 
+export function assertDesktopPiVersion(manifest, expectedVersion) {
+  if (typeof expectedVersion !== "string" || !/^\d+\.\d+\.\d+$/.test(expectedVersion)) throw new Error("Missing exact Core Pi version");
+  for (const name of ["pi-ai", "pi-agent-core", "pi-coding-agent", "pi-tui"]) {
+    if (manifest.dependencies?.[`${SCOPE}${name}`] !== expectedVersion) {
+      throw new Error(`Desktop ${name} must match Core Pi ${expectedVersion}`);
+    }
+  }
+}
+
+export function assertCoreSdkAlignment({ desktopPackage, corePackage, identity, durableBuild, runtimeManifest }) {
+  assertDesktopPiVersion(desktopPackage, identity?.pi);
+  for (const name of ["pi-ai", "pi-coding-agent", "chord"]) {
+    if (corePackage.dependencies?.[`${SCOPE}${name}`] !== identity.pi) throw new Error(`Core ${name} version is not paired`);
+  }
+  if (!/^\d+\.\d+\.\d+$/.test(identity.pi_durable ?? "")
+    || corePackage.dependencies?.[`${SCOPE}pi-durable`] !== identity.pi_durable
+    || durableBuild?.sdk_version !== identity.pi_durable) throw new Error("Core Pi Durable version is not paired");
+  const output = `scripts/vendor/pi-durable-v${identity.pi_durable}.mjs`;
+  const files = [...runtimeManifest.modules, ...runtimeManifest.assets];
+  if (durableBuild.output !== output || !files.some(file => file.path === output
+    && file.sha256 === durableBuild.output_hash && file.size === durableBuild.size_bytes)
+    || !files.some(file => file.path === `scripts/vendor/pi-durable-v${identity.pi_durable}.build.json`)) {
+    throw new Error("Core Pi Durable bundle is not in the pinned runtime closure");
+  }
+}
+
 /** Fully scoped package names, e.g. `@earendil-works/pi-ai`. */
 export async function piPackageNames() {
   const pkg = JSON.parse(await readFile(join(rootDir, "package.json"), "utf8"));

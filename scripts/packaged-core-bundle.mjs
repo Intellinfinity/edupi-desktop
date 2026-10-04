@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { createJiti } from "jiti";
+import { assertCoreSdkAlignment } from "./pi-packages.mjs";
 
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const COMPONENT_MANIFEST_VERSION = "1";
@@ -219,6 +220,14 @@ export async function buildPackagedCoreBundle({
     const runtimeManifest = JSON.parse((await readRegularFile(external.root, RUNTIME_MANIFEST_PATH, "Core runtime manifest")).bytes.toString("utf8"));
     const runtimeSchemaHash = JSON.parse((await readRegularFile(external.root, RUNTIME_SCHEMA_HASH_PATH, "Core runtime schema hash")).bytes.toString("utf8"));
     const listed = componentFiles(runtimeManifest);
+    assertCoreSdkAlignment({
+      desktopPackage: JSON.parse((await readRegularFile(resolvedDesktopRoot, "package.json", "Desktop package")).bytes),
+      corePackage: JSON.parse((await readRegularFile(external.root, "package.json", "Core package")).bytes),
+      identity: identity.core_sdk,
+      durableBuild: JSON.parse((await readRegularFile(external.root,
+        `scripts/vendor/pi-durable-v${identity.core_sdk.pi_durable}.build.json`, "Core Durable build")).bytes),
+      runtimeManifest,
+    });
     if (runtimeManifest.entrypoint !== "scripts/core_runtime_daemon.mjs") throw new Error("Unexpected Core runtime entrypoint");
     if (runtimeManifest.component_manifest_hash !== runtimeIdentity.runtime_component_manifest_hash) {
       throw new Error("Core runtime component manifest does not match Desktop pin");

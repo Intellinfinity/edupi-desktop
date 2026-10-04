@@ -29,7 +29,6 @@
     "package.json"
   ],
   "scripts": {
-    "postinstall": "node scripts/prepare-security-dependencies.mjs",
     "dev": "next dev --webpack -H 127.0.0.1 -p 30141",
     "dev:edupi-c1-checkpoint": "node scripts/run-edupi-c1-visible-checkpoint.mjs",
     "dev:lan": "next dev --webpack -H 0.0.0.0 -p 30141",
@@ -96,10 +95,10 @@
     "check:branding": "node --test lib/branding.test.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.84.1",
-    "@earendil-works/pi-ai": "0.84.1",
-    "@earendil-works/pi-coding-agent": "0.84.1",
-    "@earendil-works/pi-tui": "0.84.1",
+    "@earendil-works/pi-agent-core": "1.0.2",
+    "@earendil-works/pi-ai": "1.0.2",
+    "@earendil-works/pi-coding-agent": "1.0.2",
+    "@earendil-works/pi-tui": "1.0.2",
     "@napi-rs/canvas": "1.0.9",
     "@oomol-lab/open-connector": "1.6.5",
     "@tauri-apps/api": "^2.11.1",
@@ -121,7 +120,7 @@
     "react-dom": "^19.2.4",
     "temporal-polyfill": "1.0.5",
     "tesseract.js": "7.0.0",
-    "typebox": "1.3.8",
+    "typebox": "1.3.27",
     "undici": "8.10.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
@@ -153,7 +152,7 @@
     "typescript": "^5"
   },
   "overrides": {
-    "undici": "$undici",
+    "undici": "8.10.2",
     "brace-expansion@5.0.9": "5.0.12",
     "fast-glob": "$fast-glob",
     "@oomol-lab/open-connector": {

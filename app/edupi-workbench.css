@@ -248,7 +248,7 @@ html.dark .edupi-teacher-shell {
 .edupi-teacher-body.has-body-controls .edupi-module-heading,
 .edupi-teacher-body.has-body-controls .edupi-dashboard-heading,
 .edupi-teacher-body.has-body-controls .edupi-workspace-board__heading { padding-right: calc(12px + var(--edupi-body-controls-width, 0px)); }
-.edupi-chat-utilities { position: absolute; z-index: 86; top: 12px; right: 12px; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.edupi-chat-utilities { position: relative; z-index: 86; display: flex; flex: 0 0 auto; align-self: flex-end; align-items: center; gap: 6px; margin: 12px 12px 0; pointer-events: none; }
 .edupi-chat-utilities > * { pointer-events: auto; }
 .edupi-chat-utility { position: relative; }
 .edupi-chat-utility__trigger { position: relative; display: grid; width: 32px; min-width: 32px; height: 32px; padding: 0; place-items: center; border: 1px solid var(--ep-border); border-radius: 7px; background: color-mix(in srgb, var(--ep-surface) 94%, transparent); color: var(--ep-muted); box-shadow: 0 2px 8px rgba(18, 24, 32, .06); cursor: pointer; backdrop-filter: blur(10px); }

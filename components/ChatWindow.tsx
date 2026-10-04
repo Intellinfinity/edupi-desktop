@@ -51,6 +51,7 @@ interface Props {
   onProjectFilesImported?: () => void;
   onEducationImportCompleted?: (toolName: EducationImportToolName) => void;
   onEduPiAction?: (action: DesktopControlInput) => boolean | Promise<boolean>;
+  teacherMode?: boolean;
   onEduPiProactiveTarget?: (target: KernelRunAction["target"]) => void | Promise<void>;
   onOpenEduPiReminders?: () => void;
   proactiveOpenRequest?: number;
@@ -243,7 +244,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, children, t }: { mes
   );
 }
 
-export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, onEduPiProactiveTarget, onOpenEduPiReminders, proactiveOpenRequest = 0, reminderContext, reminderOpenId, onReminderContextApplied, educationContext, educationOpenId, onEducationContextApplied, teacherDraftText, teacherDraftOpenId, onTeacherDraftApplied, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
+export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onProjectFilesImported, onEducationImportCompleted, onEduPiAction, teacherMode = false, onEduPiProactiveTarget, onOpenEduPiReminders, proactiveOpenRequest = 0, reminderContext, reminderOpenId, onReminderContextApplied, educationContext, educationOpenId, onEducationContextApplied, teacherDraftText, teacherDraftOpenId, onTeacherDraftApplied, reminderTitle, reminderDraftKey, onEduPiComputerAction, emptyTitle, emptySubtitle }: Props) {
   const appliedReminderOpenId = useRef<string | null>(null);
   useEffect(() => {
     if (!reminderContext || !reminderOpenId || !(session?.id || newSessionCwd) || !chatInputRef?.current || appliedReminderOpenId.current === reminderOpenId) return;
@@ -1060,7 +1061,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
                 </div>
               ) : (
                 <>
-              <ExtensionWidgets widgets={aboveEditorWidgets} />
+              <ExtensionWidgets widgets={aboveEditorWidgets} teacherMode={teacherMode} />
 
             {renderedMessages}
             {streamState.isStreaming && streamState.streamingMessage && (
@@ -1118,7 +1119,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
           }}
         >
           <div style={{ maxWidth: 820, margin: "0 auto" }}>
-            <ExtensionWidgets widgets={belowEditorWidgets} />
+            <ExtensionWidgets widgets={belowEditorWidgets} teacherMode={teacherMode} />
           </div>
         </div>
         {chatInputElement}
@@ -1130,11 +1131,12 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   );
 }
 
-function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; lines: string[] }> }) {
-  if (widgets.length === 0) return null;
+export function ExtensionWidgets({ widgets, teacherMode = false }: { widgets: Array<{ key: string; lines: string[] }>; teacherMode?: boolean }) {
+  const visibleWidgets = teacherMode ? widgets.filter(widget => widget.key !== "edupi-layers") : widgets;
+  if (visibleWidgets.length === 0) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-      {widgets.map((widget) => (
+      {visibleWidgets.map((widget) => (
         <div
           key={widget.key}
           style={{

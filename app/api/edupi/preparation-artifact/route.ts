@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 const validId = (value: unknown): value is string => typeof value === "string" && Boolean(value.trim()) && value.length <= 160;
 function failure(error: unknown) {
   const code = (error as { code?: string })?.code;
+  if (code === "artifact_read_only") return NextResponse.json({ code, error: "该草稿已暂缓，仅可查看；未保存的修改已保留" }, { status: 409 });
   if (code === "stale_revision" || code === "stale_source") return NextResponse.json({ code, error: "产物或来源已更新，草稿已保留，请重新读取版本后核对" }, { status: 409 });
   if (code === "artifact_unavailable") return NextResponse.json({ code, error: "产物已失效或不可用" }, { status: 404 });
   if (code === "invalid_input" || error instanceof RequestBodyTooLargeError) return NextResponse.json({ code: "invalid_input", error: "正文不能为空且最多100 KB" }, { status: 400 });

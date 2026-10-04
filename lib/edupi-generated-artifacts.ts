@@ -5,7 +5,7 @@ import { runCoreProcess } from "./edupi-core-process-client";
 import { findTaskIdForSession, taskSessionFile } from "./edupi-task-session-store";
 import type { EducationContract } from "./edupi-education-contract";
 
-export type GeneratedArtifact = { artifact_id: string; title: string; relative_path: string; available?: boolean; session_id: string; task_id: string | null; updated_at: string; size_bytes: number; origin?: "preparation" };
+export type GeneratedArtifact = { artifact_id: string; title: string; relative_path: string; available?: boolean; session_id: string; task_id: string | null; updated_at: string; size_bytes: number; origin?: "preparation"; access?: "editable" | "read_only" };
 
 export async function workspaceResourcesRequest() {
   const roots = resolveEduPiBridgeRoots();

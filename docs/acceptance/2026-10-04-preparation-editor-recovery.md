@@ -4,6 +4,8 @@
 
 原任务 R01/R02/R04/R20，细项为[教师工作流计划 A3](../plans/2026-10-04-desktop-teacher-workflow.md)。实现提交 `023b5c2`，基线 Desktop `1e7c4df`；本记录只覆盖本批源码与隔离开发页面，不代表完整 A4、安装版或发布通过。
 
+A3 [PR #294](https://github.com/Intellinfinity/edupi-desktop/pull/294) 已合并为 `ade8b40afb3f1d768614ff5bf49e526227e6a8d6`；[CI 37202667865](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37202667865) 在 `b624562` 上完成干净依赖安装、Node 全量测试、TypeScript、lint、npm 与 Rust 安全审计，无 Windows 构建。
+
 - Core main、compat pin 与实际服务均为 `22bf414c6715c312a62a04c1ed02d5fa5f51d1c8`，桥接 `edupi-bridge-v1.1`，12 个公开命令。
 - Runtime IPC schema `sha256:8b4d701c64fd191019bee627eae7f9b2fbc533c0adbd41df4110ffc7719da9b8`；Runtime component manifest `sha256:4c21528e73509ccb5e6bf9876a5b75d1a5aca3aced2e4cf347c81ad3f1af469c`；Desktop component manifest `sha256:351d8fd6b02a3bf07cc037b9c6ba1c7ceaaf9e37f9b0fa665105c66b68dd7577`。本批未改 pin、合同、生成/外发许可或 Core 源码。
 - macOS、Next.js 源码服务 `127.0.0.1:30151`、真实固定 Core 与确定性本地模型；仅合成 703 班数学数据。正式 `/Applications/EduPi.app` 与公开 feed 仍为 v0.3.45，本轮未启动或替换。
@@ -54,11 +56,30 @@
 
 这些旧夹具问题不是本次证明的正式 App 故障；正式 Tauri 原本已创建私有状态目录。夹具中的 PDF 是合成占位字节，本轮不证明 PDF 渲染、OCR 或真实材料质量。
 
+## 后续协作复核
+
+实现 `ae8b42f`，对应原 R18/R20 及计划 B，仍为部分验收。
+
+1. 实测进入已有草稿的“Agent 执行”后，首个准备状态 GET 的 ready 回包触发 `onReady`，自动跳回产物，导致“开始协作”不可点击。现仅教师主动发起准备时，完成回包或轮询才跳到产物；被动读取仍刷新状态但保持当前阶段。初读 ready、被动 running → ready 的两项行为回归先红后绿；主动发起、切任务与卸载旧回包测试仍通过。
+2. 真实 Core 层级 widget 把 `edupi-layers / 感知 → 记忆 → 潜意识…` 展示在每段聊天上方。教师界面已由实际状态组件表达进度，因此仅教师分支过滤这个旧 widget；不删除运行数据、不隐藏其他扩展提示。`teacherMode` 明确由教师 AppShell 分支传入，普通分支默认 false，4 项渲染/实际调用点守卫通过。独立复审指出过仅根据回调判断会误覆盖普通 Pi 的问题，已修正；普通 Pi 分支保留是组件与调用点证据，不冒充该分支已做页面操作。
+3. 移除层级条后，800px 截图暴露工具图标遮住首条消息。工具条改为正常布局，正文不再被覆盖；弹窗仍能打开、关闭。协作卡不再默认显示 Session 哈希或建立独立 Session 的说明。
+
+同一隔离根中，另一个仅监听 loopback 的确定性模型只接受带“隔离协作验收”的请求，未调用真实模型。页面结果：
+
+| 入口 | 实际操作和回读 | 结果 |
+| --- | --- | --- |
+| 材料 | 先写教师自己的输入 → 材料 AI 协作 → 提示当前草稿未改 → 明确带入 → 刷新仍保留原话与独立参考 → 发送并收到回复 | Session `01a106ed-52c2-7856-bd42-6b6a065fb222`，磁盘文件存在，1 用户/1 助手消息 |
+| 任务 | 已准备任务保持 run 阶段 → 开始协作 → 输入自己的问题 → 发送 → 关闭 → 继续协作 | Core 绑定 `01a106f3-b77b-7b97-864d-348331345648`，重进同一会话保留原消息，不新建副本 |
+| 产物 | 从同任务打开参考答案 → AI 协作 → 展开参考确认 revision 6/当前正文 → 自己输入并发送 | 回到同一任务会话，磁盘读回 2 用户/2 助手消息；未改产物版本 |
+
+三次合成请求分别核对收到教师原话及对应材料/任务/产物参考；模型没有发出工具调用。800×900 任务协作与 1440×900 产物协作已目视，宽窗 document 宽度等于 viewport，无横向溢出。模型回复仅验证接线，不证明教学质量。
+
+初次进入源页面时默认 cwd 不在允许根导致 `/api/models` 403；进入隔离 `teacher-data` 工作区后可正常选择本地模型并完成上述发送，没有放宽文件权限。
+
 ## 证据与未验
 
-本机证据目录 `/tmp/edupi-editor-evidence-qhnj1b`：`conflict-final-800.png`、`read-failure-1440.png`、`index-gap-managed.png`、`ordinary-file-1440.png`、`unit-tests.log`。页面根由 `--ui-checkpoint` 生成，清理后不能把已删除的合成根当作保留的原始账本。
+本机证据目录 `/tmp/edupi-editor-evidence-qhnj1b`：`conflict-final-800.png`、`read-failure-1440.png`、`index-gap-managed.png`、`ordinary-file-1440.png`、`task-chat-final-800.png`、`artifact-chat-final-1440.png`、`unit-tests.log`、`chat-model.mjs`。页面根由 `--ui-checkpoint` 生成，清理后不能把已删除的合成根当作保留的原始账本。
 
 - A1 教师暂缓后的只读产物合同未实现；Desktop 没有绕过 Core held/来源/完整性检查。
-- 完整 A4 从 UI 上传到生成、审核、续聊、反馈未在本轮走完；B–D 仍按计划逐项复核。
-- 隔离源页面 `/api/models` 因默认 cwd 不在文件允许根返回 403；未放宽文件权限，本轮普通 Pi 对话未验。
+- 完整 A4 从 UI 上传到生成、审核、续聊、反馈未在本轮走完；B 的学生/教师信息入口、附件保护与发送失败恢复未完整操作；C–D 仍待逐项复核。
 - 本轮只重启源码服务，未重启 Tauri 安装版；新签名包、公网发布、Windows、真实跨到期睡眠、真人教学质量和六领域 Live 均未据此通过。

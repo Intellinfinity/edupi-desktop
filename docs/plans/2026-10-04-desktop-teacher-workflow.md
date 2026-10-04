@@ -41,6 +41,8 @@ A–D 以同一 macOS 候选集中验收；不为每个按钮改动重新打包�
 
 ### A1 暂缓产物的 Core 只读合同
 
+2026-10-05 源码已进入收口：独立 Core 读资格与 `access` 合同、Desktop 只读/保稿控制和针对性回归已实现；配对、代码 CI 和产品验收分别见[最新账本](2026-09-06-product-closure-roadmap.md#2026-10-05-a1-暂缓草稿只读回看)，下述验收条件仍保留。
+
 **涉及文件：** Core `scripts/calendar_work_execution_store.mjs`、`scripts/preparation_artifacts.mjs`、`scripts/preparation_artifact_revision.mjs`、`scripts/calendar_work_case_projection.mjs`；Desktop `lib/edupi-generated-artifacts.ts`、`lib/edupi-preparation-artifact-client.ts`、`contracts/edupi-core-compat.json` 仅在需要配对时修改。
 
 1. 用隔离已完成 execution 验证 pending → 教师 hold 后的列表和 read 拒绝，记录与自动 held/pending_review 的区别。

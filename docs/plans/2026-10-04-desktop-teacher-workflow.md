@@ -140,6 +140,7 @@ A–D 以同一 macOS 候选集中验收；不为每个按钮改动重新打包�
 
 ### 2026-10-04 首个修复证据
 
+- 交付跟踪：[Desktop PR #293](https://github.com/Intellinfinity/edupi-desktop/pull/293)，实现提交 `4e28e63707a110977d9f56330733f026b8919308`；[GitHub CI 37175608089](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37175608089) 固定该代码提交。后续仅文档变动不改变代码验证对象。
 - 环境：macOS，当前 Desktop 源码，现有 Next.js 开发服务的临时隔离组件页；只加载真实 `EduPiTaskDetailDrawer` 和应用样式，输入为合成 fixture，不连接 Core 或真实教师数据，不运行正式 App。
 - 复现：两份 Core work-case 文件、空旧 deliverables 时，标题错误显示 0 项；另一个去重后 3 项的 fixture 错显为计划交付的 1 项。旧单文件回退另有“已有打开入口却仍显示空状态”的问题，已一起修正。三个新增行为测试均先失败，修改后通过，相关 35 项测试 0 失败、0 跳过。
 - 页面：在 800×900 打开详情，标题 2 项与教案/学案列表一致；选择教案回传同一合成路径，Escape 后焦点回到入口。模拟教案不可用后该按钮禁用、学案仍可用，数量保持 2 项；末尾按钮 Tab 回到关闭按钮。800×900 与 1440×900 均无横向溢出，页面控制台 error/warn 为 0。

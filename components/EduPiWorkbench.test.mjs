@@ -154,7 +154,8 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(appShell, /onActivateAgentSession=/);
   assert.match(appShell, /params\.set\("stage", stage\)/);
   assert.match(panel, /stage: activeStage/);
-  for (const label of ["Agent 正在运行", "继续协作", "开始协作", "恢复协作"]) assert.match(taskStage, new RegExp(label));
+  for (const label of ["正在协作", "继续协作", "开始协作", "恢复协作"]) assert.match(taskStage, new RegExp(label));
+  assert.doesNotMatch(taskStage, /将为此任务建立独立 Session|`Session /);
   assert.match(workspaceViews, /Agent 就绪/);
   assert.match(workspaceViews, /个 Agent 运行中/);
   assert.match(panel, /searchParams\.get\("inspector"\) === "1"/);
@@ -254,7 +255,7 @@ test("refreshes education data after Core imports without remounting chat", asyn
   assert.match(loadEffect, /\}, \[loadWorkspace, refreshKey\]\);/);
 });
 
-test("chat utilities float above conversation content without changing its height", async () => {
+test("chat utilities reserve their own row while panels remain overlaid", async () => {
   const panel = await read("./EduPiEducationPanel.tsx");
   const chat = await read("./ChatWindow.tsx");
   const conversationFiles = await read("./EduPiConversationFiles.tsx");
@@ -273,7 +274,7 @@ test("chat utilities float above conversation content without changing its heigh
   assert.match(proactive, /proactive_work_kernel|readEduPiKernel/);
   assert.match(conversationFiles, /onMouseDown=\{event => event\.currentTarget\.focus\(\)\}/);
   assert.match(proactive, /onMouseDown=\{event => event\.currentTarget\.focus\(\)\}/);
-  assert.match(styles, /\.edupi-chat-utilities \{ position: absolute;/);
+  assert.match(styles, /\.edupi-chat-utilities \{ position: relative;[^}]*flex: 0 0 auto;/);
   assert.match(styles, /\.edupi-chat-utility__panel \{ position: absolute;/);
   assert.doesNotMatch(styles, /\.edupi-conversation-files \{[^}]*min-height:/);
 });

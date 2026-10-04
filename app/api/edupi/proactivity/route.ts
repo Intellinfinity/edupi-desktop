@@ -16,7 +16,7 @@ import {
 } from "@/lib/edupi-proactivity-control";
 import { clearEduPiProactivityStopIntent, readEduPiProactivityActivation, writeEduPiProactivityConfig,
   writeEduPiProactivityStopIntent, type EduPiProactivityActivation, type EduPiProactivityDomain, type EduPiProactivityScope } from "@/lib/edupi-proactivity-config";
-import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantStatus } from "@/lib/edupi-proactivity-runtime";
+import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantStatus, readProactivityRuntimeState } from "@/lib/edupi-proactivity-runtime";
 import { clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
   quarantineEduPiRuntime, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
@@ -93,13 +93,14 @@ async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivit
     }
   }
   let grant: Awaited<ReturnType<typeof readProactivityGrantStatus>> = null;
+  let execution: Awaited<ReturnType<typeof readProactivityRuntimeState>>["execution"] = null;
   let capabilities: RawRecord | null = null;
-  if (activation.enabled) {
+  if (activation.enabled || domain === "student_followup") {
     try {
       const host = await ensureEduPiRuntime(roots);
       const health = runtimeHealth(await host.call("health", null));
       capabilities = health.capabilities;
-      grant = await readProactivityGrantStatus(host, health.rootRef, activation.grantId, Date.now(), domain);
+      ({ grant, execution } = await readProactivityRuntimeState(host, health.rootRef, activation.grantId, domain));
     } catch (error) {
       if (!allowDegraded) throw error;
       degraded = true;
@@ -114,6 +115,7 @@ async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivit
     activation: publicActivation(activation),
     scopes: currentContext.scopes,
     grant,
+    ...(domain === "student_followup" ? { execution } : {}),
     capabilities: capabilities ? {
       ambientPlanning: capabilities.ambient_planning === "active",
       ownerIntent: capabilities.owner_intent === "active",

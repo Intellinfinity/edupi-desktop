@@ -17,7 +17,7 @@ const G2 = "student_followup";
 const scope = { classId: "class-7-1", subject: "数学" };
 const rootRef = `sha256:${"a".repeat(64)}`;
 
-function fixture({ isolated = true, g1Enabled = false, g2Processor = true, forceG2Active = false, failG2Grant = false, failPause = false, failDisabledWrite = false } = {}) {
+function fixture({ isolated = true, g1Enabled = false, g2Processor = true, forceG2Active = false, failG2Grant = false, failPause = false, failDisabledWrite = false, ownerReadPatch = {} } = {}) {
   // In-memory config and Core transport only. This never starts a daemon,
   // reads teacher data, calls a model, or proves an installation flow.
   const events = [];
@@ -55,7 +55,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
       assert.equal(operation, "owner_read");
       return { ok: true, result: { root_ref: rootRef, owner, grants: [...grants.values()], g1_model_budget: [...grants.values()]
         .filter(grant => grant.spec.domains[0] === G1).map(grant => ({ grant_id: grant.id, budget_id: grant.spec.budget.id,
-          used_calls: 0, max_calls: 12, remaining_calls: 12, exhausted: false, usage_unverified: false })) } };
+          used_calls: 0, max_calls: 12, remaining_calls: 12, exhausted: false, usage_unverified: false })), ...ownerReadPatch } };
     },
     async callOwnerControl(operation, payload) {
       assert.equal(operation, "owner_control");
@@ -182,6 +182,46 @@ test("default requests retain G1 budget checks and its initial scan", async () =
   assert.equal(f.read(G2).enabled, false);
   assert.equal(f.events.filter(event => event.operation === "prepare_due").length, 1);
   assert.equal((await (await f.get()).json()).limits.domain, G1);
+});
+
+test("G2 GET consumes one public read and retains historical records after stopping", async () => {
+  const ownerReadPatch = {};
+  const f = fixture({ ownerReadPatch });
+  assert.equal((await f.toggle(true, G2)).status, 200);
+  const grantId = f.read(G2).grantId;
+  ownerReadPatch.g2_model_budget = [{ grant_id: grantId, budget_id: "g2-budget", used_calls: 2, max_calls: 4,
+    remaining_calls: 2, exhausted: false, usage_unverified: false }];
+  ownerReadPatch.g2_execution = { version: 1, available: true, revision: 2, records: [{ execution_id: "execution-1",
+    follow_up_id: "follow-up-1", grant_id: grantId, status: "completed", attempt: 1, error_code: null,
+    updated_at: "2026-10-05T00:00:00.000Z", source_status: "current" }], external_send: false };
+  const before = f.events.length;
+  const active = await (await f.get("?domain=student_followup")).json();
+  assert.doesNotThrow(() => client.parseEduPiProactivityState(active));
+  assert.equal(active.grant.modelBudget.remainingCalls, 2);
+  assert.equal(active.execution.records[0].status, "completed");
+  assert.equal(f.events.slice(before).filter(event => event.operation === "owner_read").length, 1);
+  assert.equal(f.events.slice(before).some(event => ["owner_control", "prepare_due", "restart", "config"].includes(event.operation)), false);
+  ownerReadPatch.g2_execution.records[0].grant_id = null;
+  ownerReadPatch.g2_execution.records[0].source_status = "unverified";
+  const unknown = await (await f.get("?domain=student_followup")).json();
+  assert.equal(unknown.execution.available, false, "missing source binding is not an empty queue");
+  ownerReadPatch.g2_execution.records[0].grant_id = grantId;
+  ownerReadPatch.g2_execution.records[0].source_status = "historical";
+  const stopped = await (await f.toggle(false, G2)).json();
+  assert.equal(stopped.activation.enabled, false);
+  assert.equal(stopped.grant, null);
+  assert.equal(stopped.capabilities.studentFollowup, false);
+  assert.equal(stopped.execution.records[0].sourceStatus, "historical");
+  assert.doesNotThrow(() => client.parseEduPiProactivityState(stopped));
+});
+
+test("invalid G2 execution degrades reads without presenting a false empty queue", async () => {
+  const f = fixture({ ownerReadPatch: { g2_execution: { version: 1, available: false, revision: 0, records: [], external_send: false } } });
+  const state = await (await f.get("?domain=student_followup")).json();
+  assert.equal(state.degraded, true);
+  assert.equal(state.execution, null);
+  assert.equal(state.grant, null);
+  assert.doesNotThrow(() => client.parseEduPiProactivityState(state));
 });
 
 test("unknown domains and non-isolated G2 enables stop before any Core access", async () => {

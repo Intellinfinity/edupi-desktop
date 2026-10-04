@@ -1,5 +1,6 @@
 import { desktopApiHeaders, fetchDesktopApi } from "./desktop-native";
 import type { EduPiProactivityDomain } from "./edupi-proactivity-config";
+import type { EduPiStudentFollowupExecution } from "./edupi-proactivity-runtime";
 
 export type { EduPiProactivityDomain } from "./edupi-proactivity-config";
 
@@ -13,6 +14,7 @@ export type EduPiProactivityState = {
   grant: { status: "active" | "paused" | "revoked" | "expired"; grantVersion: number; endsAt: string;
     modelBudget: { usedCalls: number; maxCalls: number; remainingCalls: number; usageUnverified: boolean } | null } | null;
   capabilities: { ambientPlanning: boolean; ownerIntent: boolean; attentionDelivery: boolean; teacherFeedback: boolean; studentFollowup?: boolean } | null;
+  execution?: EduPiStudentFollowupExecution | null;
   limits: { durationDays: number; maxModelCalls: number; domain: EduPiProactivityDomain };
   externalSend: false;
   grantPaused?: boolean;
@@ -61,15 +63,43 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
       throw new EduPiProactivityClientError("主动运行范围无效");
     }
   }
+  const budgetLimit = limits.domain === "student_followup" ? 4 : 12;
   if (grant && (!Number.isInteger(grant.grantVersion) || !["active", "paused", "revoked", "expired"].includes(String(grant.status)) || typeof grant.endsAt !== "string"
-    || (limits.domain === "student_followup" ? grant.modelBudget !== null
-      : !modelBudget || !Number.isSafeInteger(modelBudget.usedCalls) || Number(modelBudget.usedCalls) < 0 || Number(modelBudget.usedCalls) > 1536
-    || !Number.isSafeInteger(modelBudget.maxCalls) || Number(modelBudget.maxCalls) < 0 || Number(modelBudget.maxCalls) > 12
-    || !Number.isSafeInteger(modelBudget.remainingCalls) || Number(modelBudget.remainingCalls) < 0 || Number(modelBudget.remainingCalls) > 12
+    || !(limits.domain === "student_followup" && grant.modelBudget === null) && (
+    !modelBudget || !Number.isSafeInteger(modelBudget.usedCalls) || Number(modelBudget.usedCalls) < 0 || Number(modelBudget.usedCalls) > 1536
+    || !Number.isSafeInteger(modelBudget.maxCalls) || Number(modelBudget.maxCalls) < 0 || Number(modelBudget.maxCalls) > budgetLimit
+    || !Number.isSafeInteger(modelBudget.remainingCalls) || Number(modelBudget.remainingCalls) < 0 || Number(modelBudget.remainingCalls) > budgetLimit
     || typeof modelBudget.usageUnverified !== "boolean"
     || modelBudget.usageUnverified && modelBudget.remainingCalls !== 0
     || !modelBudget.usageUnverified && modelBudget.remainingCalls !== Math.max(0, Number(modelBudget.maxCalls) - Number(modelBudget.usedCalls))))) {
     throw new EduPiProactivityClientError("主动运行授权无效");
+  }
+  if (state.execution !== undefined && state.execution !== null) {
+    const execution = record(state.execution);
+    if (limits.domain !== "student_followup" || !execution || Object.keys(execution).length !== 5
+      || execution.version !== 1 || typeof execution.available !== "boolean" || execution.externalSend !== false
+      || !Array.isArray(execution.records) || execution.records.length > 500
+      || (execution.available ? !Number.isSafeInteger(execution.revision) || Number(execution.revision) < 0
+        : execution.revision !== null || execution.records.length !== 0)) {
+      throw new EduPiProactivityClientError("学生跟进执行记录无效");
+    }
+    const id = (value: unknown) => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(value);
+    const seen = new Set();
+    for (const raw of execution.records) {
+      const item = record(raw);
+      if (!item || Object.keys(item).length !== 8 || !id(item.executionId) || seen.has(item.executionId)
+        || !id(item.followUpId) || item.grantId !== null && !id(item.grantId)
+        || typeof item.status !== "string" || !["queued", "claimed", "completed", "failed", "cancelled"].includes(item.status)
+        || !Number.isSafeInteger(item.attempt) || Number(item.attempt) < 0 || Number(item.attempt) > 3
+        || item.errorCode !== null && (typeof item.errorCode !== "string" || !/^[a-z][a-z0-9_]{0,79}$/u.test(item.errorCode))
+        || typeof item.updatedAt !== "string" || !Number.isFinite(Date.parse(item.updatedAt))
+        || new Date(item.updatedAt).toISOString() !== item.updatedAt
+        || typeof item.sourceStatus !== "string" || !["current", "historical", "unverified"].includes(item.sourceStatus)
+        || item.sourceStatus === "current" && item.grantId === null) {
+        throw new EduPiProactivityClientError("学生跟进执行记录无效");
+      }
+      seen.add(item.executionId);
+    }
   }
   if (capabilities && (![capabilities.ambientPlanning, capabilities.ownerIntent, capabilities.attentionDelivery, capabilities.teacherFeedback].every((item) => typeof item === "boolean")
     || limits.domain === "student_followup" && typeof capabilities.studentFollowup !== "boolean")) {

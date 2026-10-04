@@ -8,7 +8,7 @@ import { validateContainedRegularFile, type ResolvedEduPiCore, type ResolvedEduP
 import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-model-host";
 import { loadRuntimeOwnerControlToken } from "./edupi-owner-control-token";
 import { readEduPiProactivityActivation, type EduPiProactivityActivation } from "./edupi-proactivity-config";
-import { canStartEduPiProactivity, coreRuntimeCanaryEnvironment } from "./safe-mode";
+import { canStartEduPiProactivity, canStartEduPiStudentFollowup, coreRuntimeCanaryEnvironment } from "./safe-mode";
 
 export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callOwnerControl(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
@@ -42,6 +42,12 @@ export function g1ScopeForActivation(activation: EduPiProactivityActivation): { 
   return { classId: activation.scope.classId, subject: activation.scope.subject, grantId: activation.grantId };
 }
 
+export function g2ScopeForActivation(activation: EduPiProactivityActivation): ReturnType<typeof g1ScopeForActivation> {
+  if (!canStartEduPiStudentFollowup() || !activation.enabled || activation.source !== "desktop_canary"
+    || activation.configurationStatus !== "ready" || activation.scope?.subject !== "数学" || !activation.grantId) return null;
+  return { ...activation.scope, grantId: activation.grantId };
+}
+
 export function describeEduPiRuntimeStartupFailure(error: unknown): string | null {
   const code = startupFailureCode(error);
   return code === "runtime_unavailable" ? null : STARTUP_FAILURE_REASONS[code];
@@ -70,9 +76,11 @@ export function clearEduPiRuntimeQuarantine(dataRoot: string): void { quarantine
 export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEduPiCore; dataRoot: ResolvedEduPiDataRoot }): Promise<EduPiRuntimeHandle> {
   if (quarantined.has(dataRoot.root)) return Promise.reject(unavailable());
   const activation = readEduPiProactivityActivation({ dataRoot: dataRoot.root });
+  const g2Activation = readEduPiProactivityActivation({ dataRoot: dataRoot.root, domain: "student_followup" });
   const executionAllowed = canStartEduPiProactivity();
   const g1Scope = g1ScopeForActivation(activation);
-  const identity = `${runtime.root}:${runtime.coreCommit}:${runtime.componentManifestHash}:${activation.enabled}:${activation.source}:${activation.updatedAt || "none"}:${executionAllowed}:${JSON.stringify(g1Scope)}`;
+  const g2Scope = g2ScopeForActivation(g2Activation);
+  const identity = `${runtime.root}:${runtime.coreCommit}:${runtime.componentManifestHash}:${activation.enabled}:${activation.source}:${activation.updatedAt || "none"}:${executionAllowed}:${JSON.stringify(g1Scope)}:${g2Activation.updatedAt || "none"}:${JSON.stringify(g2Scope)}`;
   const existing = entries.get(dataRoot.root);
   if (existing) {
     if (existing.identity !== identity) return Promise.reject(unavailable());
@@ -80,7 +88,7 @@ export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEdu
   }
   const entry: Entry = { identity, startup: Promise.resolve(null as unknown as EduPiRuntimeHandle) };
   entries.set(dataRoot.root, entry);
-  entry.startup = start(runtime, dataRoot, entry, activation, g1Scope, executionAllowed).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
+  entry.startup = start(runtime, dataRoot, entry, activation, g1Scope, g2Scope, executionAllowed).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
   return entry.startup;
 }
 
@@ -110,7 +118,7 @@ export function restartEduPiRuntime(args: { runtime: ResolvedEduPiCore; dataRoot
 }
 
 async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot, entry: Entry, activation: EduPiProactivityActivation,
-  g1Scope: ReturnType<typeof g1ScopeForActivation>, executionAllowed: boolean): Promise<EduPiRuntimeHandle> {
+  g1Scope: ReturnType<typeof g1ScopeForActivation>, g2Scope: ReturnType<typeof g2ScopeForActivation>, executionAllowed: boolean): Promise<EduPiRuntimeHandle> {
   const load = (file: string) => import(/* webpackIgnore: true */ pathToFileURL(path.join(runtime.root, "scripts", file)).href);
   const manifestFile = validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.join(runtime.root, "contracts/edupi-core-runtime-component-manifest.json") });
   const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
@@ -127,7 +135,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   const packaged = path.join(process.cwd(), "core-runtime-host.mjs");
   const bootstrap = fs.existsSync(packaged) ? packaged : path.join(process.cwd(), "desktop/core-runtime-host.mjs");
   const configuredStateDir = process.env.PI_DESKTOP_STATE_DIR?.trim();
-  const ambientPlanning = activation.enabled && executionAllowed;
+  const ambientPlanning = activation.enabled && executionAllowed || g2Scope !== null;
   const ownerControlAvailable = ambientPlanning || Boolean(configuredStateDir && path.isAbsolute(configuredStateDir));
   const ownerControlToken = ownerControlAvailable
     ? loadRuntimeOwnerControlToken(configuredStateDir, dataRoot.root, { required: ambientPlanning })
@@ -184,6 +192,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
         ...(ambientPlanning ? { ambientPlanning: true } : {}),
         ...(ownerControlToken ? { ownerControlToken } : {}),
         ...(g1Scope ? { g1Scope } : {}),
+        ...(g2Scope ? { g2Scope } : {}),
       } }, error => { if (error) failed(); });
     });
   } catch (error) { await close(); throw unavailable(startupFailureCode(error)); }

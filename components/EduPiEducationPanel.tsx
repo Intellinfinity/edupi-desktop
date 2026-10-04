@@ -588,14 +588,17 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const activeWorkReview = Boolean(education?.workCandidates.some(item => item.taskId === activeTask?.id));
   const pendingCount = tasks.filter((task) => isTaskActionable(task) && isTaskReviewable(task, education ? workCaseForTask(education, task.id) : null)).length;
   const c1PendingCount = (education?.observations ?? []).filter((item) => item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length
-    + (education?.memoryCandidates ?? []).filter((item) => item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length;
+    + (education?.memoryCandidates ?? []).filter((item) => item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length
+    + (education?.followUps ?? []).filter((item) => item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length;
+  const selectedFollowUpCurrent = selectedC1Target?.kind === "follow_up" && Boolean(education?.followUps.some(item => item.followUpId === selectedC1Target.id));
   const factPendingCount = (education?.factSpine?.factCandidates ?? []).filter((item) => item.status === "candidate" || item.status === "pending_review" || item.status === "held").length;
   const teacherContextPendingCount = (education?.teacherContextCandidates ?? []).filter((item) => item.status === "pending_review" || item.status === "held" || item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length;
   const teacherContextLabel = [context?.name, context?.subject, context?.grade].filter(Boolean).join(" · ") || "教师工作区";
 
   useEffect(() => {
-    if (activeView === "review" && reviewMode === "c1" && c1PendingCount === 0) setReviewMode("board");
-  }, [activeView, c1PendingCount, pendingCount, reviewMode]);
+    if (education && activeView === "review" && reviewMode === "c1" && !selectedFollowUpCurrent
+      && (c1PendingCount === 0 || selectedC1Target?.kind === "follow_up")) setReviewMode("board");
+  }, [activeView, c1PendingCount, education, reviewMode, selectedC1Target, selectedFollowUpCurrent]);
 
   const updateLocation = useCallback((view: WorkbenchView, task: TeacherTask | undefined, stage: TaskStage | undefined, nextInspector = inspectorOpen, nextStudentId = selectedStudentId, nextObjectId = selectedObjectId, nextCalendarSelection = calendarSelection, nextReviewTarget: ReviewTargetRoute | null = null) => {
     const params = new URLSearchParams(searchParams.toString());

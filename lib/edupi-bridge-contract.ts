@@ -94,14 +94,20 @@ function ambientPreparationIdentity(value: unknown): unknown {
   if (!preparation) return value;
   const identity = structuredClone(preparation);
   delete identity.generated_at;
+  const stableWake = (value: unknown): unknown => {
+    const item = record(value);
+    return item?.action === "act" && item.next_wakeup_at === preparation.generated_at
+      ? { ...item, next_wakeup_at: null } : value;
+  };
+  if (Array.isArray(identity.opportunities)) identity.opportunities = identity.opportunities.map(stableWake);
   if (Array.isArray(identity.decisions)) identity.decisions = identity.decisions.map((value) => {
     const decision = record(value);
     if (!decision) return value;
     const next = { ...decision };
     delete next.decision_id;
     delete next.decided_at;
-    return next;
-  });
+    return stableWake(next);
+  }).sort((left, right) => String(record(left)?.opportunity_id).localeCompare(String(record(right)?.opportunity_id)));
   if (Array.isArray(identity.attention_intents)) identity.attention_intents = identity.attention_intents.map((value) => {
     const intent = record(value);
     if (!intent) return value;

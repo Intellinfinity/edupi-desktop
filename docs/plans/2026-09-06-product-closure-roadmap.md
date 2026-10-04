@@ -1,5 +1,44 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-10-05 Pi 1.0.2 与 Core #218 对齐
+
+- 用户要求先消除 Core 适配落后与已有风险，再继续 A1。已核对 Core `main` 为 #218 `8d0bcdfaf08e529e453c44e71096942b664bddb7`，Pi/Chord/PiDurable 精确为 1.0.2。Desktop 原 0.84.1 正在迁移会话管理、分叉、空工具资源隔离与标题上下文；保留所有已有提交和未提交改动。
+- 上轮 G2 只读分支已合入 #218 的源码，保留 checkpoint 恢复、只读状态与默认关闭的 Durable；独立 Bridge 合同编译 TS2339 已通过局部类型修复关闭，wire schema 没有为类型修复改变。Runtime/Desktop 清单按合并后代码重算。
+- 依赖已干净安装并移除旧 Pi postinstall 替换器。兼容清单增加 `core_sdk`，发布校验与 Core 打包入口检查 Desktop SDK、Core SDK、Durable 版本及固定 bundle 摘要，防止后续只改 pin 留下旧 SDK。Durable 仍由 Core 单一写者持有，Desktop 不另建执行库或自动打开行政试点。
+- Core [#219](https://github.com/Intellinfinity/edupi/pull/219) 在 [CI 37225328980](https://github.com/Intellinfinity/edupi/actions/runs/37225328980) 质量与原生安全检查通过后合并为 `4f0bab6eb339944c0354d03e7bdd7b008a4866cf`。Desktop 已整体更新精确 pin、Bridge schema/夹具及两份清单，取代下文“新字段未配对”的状态。Runtime schema 为 `5d7080f2…`，Runtime/Desktop 清单为 `a9b0da22…` / `8cee54a6…`；实际 Core Git 身份、文件与依赖闭包只读核对通过。
+- 本机工程检查：干净 `npm ci` 审计 0 漏洞；SDK 安全与对齐门、Core 新合同审核回读、受影响 C1/跟进组件测试通过。Pi 1 会话定向组 62/62，后续缓存与分叉保存失败修复后重跑相关 22/22；TypeScript、目标 lint、发布版本清单和 diff 检查通过。使用临时数据、内存 provider 或纯函数，没有真实教师配置和外部模型调用。Core 依赖单测曾误包含一次本地 HTTP 请求，已记在其检查记录，不能写成本轮完全未跑 HTTP。
+- 风险修复包括：上轮合同 TS2339、Pi 只读状态赋值、主题新增必需颜色、同模式重载仍取旧扩展代码、分叉首写失败后的旧会话注册键。新 SDK 会话历史使用 SessionManager，工具全关使用官方 hook 和资源隔离，保留用户消息前分叉语义；Durable checkpoint 不代表发布或审核完成。
+- 本轮代码 CI 与合并用于完成配对；页面、真实模型、教师流程、睡眠/通知和安装验收继续后置，不启动 Windows 安装或手动试机，不改真实数据根、模型配置、launchd 或正式 App/feed。Desktop #296 合并结果仍待收口记录，状态为**已实现待代码 CI、产品验收后置**；完成配对后继续 A1 暂缓草稿只读合同。
+
+## 2026-10-05 G2 只读合同增量
+
+- **已实现待配对与验收**：Core 独立源码分支 `codex/core-g2-read-projections-20261005` 的 `d48089e` 从已合并 #217 `00d05a1` 起步，为公开跟进增加 `next_step`，为 `owner_read` 增加 G2 剩余预算和执行记录。预算复用现有签名调用账本，最多 4 次；执行投影只读当前 owner 的已验证账本，不触发恢复、重排、模型调用或写入。缺文件/损坏为不可用，来源失效或无法证明分别为 historical/unverified，不公开 input、draft、permit 或路径。
+- Desktop 在原分支准备可选字段消费：有公开下一步才显示/允许编辑，修改使用现有 CAS 并核对回读；旧 Core 缺字段时写入前拒绝。预算缺失或未核实时显示未知；执行记录按授权过滤并折叠展示，停用后仍可读，claimed 不称正在运行，历史完成记录不称当前草稿。
+- **配对与交付边界**：Desktop 正式 pin、冻结 schema 和两份组件清单仍指向 #217，不提前指向未合并 Core。Core 新合同需要 Bridge 1.1/Runtime v1 schema 与 hash 同步；待 Core 合并后才能整体 repin。Core PR 会自动启动 Windows 任务，本轮按用户后置要求只保留源码分支，不创建 Core PR、不自动合并、不修改 CI 门禁；Desktop [#296](https://github.com/Intellinfinity/edupi-desktop/pull/296) 保持 Draft。
+- 本段取代下方“字段尚未实现”的源码状态，不改变其“已合并 Core 尚未提供”的事实。仅做必要的纯函数/VM/隔离文件单测、编译、定向 lint 和代码复审；运行、页面、E2、模型、安装与真人验收统一后置。正式 App/feed、真实数据根、模型配置、launchd 未动；A1 暂缓产物只读和其他原欠项仍保留。
+
+工程证据环境为 macOS arm64 / Node 22.23.1。Desktop 预算/执行代码 `d28e61e`：`lib/edupi-proactivity-runtime.test.mjs`、`lib/edupi-proactivity-client.test.mjs`、`components/EduPiProactivityCanary.test.mjs`、`app/api/edupi/proactivity/route.g2.test.mjs` 与 `route.rollback.test.mjs` 的定向单测通过；覆盖同一次只读、G1/G2 预算隔离、停止后记录保留、来源缺失不伪空队列及未知/耗尽/历史状态。`tsc --noEmit`、目标 ESLint、diff 检查通过。新 Core 组合器输出接 Desktop 边界的内存合同检查通过，不含真实服务或模型。Core 的两个新增隔离文件单测、原 G1 预算回归、Bridge/Runtime schema、fixture、writer matrix、两份清单静态重算及项目 typecheck 通过；[Core 检查记录](https://github.com/Intellinfinity/edupi/blob/d48089e/docs/loop/2026-10-05-g2-read-projections.md)保存命令与完整哈希。
+
+Desktop 下一步编辑代码 `43864d3`：`node --test components/EduPiFollowUpReview.test.mjs lib/edupi-follow-up-review.test.mjs components/EduPiC1Review.test.mjs` 的初始合同/VM 检查通过；复审修复后只重跑受影响的两份组件测试，25/25 通过，目标 ESLint 与最终 `tsc --noEmit` 通过。同 ID 后台更新会保留两个输入并阻断旧基线提交；显式取消重开后只发送教师改过的字段。提交中禁止再输入，失败后解禁。旧 Core 的 nextStep 写入仍在 dispatch 前拒绝。
+
+额外检查失败单列：Core 独立编译 `contracts/edupi-bridge-v1.1.ts` 报既有 `legacyTimetableCommand.properties.slots` 的 TS2339，未在本增量修复；项目 typecheck 不覆盖这项，不能替代它。独立复审发现并修正了同 ID 编辑被新 CAS 重基线、选定 grant 下无归属记录被误过滤为空、两处旧派生哈希断言，最终未见剩余 P1/P2。没有删除门禁或将未运行的 daemon/传输测试计为通过。Core `d48089e` 已推普通源码分支且无 CI run，Desktop 增量沿原 #296 Draft 交付；没有新建 internal 仓库或替代 Desktop 分支。
+
+## 2026-10-05 Core #217 源码适配
+
+- 当前实现消费 Core `00d05a1ecb8f4bbc461305337b7059a02e757b69`，取代下方 #216 的配对现状。Runtime/Bridge/课次 schema 和 12 个公开命令不变；Desktop/Runtime component manifest 分别更新为 `fd150b8384542e84333f5a12924f09b5190de34a831f5b950f0b225c18b01269` / `356666c4a97417aebf1b98eb6f4948f0b79bbe02298acd5d791a2c54d61fd018`。CAS 同步 Core 的即时唤醒时间归一化与 decision 稳定排序。
+- **已实现待验收**：G2 私有配置/停止标记/授权与 G1 独立；仅隔离标记且非 Windows 可明确启用数学跟进，7 天、Core 持久预算最多 4 次。模型请求复用现有私有 IPC 与隔离 worker，Core 工厂保留提示词和结果校验，凭据不进入 Core 子进程。G1 行为/12 次预算、G3/G4 默认关闭及外发禁止不变。
+- **已实现待验收**：同一普通消息在两域分别绑定独立来源与捕获 ID，仍由同一 session 撤回账本管理。G2 直接把捕获的 message_ref 交给 Core enqueue，不在 Desktop 解析学生、生成事实或另建 scheduler；queued/replayed 不代表生成完成。
+- **已实现待验收**：消费公开 follow_up review target，提供摘要、观察依据、当前版本审核与独立价值反馈；不伪造 G1 文件/workCase。旧审核回包不能清空另一对象草稿，historical/unverified 反馈不能标为当前“已评价”；跟进计数、冷加载和已审核详情入口已接入。
+- 实现提交按合同、授权/模型、消息及消费者分为 `7855956`、`48bdb92`、`e9e4960`、`c76f48d`。仅进行了必要合同、假传输/组件单测、定向 lint、TypeScript 与独立代码复审；未跑 App/浏览器、Core daemon、实际模型、E2、全套、CI、打包或安装。审查发现的回包和反馈来源竞态已修复并有先红后绿的回归。新配对没有借用旧安装证据。
+- Core 仍未公开 G2 的逐执行状态、剩余预算和 next_step 回读。Desktop 返回/显示预算未知，不提供缺失字段的编辑，不读取私有 store 补数；A1 暂缓只读仍未实现。启用新 observation-only 私有格式后，回退必须保留兼容 Core 并关闭 G2，或恢复启用前备份，不能直接用旧 Core 覆写同一数据根。
+- 本节是源码实现记录，不是验收完成；[Desktop PR #296](https://github.com/Intellinfinity/edupi-desktop/pull/296) 为 Draft，主线合并、整体 CI 与产品验收分别待后续执行。正式 App/feed 仍为 v0.3.45，真实数据、模型配置和 launchd 未修改。
+
+## 2026-10-04 执行顺序调整
+
+- 用户明确要求先完成 Core 适配，交互、端到端、安装和真人验收统一后置。本轮只进行必要合同单测、静态检查与代码复审；不启动验收 App/模型，不打包，不触发 Windows 构建或测试。
+- 当前消费 Core #217 `00d05a1`：精确 pin/两份清单与 CAS 身份规范化；G2 独立默认关闭的启动、授权、模型通道；已捕获消息交给 Core 入队；公开 follow-up 草稿摘要、审核与反馈消费。G1 原范围/预算、G3/G4 默认关闭与外发禁止保持。
+- Core 暂未公开 G2 逐执行状态/剩余预算和 `next_step` 回读，本轮不读私有账本补齐，不把入队等同完成。A1 暂缓产物只读合同仍是独立 Core 前置；历史验收记录不改写成新配对已验。
+
 ## 2026-10-04 Core #216 配对
 
 - 本日收尾远端 Core main 已推进到 `17abf51`，原 `22bf414` 的“最新 main”记录由本段取代。Desktop 已更新精确 pin、Runtime/Desktop 两份组件清单；独立核查确认仅依赖安装、安全检查/清单和日期夹具变化，业务模块、IPC/桥接/课次 schema 与 12 命令不变。新配对 20 项合同检查、隔离备课/来源失效/重启去重闭环、全量 Node 1849 通过/26 既有跳过/0 失败、TypeScript 与发布组件校验通过。见[配对验收](../acceptance/2026-10-04-core-216-pairing.md)。

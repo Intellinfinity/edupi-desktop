@@ -187,10 +187,10 @@ hooks/
 - `globalThis` survives Next.js hot-reload; plain module-level Map does not
 - Idle timeout: 10 minutes. Concurrent `startRpcSession()` calls share a single start Promise (`globalThis.__piStartLocks`)
 
-### Fork must destroy the wrapper immediately
-`AgentSession.fork()` **mutates the wrapper's inner state in-place** — after fork, `inner.sessionId` is the *new* session's id. If the wrapper stays alive in the registry under the old id, the next request gets the already-forked state and subsequent forks produce a corrupt `parentSession` chain.
+### Pi 1 session replacement and history
+`AgentSessionRuntime.fork(entryId, { position: "before" })` preserves the Desktop fork boundary before the selected user message. The runtime replaces the inner session; the wrapper rebinds subscriptions and extensions, captures the new ID, then shuts down so the old registry key cannot point to the new session. Replacement or persistence failures also remove the old wrapper.
 
-**Fix**: `send("fork")` captures `newSessionId`, then calls `this.destroy()` before returning. The next request for the original session reloads a clean AgentSession from the original file.
+`SessionManager.buildSessionContext()` is the authoritative history, including for title generation. Do not write `agent.state.messages`, `systemPrompt` or `thinkingLevel`; Pi 1 exposes read-only state. Wait for `session.waitForIdle()` before consuming settled history.
 
 ### Two kinds of branching — don't confuse them
 - **Fork** (Fork button on user message): creates a new independent `.jsonl` file. Shown as a child in the sidebar tree via `parentSession` header field.
@@ -209,7 +209,7 @@ Pi delays the first flush of a new session until an assistant message exists, so
 Pi stores toolCall blocks as `{type:"toolCall", id, name, arguments}` but `ToolCallContent` uses `{toolCallId, toolName, input}`. `normalizeToolCalls()` in `lib/normalize.ts` handles this — called in both `session-reader.ts` (file load) and `ChatWindow.handleAgentEvent()` (streaming).
 
 ### New session tool preset
-Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[]`). For existing sessions, the active preset is inferred on mount via `get_tools` → `getPresetFromTools()`. When tools are fully disabled (`toolNames = []`), `rpc-manager.ts` passes an empty tool allow-list and forces `agent.state.systemPrompt = ""` after startup/reload/resource discovery.
+Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[]`). For existing sessions, the active preset is inferred on mount via `get_tools` → `getPresetFromTools()`. When all tools are off, `rpc-resource-loader.ts` disables third-party resources and supplies an empty prompt through a host-owned `before_agent_start` hook. Reloads reuse the per-mode loader so extension code caches refresh; explicit re-enabling uses the normal loader. The active tool set remains empty after binding and reload.
 
 ### Model defaults for new sessions
 `GET /api/models` returns `defaultModel` read from `~/.pi/agent/settings.json`. `ChatWindow` pre-selects this on mount for new sessions. Explicit browser model/thinking selections are applied atomically during AgentSession construction, then `lib/startup-preferences.ts` persists their effective values without replaying `set_model`/`set_thinking_level`; implicit `enabledModels` fallbacks and thinking pins are not persisted.

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { assertDesktopPiVersion } from "./pi-packages.mjs";
 import {
   compareVersions,
   createComponentManifest,
@@ -10,6 +11,10 @@ import {
 } from "./release-components.mjs";
 
 const local = await readLocalComponentVersions();
+const compat = JSON.parse(await readFile(join(rootDir, "contracts/edupi-core-compat.json"), "utf8"));
+const desktopPackage = JSON.parse(await readFile(join(rootDir, "package.json"), "utf8"));
+assertDesktopPiVersion(desktopPackage, compat.core_sdk?.pi);
+if (local.pi !== compat.core_sdk.pi) throw new Error("Installed Pi does not match the paired Core SDK");
 const remote = await readRemoteComponentVersions();
 const pins = JSON.parse(await readFile(join(rootDir, "scripts", "release-component-pins.json"), "utf8"));
 const problems = [];

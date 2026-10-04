@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { EduPiRuntimeHandle } from "./edupi-runtime-supervisor";
-import { EDUPI_PROACTIVITY_CONVERSATION_ID } from "./edupi-proactivity-control";
+import { EDUPI_PROACTIVITY_CONVERSATION_ID, EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID } from "./edupi-proactivity-control";
+import type { EduPiProactivityDomain } from "./edupi-proactivity-config";
 import { readProactivityOwnerContext } from "./edupi-proactivity-runtime";
 
 const HASH = /^sha256:[a-f0-9]{64}$/u;
@@ -11,8 +12,8 @@ const INTERPRETATIONS = new Set(["request", "commitment", "preference", "questio
 const DOMAINS = new Set(["teaching_preparation", "student_followup", "lesson_reflection", "calendar_administration", "parent_communication", "safety_privacy"]);
 
 type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number; status: "active" | "paused" | "revoked" };
-type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected"; resolutionStatus: string; reason: string | null;
-  goalId: string | null; workCaseId: string | null; externalSend: false };
+type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed"; resolutionStatus: string; reason: string | null;
+  goalId: string | null; workCaseId: string | null; followUpId?: string; executionId?: string; externalSend: false };
 
 export class EduPiAmbientMessageError extends Error {
   constructor(public readonly code: "proactivity_grant_unavailable" | "proactivity_response_invalid" | "proactivity_runtime_unavailable",
@@ -115,10 +116,16 @@ async function withdrawCapturedMessage(host: Pick<EduPiRuntimeHandle, "callOwner
   return recordedAt;
 }
 
-export function predictEduPiOwnerMessageRef(rootRef: string, ownerId: string, messageId: string): string {
+function conversationId(domain: EduPiProactivityDomain): string {
+  if (domain === "teaching_preparation") return EDUPI_PROACTIVITY_CONVERSATION_ID;
+  if (domain === "student_followup") return EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID;
+  return fail();
+}
+
+export function predictEduPiOwnerMessageRef(rootRef: string, ownerId: string, messageId: string, domain: EduPiProactivityDomain = "teaching_preparation"): string {
   if (!HASH.test(rootRef) || !ID.test(ownerId) || !RAW_ID.test(messageId)) fail();
   const digest = (value: string) => crypto.createHash("sha256").update(value, "utf8").digest("hex");
-  const conversationHash = `sha256:${digest(EDUPI_PROACTIVITY_CONVERSATION_ID)}`;
+  const conversationHash = `sha256:${digest(conversationId(domain))}`;
   const sourceRef = `conversation:${conversationHash.slice(7)}`;
   const messageHash = `sha256:${digest(messageId)}`;
   return `owner_message:${crypto.createHash("sha256").update("edupi.owner.message.v1\0")
@@ -127,7 +134,7 @@ export function predictEduPiOwnerMessageRef(rootRef: string, ownerId: string, me
 
 export async function captureAndApplyAmbientMessage(
   host: Pick<EduPiRuntimeHandle, "call" | "callOwnerControl">,
-  input: { rootRef: string; grantId: string; messageId: string; text: string; occurredAt: string },
+  input: { rootRef: string; grantId: string; messageId: string; text: string; occurredAt: string; domain?: EduPiProactivityDomain },
   dependencies: { findAppliedGoal?: (workCaseId: string) => Promise<{ goalId: string } | null>;
     controlScope?: { classId: string; subject: string };
     onPrepared?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
@@ -141,7 +148,8 @@ export async function captureAndApplyAmbientMessage(
     || !canonicalOccurredAt) fail();
   const context = await readProactivityOwnerContext(host, input.rootRef, input.grantId);
   if (!context || context.status !== "active") fail("proactivity_grant_unavailable", "owner");
-  const predictedMessageRef = predictEduPiOwnerMessageRef(input.rootRef, context.ownerId, input.messageId);
+  const domain = input.domain ?? "teaching_preparation";
+  const predictedMessageRef = predictEduPiOwnerMessageRef(input.rootRef, context.ownerId, input.messageId, domain);
   const messageBinding = { messageRef: predictedMessageRef, ownerId: context.ownerId, grantId: context.grantId,
     captureGrantVersion: context.grantVersion };
   if (dependencies.onPrepared) {
@@ -154,7 +162,7 @@ export async function captureAndApplyAmbientMessage(
     expected_owner_id: context.ownerId,
     grant_id: context.grantId,
     expected_grant_version: context.grantVersion,
-    conversation_id: EDUPI_PROACTIVITY_CONVERSATION_ID,
+    conversation_id: conversationId(domain),
     message_id: input.messageId,
     occurred_at: input.occurredAt,
     text: input.text,
@@ -164,7 +172,8 @@ export async function captureAndApplyAmbientMessage(
   const capture = receipt as Record<string, unknown>;
   if (!MESSAGE_REF.test(String(capture.message_ref || "")) || capture.message_ref !== predictedMessageRef || capture.owner_id !== context.ownerId
     || capture.capture_grant_version !== context.grantVersion || capture.external_send !== false
-    || typeof captured.replayed !== "boolean") fail("proactivity_response_invalid", "capture");
+    || typeof captured.replayed !== "boolean"
+    || domain === "student_followup" && (capture.apply !== false || capture.live_authority !== false)) fail("proactivity_response_invalid", "capture");
   const messageRef = String(capture.message_ref);
   if (dependencies.onCaptured) {
     try {
@@ -179,6 +188,24 @@ export async function captureAndApplyAmbientMessage(
   }
   if (dependencies.controlScope && (!ID.test(dependencies.controlScope.classId)
     || typeof dependencies.controlScope.subject !== "string" || !dependencies.controlScope.subject)) fail();
+  if (domain === "student_followup") {
+    const response = await host.callOwnerControl("student_followup_intent_execution_enqueue", {
+      root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+    });
+    if (response?.ok === false && ["invalid_candidate", "activation_pending", "permission_denied", "budget_exhausted", "stale_source", "stale_revision"].includes(String(response.error_code))) {
+      return { status: "captured", resolutionStatus: "held", reason: String(response.error_code), goalId: null, workCaseId: null, externalSend: false };
+    }
+    const queued = result(response, "apply");
+    if (queued.version !== 1 || !["queued", "replayed"].includes(String(queued.status))
+      || ![queued.follow_up_id, queued.goal_id, queued.opportunity_id, queued.execution_id].every(value => typeof value === "string" && ID.test(value))
+      || !Number.isSafeInteger(queued.goal_version) || Number(queued.goal_version) < 1
+      || !Number.isSafeInteger(queued.attempt) || Number(queued.attempt) < 0
+      || queued.execution_started !== true || queued.model_execute !== true || queued.notify !== false
+      || queued.live_authority !== false || queued.external_send !== false) fail("proactivity_response_invalid", "apply");
+    return { status: queued.status as "queued" | "replayed", resolutionStatus: String(queued.status), reason: null,
+      goalId: String(queued.goal_id), workCaseId: null, followUpId: String(queued.follow_up_id),
+      executionId: String(queued.execution_id), externalSend: false };
+  }
   const candidate = dependencies.controlScope ? intentCandidate(await host.callOwnerControl("owner_intent_read", {
     root_ref: input.rootRef,
     expected_owner_id: context.ownerId,

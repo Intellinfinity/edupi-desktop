@@ -1,15 +1,21 @@
-import { fetchDesktopApi } from "./desktop-native";
+import { desktopApiHeaders, fetchDesktopApi } from "./desktop-native";
+import type { EduPiProactivityDomain } from "./edupi-proactivity-config";
+import type { EduPiStudentFollowupExecution } from "./edupi-proactivity-runtime";
+
+export type { EduPiProactivityDomain } from "./edupi-proactivity-config";
 
 export type EduPiProactivityState = {
   ok: true;
   degraded?: boolean;
   requiresSafeMode?: boolean;
+  activationBlocked?: "isolated_canary_required" | "windows_unavailable" | null;
   activation: { enabled: boolean; source: "default" | "desktop_canary" | "environment"; configurationStatus: "missing" | "ready" | "legacy" | "stop_pending" | "mismatched" | "invalid"; scope: { classId: string; subject: string } | null; updatedAt: string | null };
   scopes: Array<{ classId: string; className: string | null; subject: string; slotCount: number; materialCount: number; ready: boolean }>;
   grant: { status: "active" | "paused" | "revoked" | "expired"; grantVersion: number; endsAt: string;
-    modelBudget: { usedCalls: number; maxCalls: number; remainingCalls: number; usageUnverified: boolean } } | null;
-  capabilities: { ambientPlanning: boolean; ownerIntent: boolean; attentionDelivery: boolean; teacherFeedback: boolean } | null;
-  limits: { durationDays: number; maxModelCalls: number; domain: "teaching_preparation" };
+    modelBudget: { usedCalls: number; maxCalls: number; remainingCalls: number; usageUnverified: boolean } | null } | null;
+  capabilities: { ambientPlanning: boolean; ownerIntent: boolean; attentionDelivery: boolean; teacherFeedback: boolean; studentFollowup?: boolean } | null;
+  execution?: EduPiStudentFollowupExecution | null;
+  limits: { durationDays: number; maxModelCalls: number; domain: EduPiProactivityDomain };
   externalSend: false;
   grantPaused?: boolean;
   initialScan?: { queued: number; needsAttention: boolean };
@@ -35,15 +41,18 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
   const initialScan = state?.initialScan === undefined ? null : record(state?.initialScan);
   if (state?.ok !== true || state.externalSend !== false || state.degraded !== undefined && typeof state.degraded !== "boolean"
     || state.requiresSafeMode !== undefined && typeof state.requiresSafeMode !== "boolean"
+    || state.activationBlocked !== undefined && state.activationBlocked !== null
+      && !["isolated_canary_required", "windows_unavailable"].includes(String(state.activationBlocked))
     || !activation || typeof activation.enabled !== "boolean"
     || !["default", "desktop_canary", "environment"].includes(String(activation.source))
     || !["missing", "ready", "legacy", "stop_pending", "mismatched", "invalid"].includes(String(activation.configurationStatus))
     || activationScope !== null && (typeof activationScope?.classId !== "string" || !activationScope.classId
       || typeof activationScope?.subject !== "string" || !activationScope.subject)
     || activation.updatedAt !== null && typeof activation.updatedAt !== "string"
-    || !Array.isArray(scopes) || scopes.length > 50 || !limits || limits.domain !== "teaching_preparation"
+    || !Array.isArray(scopes) || scopes.length > 50 || !limits || !["teaching_preparation", "student_followup"].includes(String(limits.domain))
     || !Number.isInteger(limits.durationDays) || Number(limits.durationDays) < 1 || Number(limits.durationDays) > 30
-    || !Number.isInteger(limits.maxModelCalls) || Number(limits.maxModelCalls) < 0 || Number(limits.maxModelCalls) > 100) {
+    || !Number.isInteger(limits.maxModelCalls) || Number(limits.maxModelCalls) < 0 || Number(limits.maxModelCalls) > 100
+    || limits.domain === "student_followup" && (limits.durationDays !== 7 || limits.maxModelCalls !== 4)) {
     throw new EduPiProactivityClientError("主动运行状态无效");
   }
   for (const raw of scopes) {
@@ -54,40 +63,75 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
       throw new EduPiProactivityClientError("主动运行范围无效");
     }
   }
+  const budgetLimit = limits.domain === "student_followup" ? 4 : 12;
   if (grant && (!Number.isInteger(grant.grantVersion) || !["active", "paused", "revoked", "expired"].includes(String(grant.status)) || typeof grant.endsAt !== "string"
-    || !modelBudget || !Number.isSafeInteger(modelBudget.usedCalls) || Number(modelBudget.usedCalls) < 0 || Number(modelBudget.usedCalls) > 1536
-    || !Number.isSafeInteger(modelBudget.maxCalls) || Number(modelBudget.maxCalls) < 0 || Number(modelBudget.maxCalls) > 12
-    || !Number.isSafeInteger(modelBudget.remainingCalls) || Number(modelBudget.remainingCalls) < 0 || Number(modelBudget.remainingCalls) > 12
+    || !(limits.domain === "student_followup" && grant.modelBudget === null) && (
+    !modelBudget || !Number.isSafeInteger(modelBudget.usedCalls) || Number(modelBudget.usedCalls) < 0 || Number(modelBudget.usedCalls) > 1536
+    || !Number.isSafeInteger(modelBudget.maxCalls) || Number(modelBudget.maxCalls) < 0 || Number(modelBudget.maxCalls) > budgetLimit
+    || !Number.isSafeInteger(modelBudget.remainingCalls) || Number(modelBudget.remainingCalls) < 0 || Number(modelBudget.remainingCalls) > budgetLimit
     || typeof modelBudget.usageUnverified !== "boolean"
     || modelBudget.usageUnverified && modelBudget.remainingCalls !== 0
-    || !modelBudget.usageUnverified && modelBudget.remainingCalls !== Math.max(0, Number(modelBudget.maxCalls) - Number(modelBudget.usedCalls)))) {
+    || !modelBudget.usageUnverified && modelBudget.remainingCalls !== Math.max(0, Number(modelBudget.maxCalls) - Number(modelBudget.usedCalls))))) {
     throw new EduPiProactivityClientError("主动运行授权无效");
   }
-  if (capabilities && ![capabilities.ambientPlanning, capabilities.ownerIntent, capabilities.attentionDelivery, capabilities.teacherFeedback].every((item) => typeof item === "boolean")) {
+  if (state.execution !== undefined && state.execution !== null) {
+    const execution = record(state.execution);
+    if (limits.domain !== "student_followup" || !execution || Object.keys(execution).length !== 5
+      || execution.version !== 1 || typeof execution.available !== "boolean" || execution.externalSend !== false
+      || !Array.isArray(execution.records) || execution.records.length > 500
+      || (execution.available ? !Number.isSafeInteger(execution.revision) || Number(execution.revision) < 0
+        : execution.revision !== null || execution.records.length !== 0)) {
+      throw new EduPiProactivityClientError("学生跟进执行记录无效");
+    }
+    const id = (value: unknown) => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(value);
+    const seen = new Set();
+    for (const raw of execution.records) {
+      const item = record(raw);
+      if (!item || Object.keys(item).length !== 8 || !id(item.executionId) || seen.has(item.executionId)
+        || !id(item.followUpId) || item.grantId !== null && !id(item.grantId)
+        || typeof item.status !== "string" || !["queued", "claimed", "completed", "failed", "cancelled"].includes(item.status)
+        || !Number.isSafeInteger(item.attempt) || Number(item.attempt) < 0 || Number(item.attempt) > 3
+        || item.errorCode !== null && (typeof item.errorCode !== "string" || !/^[a-z][a-z0-9_]{0,79}$/u.test(item.errorCode))
+        || typeof item.updatedAt !== "string" || !Number.isFinite(Date.parse(item.updatedAt))
+        || new Date(item.updatedAt).toISOString() !== item.updatedAt
+        || typeof item.sourceStatus !== "string" || !["current", "historical", "unverified"].includes(item.sourceStatus)
+        || item.sourceStatus === "current" && item.grantId === null) {
+        throw new EduPiProactivityClientError("学生跟进执行记录无效");
+      }
+      seen.add(item.executionId);
+    }
+  }
+  if (capabilities && (![capabilities.ambientPlanning, capabilities.ownerIntent, capabilities.attentionDelivery, capabilities.teacherFeedback].every((item) => typeof item === "boolean")
+    || limits.domain === "student_followup" && typeof capabilities.studentFollowup !== "boolean")) {
     throw new EduPiProactivityClientError("主动运行能力无效");
   }
-  if (state?.initialScan !== undefined && (!initialScan || !Number.isInteger(initialScan.queued)
+  if (state?.initialScan !== undefined && (limits.domain === "student_followup" || !initialScan || !Number.isInteger(initialScan.queued)
     || Number(initialScan.queued) < 0 || Number(initialScan.queued) > 20 || typeof initialScan.needsAttention !== "boolean")) {
     throw new EduPiProactivityClientError("主动运行检查结果无效");
   }
   return value as EduPiProactivityState;
 }
 
-async function responseState(response: Response): Promise<EduPiProactivityState> {
+async function responseState(response: Response, domain: EduPiProactivityDomain): Promise<EduPiProactivityState> {
   const body = await response.json().catch(() => null) as unknown;
   if (!response.ok) {
     const error = record(body)?.error;
     throw new EduPiProactivityClientError(typeof error === "string" ? error : "主动运行设置暂不可用");
   }
-  return parseEduPiProactivityState(body);
+  const state = parseEduPiProactivityState(body);
+  if (state.limits.domain !== domain) throw new EduPiProactivityClientError("主动运行领域不匹配");
+  return state;
 }
 
-export async function readEduPiProactivity(signal?: AbortSignal): Promise<EduPiProactivityState> {
-  return responseState(await fetchDesktopApi("/api/edupi/proactivity", { cache: "no-store", signal }));
+export async function readEduPiProactivity(signal?: AbortSignal, domain: EduPiProactivityDomain = "teaching_preparation"): Promise<EduPiProactivityState> {
+  const response = domain === "student_followup"
+    ? await fetch("/api/edupi/proactivity?domain=student_followup", { cache: "no-store", signal, headers: await desktopApiHeaders() })
+    : await fetchDesktopApi("/api/edupi/proactivity", { cache: "no-store", signal });
+  return responseState(response, domain);
 }
 
-export async function updateEduPiProactivity(input: { enabled: boolean; classId: string | null; subject: string | null; expectedUpdatedAt: string | null }, signal?: AbortSignal): Promise<EduPiProactivityState> {
+export async function updateEduPiProactivity(input: { enabled: boolean; classId: string | null; subject: string | null; expectedUpdatedAt: string | null; domain?: EduPiProactivityDomain }, signal?: AbortSignal): Promise<EduPiProactivityState> {
   return responseState(await fetchDesktopApi("/api/edupi/proactivity", {
     method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal,
-  }));
+  }), input.domain ?? "teaching_preparation");
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isTauriDesktop } from "@/lib/desktop-updater";
-import { readEduPiProactivity, updateEduPiProactivity, type EduPiProactivityState } from "@/lib/edupi-proactivity-client";
+import { readEduPiProactivity, updateEduPiProactivity, type EduPiProactivityDomain, type EduPiProactivityState } from "@/lib/edupi-proactivity-client";
 import { createMissedTeacherFeedbackCapture, recordTeacherFeedback, type TeacherFeedbackCapture, type TeacherFeedbackDomain } from "@/lib/edupi-teacher-feedback";
 
 type ViewProps = {
@@ -15,6 +15,7 @@ type ViewProps = {
 };
 
 const scopeKey = (scope: { classId: string; subject: string }) => JSON.stringify([scope.classId, scope.subject]);
+const EXECUTION_STATUS = { queued: "已排队", claimed: "已领取", completed: "草稿已生成", failed: "生成失败", cancelled: "已取消" };
 type FeedbackScope = EduPiProactivityState["scopes"][number];
 
 const FEEDBACK_DOMAINS: Array<{ value: TeacherFeedbackDomain; label: string }> = [
@@ -94,33 +95,53 @@ function EduPiMissedOpportunityFeedback({ scopes, enabled }: { scopes: FeedbackS
 }
 
 export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, onSelect, onToggle }: ViewProps) {
+  const studentFollowup = state.limits.domain === "student_followup";
+  const titleId = studentFollowup ? "edupi-student-followup-canary-title" : "edupi-proactivity-canary-title";
+  const blocked = Boolean(state.requiresSafeMode || state.activationBlocked);
   const active = state.activation.enabled;
   const recoveryPending = !active && state.activation.scope !== null;
-  const operational = active && !state.requiresSafeMode && state.grant?.status === "active" && state.capabilities !== null
-    && Object.values(state.capabilities).every(Boolean) && !state.grant.modelBudget.usageUnverified
-    && state.grant.modelBudget.remainingCalls > 0;
-  const budgetExhausted = active && state.grant?.modelBudget.remainingCalls === 0;
+  const budget = state.grant?.modelBudget;
+  const operational = active && !blocked && state.grant?.status === "active" && state.capabilities !== null
+    && Object.values(state.capabilities).every(Boolean) && (!studentFollowup || state.capabilities.studentFollowup === true)
+    && (studentFollowup && !budget
+      || budget && !budget.usageUnverified && budget.remainingCalls > 0);
+  const budgetExhausted = active && budget && !budget.usageUnverified && budget.remainingCalls === 0;
   const ready = state.scopes.filter((scope) => scope.ready);
   const current = active || recoveryPending ? state.activation.scope : ready.find((scope) => scopeKey(scope) === selectedKey) || null;
   const currentLabel = current
     ? `${"className" in current && current.className ? current.className : current.classId} · ${current.subject}`
     : "没有可用范围";
-  return <section className="edupi-proactivity-canary" aria-labelledby="edupi-proactivity-canary-title">
+  const blockedLabel = state.activationBlocked === "windows_unavailable" ? "Windows 暂不可用" : state.activationBlocked ? "仅隔离试用" : null;
+  return <section className="edupi-proactivity-canary" aria-labelledby={titleId}>
     <div>
-      <span><strong id="edupi-proactivity-canary-title">课前准备试用</strong><small>{active && state.grant
-        ? `${currentLabel} · 剩余 ${state.grant.modelBudget.remainingCalls} 次`
+      <span><strong id={titleId}>{studentFollowup ? "学生跟进试用" : "课前准备试用"}</strong><small>{active && state.grant
+        ? budget && !budget.usageUnverified ? `${currentLabel} · 剩余 ${budget.remainingCalls} 次`
+          : `${currentLabel} · 最多 ${state.limits.maxModelCalls} 次 · 剩余未知`
         : recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用`}</small></span>
-      {active ? <em className={operational ? "is-ready" : undefined}>{state.requiresSafeMode ? "安全模式待启动" : budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复"}</em>
+      {active ? <em className={operational ? "is-ready" : undefined}>{blockedLabel || (state.requiresSafeMode ? "安全模式待启动" : budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复")}</em>
         : <em>{recoveryPending ? state.activation.configurationStatus === "legacy" ? "旧授权待停止" : "停止待恢复"
-          : state.requiresSafeMode ? "安全模式可试用" : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭"}</em>}
+          : blockedLabel || (state.requiresSafeMode ? "安全模式可试用" : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭")}</em>}
     </div>
-    {!active && !recoveryPending && ready.length > 0 ? <label><span>班级与学科</span><select aria-label="主动备课班级与学科" value={selectedKey} disabled={busy} onChange={(event) => onSelect(event.target.value)}>{ready.map((scope) => <option key={scopeKey(scope)} value={scopeKey(scope)}>{scope.className || scope.classId} · {scope.subject}</option>)}</select></label> : null}
-    <button className={!active && !recoveryPending ? "edupi-admin-primary" : undefined} type="button" disabled={busy || !active && !recoveryPending && (!current || state.requiresSafeMode)} onClick={onToggle}>{busy ? "处理中…" : active ? "停止主动运行" : recoveryPending ? state.activation.configurationStatus === "legacy" ? "停止旧授权" : "重试停止" : "启用试用"}</button>
-    {message ? <p role="status" aria-live="polite">{message}</p> : !active && state.requiresSafeMode ? <p role="status">Windows 试用需用隔离数据目录以安全模式启动。</p> : !active && ready.length === 0 ? <p role="status">需要一条带班级 ID 的课表和同范围材料。</p> : null}
+    {!active && !recoveryPending && ready.length > 0 ? <label><span>班级与学科</span><select aria-label={studentFollowup ? "学生跟进班级与学科" : "主动备课班级与学科"} value={selectedKey} disabled={busy} onChange={(event) => onSelect(event.target.value)}>{ready.map((scope) => <option key={scopeKey(scope)} value={scopeKey(scope)}>{scope.className || scope.classId} · {scope.subject}</option>)}</select></label> : null}
+    <button className={!active && !recoveryPending ? "edupi-admin-primary" : undefined} type="button" disabled={busy || !active && !recoveryPending && (!current || blocked)} onClick={onToggle}>{busy ? "处理中…" : active ? "停止主动运行" : recoveryPending ? state.activation.configurationStatus === "legacy" ? "停止旧授权" : "重试停止" : "启用试用"}</button>
+    {message ? <p role="status" aria-live="polite">{message}</p>
+      : !active && state.activationBlocked === "isolated_canary_required" ? <p role="status">学生跟进需使用隔离数据目录试用。</p>
+      : !active && state.requiresSafeMode ? <p role="status">Windows 试用需用隔离数据目录以安全模式启动。</p>
+      : !active && !blocked && ready.length === 0 ? <p role="status">{studentFollowup ? "需要明确班级的数学课表和当前学生名单。" : "需要一条带班级 ID 的课表和同范围材料。"}</p> : null}
+    {studentFollowup ? <details className="edupi-proactivity-execution">
+      <summary>执行记录</summary>
+      {!state.execution?.available ? <p>执行记录暂不可用</p>
+        : state.execution.records.length === 0 ? <p>暂无执行记录</p>
+          : <ul>{state.execution.records.map((item) => <li key={item.executionId}>
+            <span>{item.followUpId}</span>
+            <span>{item.sourceStatus === "current" ? EXECUTION_STATUS[item.status]
+              : item.sourceStatus === "historical" ? "历史记录" : "来源待核实"}</span>
+          </li>)}</ul>}
+    </details> : null}
   </section>;
 }
 
-export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false }: { onChanged?: () => void; feedbackEnabled?: boolean }) {
+export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false, domain = "teaching_preparation" }: { onChanged?: () => void; feedbackEnabled?: boolean; domain?: EduPiProactivityDomain }) {
   const [state, setState] = useState<EduPiProactivityState | null>(null);
   const [selectedKey, setSelectedKey] = useState("");
   const [busy, setBusy] = useState(false);
@@ -137,7 +158,7 @@ export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false }: {
       refreshAbort.current?.abort();
       const controller = new AbortController();
       refreshAbort.current = controller;
-      void readEduPiProactivity(controller.signal).then((next) => {
+      void readEduPiProactivity(controller.signal, domain).then((next) => {
         if (disposed || epoch !== refreshEpoch.current) return;
         setState(next);
         const preferred = next.activation.scope ? scopeKey(next.activation.scope)
@@ -159,25 +180,27 @@ export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false }: {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [domain]);
   const selected = useMemo(() => state?.scopes.find((scope) => scopeKey(scope) === selectedKey) || null, [selectedKey, state]);
   if (!isTauriDesktop()) return null;
-  if (!state) return <p className="edupi-proactivity-canary__loading" role={message ? "alert" : "status"}>{message || "正在读取主动运行…"}</p>;
+  if (!state || state.limits.domain !== domain) return <p className="edupi-proactivity-canary__loading" role={message ? "alert" : "status"}>{message || "正在读取主动运行…"}</p>;
   const toggle = async () => {
     if (busyRef.current) return;
     const recoveryPending = !state.activation.enabled && state.activation.scope !== null;
     const enabling = !state.activation.enabled && !recoveryPending;
-    if (enabling && (!selected || !window.confirm(`启用 ${selected.className || selected.classId} · ${selected.subject} 的主动备课试用？\n${state.limits.durationDays} 天，最多 ${state.limits.maxModelCalls} 次调用已配置模型；不会自动发给学生或家长。`))) return;
+    if (enabling && (!selected || state.requiresSafeMode || state.activationBlocked
+      || !window.confirm(`启用 ${selected.className || selected.classId} · ${selected.subject} 的${domain === "student_followup" ? "学生跟进" : "主动备课"}试用？\n${state.limits.durationDays} 天，最多 ${state.limits.maxModelCalls} 次调用已配置模型；不会自动发给学生或家长。`))) return;
     busyRef.current = true;
     ++refreshEpoch.current;
     refreshAbort.current?.abort();
     setBusy(true); setMessage(null);
     try {
       const next = await updateEduPiProactivity(enabling
-        ? { enabled: true, classId: selected!.classId, subject: selected!.subject, expectedUpdatedAt: state.activation.updatedAt }
-        : { enabled: false, classId: null, subject: null, expectedUpdatedAt: state.activation.updatedAt });
+        ? { enabled: true, classId: selected!.classId, subject: selected!.subject, expectedUpdatedAt: state.activation.updatedAt, domain }
+        : { enabled: false, classId: null, subject: null, expectedUpdatedAt: state.activation.updatedAt, domain });
       setState(next);
-      setMessage(enabling ? next.grant?.modelBudget.remainingCalls === 0 ? "额度已用完"
+      setMessage(enabling ? next.grant?.modelBudget && !next.grant.modelBudget.usageUnverified && next.grant.modelBudget.remainingCalls === 0 ? "额度已用完"
+        : domain === "student_followup" ? "学生跟进已启用"
         : next.initialScan?.needsAttention ? "已启用，部分课前任务需核对" : "主动备课已启用"
         : recoveryPending && state.activation.configurationStatus === "legacy" ? "旧授权已停止" : "主动运行已停止");
       onChanged?.();

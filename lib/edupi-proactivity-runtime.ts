@@ -1,22 +1,25 @@
 import { randomUUID } from "node:crypto";
 import type { EduPiRuntimeHandle } from "./edupi-runtime-supervisor";
-import { EduPiProactivityControlError } from "./edupi-proactivity-control";
+import { EduPiProactivityControlError, type EduPiProactivityGrantBinding } from "./edupi-proactivity-control";
+import type { EduPiProactivityDomain } from "./edupi-proactivity-config";
 
 const HASH = /^sha256:[a-f0-9]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
-
-type GrantBinding = {
-  grantId: string;
-  endsAt: string;
-  spec: { scope: { class_id: string; subject: string }; domains: ["teaching_preparation"]; actions: ["prepare", "update"];
-    source_ids: string[]; starts_at: string; ends_at: string; budget: { id: string; max_calls: number } };
-};
 
 type OwnerGrant = { id: string; version: number; status: "active" | "paused" | "revoked"; ends_at: string };
 type EffectiveGrantStatus = OwnerGrant["status"] | "expired";
 type OwnerBudget = { grantId: string; budgetId: string; usedCalls: number; maxCalls: number;
   remainingCalls: number; usageUnverified: boolean };
-type OwnerRead = { root_ref: string; owner: { id: string } | null; grants: OwnerGrant[]; g1ModelBudget: OwnerBudget[] | null };
+export type EduPiStudentFollowupExecution = {
+  version: 1; available: boolean; revision: number | null; externalSend: false;
+  records: Array<{ executionId: string; followUpId: string; grantId: string | null;
+    status: "queued" | "claimed" | "completed" | "failed" | "cancelled";
+    attempt: number; errorCode: string | null; updatedAt: string;
+    sourceStatus: "current" | "historical" | "unverified" }>;
+};
+type OwnerRead = { root_ref: string; owner: { id: string } | null; grants: OwnerGrant[];
+  g1ModelBudget: OwnerBudget[] | null; g2ModelBudget: OwnerBudget[] | null;
+  execution: EduPiStudentFollowupExecution | null };
 
 export class EduPiProactivityRuntimeError extends Error {
   constructor(public readonly code: "proactivity_response_invalid" | "proactivity_grant_revoked" | "proactivity_runtime_unavailable"
@@ -51,6 +54,60 @@ export function inspectProactivityCatchUp(value: unknown): { queued: number; nee
   return { queued: tasks.length, needsAttention: failures.length > 0 };
 }
 
+function modelBudget(value: unknown, grants: OwnerGrant[], maxCalls: number): OwnerBudget[] | null {
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || value.length > 768) invalid();
+  const budget = value.map((raw): OwnerBudget => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) invalid();
+    const item = raw as Record<string, unknown>;
+    if (Object.keys(item).length !== 7 || !["grant_id", "budget_id", "used_calls", "max_calls", "remaining_calls", "exhausted", "usage_unverified"]
+      .every(key => Object.hasOwn(item, key)) || typeof item.grant_id !== "string" || !ID.test(item.grant_id)
+      || typeof item.budget_id !== "string" || !ID.test(item.budget_id)
+      || !Number.isSafeInteger(item.used_calls) || Number(item.used_calls) < 0 || Number(item.used_calls) > 1536
+      || !Number.isSafeInteger(item.max_calls) || Number(item.max_calls) < 0 || Number(item.max_calls) > maxCalls
+      || !Number.isSafeInteger(item.remaining_calls) || Number(item.remaining_calls) < 0 || Number(item.remaining_calls) > maxCalls
+      || typeof item.exhausted !== "boolean" || typeof item.usage_unverified !== "boolean"
+      || item.usage_unverified && (item.remaining_calls !== 0 || item.exhausted !== true)
+      || !item.usage_unverified && (item.remaining_calls !== Math.max(0, Number(item.max_calls) - Number(item.used_calls))
+        || item.exhausted !== (item.remaining_calls === 0))) invalid();
+    return { grantId: item.grant_id, budgetId: item.budget_id, usedCalls: Number(item.used_calls),
+      maxCalls: Number(item.max_calls), remainingCalls: Number(item.remaining_calls), usageUnverified: item.usage_unverified };
+  });
+  if (new Set(budget.map(item => item.grantId)).size !== budget.length
+    || budget.some(item => !grants.some(grant => grant.id === item.grantId))) invalid();
+  return budget;
+}
+
+function executionProjection(value: unknown): EduPiStudentFollowupExecution | null {
+  if (value === undefined) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
+  const execution = value as Record<string, unknown>;
+  if (Object.keys(execution).length !== 5 || execution.version !== 1 || typeof execution.available !== "boolean"
+    || execution.external_send !== false || !Array.isArray(execution.records) || execution.records.length > 500
+    || (execution.available ? !Number.isSafeInteger(execution.revision) || Number(execution.revision) < 0
+      : execution.revision !== null || execution.records.length !== 0)) invalid();
+  const records = execution.records.map((raw): EduPiStudentFollowupExecution["records"][number] => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) invalid();
+    const item = raw as Record<string, unknown>;
+    if (Object.keys(item).length !== 8 || typeof item.execution_id !== "string" || !ID.test(item.execution_id)
+      || typeof item.follow_up_id !== "string" || !ID.test(item.follow_up_id)
+      || item.grant_id !== null && (typeof item.grant_id !== "string" || !ID.test(item.grant_id))
+      || typeof item.status !== "string" || !["queued", "claimed", "completed", "failed", "cancelled"].includes(item.status)
+      || !Number.isSafeInteger(item.attempt) || Number(item.attempt) < 0 || Number(item.attempt) > 3
+      || item.error_code !== null && (typeof item.error_code !== "string" || !/^[a-z][a-z0-9_]{0,79}$/u.test(item.error_code))
+      || typeof item.updated_at !== "string" || !Number.isFinite(Date.parse(item.updated_at))
+      || new Date(item.updated_at).toISOString() !== item.updated_at
+      || typeof item.source_status !== "string" || !["current", "historical", "unverified"].includes(item.source_status)
+      || item.source_status === "current" && item.grant_id === null) invalid();
+    return { executionId: item.execution_id, followUpId: item.follow_up_id, grantId: item.grant_id as string | null,
+      status: item.status as EduPiStudentFollowupExecution["records"][number]["status"], attempt: Number(item.attempt),
+      errorCode: item.error_code as string | null, updatedAt: item.updated_at,
+      sourceStatus: item.source_status as EduPiStudentFollowupExecution["records"][number]["sourceStatus"] };
+  });
+  if (new Set(records.map(item => item.executionId)).size !== records.length) invalid();
+  return { version: 1, available: execution.available, revision: execution.revision as number | null, records, externalSend: false };
+}
+
 function ownerRead(value: unknown, rootRef: string): OwnerRead {
   if (!value || typeof value !== "object" || Array.isArray(value) || (value as Record<string, unknown>).ok !== true) invalid();
   const result = (value as Record<string, unknown>).result;
@@ -68,27 +125,9 @@ function ownerRead(value: unknown, rootRef: string): OwnerRead {
       || !Number.isFinite(Date.parse(grant.ends_at)) || new Date(grant.ends_at).toISOString() !== grant.ends_at) invalid();
     return { id: String(grant.id), version: Number(grant.version), status: grant.status as OwnerGrant["status"], ends_at: grant.ends_at };
   });
-  const rawBudget = read.g1_model_budget;
-  if (rawBudget !== undefined && (!Array.isArray(rawBudget) || rawBudget.length > 768)) invalid();
-  const g1ModelBudget = rawBudget === undefined ? null : rawBudget.map((raw): OwnerBudget => {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) invalid();
-    const item = raw as Record<string, unknown>;
-    if (Object.keys(item).length !== 7 || !["grant_id", "budget_id", "used_calls", "max_calls", "remaining_calls", "exhausted", "usage_unverified"]
-      .every(key => Object.hasOwn(item, key)) || !ID.test(String(item.grant_id || "")) || !ID.test(String(item.budget_id || ""))
-      || !Number.isSafeInteger(item.used_calls) || Number(item.used_calls) < 0 || Number(item.used_calls) > 1536
-      || !Number.isSafeInteger(item.max_calls) || Number(item.max_calls) < 0 || Number(item.max_calls) > 12
-      || !Number.isSafeInteger(item.remaining_calls) || Number(item.remaining_calls) < 0 || Number(item.remaining_calls) > 12
-      || typeof item.exhausted !== "boolean" || typeof item.usage_unverified !== "boolean"
-      || item.usage_unverified && (item.remaining_calls !== 0 || item.exhausted !== true)
-      || !item.usage_unverified && (item.remaining_calls !== Math.max(0, Number(item.max_calls) - Number(item.used_calls))
-        || item.exhausted !== (item.remaining_calls === 0))) invalid();
-    return { grantId: String(item.grant_id), budgetId: String(item.budget_id), usedCalls: Number(item.used_calls),
-      maxCalls: Number(item.max_calls), remainingCalls: Number(item.remaining_calls), usageUnverified: item.usage_unverified as boolean };
-  });
-  if (g1ModelBudget && (new Set(g1ModelBudget.map(item => item.grantId)).size !== g1ModelBudget.length
-    || g1ModelBudget.some(item => !normalized.some(grant => grant.id === item.grantId)))) invalid();
   return { root_ref: rootRef, owner: owner ? { id: String((owner as Record<string, unknown>).id) } : null,
-    grants: normalized, g1ModelBudget };
+    grants: normalized, g1ModelBudget: modelBudget(read.g1_model_budget, normalized, 12),
+    g2ModelBudget: modelBudget(read.g2_model_budget, normalized, 4), execution: executionProjection(read.g2_execution) };
 }
 
 async function readOwner(host: Pick<EduPiRuntimeHandle, "call">, rootRef: string): Promise<OwnerRead> {
@@ -109,7 +148,7 @@ function receipt(value: unknown, ownerId: string, grantId: string | null): { gra
 export async function ensureProactivityGrant(
   host: Pick<EduPiRuntimeHandle, "call" | "callOwnerControl">,
   rootRef: string,
-  binding: GrantBinding,
+  binding: EduPiProactivityGrantBinding,
 ): Promise<{ ownerId: string; grantId: string; grantVersion: number; status: "active"; endsAt: string }> {
   let state = await readOwner(host, rootRef);
   let ownerId = state.owner?.id || null;
@@ -177,17 +216,36 @@ export async function readProactivityGrantStatus(
   rootRef: string,
   grantId: string | null,
   now = Date.now(),
+  domain: EduPiProactivityDomain = "teaching_preparation",
 ): Promise<{ status: EffectiveGrantStatus; grantVersion: number; endsAt: string;
-  modelBudget: Pick<OwnerBudget, "usedCalls" | "maxCalls" | "remainingCalls" | "usageUnverified"> } | null> {
+  modelBudget: Pick<OwnerBudget, "usedCalls" | "maxCalls" | "remainingCalls" | "usageUnverified"> | null } | null> {
   if (grantId === null) return null;
-  const state = await readOwner(host, rootRef);
+  return grantStatus(await readOwner(host, rootRef), grantId, now, domain);
+}
+
+function grantStatus(state: OwnerRead, grantId: string | null, now: number, domain: EduPiProactivityDomain) {
   const grant = state.grants.find((item) => item.id === grantId);
-  const budget = state.g1ModelBudget?.find(item => item.grantId === grantId);
-  if (grant && !budget) invalid();
-  return grant ? { status: grant.status === "active" && Date.parse(grant.ends_at) <= now ? "expired" : grant.status,
+  const budgets = domain === "teaching_preparation" ? state.g1ModelBudget : state.g2ModelBudget;
+  const budget = budgets?.find(item => item.grantId === grantId);
+  if (grant && !budget && (domain === "teaching_preparation" || budgets !== null)) invalid();
+  return grant ? { status: (grant.status === "active" && Date.parse(grant.ends_at) <= now ? "expired" : grant.status) as EffectiveGrantStatus,
     grantVersion: grant.version, endsAt: grant.ends_at,
-    modelBudget: { usedCalls: budget!.usedCalls, maxCalls: budget!.maxCalls,
-      remainingCalls: budget!.remainingCalls, usageUnverified: budget!.usageUnverified } } : null;
+    modelBudget: budget ? { usedCalls: budget.usedCalls, maxCalls: budget.maxCalls,
+      remainingCalls: budget.remainingCalls, usageUnverified: budget.usageUnverified } : null } : null;
+}
+
+export async function readProactivityRuntimeState(host: Pick<EduPiRuntimeHandle, "call">, rootRef: string,
+  grantId: string | null, domain: EduPiProactivityDomain, now = Date.now()) {
+  const state = await readOwner(host, rootRef);
+  let execution = domain === "student_followup" ? state.execution : null;
+  if (execution && grantId) {
+    // Unbound owner records may belong to this grant. Filtering them out
+    // cannot prove an empty queue or a complete list for the selected grant.
+    execution = execution.records.some(item => item.grantId === null)
+      ? { version: 1, available: false, revision: null, records: [], externalSend: false }
+      : { ...execution, records: execution.records.filter(item => item.grantId === grantId) };
+  }
+  return { grant: grantStatus(state, grantId, now, domain), execution };
 }
 
 export async function readProactivityOwnerContext(

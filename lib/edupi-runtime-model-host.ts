@@ -20,13 +20,29 @@ export function createRuntimeModelHost({ coreRoot, projectRoot, agentDir = getAg
       signal.addEventListener("abort", cancel, { once: true });
       if (closed || signal.aborted) controller.abort();
       const operation = (async () => {
-        const { buildG1LiveRequest, createIsolatedG1ModelAdapter } = await import(/* webpackIgnore: true */ pathToFileURL(adapterFile).href);
-        const { materials, ...lease } = value;
-        const request = buildG1LiveRequest({ lease, materials });
+        const g2 = value.model_kind === "student_followup";
+        if (Object.hasOwn(value, "model_kind") && !g2) throw Object.assign(new Error("Invalid model request."), { code: "invalid_model_request" });
+        let request: LiveRequest;
+        if (g2) {
+          const deadline = typeof value.deadline_at === "string" ? Date.parse(value.deadline_at) : NaN;
+          if (Object.keys(value).sort().join(",") !== "deadline_at,model_kind,prompt"
+            || typeof value.prompt !== "string" || !value.prompt.trim() || Buffer.byteLength(value.prompt) > 70000
+            || !Number.isFinite(deadline) || deadline <= Date.now() || deadline > Date.now() + 125000) {
+            throw Object.assign(new Error("Invalid model request."), { code: "invalid_model_request" });
+          }
+          request = value;
+        } else {
+          const { buildG1LiveRequest } = await import(/* webpackIgnore: true */ pathToFileURL(adapterFile).href);
+          const { materials, ...lease } = value;
+          request = buildG1LiveRequest({ lease, materials });
+        }
         const binding = { ...request };
         delete binding.input;
         delete binding.materials;
-        const failure = (error_code: string) => ({ ...binding, ok: false, error_code, retryable: error_code === "model_unavailable", output: null, external_send: false });
+        const failure = (error_code: string): LiveResult => {
+          if (g2) throw Object.assign(new Error("Model host unavailable."), { code: error_code });
+          return { ...binding, ok: false, error_code, retryable: error_code === "model_unavailable", output: null, external_send: false };
+        };
         if (controller.signal.aborted) return failure("cancelled");
         try {
           const settings = SettingsManager.create(projectRoot, agentDir);
@@ -43,7 +59,18 @@ export function createRuntimeModelHost({ coreRoot, projectRoot, agentDir = getAg
           const endpoint = new URL(auth.auth.baseUrl || model.baseUrl);
           const configuredLoopback = endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "::1", "[::1]"].includes(endpoint.hostname);
           if (configuredLoopback) endpoint.hostname = "127.0.0.1";
-          const adapter = createIsolatedG1ModelAdapter({ model: { ...model, baseUrl: endpoint.href }, apiKey: auth.auth.apiKey, maxTokens: Math.min(model.maxTokens || 4096, 8192), timeoutMs: 300000, maxCalls: 1, allowLoopback: allowLoopback || configuredLoopback });
+          const configuration = { model: { ...model, baseUrl: endpoint.href }, apiKey: auth.auth.apiKey,
+            maxTokens: Math.min(model.maxTokens || 4096, 8192), maxCalls: 1, allowLoopback: allowLoopback || configuredLoopback };
+          if (g2) {
+            const remaining = Date.parse(String(request.deadline_at)) - Date.now();
+            if (remaining <= 0) return failure("deadline_exceeded");
+            const { createIsolatedG1ModelRunner } = await import(/* webpackIgnore: true */ pathToFileURL(path.join(path.dirname(adapterFile), "core_runtime_isolated_model.mjs")).href);
+            const runner = createIsolatedG1ModelRunner({ ...configuration, timeoutMs: Math.min(120000, remaining) });
+            const result = await runner({ prompt: request.prompt, signal: controller.signal });
+            return { output: result.output };
+          }
+          const { createIsolatedG1ModelAdapter } = await import(/* webpackIgnore: true */ pathToFileURL(adapterFile).href);
+          const adapter = createIsolatedG1ModelAdapter({ ...configuration, timeoutMs: 300000 });
           return await adapter.run(request, { signal: controller.signal });
         } catch { return failure(controller.signal.aborted ? "cancelled" : "model_unavailable"); }
       })().finally(() => { signal.removeEventListener("abort", cancel); running.delete(controller); });

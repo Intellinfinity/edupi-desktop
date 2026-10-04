@@ -43,7 +43,7 @@ function createShadowTools(tools: AgentTool[]): AgentTool[] {
  * the source Agent. Tool implementations are replaced without changing their
  * names, descriptions, or schemas, so a naming run cannot mutate the project.
  */
-export function buildSessionTitleAgentOptions(source: Agent): AgentOptions {
+export function buildSessionTitleAgentOptions(source: Agent, messages: AgentMessage[]): AgentOptions {
   const state = source.state;
   return {
     initialState: {
@@ -51,7 +51,7 @@ export function buildSessionTitleAgentOptions(source: Agent): AgentOptions {
       model: state.model,
       thinkingLevel: state.thinkingLevel,
       tools: createShadowTools(state.tools),
-      messages: state.messages,
+      messages,
     },
     convertToLlm: source.convertToLlm,
     transformContext: source.transformContext,
@@ -210,16 +210,15 @@ export function sanitizeTitleMessages(messages: AgentMessage[]): AgentMessage[] 
 
 export async function generateSessionTitle(source: AgentSession): Promise<GeneratedSessionTitle> {
   const sourceAgent = source.agent;
-  await sourceAgent.waitForIdle();
+  await source.waitForIdle();
 
-  const sanitizedMessages = sanitizeTitleMessages(sourceAgent.state.messages);
+  const sanitizedMessages = sanitizeTitleMessages(source.sessionManager.buildSessionContext().messages);
   const historyLength = sanitizedMessages.length;
   if (!sanitizedMessages.some((message) => message.role === "user")) {
     throw new Error("The session has no user messages to name");
   }
 
-  const options = buildSessionTitleAgentOptions(sourceAgent);
-  options.initialState!.messages = sanitizedMessages;
+  const options = buildSessionTitleAgentOptions(sourceAgent, sanitizedMessages);
   const continuesFromTrailingUser = sanitizedMessages.at(-1)?.role === "user";
   if (continuesFromTrailingUser) {
     options.initialState!.messages = appendTitleRequestToTrailingUser(sanitizedMessages);

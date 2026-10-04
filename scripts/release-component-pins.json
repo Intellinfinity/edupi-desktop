@@ -1,7 +1,7 @@
 {
   "pi": {
-    "version": "0.84.1",
-    "reason": "EduPi Desktop keeps the launch-verified Pi 0.84.1 while the newer upstream release is integrated and verified separately."
+    "version": "1.0.2",
+    "reason": "EduPi Desktop aligns with the Core Pi 1.0.2 baseline; installed-app acceptance remains pending."
   },
   "pi-web": {
     "version": "0.8.7",

@@ -98,3 +98,39 @@ test("runtime host leaves G1 Live off without an exact scoped grant and forwards
   await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
     options: { ...options, ambientPlanning: false, g1Scope: scope } }, channel), /Invalid runtime bootstrap/);
 });
+
+test("G2 bootstrap uses the Core factory and a bounded private model envelope", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-g2-host-unit-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "scripts"));
+  fs.writeFileSync(path.join(root, "package.json"), '{"type":"module"}');
+  fs.writeFileSync(path.join(root, "scripts/core_runtime_daemon.mjs"), `
+    let received;
+    export async function createCoreRuntimeDaemon(options) { received = options; return { async close() {} }; }
+    export function lastOptions() { return received; }
+  `);
+  fs.writeFileSync(path.join(root, "scripts/student_followup_model_adapter.mjs"), `
+    export function createStudentFollowUpModelAdapter({runModel}) {
+      return { branded: true, run: (_input, options) => runModel({prompt:'Core-built synthetic prompt', signal:options.signal}) };
+    }
+  `);
+  const channel = new EventEmitter(); channel.connected = true;
+  const sent = []; channel.send = (value, callback) => { sent.push(value); callback?.(); };
+  const options = { dataRoot: root, token: "test", supervisorSessionId: "test", coreCommit: "a".repeat(40),
+    componentManifestHash: `sha256:${"b".repeat(64)}`, port: 0, ambientPlanning: true, ownerControlToken: "owner-test",
+    g2Scope: { classId: "class-1", subject: "数学", grantId: "g2-test" } };
+  const host = await startCoreRuntimeHost({coreRoot:root, options}, channel);
+  const {lastOptions} = await import(path.join(root, "scripts/core_runtime_daemon.mjs"));
+  try {
+    assert.equal(lastOptions().g1Live, undefined);
+    assert.equal(lastOptions().g2Live.modelAdapter.branded, true);
+    const running = lastOptions().g2Live.modelAdapter.run({}, {signal:new AbortController().signal});
+    const request = sent[0].request;
+    assert.equal(request.model_kind, "student_followup");
+    assert.equal(request.prompt, "Core-built synthetic prompt");
+    assert.ok(Date.parse(request.deadline_at) > Date.now());
+    channel.emit("message", {type:"model-result", id:sent[0].id, result:{output:"synthetic result"}});
+    assert.deepEqual(await running, {output:"synthetic result"});
+  } finally { await host.close(); }
+  await assert.rejects(startCoreRuntimeHost({coreRoot:root, options:{...options, ownerControlToken:undefined}}, channel), /Invalid runtime bootstrap/);
+});

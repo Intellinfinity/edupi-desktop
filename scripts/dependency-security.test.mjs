@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { Linter } from "eslint";
 import semver from "semver";
-import { prepareSecurityDependencies } from "./prepare-security-dependencies.mjs";
 
 const require = createRequire(import.meta.url);
 const nextRequire = createRequire(require.resolve("@next/eslint-plugin-next"));
@@ -43,39 +42,23 @@ test("Next root matching preserves static, absolute, brace and stepped patterns"
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("the installed Pi SDK resolves patched dependencies despite its upstream shrinkwrap", () => {
+test("Pi 1.0.2 is pinned consistently and resolves secure packages without installation patches", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const lock = JSON.parse(await readFile(new URL("../package-lock.json", import.meta.url), "utf8"));
+  for (const name of ["pi-ai", "pi-agent-core", "pi-coding-agent", "pi-tui"]) {
+    const packageName = `@earendil-works/${name}`;
+    const installed = JSON.parse(await readFile(new URL(`../node_modules/${packageName}/package.json`, import.meta.url), "utf8"));
+    assert.equal(manifest.dependencies[packageName], "1.0.2");
+    assert.equal(lock.packages[`node_modules/${packageName}`].version, "1.0.2");
+    assert.equal(installed.version, "1.0.2");
+  }
   const sdkRequire = createRequire(import.meta.resolve("@earendil-works/pi-coding-agent"));
   assert.ok(semver.gte(sdkRequire("undici/package.json").version, "8.10.2"));
   assert.ok(semver.gte(sdkRequire("brace-expansion/package.json").version, "5.0.12"));
-});
-
-test("Pi security patching is repeatable and refuses a symlink destination", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "edupi-pi-deps-"));
-  const sdk = path.join(root, "node_modules/@earendil-works/pi-coding-agent");
-  try {
-    await mkdir(path.join(sdk, "node_modules"), { recursive: true });
-    await writeFile(path.join(sdk, "package.json"), JSON.stringify({ version: "0.84.1" }));
-    await writeFile(path.join(root, "node_modules/.package-lock.json"), "{}");
-    for (const [name, version] of Object.entries({ undici: "8.10.2", "brace-expansion": "5.0.12" })) {
-      const source = path.join(root, "node_modules", name);
-      await mkdir(source);
-      await writeFile(path.join(source, "package.json"), JSON.stringify({ name, version }));
-      await writeFile(path.join(source, "index.js"), "patched");
-    }
-    await prepareSecurityDependencies(root);
-    assert.equal(JSON.parse(await readFile(path.join(sdk, "package.json"), "utf8")).dependencies.undici, "8.10.2");
-    await assert.rejects(readFile(path.join(root, "node_modules/.package-lock.json")), { code: "ENOENT" });
-    await prepareSecurityDependencies(root);
-    const destination = path.join(sdk, "node_modules/undici");
-    assert.equal(await readFile(path.join(destination, "index.js"), "utf8"), "patched");
-    await rm(destination, { recursive: true });
-    const outside = path.join(root, "untouched");
-    await mkdir(outside);
-    await writeFile(path.join(outside, "keep"), "retained");
-    await symlink(outside, destination, process.platform === "win32" ? "junction" : "dir");
-    await assert.rejects(prepareSecurityDependencies(root), /Unsafe patch destination/);
-    assert.equal(await readFile(path.join(outside, "keep"), "utf8"), "retained");
-  } finally { await rm(root, { recursive: true, force: true }); }
+  assert.ok(semver.gte(sdkRequire("minimatch/package.json").version, "10.2.6"));
+  const sdk = await import("@earendil-works/pi-coding-agent");
+  assert.equal(typeof sdk.createAgentSessionRuntime, "function");
+  assert.equal(typeof sdk.createAgentSessionFromServices, "function");
 });
 
 test("the actual Next internal-link lint rule still rejects a plain anchor", async () => {

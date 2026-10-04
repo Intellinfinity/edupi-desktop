@@ -3,29 +3,29 @@
   "files": [
     {
       "path": "command-unsupported.json",
-      "sha256": "sha256:b5750a9fa6c20c534381f494305ed8c0930ae8957c9f77bb5573dce4976b8300",
+      "sha256": "sha256:0b2c2f920087f246d72f0333fc07dbee01e7962f04d486b27c9c0d2f4a49cb69",
       "size": 1276
     },
     {
       "path": "context-review.json",
-      "sha256": "sha256:2c3f83806aea05aab907cc6fe6d053f68b039731305efaee5871f6449e3de5e0",
+      "sha256": "sha256:d5b25c206087a6f0e6717dfd68793d42da7bcce109da65cc1b86b513ba680cce",
       "size": 22210
     },
     {
       "path": "receipt-unsupported.json",
-      "sha256": "sha256:38a9b09015adeb3443151b60a77d96e77518ba5ccad6d35e92228793b86872d9",
+      "sha256": "sha256:7f83ba86e1d8e0b32d18e5a5f54149248beea0b5eccd7bc53d93f9168a4c9ec0",
       "size": 1774
     },
     {
       "path": "snapshot-education-workspace.json",
-      "sha256": "sha256:2546824e80f152fbc7bea4e3718b8318cc794690aa3cfaa6deaee31c69e98d08",
+      "sha256": "sha256:3dc3d287d6cc6daf6d332a5bfda7c6b462b01da21c42c8ca6e1a8d08557b6b09",
       "size": 5308
     },
     {
       "path": "work-candidate-review.json",
-      "sha256": "sha256:24251ba6a12e1f1ae0c46643d64db861a4e68717c9274c3a8fa9271fbe07fb4c",
+      "sha256": "sha256:5a8222d28cf7aa66bf6a09a65e96f19b681034094dddd8f6981df2b5aaf7aec2",
       "size": 59796
     }
   ],
-  "fixture_manifest_hash": "sha256:7e32693b41dbcaa724f62b97babdd2c015b2f4b2afcb0027f933ba6489ee4f18"
+  "fixture_manifest_hash": "sha256:16960512e7088be0342a1e1f549e7e062b48132453b2fdacf01e94a59b981c47"
 }

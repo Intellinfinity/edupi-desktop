@@ -61,22 +61,37 @@ export function createParentModelExecutor(channel = process) {
   };
 }
 
-export async function startCoreRuntimeHost({ coreRoot, options }, channel = process) {
-  const scope = options?.g1Scope;
-  const validScope = scope && typeof scope === "object" && !Array.isArray(scope)
+function validScope(scope) {
+  return scope && typeof scope === "object" && !Array.isArray(scope)
     && Object.keys(scope).length === 3 && ["classId", "subject", "grantId"].every(key => Object.hasOwn(scope, key))
     && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(scope.classId)
     && typeof scope.subject === "string" && scope.subject.trim() === scope.subject
     && scope.subject.length > 0 && scope.subject.length <= 128 && !/[\u0000-\u001f\u007f]/u.test(scope.subject)
     && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(scope.grantId);
-  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken", "g1Scope"].includes(key))
+}
+
+export async function startCoreRuntimeHost({ coreRoot, options }, channel = process) {
+  const hasModelScope = options?.g1Scope !== undefined || options?.g2Scope !== undefined;
+  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken", "g1Scope", "g2Scope"].includes(key))
     || (options.ambientPlanning !== undefined && typeof options.ambientPlanning !== "boolean")
-    || scope !== undefined && (options.ambientPlanning !== true || typeof options.ownerControlToken !== "string" || !validScope)) throw new Error("Invalid runtime bootstrap.");
-  const hostExecutor = scope ? createParentModelExecutor(channel) : null;
+    || hasModelScope && (options.ambientPlanning !== true || typeof options.ownerControlToken !== "string")
+    || options.g1Scope !== undefined && !validScope(options.g1Scope)
+    || options.g2Scope !== undefined && (!validScope(options.g2Scope) || options.g2Scope.subject !== "数学")) throw new Error("Invalid runtime bootstrap.");
+  const hostExecutor = hasModelScope ? createParentModelExecutor(channel) : null;
   try {
     const { createCoreRuntimeDaemon } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_daemon.mjs")).href);
-    const { g1Scope, ...daemonOptions } = options;
+    const { g1Scope, g2Scope, ...daemonOptions } = options;
+    let g2Live;
+    if (g2Scope) {
+      const { createStudentFollowUpModelAdapter } = await import(pathToFileURL(path.join(coreRoot, "scripts/student_followup_model_adapter.mjs")).href);
+      // Core owns prompt/output validation and its adapter brand. Credentials
+      // stay in the parent, which executes this prompt in the isolated worker.
+      g2Live = { modelAdapter: createStudentFollowUpModelAdapter({ runModel: ({ prompt, signal }) => hostExecutor.run({
+        model_kind: "student_followup", prompt, deadline_at: new Date(Date.now() + 120000).toISOString(),
+      }, { signal }) }), leaseMs: 120000 };
+    }
     const daemon = await createCoreRuntimeDaemon({ ...daemonOptions,
+      ...(g2Live ? { g2Live } : {}),
       ...(g1Scope ? { g1Live: { hostExecutor: { run: hostExecutor.run }, leaseMs: 300000,
         scope: { classId: g1Scope.classId, subject: g1Scope.subject }, grantId: g1Scope.grantId } } : {}) });
     return { daemon, async close() { hostExecutor?.close(); await daemon.close(); } };

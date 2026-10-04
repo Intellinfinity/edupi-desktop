@@ -18,8 +18,8 @@ test("ambient message intake rejects an ordinary browser before reading private 
 test("ambient message intake is bounded, owner-controlled, and external-send-free", () => {
   const source = fs.readFileSync(new URL("./route.ts", import.meta.url), "utf8");
   assert.match(source, /isDesktopApiRequestAllowed\(request\)/);
-  assert.match(source, /if \(!activation\.enabled\) return NextResponse\.json/);
-  assert.ok(source.indexOf("if (!activation.enabled)") < source.indexOf("parseJsonWithinLimit(request"));
+  assert.match(source, /if \(activations\.length === 0\) return NextResponse\.json/);
+  assert.ok(source.indexOf("if (activations.length === 0)") < source.indexOf("parseJsonWithinLimit(request"));
   assert.match(source, /export async function GET/);
   assert.match(source, /captureAndApplyAmbientMessage/);
   assert.match(source, /prepareEduPiAmbientMessageBinding/);

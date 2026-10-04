@@ -1,4 +1,5 @@
 import type {
+  AgentSession,
   AgentSessionEvent,
   BashOperations,
   SessionManager,
@@ -131,7 +132,7 @@ export interface AgentSessionLike {
   };
   readonly sessionManager: SessionManager;
   readonly settingsManager: SettingsManager;
-  readonly agent: { state?: { systemPrompt?: string; thinkingLevel?: string; streamingMessage?: StreamingAgentMessage } };
+  readonly agent: { readonly state?: { readonly systemPrompt?: string; readonly thinkingLevel?: string; readonly streamingMessage?: StreamingAgentMessage } };
   readonly extensionRunner: ExtensionRunnerLike;
   readonly promptTemplates: readonly PromptTemplateLike[];
   readonly resourceLoader: ResourceLoaderLike;
@@ -146,6 +147,7 @@ export interface AgentSessionLike {
     source?: "interactive" | "rpc";
   }): Promise<void>;
   abort(): Promise<void>;
+  waitForIdle(): Promise<void>;
   executeBash(command: string, onChunk?: (chunk: string) => void, options?: { excludeFromContext?: boolean; operations?: BashOperations }): Promise<{ output: string; exitCode?: number; cancelled?: boolean; truncated?: boolean; fullOutputPath?: string }>;
   abortBash(): void;
   readonly isBashRunning: boolean;
@@ -158,8 +160,8 @@ export interface AgentSessionLike {
   getLastAssistantText(): string | undefined;
   setAutoCompactionEnabled(enabled: boolean): void;
   setAutoRetryEnabled(enabled: boolean): void;
-  steer(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void>;
-  followUp(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void>;
+  steer: AgentSession["steer"];
+  followUp: AgentSession["followUp"];
   readonly pendingMessageCount: number;
   getSteeringMessages(): readonly string[];
   getFollowUpMessages(): readonly string[];

@@ -274,6 +274,7 @@ export function EduPiAdminPanel({ onClose, onOpenContext, onAskStudentUpdate, on
         <div className="edupi-admin-metrics"><AdminMetric value={kernelSummary?.running ?? "—"} label="运行中" /><AdminMetric value={kernelSummary?.needs_review ?? "—"} label="待确认" /><AdminMetric value={kernelSummary?.succeeded ?? "—"} label="已完成" /></div>
         <div className="edupi-admin-metrics"><AdminMetric value={snapshot.status?.proactivity?.status === "active" ? "主动" : snapshot.status?.proactivity?.status === "paused" ? "已暂停" : snapshot.status?.proactivity?.status === "disabled" ? "按需" : "不可用"} label="主动运行" /><AdminMetric value={snapshot.status?.proactivity?.currentAttentionDeliveries ?? "—"} label="待交付" /><AdminMetric value={snapshot.status?.proactivity?.teacherFeedback ? "可记录" : "未启用"} label="教师反馈" /></div>
         <EduPiProactivityCanary feedbackEnabled={snapshot.status?.proactivity?.teacherFeedback === true} onChanged={refresh} />
+        <EduPiProactivityCanary domain="student_followup" onChanged={refresh} />
         <div className="edupi-admin-runtime" role="list" aria-label="最近自动运行">
           {kernelRuns.length > 0 ? kernelRuns.slice(0, 12).map((run) => {
             const action = kernelRunAction(run);

@@ -1,5 +1,5 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { createAgentSessionFromServices, createAgentSessionServices, createBashToolDefinition, defineTool, getAgentDir, initTheme, SessionManager, Theme } from "@earendil-works/pi-coding-agent";
+import { createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashToolDefinition, defineTool, getAgentDir, initTheme, SessionManager, Theme, type AgentSessionRuntime, type CreateAgentSessionRuntimeFactory } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
 import { existsSync, realpathSync, writeFileSync } from "fs";
@@ -39,6 +39,7 @@ import { createEduPiTeacherContextAppendSystemPromptOverride } from "./edupi-tea
 import { withEducationModel } from "./edupi-model-context";
 import { ensureLoopbackModelAuth } from "./loopback-model-auth";
 import type { PermissionMode } from "./tool-presets";
+import { createRpcResourceLoader, rpcResourceOptions, type RpcToolMode } from "./rpc-resource-loader";
 
 // The legacy HTTP adapter is intentionally not a production authority. Until
 // Core owns one-shot grants and receipts, do not retain connector credentials in
@@ -142,9 +143,8 @@ const CODING_TOOL_NAMES = ["read", "bash", "edit", "write", "grep", "find", "ls"
 class PlainTextTheme extends Theme {
   constructor() {
     super(
-      { thinkingXhigh: "" } as ConstructorParameters<typeof Theme>[0],
-      // Pi 0.84 derives scrollbarThumb from selectedBg during construction,
-      // even though this headless theme overrides every color operation.
+      { thinkingXhigh: "", text: "", muted: "" } as ConstructorParameters<typeof Theme>[0],
+      // Pi derives scrollbar/search colors even for this colorless facade.
       { selectedBg: "" } as ConstructorParameters<typeof Theme>[1],
       "truecolor",
     );
@@ -201,6 +201,7 @@ export class AgentSessionWrapper {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private onDestroyCallback: (() => void) | null = null;
   private shutdownPromise: Promise<void> | null = null;
+  private sessionInvalidated = false;
   private _alive = true;
   private artifactWrites = Promise.resolve();
   private artifactBaseline = new Map<string, string>();
@@ -209,7 +210,27 @@ export class AgentSessionWrapper {
   private artifactTaskId: string | null = null;
   private accessMode: PermissionMode = "workspace";
 
-  constructor(public readonly inner: AgentSessionLike) {}
+  constructor(public inner: AgentSessionLike, private runtime?: AgentSessionRuntime, private toolMode: RpcToolMode = { disabled: false }) {
+    runtime?.setBeforeSessionInvalidate(() => {
+      this.sessionInvalidated = true;
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+      for (const pending of this.pendingUiResponses.values()) pending.cancel();
+      for (const id of Array.from(this.activeCustomUis.keys())) this.closeCustomUi(id, undefined);
+      this.pendingUiRequests.clear();
+      this.extensionStatuses.clear();
+      this.extensionWidgets.clear();
+    });
+    runtime?.setRebindSession(async (session) => {
+      this.inner = session;
+      this.extensionsBound = false;
+      this.extensionBindingPromise = null;
+      this.extensionBindingError = null;
+      this.start();
+      await this.ensureExtensionsBound();
+      this.sessionInvalidated = false;
+    });
+  }
 
   setAccessMode(mode: PermissionMode): void {
     this.accessMode = mode;
@@ -289,6 +310,7 @@ export class AgentSessionWrapper {
   }
 
   start(): void {
+    this.unsubscribe?.();
     this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
       if (normalizeRpcCwd(this.cwd) === EDUPI_ROOT) {
         if (event.type === "agent_start") this.artifactBaseline = snapshotGeneratedFiles(this.cwd, this.artifactOutputDirectory);
@@ -331,6 +353,7 @@ export class AgentSessionWrapper {
 
   setForceEmptySystemPrompt(force: boolean): void {
     this.forceEmptySystemPrompt = force;
+    this.toolMode.disabled = force;
     this.applyForcedEmptySystemPrompt();
   }
 
@@ -423,9 +446,9 @@ export class AgentSessionWrapper {
   }
 
   private applyForcedEmptySystemPrompt(): void {
-    if (this.forceEmptySystemPrompt && this.inner.agent.state) {
-      this.inner.agent.state.systemPrompt = "";
-    }
+    // Pi 1 owns Agent state. The host-only before_agent_start hook supplies the
+    // empty prompt; the loader policy also keeps reload from restoring resources.
+    if (this.forceEmptySystemPrompt) this.inner.setActiveToolsByName([]);
   }
 
   private emit(event: AgentEvent): void {
@@ -604,7 +627,7 @@ export class AgentSessionWrapper {
           contextUsage: contextUsage
             ? { percent: contextUsage.percent, contextWindow: contextUsage.contextWindow, tokens: contextUsage.tokens }
             : null,
-          systemPrompt: this.inner.agent.state?.systemPrompt ?? "",
+          systemPrompt: this.forceEmptySystemPrompt ? "" : this.inner.agent.state?.systemPrompt ?? "",
           thinkingLevel: this.inner.agent.state?.thinkingLevel ?? "off",
           accessMode: this.accessMode,
           extensionStatuses: this.getExtensionStatuses(),
@@ -631,36 +654,23 @@ export class AgentSessionWrapper {
           throw new Error("Cannot fork while a shell command is running");
         }
         const entryId = command.entryId as string;
-        const sessionManager = this.inner.sessionManager;
-        const currentSessionFile = this.inner.sessionFile;
-
-        if (!sessionManager.isPersisted()) return { cancelled: true };
-        if (!currentSessionFile) throw new Error("Persisted session is missing a session file");
-
-        const entry = sessionManager.getEntry(entryId);
-        if (!entry) throw new Error("Invalid entry ID for forking");
-
-        const sessionDir = sessionManager.getSessionDir();
-        let newSessionFile: string;
-
-        if (!entry.parentId) {
-          // Fork before the first message: create an empty session linked to this one
-          const newManager = SessionManager.create(sessionManager.getCwd(), sessionDir);
-          newManager.newSession({ parentSession: currentSessionFile });
-          newSessionFile = newManager.getSessionFile() as string;
-        } else {
-          // Fork after some history: copy path up to (but not including) the fork point
-          const sourceManager = SessionManager.open(currentSessionFile, sessionDir);
-          const forkedPath = sourceManager.createBranchedSession(entry.parentId);
-          if (!forkedPath) throw new Error("Failed to create forked session");
-          newSessionFile = forkedPath;
+        if (!this.runtime) throw new Error("Session runtime is unavailable");
+        await this.waitForExtensionsBound();
+        const previousSession = this.inner;
+        try {
+          const result = await this.runtime.fork(entryId, { position: "before" });
+          if (result.cancelled) return result;
+          const newSessionId = this.inner.sessionId;
+          this.ensureSessionPersisted();
+          invalidateSessionListCache();
+          await this.shutdown();
+          return { cancelled: false, newSessionId };
+        } catch (error) {
+          // Neither a failed replacement nor a failed first flush may leave the
+          // old registry key pointing at a disposed or different session.
+          if (this.sessionInvalidated || this.inner !== previousSession) this.destroy();
+          throw error;
         }
-
-        const newSessionId = SessionManager.open(newSessionFile, sessionDir).getSessionId();
-        cacheSessionPath(newSessionId, newSessionFile);
-        invalidateSessionListCache();
-        await this.shutdown();
-        return { cancelled: false, newSessionId };
       }
 
       case "navigate_tree": {
@@ -674,12 +684,6 @@ export class AgentSessionWrapper {
       case "set_thinking_level": {
         const level = command.level as string;
         this.inner.setThinkingLevel(level);
-        // setThinkingLevel clamps xhigh→high for models where supportsXhigh()===false.
-        // If the model has DeepSeek thinking compat (reasoningEffortMap maps xhigh→max),
-        // force the state back so the compat layer can use it correctly.
-        if (level === "xhigh" && (this.inner.model as { compat?: { thinkingFormat?: string } } | null)?.compat?.thinkingFormat === "deepseek" && this.inner.agent?.state) {
-          this.inner.agent.state.thinkingLevel = "xhigh";
-        }
         invalidateSessionListCache();
         return null;
       }
@@ -735,14 +739,14 @@ export class AgentSessionWrapper {
 
       case "steer": {
         const steerImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
-        await this.inner.steer(command.message as string, steerImages?.length ? steerImages : undefined);
-        return null;
+        const disposition = await this.inner.steer(command.message as string, steerImages?.length ? steerImages : undefined, { source: "rpc" });
+        return { disposition };
       }
 
       case "follow_up": {
         const followImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
-        await this.inner.followUp(command.message as string, followImages?.length ? followImages : undefined);
-        return null;
+        const disposition = await this.inner.followUp(command.message as string, followImages?.length ? followImages : undefined, { source: "rpc" });
+        return { disposition };
       }
 
       case "get_tools": {
@@ -786,7 +790,14 @@ export class AgentSessionWrapper {
 
       case "set_tools": {
         const toolNames = command.toolNames as string[];
+        if (this.isRunning()) throw new Error("Cannot change tools while the session is running");
+        await this.waitForExtensionsBound();
+        const changedMode = this.forceEmptySystemPrompt !== (toolNames.length === 0);
         this.setForceEmptySystemPrompt(toolNames.length === 0);
+        if (changedMode) {
+          try { await this.inner.reload(); }
+          catch (error) { this.destroy(); throw error; }
+        }
         this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
         this.applyForcedEmptySystemPrompt();
         return null;
@@ -1224,8 +1235,7 @@ export class AgentSessionWrapper {
   private createExtensionCommandContextActions(): ExtensionCommandContextActionsLike {
     return {
       waitForIdle: async () => {
-        const agent = this.inner.agent as { waitForIdle?: () => Promise<void> };
-        await agent.waitForIdle?.();
+        await this.inner.waitForIdle();
       },
       newSession: async () => ({ cancelled: true }),
       fork: async () => ({ cancelled: true }),
@@ -1426,9 +1436,6 @@ export async function startRpcSession(
     sessionManager = SessionManager.create(cwd, undefined);
   }
   const sessionCwd = sessionManager.getCwd();
-  const normalizedSessionCwd = normalizeRpcCwd(sessionCwd);
-  const sessionIsEduPiDataRoot = normalizedSessionCwd === EDUPI_ROOT;
-  const sessionIsEduPiCoreRoot = normalizedSessionCwd === EDUPI_CODE_ROOT;
   const finishStartingSession = trackStartingSession(sessionCwd);
   const starting = (async () => {
     let requestEduPiAppAction: (action: DesktopControlInput, signal?: AbortSignal) => Promise<boolean> = async () => false;
@@ -1436,39 +1443,30 @@ export async function startRpcSession(
     // Some extensions access the SDK's global theme even outside the terminal UI.
     initTheme();
     const agentDir = getAgentDir();
+    const toolMode = { disabled: toolNames?.length === 0 };
+    const host: { wrapper?: AgentSessionWrapper } = {};
+    const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: sessionCwd, sessionManager, sessionStartEvent }) => {
+      const normalizedSessionCwd = normalizeRpcCwd(sessionCwd);
+      const sessionIsEduPiDataRoot = normalizedSessionCwd === EDUPI_ROOT;
+      const sessionIsEduPiCoreRoot = normalizedSessionCwd === EDUPI_CODE_ROOT;
 
-    // Determine which tools to pass based on requested toolNames.
-    // Since v0.68.0, session creation expects string[] tool names instead of Tool[] instances.
-    let toolsOption: string[] | undefined;
-    if (toolNames !== undefined) {
-      // toolNames === [] -> "all off" (an empty allow-list disables every tool).
-      // Otherwise DO NOT pass a builtin-only allow-list: passing CODING_TOOL_NAMES
-      // set allowedToolNames to coding builtins only, which filtered every
-      // extension/package-provided tool (e.g. subagents, web access) out of the
-      // tool registry — so they were unavailable in Pi Web sessions even though the
-      // `pi` CLI keeps them. Leaving the allow-list unset lets the SDK register all
-      // tools (and activate extension tools); we narrow the ACTIVE set below.
-      toolsOption = toolNames.length === 0 ? [] : undefined;
-    }
-
-    // Build services first so extension-registered providers are available
-    // before the SDK restores the saved model from the session file.
-    // Gate untrusted project extensions so opening a repository does not run
-    // its .pi/extensions code automatically (see lib/project-trust.ts, #236).
-    const trustReloadOptions = projectTrustReloadOptions(sessionCwd, agentDir);
-    let teacherContextAppendSystemPromptOverride;
-    try {
-      teacherContextAppendSystemPromptOverride = await createEduPiTeacherContextAppendSystemPromptOverride(sessionCwd);
-    } catch {
-      console.warn("EduPi teacher context is unavailable for this session");
-    }
-    const safeMode = isSafeModeEnabled();
-    const educationSkillPath = sessionIsEduPiDataRoot ? prepareEducationResources(EDUPI_ROOT, EDUPI_CODE_ROOT, { copySkills: !safeMode }) : undefined;
-    const builtinSkillPaths = safeMode && educationSkillPath ? builtinEducationSkillPaths() : [];
-    const services = await createAgentSessionServices({
-      cwd: sessionCwd,
-      agentDir,
-      resourceLoaderOptions: {
+      // Build services first so extension-registered providers are available
+      // before the SDK restores the saved model from the session file.
+      // Gate untrusted project extensions so opening a repository does not run
+      // its .pi/extensions code automatically (see lib/project-trust.ts, #236).
+      const trustReloadOptions = projectTrustReloadOptions(sessionCwd, agentDir);
+      let teacherContextAppendSystemPromptOverride;
+      try {
+        teacherContextAppendSystemPromptOverride = await createEduPiTeacherContextAppendSystemPromptOverride(sessionCwd);
+      } catch {
+        console.warn("EduPi teacher context is unavailable for this session");
+      }
+      const safeMode = isSafeModeEnabled();
+      const educationSkillPath = sessionIsEduPiDataRoot ? prepareEducationResources(EDUPI_ROOT, EDUPI_CODE_ROOT, { copySkills: !safeMode }) : undefined;
+      const builtinSkillPaths = safeMode && educationSkillPath ? builtinEducationSkillPaths() : [];
+      const resourceOptions = {
+        cwd: sessionCwd,
+        agentDir,
         additionalExtensionPaths: extensionPaths,
         additionalSkillPaths: safeMode ? builtinSkillPaths : educationSkillPath ? [educationSkillPath] : [],
         ...safeModeResourceOptions(safeMode, {
@@ -1478,85 +1476,101 @@ export async function startRpcSession(
         ...(teacherContextAppendSystemPromptOverride
           ? { appendSystemPromptOverride: teacherContextAppendSystemPromptOverride }
           : {}),
-      },
-      ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
-    });
-    const defaultProvider = services.settingsManager.getDefaultProvider();
-    const defaultModelId = services.settingsManager.getDefaultModel();
-    const authModel = initialModel
-      ? services.modelRuntime.getModel(initialModel.provider, initialModel.modelId)
-      : defaultProvider && defaultModelId
-        ? services.modelRuntime.getModel(defaultProvider, defaultModelId)
-        : undefined;
-    if (authModel) await ensureLoopbackModelAuth(
-      authModel,
-      () => services.modelRuntime.getAuth(authModel),
-      (provider, key) => services.modelRuntime.setRuntimeApiKey(provider, key),
-    );
-    const scope = await resolveVisibleModels(
-      services.modelRuntime,
-      services.settingsManager.getEnabledModels(),
-    );
-    const hasExistingMessages = sessionManager.getBranch().some((entry) => entry.type === "message");
-    const initial = hasExistingMessages
-      ? { scopedModels: [...scope.scopedModels] }
-      : selectInitialModelScope(scope, {
-        ...(initialModel ? { requestedModel: initialModel } : {}),
-        ...(defaultProvider && defaultModelId
-          ? { defaultModel: { provider: defaultProvider, modelId: defaultModelId } }
-          : {}),
-        ...(thinkingLevel ? { thinkingLevel } : {}),
+      };
+      const services = await createAgentSessionServices({
+        cwd: sessionCwd,
+        agentDir,
+        resourceLoaderOptions: rpcResourceOptions(resourceOptions, toolMode),
+        ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
       });
-    const { session: inner } = await createAgentSessionFromServices({
-      services,
-      sessionManager,
-      ...(initial.model ? { model: initial.model } : {}),
-      ...(initial.thinkingLevel ? { thinkingLevel: initial.thinkingLevel } : {}),
-      ...(initial.scopedModels.length > 0 ? { scopedModels: initial.scopedModels } : {}),
-      ...(toolsOption !== undefined ? { tools: toolsOption } : {}),
-      customTools: [
-        defineTool(createBashToolDefinition(sessionCwd, { shellPath: services.settingsManager.getShellPath(), spawnHook: redactDesktopSpawnContext })),
-        ...(sessionIsEduPiDataRoot ? [createPreparationArtifactTool(EDUPI_ROOT), createEduPiDocumentTool(EDUPI_ROOT), createEduPiPresentationTool(EDUPI_ROOT), createPrepareTaskTool(EDUPI_ROOT), createStudentEventTool(EDUPI_ROOT), createMemoryWriteTool(EDUPI_ROOT), createMemoryForgetTool(EDUPI_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiAppControlTool({
-          projectRoot: EDUPI_ROOT,
-          requestAction: (action, signal) => requestEduPiAppAction(action, signal),
-        }), createEduPiComputerUseTool({
-          projectRoot: EDUPI_ROOT,
-          requestAction: (action, signal) => requestEduPiComputerAction(action, signal),
-        })] : []),
-        ...(sessionIsEduPiCoreRoot && !sessionIsEduPiDataRoot ? [createStudentEventTool(EDUPI_CODE_ROOT), createMemoryWriteTool(EDUPI_CODE_ROOT), createMemoryForgetTool(EDUPI_CODE_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_CODE_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_CODE_ROOT })] : []),
-      ],
-    });
+      services.resourceLoader = createRpcResourceLoader(services.resourceLoader, { ...resourceOptions, settingsManager: services.settingsManager }, toolMode);
+      const defaultProvider = services.settingsManager.getDefaultProvider();
+      const defaultModelId = services.settingsManager.getDefaultModel();
+      const authModel = initialModel
+        ? services.modelRuntime.getModel(initialModel.provider, initialModel.modelId)
+        : defaultProvider && defaultModelId
+          ? services.modelRuntime.getModel(defaultProvider, defaultModelId)
+          : undefined;
+      if (authModel) await ensureLoopbackModelAuth(
+        authModel,
+        () => services.modelRuntime.getAuth(authModel),
+        (provider, key) => services.modelRuntime.setRuntimeApiKey(provider, key),
+      );
+      const scope = await resolveVisibleModels(
+        services.modelRuntime,
+        services.settingsManager.getEnabledModels(),
+      );
+      const hasExistingMessages = sessionManager.getBranch().some((entry) => entry.type === "message");
+      const initial = hasExistingMessages
+        ? { scopedModels: [...scope.scopedModels] }
+        : selectInitialModelScope(scope, {
+          ...(initialModel ? { requestedModel: initialModel } : {}),
+          ...(defaultProvider && defaultModelId
+            ? { defaultModel: { provider: defaultProvider, modelId: defaultModelId } }
+            : {}),
+          ...(thinkingLevel ? { thinkingLevel } : {}),
+        });
+      const result = await createAgentSessionFromServices({
+        services,
+        sessionManager,
+        sessionStartEvent,
+        ...(initial.model ? { model: initial.model } : {}),
+        ...(initial.thinkingLevel ? { thinkingLevel: initial.thinkingLevel } : {}),
+        ...(initial.scopedModels.length > 0 ? { scopedModels: initial.scopedModels } : {}),
+        // Keep the registry available for a later explicit tool selection. The
+        // restricted loader and empty active set make this session tool-free.
+        ...(toolMode.disabled ? { noTools: "builtin" as const } : {}),
+        customTools: [
+          defineTool(createBashToolDefinition(sessionCwd, { shellPath: services.settingsManager.getShellPath(), spawnHook: redactDesktopSpawnContext })),
+          ...(sessionIsEduPiDataRoot ? [createPreparationArtifactTool(EDUPI_ROOT), createEduPiDocumentTool(EDUPI_ROOT), createEduPiPresentationTool(EDUPI_ROOT), createPrepareTaskTool(EDUPI_ROOT), createStudentEventTool(EDUPI_ROOT), createMemoryWriteTool(EDUPI_ROOT), createMemoryForgetTool(EDUPI_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiAppControlTool({
+            projectRoot: EDUPI_ROOT,
+            requestAction: (action, signal) => requestEduPiAppAction(action, signal),
+          }), createEduPiComputerUseTool({
+            projectRoot: EDUPI_ROOT,
+            requestAction: (action, signal) => requestEduPiComputerAction(action, signal),
+          })] : []),
+          ...(sessionIsEduPiCoreRoot && !sessionIsEduPiDataRoot ? [createStudentEventTool(EDUPI_CODE_ROOT), createMemoryWriteTool(EDUPI_CODE_ROOT), createMemoryForgetTool(EDUPI_CODE_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_CODE_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_CODE_ROOT })] : []),
+        ],
+      });
+      const { session: inner } = result;
 
-    if (inner.model) await ensureLoopbackModelAuth(
-      inner.model,
-      () => services.modelRuntime.getAuth(inner.model!),
-      (provider, key) => services.modelRuntime.setRuntimeApiKey(provider, key),
-    );
+      if (inner.model) await ensureLoopbackModelAuth(
+        inner.model,
+        () => services.modelRuntime.getAuth(inner.model!),
+        (provider, key) => services.modelRuntime.setRuntimeApiKey(provider, key),
+      );
 
-    const persistedPreferences = await persistExplicitStartupPreferences(
-      services.settingsManager,
-      {
-        ...(initialModel ? { model: initialModel } : {}),
-        ...(thinkingLevel ? { thinkingLevel } : {}),
-      },
-      {
-        ...(inner.model
-          ? { model: { provider: inner.model.provider, modelId: inner.model.id } }
-          : {}),
-        thinkingLevel: inner.thinkingLevel,
-        supportsThinking: inner.supportsThinking(),
-      },
-    );
-    if (persistedPreferences.modelDefaultChanged) invalidateModelsCache();
+      const persistedPreferences = await persistExplicitStartupPreferences(
+        services.settingsManager,
+        sessionStartEvent ? {} : {
+          ...(initialModel ? { model: initialModel } : {}),
+          ...(thinkingLevel ? { thinkingLevel } : {}),
+        },
+        {
+          ...(inner.model
+            ? { model: { provider: inner.model.provider, modelId: inner.model.id } }
+            : {}),
+          thinkingLevel: inner.thinkingLevel,
+          supportsThinking: inner.supportsThinking(),
+        },
+      );
+      if (persistedPreferences.modelDefaultChanged) invalidateModelsCache();
 
-    // If specific tool names were requested (non-empty), set the active tools to the
-    // requested builtin coding tools PLUS all extension/package tools, so installed
-    // extensions stay usable in Pi Web just like in the `pi` CLI.
-    if (toolNames && toolNames.length > 0) {
-      inner.setActiveToolsByName(withExtensionTools(inner, toolNames));
-    }
+      // If specific tool names were requested (non-empty), set the active tools to the
+      // requested builtin coding tools PLUS all extension/package tools, so installed
+      // extensions stay usable in Pi Web just like in the `pi` CLI.
+      const requestedTools = host.wrapper?.inner.getActiveToolNames() ?? toolNames;
+      if (toolMode.disabled) inner.setActiveToolsByName([]);
+      else if (requestedTools) {
+        inner.setActiveToolsByName(withExtensionTools(inner, requestedTools));
+      }
+      return { ...result, services, diagnostics: services.diagnostics };
+    };
 
-    const wrapper = new AgentSessionWrapper(inner);
+    const runtime = await createAgentSessionRuntime(createRuntime, { cwd: sessionCwd, agentDir, sessionManager });
+    const inner = runtime.session;
+    const wrapper = new AgentSessionWrapper(inner, runtime, toolMode);
+    host.wrapper = wrapper;
     if (accessMode) wrapper.setAccessMode(accessMode);
     requestEduPiAppAction = (action, signal) => wrapper.requestEduPiAppAction(action, signal);
     requestEduPiComputerAction = (action, signal) => wrapper.requestEduPiComputerAction(action, signal);

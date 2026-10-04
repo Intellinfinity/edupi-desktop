@@ -4,6 +4,7 @@
 
 - 本日收尾远端 Core main 已推进到 `17abf51`，原 `22bf414` 的“最新 main”记录由本段取代。Desktop 已更新精确 pin、Runtime/Desktop 两份组件清单；独立核查确认仅依赖安装、安全检查/清单和日期夹具变化，业务模块、IPC/桥接/课次 schema 与 12 命令不变。新配对 20 项合同检查、隔离备课/来源失效/重启去重闭环、全量 Node 1849 通过/26 既有跳过/0 失败、TypeScript 与发布组件校验通过。见[配对验收](../acceptance/2026-10-04-core-216-pairing.md)。
 - 状态是源码/隔离服务已验，未打包、未安装、未公开发布；正式 App/feed 仍 v0.3.45。A1 暂缓只读、完整 A4、B 剩余入口和 C–D，以及真实睡眠、真人质量、六领域 Live 原欠项保持；#216 不构成这些能力的新验收。
+- 交付/合并记录：[Desktop PR #295](https://github.com/Intellinfinity/edupi-desktop/pull/295)。最终代码 `6fdbfb7` 的 [CI 37205247426](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37205247426) 全绿，后续仅补本验收记录；发布与新安装验收未执行。
 
 ## 2026-10-04 桌面教师工作流优化
 

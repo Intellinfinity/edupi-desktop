@@ -62,6 +62,8 @@ A3 [PR #294](https://github.com/Intellinfinity/edupi-desktop/pull/294) 已合并
 
 首轮 [CI 37203909001](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37203909001) 因两条旧界面结构断言失败：旧“Agent 正在运行”文案和工具条绝对定位。`2d0835c` 将它们更新为本轮已实测的“正在协作”和独立布局行，并新增不展示 Session 技术说明的守卫；没有删除测试或降低门槛。后续 CI 跟随 [PR #295](https://github.com/Intellinfinity/edupi-desktop/pull/295)。
 
+最终 [CI 37205247426](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37205247426) 在 `6fdbfb7` 全绿，包含后续 Core #216 配对；本段 UI 实测身份仍是 `22bf414`。之后的文档记录更新未改应用代码。
+
 1. 实测进入已有草稿的“Agent 执行”后，首个准备状态 GET 的 ready 回包触发 `onReady`，自动跳回产物，导致“开始协作”不可点击。现仅教师主动发起准备时，完成回包或轮询才跳到产物；被动读取仍刷新状态但保持当前阶段。初读 ready、被动 running → ready 的两项行为回归先红后绿；主动发起、切任务与卸载旧回包测试仍通过。
 2. 真实 Core 层级 widget 把 `edupi-layers / 感知 → 记忆 → 潜意识…` 展示在每段聊天上方。教师界面已由实际状态组件表达进度，因此仅教师分支过滤这个旧 widget；不删除运行数据、不隐藏其他扩展提示。`teacherMode` 明确由教师 AppShell 分支传入，普通分支默认 false，4 项渲染/实际调用点守卫通过。独立复审指出过仅根据回调判断会误覆盖普通 Pi 的问题，已修正；普通 Pi 分支保留是组件与调用点证据，不冒充该分支已做页面操作。
 3. 移除层级条后，800px 截图暴露工具图标遮住首条消息。工具条改为正常布局，正文不再被覆盖；弹窗仍能打开、关闭。协作卡不再默认显示 Session 哈希或建立独立 Session 的说明。

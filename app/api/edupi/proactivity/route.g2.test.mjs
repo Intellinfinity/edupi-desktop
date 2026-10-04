@@ -108,15 +108,15 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
       clearEduPiRuntimeQuarantine: () => { events.push({ operation: "clear-quarantine" }); },
     },
   };
-  const module = { exports: {} };
+  const routeModule = { exports: {} };
   new Function("require", "module", "exports", compiled)(name => {
     assert.ok(Object.hasOwn(modules, name), `unexpected dependency ${name}`); return modules[name];
-  }, module, module.exports);
+  }, routeModule, routeModule.exports);
   const request = body => new Request("http://localhost/api/edupi/proactivity", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return { events, grants, markers, activations, read, health,
-    get: query => module.exports.GET(new Request(`http://localhost/api/edupi/proactivity${query || ""}`)),
-    post: body => module.exports.POST(request(body)),
-    toggle: (enabled, domain) => module.exports.POST(request({ enabled, classId: enabled ? scope.classId : null,
+    get: query => routeModule.exports.GET(new Request(`http://localhost/api/edupi/proactivity${query || ""}`)),
+    post: body => routeModule.exports.POST(request(body)),
+    toggle: (enabled, domain) => routeModule.exports.POST(request({ enabled, classId: enabled ? scope.classId : null,
       subject: enabled ? scope.subject : null, expectedUpdatedAt: read(domain ?? G1).updatedAt, ...(domain ? { domain } : {}) })),
   };
 }

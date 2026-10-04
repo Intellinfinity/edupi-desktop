@@ -12,6 +12,8 @@
 
 Core #217 当前为已实现待验收：pin/CAS、独立默认关闭的 G2 授权与模型通道、捕获消息入队、公开跟进摘要审核/反馈消费者均已写入；原 G1 权限与数据边界保持。实现和缺失的上游字段见[唯一账本最新条目](2026-09-06-product-closure-roadmap.md#2026-10-05-core-217-源码适配)。本阶段不合并为已验收能力，不触发签名包。
 
+**当前增量：** 补 G2 的 `next_step`、剩余预算和逐执行状态只读合同，Core 与 Desktop 分别准备源码；正式 pin 仍为已合并 #217，待 Core 合同合并后再同步冻结 schema、hash 和两份清单。Core PR 自动触发 Windows 任务，因此当前不创建 Core PR、不改门禁；Desktop #296 保持 Draft。原 A1 暂缓只读为下一项独立 Core 前置，不混入本增量。[状态与证据](2026-09-06-product-closure-roadmap.md#2026-10-05-g2-只读合同增量)。
+
 ## 基线与已知问题
 
 - Desktop main `11c2c69`；当前工作树 `route1-core-a8fe471`，分支 `codex/route1-core-a8fe471-20260926`。保留所有既有改动，不 reset、clean、stash 或创建替代分支。

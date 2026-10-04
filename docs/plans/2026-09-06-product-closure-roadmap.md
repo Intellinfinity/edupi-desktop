@@ -1,5 +1,18 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-10-05 G2 只读合同增量
+
+- **已实现待配对与验收**：Core 独立源码分支 `codex/core-g2-read-projections-20261005` 的 `d48089e` 从已合并 #217 `00d05a1` 起步，为公开跟进增加 `next_step`，为 `owner_read` 增加 G2 剩余预算和执行记录。预算复用现有签名调用账本，最多 4 次；执行投影只读当前 owner 的已验证账本，不触发恢复、重排、模型调用或写入。缺文件/损坏为不可用，来源失效或无法证明分别为 historical/unverified，不公开 input、draft、permit 或路径。
+- Desktop 在原分支准备可选字段消费：有公开下一步才显示/允许编辑，修改使用现有 CAS 并核对回读；旧 Core 缺字段时写入前拒绝。预算缺失或未核实时显示未知；执行记录按授权过滤并折叠展示，停用后仍可读，claimed 不称正在运行，历史完成记录不称当前草稿。
+- **配对与交付边界**：Desktop 正式 pin、冻结 schema 和两份组件清单仍指向 #217，不提前指向未合并 Core。Core 新合同需要 Bridge 1.1/Runtime v1 schema 与 hash 同步；待 Core 合并后才能整体 repin。Core PR 会自动启动 Windows 任务，本轮按用户后置要求只保留源码分支，不创建 Core PR、不自动合并、不修改 CI 门禁；Desktop [#296](https://github.com/Intellinfinity/edupi-desktop/pull/296) 保持 Draft。
+- 本段取代下方“字段尚未实现”的源码状态，不改变其“已合并 Core 尚未提供”的事实。仅做必要的纯函数/VM/隔离文件单测、编译、定向 lint 和代码复审；运行、页面、E2、模型、安装与真人验收统一后置。正式 App/feed、真实数据根、模型配置、launchd 未动；A1 暂缓产物只读和其他原欠项仍保留。
+
+工程证据环境为 macOS arm64 / Node 22.23.1。Desktop 预算/执行代码 `d28e61e`：`lib/edupi-proactivity-runtime.test.mjs`、`lib/edupi-proactivity-client.test.mjs`、`components/EduPiProactivityCanary.test.mjs`、`app/api/edupi/proactivity/route.g2.test.mjs` 与 `route.rollback.test.mjs` 的定向单测通过；覆盖同一次只读、G1/G2 预算隔离、停止后记录保留、来源缺失不伪空队列及未知/耗尽/历史状态。`tsc --noEmit`、目标 ESLint、diff 检查通过。新 Core 组合器输出接 Desktop 边界的内存合同检查通过，不含真实服务或模型。Core 的两个新增隔离文件单测、原 G1 预算回归、Bridge/Runtime schema、fixture、writer matrix、两份清单静态重算及项目 typecheck 通过；[Core 检查记录](https://github.com/Intellinfinity/edupi/blob/d48089e/docs/loop/2026-10-05-g2-read-projections.md)保存命令与完整哈希。
+
+Desktop 下一步编辑代码 `43864d3`：`node --test components/EduPiFollowUpReview.test.mjs lib/edupi-follow-up-review.test.mjs components/EduPiC1Review.test.mjs` 的初始合同/VM 检查通过；复审修复后只重跑受影响的两份组件测试，25/25 通过，目标 ESLint 与最终 `tsc --noEmit` 通过。同 ID 后台更新会保留两个输入并阻断旧基线提交；显式取消重开后只发送教师改过的字段。提交中禁止再输入，失败后解禁。旧 Core 的 nextStep 写入仍在 dispatch 前拒绝。
+
+额外检查失败单列：Core 独立编译 `contracts/edupi-bridge-v1.1.ts` 报既有 `legacyTimetableCommand.properties.slots` 的 TS2339，未在本增量修复；项目 typecheck 不覆盖这项，不能替代它。独立复审发现并修正了同 ID 编辑被新 CAS 重基线、选定 grant 下无归属记录被误过滤为空、两处旧派生哈希断言，最终未见剩余 P1/P2。没有删除门禁或将未运行的 daemon/传输测试计为通过。Core `d48089e` 已推普通源码分支且无 CI run，Desktop 增量沿原 #296 Draft 交付；没有新建 internal 仓库或替代 Desktop 分支。
+
 ## 2026-10-05 Core #217 源码适配
 
 - 当前实现消费 Core `00d05a1ecb8f4bbc461305337b7059a02e757b69`，取代下方 #216 的配对现状。Runtime/Bridge/课次 schema 和 12 个公开命令不变；Desktop/Runtime component manifest 分别更新为 `fd150b8384542e84333f5a12924f09b5190de34a831f5b950f0b225c18b01269` / `356666c4a97417aebf1b98eb6f4948f0b79bbe02298acd5d791a2c54d61fd018`。CAS 同步 Core 的即时唤醒时间归一化与 decision 稳定排序。

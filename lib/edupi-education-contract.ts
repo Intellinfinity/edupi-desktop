@@ -196,6 +196,7 @@ export type EducationFollowUp = {
   title: string;
   summary: string;
   internalDraftSummary: string;
+  nextStep?: string;
   status: "candidate" | "pending_review" | "accepted" | "modified" | "rejected" | "held" | "suppressed";
   permissionState: "not_required" | "permission_required" | "approved" | "blocked";
   sourceIds: string[];
@@ -732,11 +733,14 @@ function normalizeFollowUps(value: unknown, snapshotPayload: RawRecord | undefin
     const target = strictRecord(entry.target);
     if (entry.projection_kind !== "follow_up" || !target || target.target_kind !== "follow_up" || target.command_type !== "review_follow_up") continue;
     if (!hasExactKeys(target, ["target_kind", "target_id", "command_type"])
-      || !hasExactKeys(entry, ["projection_kind", "target", "revision", "title", "summary", "status", "source_ids", "evidence_ids", "teacher_review", "external_send", "observed_event_ids", "internal_draft_summary", "permission_state"])) continue;
+      || !hasExactKeysWithOptional(entry, ["projection_kind", "target", "revision", "title", "summary", "status", "source_ids", "evidence_ids", "teacher_review", "external_send", "observed_event_ids", "internal_draft_summary", "permission_state"], ["next_step"])) continue;
     const followUpId = strictText(target.target_id, 160);
     const title = strictText(entry.title, 240);
     const summary = strictText(entry.summary, 2000);
     const internalDraftSummary = strictText(entry.internal_draft_summary, 2000);
+    const hasNextStep = Object.hasOwn(entry, "next_step");
+    const nextStep = hasNextStep ? strictText(entry.next_step, 1000) : null;
+    if (hasNextStep && nextStep === null) continue;
     const status = strictText(entry.status, 40) as EducationFollowUp["status"] | null;
     const permissionState = strictText(entry.permission_state, 40) as EducationFollowUp["permissionState"] | null;
     const sourceIds = boundedUniqueStrings(entry.source_ids, "follow_up.source_ids");
@@ -751,7 +755,7 @@ function normalizeFollowUps(value: unknown, snapshotPayload: RawRecord | undefin
     if (seen.has(followUpId)) return [];
     seen.add(followUpId);
     followUps.push({ followUpId, snapshotId, stateHash, revision: Number(entry.revision), title, summary, internalDraftSummary,
-      status, permissionState, sourceIds, evidenceIds, observedEventIds, teacherReview, externalSend: false });
+      ...(nextStep === null ? {} : { nextStep }), status, permissionState, sourceIds, evidenceIds, observedEventIds, teacherReview, externalSend: false });
   }
   return followUps.slice(0, 200);
 }

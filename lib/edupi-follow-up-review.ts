@@ -221,6 +221,7 @@ function boundedPatch(value: unknown, decision: FollowUpReviewDecision, current:
     normalized.internal_draft_summary = value;
   }
   if (patch.nextStep !== undefined) {
+    if (current.nextStep === undefined) throw new FollowUpReviewError("invalid_envelope", "Core does not expose a next step for this follow-up");
     const value = requiredText(patch.nextStep, "patch.nextStep", 1000);
     if (SENSITIVE_LANGUAGE.test(value)) throw new FollowUpReviewError("invalid_envelope", "follow-up next step contains sensitive classification");
     normalized.next_step = value;

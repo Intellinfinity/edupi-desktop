@@ -26,6 +26,14 @@ type ReviewTarget =
   | { kind: "memory_candidate"; item: EducationMemoryCandidate; id: string }
   | { kind: "follow_up"; item: EducationFollowUp; id: string };
 
+type FollowUpEditBaseline = Pick<EducationFollowUp, "followUpId" | "snapshotId" | "revision" | "internalDraftSummary" | "nextStep">;
+const EDIT_BASELINE_CHANGED = "草稿已更新，当前输入已保留。请取消后重新编辑。";
+
+function matchesEditBaseline(item: EducationFollowUp, baseline: FollowUpEditBaseline | null): boolean {
+  return baseline !== null && item.followUpId === baseline.followUpId && item.snapshotId === baseline.snapshotId
+    && item.revision === baseline.revision && item.internalDraftSummary === baseline.internalDraftSummary && item.nextStep === baseline.nextStep;
+}
+
 type ReceiptResult = {
   receipt?: unknown;
   data?: EducationContract;
@@ -172,9 +180,12 @@ function ReviewCard({
   busy,
   editing,
   draft,
+  nextStepDraft,
+  editBaseline,
   error,
   onDecision,
   onDraft,
+  onNextStepDraft,
   onCancelEdit,
 }: {
   target: ReviewTarget;
@@ -185,9 +196,12 @@ function ReviewCard({
   busy: ReviewDecision | null;
   editing: boolean;
   draft: string;
+  nextStepDraft: string | undefined;
+  editBaseline: FollowUpEditBaseline | null;
   error: string | null;
   onDecision: (decision: ReviewDecision) => void;
   onDraft: (value: string) => void;
+  onNextStepDraft: (value: string) => void;
   onCancelEdit: () => void;
 }) {
   const commandType = commandFor[target.kind];
@@ -196,7 +210,10 @@ function ReviewCard({
     && (target.kind !== "follow_up" || isPending(status) && target.item.permissionState !== "blocked");
   const content = targetTitle(target);
   const recordedAt = target.kind === "observation" ? target.item.observedAt : target.item.teacherReview.reviewedAt;
-  const canSubmitEdit = draft.trim().length > 0 && (target.kind !== "follow_up" || draft.trim() !== target.item.internalDraftSummary);
+  const editConflict = editing && target.kind === "follow_up" && !matchesEditBaseline(target.item, editBaseline);
+  const nextStep = target.kind === "follow_up" && target.item.nextStep !== undefined ? nextStepDraft ?? editBaseline?.nextStep ?? target.item.nextStep : undefined;
+  const canSubmitEdit = !editConflict && draft.trim().length > 0 && (nextStep === undefined || nextStep.trim().length > 0 && nextStep.length <= 1000)
+    && (target.kind !== "follow_up" || draft.length <= 2000 && (draft.trim() !== editBaseline?.internalDraftSummary || nextStep !== undefined && nextStep.trim() !== editBaseline?.nextStep));
   return (
     <article className="edupi-c1-review-card" id={`edupi-c1-review-${target.kind}-${target.id}`}>
       <div className="edupi-c1-review-card__header">
@@ -209,12 +226,16 @@ function ReviewCard({
       </div>
 
       {editing ? (
-        <label className="edupi-c1-review-card__editor">
+        <><label className="edupi-c1-review-card__editor">
           <span>{target.kind === "follow_up" ? "草稿摘要" : "修改内容"}</span>
-          <textarea aria-label={target.kind === "follow_up" ? "跟进草稿摘要" : "修改内容"} maxLength={target.kind === "follow_up" ? 2000 : undefined} value={draft} onChange={(event) => onDraft(event.target.value)} rows={3} autoFocus />
+          <textarea aria-label={target.kind === "follow_up" ? "跟进草稿摘要" : "修改内容"} maxLength={target.kind === "follow_up" ? 2000 : undefined} disabled={busy !== null} value={draft} onChange={(event) => onDraft(event.target.value)} rows={3} autoFocus />
         </label>
+          {nextStep !== undefined ? <label className="edupi-c1-review-card__editor">
+            <span>下一步</span><textarea aria-label="跟进下一步" maxLength={1000} disabled={busy !== null} value={nextStep} onChange={event => onNextStepDraft(event.target.value)} rows={2} />
+          </label> : null}
+        </>
       ) : target.kind === "follow_up" ? (
-        <><h2>{target.item.title}</h2><p>{content}</p></>
+        <><h2>{target.item.title}</h2><p>{content}</p>{target.item.nextStep !== undefined ? <p><strong>下一步</strong><br />{target.item.nextStep}</p> : null}</>
       ) : (
         <h2>{content}</h2>
       )}
@@ -234,7 +255,7 @@ function ReviewCard({
         </div>
       </details>
 
-      {target.kind !== "follow_up" || isPending(status) ? <div className="edupi-c1-review-card__actions" aria-label={`${targetTypeLabel(target)}审核动作`}>
+      {editing || target.kind !== "follow_up" || isPending(status) ? <div className="edupi-c1-review-card__actions" aria-label={`${targetTypeLabel(target)}审核动作`}>
         {editing ? (
           <>
             <button type="button" className="is-primary" disabled={!canReview || busy !== null || !canSubmitEdit} onClick={() => onDecision("modify")}>
@@ -257,7 +278,7 @@ function ReviewCard({
         )}
       </div> : null}
       {!canReview ? <p className="edupi-c1-review-card__disabled" role="status">当前只读。</p> : null}
-      {error ? <p className="edupi-c1-review-card__error" role="alert">{error}</p> : null}
+      {editConflict || error ? <p className="edupi-c1-review-card__error" role="alert">{editConflict ? EDIT_BASELINE_CHANGED : error}</p> : null}
     </article>
   );
 }
@@ -265,6 +286,8 @@ function ReviewCard({
 export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selectedTarget = null }: Props) {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [nextStepDraft, setNextStepDraft] = useState<string | undefined>(undefined);
+  const [editBaseline, setEditBaseline] = useState<FollowUpEditBaseline | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [busyDecision, setBusyDecision] = useState<ReviewDecision | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -295,11 +318,14 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
   }, [visibleKey]);
 
   useEffect(() => {
-    if (editingKey && !targets.some((target) => targetKey(target) === editingKey)) {
+    if (editingKey && !targets.some((target) => targetKey(target) === editingKey)
+      && !(data.followUps || []).some(item => editingKey === `follow_up:${item.followUpId}`)) {
       setEditingKey(null);
       setDraft("");
+      setNextStepDraft(undefined);
+      setEditBaseline(null);
     }
-  }, [editingKey, targets]);
+  }, [data.followUps, editingKey, targets]);
 
   const startEdit = (target: ReviewTarget) => {
     setError(null);
@@ -307,6 +333,10 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
     setReceipt(null);
     setEditingKey(targetKey(target));
     setDraft(targetTitle(target));
+    setNextStepDraft(target.kind === "follow_up" ? target.item.nextStep : undefined);
+    setEditBaseline(target.kind === "follow_up" ? { followUpId: target.item.followUpId, snapshotId: target.item.snapshotId,
+      revision: target.item.revision, internalDraftSummary: target.item.internalDraftSummary,
+      ...(target.item.nextStep === undefined ? {} : { nextStep: target.item.nextStep }) } : null);
   };
 
   const handleDecision = async (target: ReviewTarget, decision: ReviewDecision) => {
@@ -317,10 +347,21 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
       return;
     }
     if (!capability.enabled || !(capability.commands as readonly string[]).includes(commandType) || !capability.actions.includes(decision)) return;
-    const patch = decision === "modify"
-      ? target.kind === "observation" ? { text: draft.trim() } : target.kind === "follow_up" ? { internalDraftSummary: draft.trim() } : { proposed_content: draft.trim() }
-      : null;
-    if (decision === "modify" && !draft.trim()) return;
+    let patch: Record<string, string> | null = null;
+    if (decision === "modify") {
+      if (!draft.trim()) return;
+      if (target.kind === "follow_up") {
+        if (!editBaseline || !matchesEditBaseline(target.item, editBaseline)) {
+          setError(EDIT_BASELINE_CHANGED); setErrorKey(targetKey(target)); return;
+        }
+        const nextStep = editBaseline.nextStep !== undefined ? nextStepDraft ?? editBaseline.nextStep : undefined;
+        if (draft.length > 2000 || nextStep !== undefined && (!nextStep.trim() || nextStep.length > 1000)) return;
+        patch = { ...(draft.trim() !== editBaseline.internalDraftSummary ? { internalDraftSummary: draft.trim() } : {}),
+          ...(nextStep !== undefined && nextStep.trim() !== editBaseline.nextStep ? { nextStep: nextStep.trim() } : {}) };
+        if (Object.keys(patch).length === 0) return;
+      } else patch = target.kind === "observation" ? { text: draft.trim() } : { proposed_content: draft.trim() };
+    }
+    const expectedFollowUp = target.kind === "follow_up" ? decision === "modify" && editBaseline ? editBaseline : target.item : null;
     const key = targetKey(target);
     const context = requestContext.current;
     if (!context || context.key !== key) return;
@@ -342,7 +383,7 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
           patch,
           reviewerId: reviewerId.trim() || "teacher",
           externalSend: false,
-          ...(target.kind === "follow_up" ? { expectedSnapshotId: target.item.snapshotId, expectedRevision: target.item.revision } : {}),
+          ...(expectedFollowUp ? { expectedSnapshotId: expectedFollowUp.snapshotId, expectedRevision: expectedFollowUp.revision } : {}),
         }),
       });
       let result: ReceiptResult = {};
@@ -357,7 +398,8 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
       if (target.kind === "follow_up") {
         const refreshed = result.data?.followUps?.find(item => item.followUpId === target.id);
         if (!refreshed || refreshed.revision !== target.item.revision + 1 || refreshed.snapshotId !== result.receipt.after_snapshot_id || refreshed.status !== result.receipt.status
-          || decision === "modify" && refreshed.internalDraftSummary !== draft.trim()) throw new Error("未核对跟进草稿的新版本，请刷新后重试。");
+          || patch?.internalDraftSummary !== undefined && refreshed.internalDraftSummary !== patch.internalDraftSummary
+          || patch?.nextStep !== undefined && refreshed.nextStep !== patch.nextStep) throw new Error("未核对跟进草稿的新版本，请刷新后重试。");
       }
       await onRefresh();
       if (!current()) return;
@@ -365,6 +407,8 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
       setErrorKey(null);
       setEditingKey(null);
       setDraft("");
+      setNextStepDraft(undefined);
+      setEditBaseline(null);
     } catch (caught) {
       if (!current()) return;
       setError(caught instanceof Error ? caught.message : String(caught));
@@ -408,10 +452,13 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
               busy={busyKey === targetKey(visibleTarget) ? busyDecision : null}
               editing={editingKey === targetKey(visibleTarget)}
               draft={draft}
+              nextStepDraft={nextStepDraft}
+              editBaseline={editBaseline}
               error={errorKey === targetKey(visibleTarget) ? error : null}
               onDecision={(decision) => decision === "modify" && editingKey !== targetKey(visibleTarget) ? startEdit(visibleTarget) : void handleDecision(visibleTarget, decision)}
               onDraft={setDraft}
-              onCancelEdit={() => { setEditingKey(null); setDraft(""); setError(null); setErrorKey(null); }}
+              onNextStepDraft={setNextStepDraft}
+              onCancelEdit={() => { setEditingKey(null); setDraft(""); setNextStepDraft(undefined); setEditBaseline(null); setError(null); setErrorKey(null); }}
             />
         </section>
       ) : (

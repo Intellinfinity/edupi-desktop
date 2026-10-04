@@ -15,13 +15,14 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 const response = (value, status = 200) => new Response(JSON.stringify(value), { status });
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
-function publicTarget({ revision = 0, status = "pending_review", summary = "下节课核对移项时的符号。" } = {}) {
+function publicTarget({ revision = 0, status = "pending_review", summary = "下节课核对移项时的符号。", nextStep = undefined } = {}) {
   const reviewed = ["accepted", "modified", "rejected", "held"].includes(status);
   return {
     projection_kind: "follow_up", target: { target_kind: "follow_up", target_id: "synthetic-follow-up", command_type: "review_follow_up" },
     revision, title: "合成学生跟进", summary: "合成观察：移项漏写负号。", internal_draft_summary: summary,
     status, source_ids: ["synthetic-follow-up"], evidence_ids: ["synthetic-evidence"], observed_event_ids: ["synthetic-observation"],
     permission_state: "not_required", external_send: false,
+    ...(nextStep === undefined ? {} : { next_step: nextStep }),
     teacher_review: { state: status, revision, reviewer_id: reviewed ? "synthetic-teacher" : null,
       reviewed_at: reviewed ? "2026-10-04T01:00:00.000Z" : null, note: null },
   };
@@ -118,7 +119,7 @@ test("invalid, withdrawn, duplicate and unsupported follow-up projections stay u
   for (const mutate of [
     item => { item.status = "withdrawn"; }, item => { item.external_send = true; },
     item => { item.teacher_review.revision = 1; }, item => { item.source_ids = ["another-target"]; },
-    item => { item.observed_event_ids = []; }, item => { item.next_step = "private field"; },
+    item => { item.observed_event_ids = []; }, item => { item.private_next_step = "private field"; },
   ]) assert.deepEqual(dataFor({}, payload => { mutate(payload.review_targets[0]); return payload; }).followUps, []);
   assert.deepEqual(dataFor({}, payload => { payload.review_targets.push(structuredClone(payload.review_targets[0])); return payload; }).followUps, []);
   assert.equal(dataFor({}, payload => { payload.capabilities.supported_commands = COMMANDS.filter(value => value !== "review_follow_up"); return payload; }).capabilities.followUpReview.enabled, false);
@@ -134,6 +135,67 @@ test("follow-up route and review board retain the public object for review and l
   assert.deepEqual(chosen.map(value => ({ ...value })), [{ kind: "follow_up", id: "synthetic-follow-up" }]);
   app.update({ data: dataFor({ revision: 1, status: "accepted" }) });
   assert.match(textOf(app.render()), /已审核/);
+});
+
+// Forward-compatible public DTO fixtures; the pinned wire schema is not changed by these tests.
+test("next-step projection is optional and validates the existing Core 1000-character bound", () => {
+  assert.equal(Object.hasOwn(dataFor().followUps[0], "nextStep"), false);
+  assert.equal(dataFor({ nextStep: "核对一道移项练习。" }).followUps[0]?.nextStep, "核对一道移项练习。");
+  assert.equal(dataFor({ nextStep: "a".repeat(1000) }).followUps[0]?.nextStep.length, 1000);
+  for (const nextStep of [null, "", " ", 12, "a".repeat(1001)]) assert.deepEqual(dataFor({ nextStep }).followUps, []);
+});
+
+test("an exposed next step can be edited alone or with the summary and is verified after CAS save", async () => {
+  for (const editSummary of [false, true]) {
+    let data = dataFor({ nextStep: "记录一个原始例证。" });
+    const writes = [];
+    let app;
+    app = componentHarness("./EduPiC1Review.tsx", "EduPiC1Review", { data, reviewerId: "teacher",
+      selectedTarget: { kind: "follow_up", id: "synthetic-follow-up" }, onRefresh: async () => { app.update({ data }); },
+    }, async (_url, init) => {
+      const body = JSON.parse(init.body); writes.push(body);
+      data = dataFor({ revision: 1, status: "modified", summary: body.patch.internalDraftSummary, nextStep: body.patch.nextStep });
+      return response({ data, receipt: { receipt_id: "receipt-next-step", command_type: "review_follow_up",
+        target: { target_kind: "follow_up", target_id: "synthetic-follow-up", command_type: "review_follow_up" }, decision: "modify", status: "modified",
+        teacher_review: { revision: 1 }, after_snapshot_id: data.followUps[0].snapshotId, external_send: false } });
+    });
+    app.render(); assert.match(textOf(app.render()), /记录一个原始例证/);
+    app.click("修改");
+    assert.equal(app.get("textarea", "跟进下一步").props.maxLength, 1000);
+    assert.ok(app.get("button", "保存修改").props.disabled);
+    app.change("textarea", "跟进下一步", "");
+    assert.ok(app.get("button", "保存修改").props.disabled);
+    app.change("textarea", "跟进下一步", "记录一道计算过程。");
+    if (editSummary) app.change("textarea", "跟进草稿摘要", "核对移项后的符号。");
+    app.click("保存修改");
+    assert.equal(app.get("textarea", "跟进草稿摘要").props.disabled, true);
+    assert.equal(app.get("textarea", "跟进下一步").props.disabled, true);
+    await app.settle();
+    assert.deepEqual(writes[0].patch, { ...(editSummary ? { internalDraftSummary: "核对移项后的符号。" } : {}), nextStep: "记录一道计算过程。" });
+    assert.equal(writes[0].expectedRevision, 0);
+    assert.equal(writes[0].expectedSnapshotId, "snapshot-follow-up-0");
+    assert.equal(app.find("textarea", "跟进下一步"), undefined);
+    assert.match(textOf(app.render()), /记录一道计算过程/);
+    assert.match(textOf(app.render()), /已记录回执/);
+  }
+});
+
+test("next-step readback mismatch or omission preserves the draft without claiming success", async () => {
+  for (const returnedStep of ["另一项步骤。", undefined]) {
+    let refreshes = 0;
+    const changed = dataFor({ revision: 1, status: "modified", nextStep: returnedStep });
+    const app = componentHarness("./EduPiC1Review.tsx", "EduPiC1Review", { data: dataFor({ nextStep: "原步骤。" }), reviewerId: "teacher",
+      selectedTarget: { kind: "follow_up", id: "synthetic-follow-up" }, onRefresh: async () => { refreshes += 1; },
+    }, async () => response({ data: changed, receipt: { receipt_id: "receipt-wrong-step", command_type: "review_follow_up",
+      target: { target_kind: "follow_up", target_id: "synthetic-follow-up", command_type: "review_follow_up" }, decision: "modify", status: "modified",
+      teacher_review: { revision: 1 }, after_snapshot_id: changed.followUps[0].snapshotId, external_send: false } }));
+    app.render(); app.click("修改"); app.change("textarea", "跟进下一步", "必须核对的步骤。"); app.click("保存修改"); await app.settle();
+    assert.equal(app.get("textarea", "跟进下一步").props.value, "必须核对的步骤。");
+    assert.equal(app.get("textarea", "跟进草稿摘要").props.disabled, false);
+    assert.equal(app.get("textarea", "跟进下一步").props.disabled, false);
+    assert.equal(refreshes, 0);
+    assert.doesNotMatch(textOf(app.render()), /已记录回执/);
+  }
 });
 
 test("follow-up summary editing sends CAS fields, preserves conflict input, and verifies refreshed content", async () => {
@@ -161,6 +223,9 @@ test("follow-up summary editing sends CAS fields, preserves conflict input, and 
   current = dataFor({ revision: 2 });
   app.click("刷新"); await app.settle();
   assert.equal(writes.length, 1, "Refresh must never replay a review POST");
+  assert.ok(app.get("button", "保存修改").props.disabled, "A refresh must not silently rebase the existing draft");
+  assert.equal(app.get("textarea", "跟进草稿摘要").props.value, "核对一道移项练习。");
+  app.click("取消"); app.click("修改"); app.change("textarea", "跟进草稿摘要", "核对一道移项练习。");
   fail = false; app.click("保存修改"); await app.settle();
   assert.equal(writes[1].targetKind, "follow_up");
   assert.equal(writes[1].expectedSnapshotId, "snapshot-follow-up-2");
@@ -171,6 +236,54 @@ test("follow-up summary editing sends CAS fields, preserves conflict input, and 
   assert.match(textOf(app.render()), /已记录回执/);
   app.update({ data: dataFor({}, payload => ({ ...payload, review_targets: [] })) });
   assert.equal(app.find("follow-up-feedback"), undefined, "Withdrawn public targets must not leave an active feedback entry");
+});
+
+test("a same-ID background revision cannot rebase either old field onto newer CAS fields", async () => {
+  for (const editedField of ["internalDraftSummary", "nextStep"]) {
+    let data = dataFor({ revision: 1, summary: "摘要一", nextStep: "步骤一" });
+    const writes = [], label = editedField === "nextStep" ? "跟进下一步" : "跟进草稿摘要";
+    const app = componentHarness("./EduPiC1Review.tsx", "EduPiC1Review", { data, reviewerId: "teacher",
+      selectedTarget: { kind: "follow_up", id: "synthetic-follow-up" }, onRefresh: async () => {},
+    }, async (_url, init) => { writes.push(JSON.parse(init.body)); return response({ reason: "synthetic request captured" }, 409); });
+    app.render(); app.click("修改"); app.change("textarea", label, "教师自己的修改");
+    data = dataFor({ revision: 2, summary: "其他人更新的摘要", nextStep: "其他人更新的步骤" });
+    app.update({ data });
+    assert.equal(app.get("textarea", "跟进草稿摘要").props.value, editedField === "internalDraftSummary" ? "教师自己的修改" : "摘要一");
+    assert.equal(app.get("textarea", "跟进下一步").props.value, editedField === "nextStep" ? "教师自己的修改" : "步骤一");
+    assert.ok(app.get("button", "保存修改").props.disabled);
+    assert.match(textOf(app.render()), /取消后重新编辑/);
+    app.get("button", "保存修改").props.onClick(); await app.settle();
+    assert.equal(writes.length, 0, "The handler must reject stale edit state even if invoked directly");
+    app.click("取消"); app.click("修改");
+    assert.equal(app.get("textarea", "跟进草稿摘要").props.value, "其他人更新的摘要");
+    assert.equal(app.get("textarea", "跟进下一步").props.value, "其他人更新的步骤");
+    app.change("textarea", label, "重新核对后的修改"); app.click("保存修改"); await app.settle();
+    assert.equal(writes[0].expectedRevision, 2);
+    assert.equal(writes[0].expectedSnapshotId, "snapshot-follow-up-2");
+    assert.deepEqual(writes[0].patch, { [editedField]: "重新核对后的修改" });
+  }
+});
+
+test("a summary draft survives background review and snapshot changes until explicit cancellation", async () => {
+  for (const change of ["reviewed-revision", "snapshot", "summary-field"]) {
+    let writes = 0;
+    const data = dataFor({ revision: 1, summary: "编辑起点摘要" });
+    const app = componentHarness("./EduPiC1Review.tsx", "EduPiC1Review", { data, reviewerId: "teacher",
+      selectedTarget: { kind: "follow_up", id: "synthetic-follow-up" }, onRefresh: async () => {},
+    }, async () => { writes += 1; return response({}, 503); });
+    app.render(); app.click("修改"); app.change("textarea", "跟进草稿摘要", "仍要保留的本地摘要");
+    const next = change === "reviewed-revision" ? dataFor({ revision: 2, status: "modified", summary: "后台已审核摘要" }) : structuredClone(data);
+    if (change === "snapshot") next.followUps[0].snapshotId = "snapshot-changed-elsewhere";
+    if (change === "summary-field") next.followUps[0].internalDraftSummary = "字段发生变化";
+    app.update({ data: next });
+    assert.equal(app.get("textarea", "跟进草稿摘要").props.value, "仍要保留的本地摘要", change);
+    assert.ok(app.get("button", "保存修改").props.disabled, change);
+    app.get("button", "保存修改").props.onClick(); await app.settle();
+    assert.equal(writes, 0, change);
+    app.click("取消");
+    assert.equal(app.find("textarea", "跟进草稿摘要"), undefined);
+    assert.match(textOf(app.render()), new RegExp(next.followUps[0].internalDraftSummary));
+  }
 });
 
 test("observation and memory edits retain their original review route and patch fields", async () => {
@@ -211,17 +324,19 @@ test("a late review completion cannot clear another object draft or a later visi
   for (const returnToFirst of [false, true]) {
     const pending = deferred();
     let refreshes = 0;
-    const second = publicTarget(); second.target.target_id = "synthetic-second"; second.source_ids = ["synthetic-second"];
-    const data = dataFor({}, payload => ({ ...payload, review_targets: [...payload.review_targets, second] }));
+    const second = publicTarget({ nextStep: "第二个对象原步骤" }); second.target.target_id = "synthetic-second"; second.source_ids = ["synthetic-second"];
+    const data = dataFor({ nextStep: "第一个对象原步骤" }, payload => ({ ...payload, review_targets: [...payload.review_targets, second] }));
     const app = componentHarness("./EduPiC1Review.tsx", "EduPiC1Review", {
       data, reviewerId: "teacher", selectedTarget: { kind: "follow_up", id: "synthetic-follow-up" }, onRefresh: async () => { refreshes += 1; },
     }, () => pending.promise);
     app.render(); app.click("修改"); app.change("textarea", "跟进草稿摘要", "第一个对象提交的摘要"); app.click("保存修改");
     app.update({ selectedTarget: { kind: "follow_up", id: "synthetic-second" } });
     app.click("修改"); app.change("textarea", "跟进草稿摘要", "第二个对象未提交的摘要");
+    app.change("textarea", "跟进下一步", "第二个对象未提交的步骤");
     if (returnToFirst) {
       app.update({ selectedTarget: { kind: "follow_up", id: "synthetic-follow-up" } });
       app.click("修改"); app.change("textarea", "跟进草稿摘要", "返回第一个对象后的新草稿");
+      app.change("textarea", "跟进下一步", "返回第一个对象后的新步骤");
     }
     const refreshed = dataFor({ revision: 1, status: "modified", summary: "第一个对象提交的摘要" });
     pending.resolve(response({ data: refreshed, receipt: { receipt_id: "late-first-receipt", command_type: "review_follow_up",
@@ -229,6 +344,7 @@ test("a late review completion cannot clear another object draft or a later visi
       teacher_review: { revision: 1 }, after_snapshot_id: refreshed.followUps[0].snapshotId, external_send: false } }));
     await app.settle();
     assert.equal(app.get("textarea", "跟进草稿摘要").props.value, returnToFirst ? "返回第一个对象后的新草稿" : "第二个对象未提交的摘要");
+    assert.equal(app.get("textarea", "跟进下一步").props.value, returnToFirst ? "返回第一个对象后的新步骤" : "第二个对象未提交的步骤");
     assert.equal(refreshes, 0, "A stale completion must not trigger a refresh in the current view");
     assert.doesNotMatch(textOf(app.render()), /late-first-receipt|已记录回执/);
   }

@@ -87,6 +87,7 @@ test("runtime host leaves G1 Live off without an exact scoped grant and forwards
   const { lastOptions } = await import(path.join(root, "scripts/core_runtime_daemon.mjs"));
   assert.equal(lastOptions().ambientPlanning, true);
   assert.equal(lastOptions().g1Live, undefined);
+  assert.equal(lastOptions().g3Live, undefined);
   await host.close();
 
   const scope = { classId: "class-7-1", subject: "数学", grantId: "desktop_canary_class_7_math" };
@@ -94,7 +95,12 @@ test("runtime host leaves G1 Live off without an exact scoped grant and forwards
     options: { ...options, ownerControlToken: "owner-control-test", g1Scope: scope } }, channel);
   assert.deepEqual(lastOptions().g1Live.scope, { classId: scope.classId, subject: scope.subject });
   assert.equal(lastOptions().g1Live.grantId, scope.grantId);
+  assert.equal(lastOptions().g1Live.durableTeachingPreparation, undefined);
+  assert.equal(lastOptions().g3Live, undefined);
   await scoped.close();
+  for (const field of ["durableTeachingPreparation", "durableCalendarAdministration", "g1Live", "g3Live"]) {
+    await assert.rejects(startCoreRuntimeHost({ coreRoot: root, options: { ...options, [field]: {} } }, channel), /Invalid runtime bootstrap/);
+  }
   await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
     options: { ...options, ambientPlanning: false, g1Scope: scope } }, channel), /Invalid runtime bootstrap/);
 });

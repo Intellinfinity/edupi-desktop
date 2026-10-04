@@ -2,10 +2,10 @@
   "compat_manifest_version": "1.0",
   "core_repository": "edupi",
   "core_runtime": {
-    "core_commit": "17abf510bcb66826a6e810ff33c5bda198b6d2da",
+    "core_commit": "00d05a1ecb8f4bbc461305337b7059a02e757b69",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:dc3ca550a3aa490d8f0b77483da60c2feb9ff444bea0fcbe857683018ea85d77",
-    "runtime_component_manifest_hash": "sha256:ea91c72b14891775fa1e53891e1db79c12c40f713c44d5c041772f492403c224",
+    "component_manifest_hash": "sha256:fd150b8384542e84333f5a12924f09b5190de34a831f5b950f0b225c18b01269",
+    "runtime_component_manifest_hash": "sha256:356666c4a97417aebf1b98eb6f4948f0b79bbe02298acd5d791a2c54d61fd018",
     "runtime_schema_hash": "sha256:8b4d701c64fd191019bee627eae7f9b2fbc533c0adbd41df4110ffc7719da9b8"
   },
   "contract_identities": [
@@ -171,7 +171,8 @@
     "https://github.com/Intellinfinity/edupi/pull/214",
     "https://github.com/Intellinfinity/edupi/pull/215",
     "https://github.com/Intellinfinity/edupi/pull/216",
+    "https://github.com/Intellinfinity/edupi/pull/217",
     "https://github.com/Intellinfinity/edupi-desktop/pull/287"
   ],
-  "change_note": "Desktop pin to Core #216: dependency installation security fixes and refreshed Desktop/Runtime component manifests; Runtime IPC, bridge/occurrence identities and the 12 public commands remain unchanged. Core #215 canonical class-ID source fencing and teacher draft readback are preserved. Same-ID cross-class timetable changes are held; unbound legacy rows remain separate until teacher confirmation. A stopped isolated Windows Safe Mode canary retains native root admission for owner-control and teacher readback, while autonomous G1 still requires the current exact class/subject/source grant and durable model budget. Direct Core CLI canary is unsupported. G2 and G3/G4 Live remain activation_pending outside separately permitted canaries. G5 recipients, unconfirmed material evidence, and term/lesson attribution remain unverified; external_send=false."
+  "change_note": "Desktop pin to Core #217: source-guarded G2 natural student observation intake and isolated model execution, with refreshed Desktop/Runtime component manifests. Runtime IPC, bridge/occurrence identities and the 12 public commands remain unchanged. Snapshot CAS mirrors Core's immediate act wake normalization and stable decision ordering; source changes and future wake times still change the identity. Core #216 dependency security fixes and #215 canonical class-ID source fencing and teacher draft readback are preserved. Same-ID cross-class timetable changes are held; unbound legacy rows remain separate until teacher confirmation. G1/G2 execution still requires the current exact scoped owner grant and durable model budget. A stopped isolated Windows Safe Mode canary retains native root admission for owner-control and teacher readback; direct Core CLI canary is unsupported. G3/G4 Live remain activation_pending outside separately permitted canaries. G5 recipients, unconfirmed material evidence, and term/lesson attribution remain unverified; external_send=false."
 }

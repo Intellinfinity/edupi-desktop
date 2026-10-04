@@ -8,7 +8,7 @@
 - **已实现待验收**：消费公开 follow_up review target，提供摘要、观察依据、当前版本审核与独立价值反馈；不伪造 G1 文件/workCase。旧审核回包不能清空另一对象草稿，historical/unverified 反馈不能标为当前“已评价”；跟进计数、冷加载和已审核详情入口已接入。
 - 实现提交按合同、授权/模型、消息及消费者分为 `7855956`、`48bdb92`、`e9e4960`、`c76f48d`。仅进行了必要合同、假传输/组件单测、定向 lint、TypeScript 与独立代码复审；未跑 App/浏览器、Core daemon、实际模型、E2、全套、CI、打包或安装。审查发现的回包和反馈来源竞态已修复并有先红后绿的回归。新配对没有借用旧安装证据。
 - Core 仍未公开 G2 的逐执行状态、剩余预算和 next_step 回读。Desktop 返回/显示预算未知，不提供缺失字段的编辑，不读取私有 store 补数；A1 暂缓只读仍未实现。启用新 observation-only 私有格式后，回退必须保留兼容 Core 并关闭 G2，或恢复启用前备份，不能直接用旧 Core 覆写同一数据根。
-- 本节是源码实现记录，不是验收完成；PR 保留 Draft，主线合并、整体 CI 与产品验收分别待后续执行。正式 App/feed 仍为 v0.3.45，真实数据、模型配置和 launchd 未修改。
+- 本节是源码实现记录，不是验收完成；[Desktop PR #296](https://github.com/Intellinfinity/edupi-desktop/pull/296) 为 Draft，主线合并、整体 CI 与产品验收分别待后续执行。正式 App/feed 仍为 v0.3.45，真实数据、模型配置和 launchd 未修改。
 
 ## 2026-10-04 执行顺序调整
 

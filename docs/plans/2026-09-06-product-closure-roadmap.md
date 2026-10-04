@@ -1,5 +1,15 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-10-05 Pi 1.0.2 与 Core #218 对齐
+
+- 用户要求先消除 Core 适配落后与已有风险，再继续 A1。已核对 Core `main` 为 #218 `8d0bcdfaf08e529e453c44e71096942b664bddb7`，Pi/Chord/PiDurable 精确为 1.0.2。Desktop 原 0.84.1 正在迁移会话管理、分叉、空工具资源隔离与标题上下文；保留所有已有提交和未提交改动。
+- 上轮 G2 只读分支已合入 #218 的源码，保留 checkpoint 恢复、只读状态与默认关闭的 Durable；独立 Bridge 合同编译 TS2339 已通过局部类型修复关闭，wire schema 没有为类型修复改变。Runtime/Desktop 清单按合并后代码重算。
+- 依赖已干净安装并移除旧 Pi postinstall 替换器。兼容清单增加 `core_sdk`，发布校验与 Core 打包入口检查 Desktop SDK、Core SDK、Durable 版本及固定 bundle 摘要，防止后续只改 pin 留下旧 SDK。Durable 仍由 Core 单一写者持有，Desktop 不另建执行库或自动打开行政试点。
+- Core [#219](https://github.com/Intellinfinity/edupi/pull/219) 在 [CI 37225328980](https://github.com/Intellinfinity/edupi/actions/runs/37225328980) 质量与原生安全检查通过后合并为 `4f0bab6eb339944c0354d03e7bdd7b008a4866cf`。Desktop 已整体更新精确 pin、Bridge schema/夹具及两份清单，取代下文“新字段未配对”的状态。Runtime schema 为 `5d7080f2…`，Runtime/Desktop 清单为 `a9b0da22…` / `8cee54a6…`；实际 Core Git 身份、文件与依赖闭包只读核对通过。
+- 本机工程检查：干净 `npm ci` 审计 0 漏洞；SDK 安全与对齐门、Core 新合同审核回读、受影响 C1/跟进组件测试通过。Pi 1 会话定向组 62/62，后续缓存与分叉保存失败修复后重跑相关 22/22；TypeScript、目标 lint、发布版本清单和 diff 检查通过。使用临时数据、内存 provider 或纯函数，没有真实教师配置和外部模型调用。Core 依赖单测曾误包含一次本地 HTTP 请求，已记在其检查记录，不能写成本轮完全未跑 HTTP。
+- 风险修复包括：上轮合同 TS2339、Pi 只读状态赋值、主题新增必需颜色、同模式重载仍取旧扩展代码、分叉首写失败后的旧会话注册键。新 SDK 会话历史使用 SessionManager，工具全关使用官方 hook 和资源隔离，保留用户消息前分叉语义；Durable checkpoint 不代表发布或审核完成。
+- 本轮代码 CI 与合并用于完成配对；页面、真实模型、教师流程、睡眠/通知和安装验收继续后置，不启动 Windows 安装或手动试机，不改真实数据根、模型配置、launchd 或正式 App/feed。Desktop #296 合并结果仍待收口记录，状态为**已实现待代码 CI、产品验收后置**；完成配对后继续 A1 暂缓草稿只读合同。
+
 ## 2026-10-05 G2 只读合同增量
 
 - **已实现待配对与验收**：Core 独立源码分支 `codex/core-g2-read-projections-20261005` 的 `d48089e` 从已合并 #217 `00d05a1` 起步，为公开跟进增加 `next_step`，为 `owner_read` 增加 G2 剩余预算和执行记录。预算复用现有签名调用账本，最多 4 次；执行投影只读当前 owner 的已验证账本，不触发恢复、重排、模型调用或写入。缺文件/损坏为不可用，来源失效或无法证明分别为 historical/unverified，不公开 input、draft、permit 或路径。

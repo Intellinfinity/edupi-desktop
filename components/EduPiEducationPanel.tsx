@@ -175,6 +175,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const [taskSessionBusy, setTaskSessionBusy] = useState(false);
   const [taskSessionError, setTaskSessionError] = useState<string | null>(null);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [previewArtifact, setPreviewArtifact] = useState<{ id: string; title: string } | null>(null);
+  const previewArtifactId = previewArtifact?.id ?? null;
   const [fileReturnTaskKey, setFileReturnTaskKey] = useState<string | null>(null);
   const [reviewBusy, setReviewBusy] = useState<TaskReviewAction | null>(null);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
@@ -932,8 +934,11 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const openFile = useCallback((path: string) => {
     setFileReturnTaskKey(null);
     setPreviewPath(path);
+    const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation"
+      && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === path.replaceAll("\\", "/"));
+    setPreviewArtifact(artifact ? { id: artifact.artifact_id, title: artifact.title } : null);
     setDrawer("file");
-  }, []);
+  }, [education]);
 
   const reminderDocumentId = searchParams.get("document");
   useEffect(() => {
@@ -985,11 +990,10 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [education?.calendar, onCloseQuickEntry, onFocusAgentChat, selectCalendarItem, selectTask, selectView, tasks]);
 
   const openTaskFile = useCallback((path: string) => {
+    openFile(path);
     setFileReturnTaskKey(taskDetailTask ? taskKey(taskDetailTask) : null);
     setTaskDetailTask(null);
-    setPreviewPath(path);
-    setDrawer("file");
-  }, [taskDetailTask]);
+  }, [openFile, taskDetailTask]);
 
   const closeTaskDetail = useCallback(() => {
     cancelActivation();
@@ -1235,7 +1239,13 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       {taskDetail ? <EduPiTaskDetailDrawer task={taskDetail} workCase={workCaseForTask(education, taskDetail.id)} files={education.generatedArtifacts} workspace={education.workspace} onClose={closeTaskDetail} onOpenFile={openTaskFile} onOpenTask={selectTask} onOpenAgent={openAgentForTask} onDelete={(task) => { if (task.id) void deleteEntity("task", task.id, task.title).catch(() => {}); }} deleteBusy={deleteBusy === `task:${taskDetail.id}`} agentBusy={taskSessionBusy} agentError={taskSessionError ? "会话暂不可用，请重试" : null} /> : null}
       <EduPiQuickEntry open={quickEntryOpen} education={education} onClose={onCloseQuickEntry} onSelect={selectQuickEntry} />
       {deleteLabel ? <EduPiDeleteConfirmation label={deleteLabel} onResolve={resolveDeleteConfirmation} /> : null}
-      {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? (() => { const artifact = education?.generatedArtifacts?.find(file => file.origin === "preparation" && file.available !== false && `${education.workspace.replace(/[\\/]$/, "")}/${file.relative_path}`.replaceAll("\\", "/") === previewPath.replaceAll("\\", "/")); const preview = renderFilePreview(previewPath); return artifact ? <EduPiPreparationArtifactEditor key={artifact.artifact_id} artifactId={artifact.artifact_id} preview={preview} onSaved={value => { setPreviewPath(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }} onAgent={prompt => { closeDrawer(false); startAgent(prompt, "replace"); }} /> : preview; })() : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}
+      {drawer === "file" ? <FileWorkspaceDrawer kind="file" task={activeView === "tasks" || activeView === "review" ? activeTask : undefined} filePath={previewPath} fileTitle={education?.generatedArtifacts?.find(file => file.artifact_id === previewArtifactId || previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title || previewArtifact?.title || education?.teacherMaterials?.find(file => previewPath?.replaceAll("\\", "/").endsWith(`/${file.relative_path.replaceAll("\\", "/")}`))?.title} filePanel={previewPath ? previewArtifactId ? <EduPiPreparationArtifactEditor
+        key={previewArtifactId}
+        artifactId={previewArtifactId}
+        preview={value => renderFilePreview(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`)}
+        onSaved={value => { setPreviewPath(`${education!.workspace.replace(/[\\/]$/, "")}/${value.relative_path}`); window.dispatchEvent(new Event("edupi-preparation-updated")); }}
+        onAgent={prompt => { closeDrawer(false); startAgent(prompt, "replace"); }}
+      /> : renderFilePreview(previewPath) : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt} /> : null}
       <input ref={materialUploadInputRef} type="file" multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.ics" onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void stageBrowserFiles(files); }} />
       {materialStagingMessage && activeView !== "materials" ? <div className={`edupi-material-staging-toast is-${materialStagingMessage.tone}`} role={materialStagingMessage.tone === "error" ? "alert" : "status"} aria-live="polite"><span>{materialStagingMessage.text}</span>{materialStagingMessage.sticky ? <button type="button" onClick={() => setMaterialStagingMessage(null)} aria-label="关闭提示" title="关闭提示">×</button> : null}</div> : null}
       {contextOpen ? <div className="edupi-context-modal" onMouseDown={(event) => { if (event.target === event.currentTarget && !contextBusy) setContextOpen(false); }}><div ref={contextModalRef} className="edupi-context-modal__panel" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="edupi-context-editor-title"><button data-autofocus type="button" className="edupi-context-modal__close" disabled={contextBusy} onClick={() => { if (!contextBusy) setContextOpen(false); }} aria-label="关闭教育上下文">×</button><EduPiContextEditor initial={context} candidate={education?.teacherContextCandidates[0] ?? null} capability={education?.capabilities.teacherContextReview ?? null} history={education?.teacherContextReviewHistory ?? []} onBusyChange={setContextBusy} onClose={() => { if (!contextBusy) setContextOpen(false); }} onReviewed={async () => await loadWorkspace() ?? education} onAgentRequest={(prompt) => { if (!contextBusy) { setContextOpen(false); startAgent(prompt, "replace"); } }} /></div></div> : null}

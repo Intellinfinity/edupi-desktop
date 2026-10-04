@@ -30,3 +30,43 @@ test("task handoff stays visibly pending and reports a retryable activation erro
   assert.match(failed, /role="alert"[^>]*>会话暂不可用<\/p>/);
   assert.match(failed, />继续让 EduPi 做<\/button>/);
 });
+
+test("prepared count follows the visible deduplicated files instead of planned deliverables", () => {
+  const files = [
+    { artifact_id: "artifact-1", title: "教案", relative_path: ".edupi/output/lesson.md", available: false, task_id: "task-1" },
+    { artifact_id: "artifact-3", title: "答案", relative_path: ".edupi/output/answers.md", task_id: "task-1" },
+    { artifact_id: "another-task", title: "其他任务文件", relative_path: ".edupi/output/other.md", task_id: "task-2" },
+  ];
+  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
+    task: { ...task, deliverables: ["一套备课材料"] }, workCase, files, workspace: "/tmp/teacher",
+    onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {},
+  }));
+  assert.match(html, /id="edupi-task-detail-ready">已准备<\/h3><span>3 项<\/span>/);
+  assert.equal((html.match(/<strong>教案<\/strong>/g) || []).length, 1);
+  assert.match(html, /<button[^>]*disabled=""[^>]*><strong>教案<\/strong>/);
+  assert.doesNotMatch(html, /其他任务文件/);
+});
+
+test("work-case files remain counted without legacy deliverable labels", () => {
+  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
+    task: { ...task, deliverables: [] }, workCase, workspace: "/tmp/teacher",
+    onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {},
+  }));
+  assert.match(html, /id="edupi-task-detail-ready">已准备<\/h3><span>2 项<\/span>/);
+  assert.match(html, /<button[^>]*><strong>学案<\/strong>/);
+});
+
+test("a legacy file counts as one without an empty-state message, while a truly empty task stays empty", () => {
+  const props = { workCase: null, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} };
+  const withFile = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
+    ...props, task: { ...task, deliverables: [], evidence: { artifact_file_path: ".edupi/output/lesson.md" } },
+  }));
+  assert.match(withFile, /id="edupi-task-detail-ready">已准备<\/h3><span>1 项<\/span>/);
+  assert.match(withFile, /aria-label="打开产物"/);
+  assert.doesNotMatch(withFile, /暂无已准备内容/);
+  const empty = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
+    ...props, task: { ...task, deliverables: [], contentStatus: null },
+  }));
+  assert.match(empty, /id="edupi-task-detail-ready">已准备<\/h3><span>0 项<\/span>/);
+  assert.match(empty, /暂无已准备内容/);
+});

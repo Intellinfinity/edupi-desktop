@@ -73,6 +73,7 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
   const contentReady = taskContentReady(task);
   const plans = contentReady ? [] : task.deliverables;
   const file = contentReady ? taskArtifactFile(task, workspace) : null;
+  const artifactCount = preparedFiles.length || artifacts.length || (file ? 1 : 0);
   const evidenceRows = taskEvidenceRows(task);
   const fileHasVerification = Boolean(file?.hash);
   const evidence = evidenceRows.filter(({ label }) => label !== "来源路径" && label !== "产物文件" && label !== "文件校验");
@@ -114,8 +115,8 @@ export function EduPiTaskDetailDrawer({ task, workCase, files = [], workspace, o
           </section>}
 
           <section className="edupi-task-detail-section" aria-labelledby="edupi-task-detail-ready">
-            <header><h3 id="edupi-task-detail-ready">已准备</h3><span>{artifacts.length} 项</span></header>
-            {preparedFiles.length > 0 ? <ul className="edupi-task-detail-artifacts">{preparedFiles.map((artifact) => <li key={artifact.id}><button type="button" disabled={!artifact.available} onClick={() => { if (!artifact.available) return; onOpenFile(`${workspaceRoot}/${artifact.relativePath}`); }}><strong>{artifact.title}</strong><small>{!artifact.available ? "文件不可用" : task.status === "accepted" || task.status === "modified" ? "已确认" : "候选"}</small></button></li>)}</ul> : artifacts.length > 0 ? <ul className="edupi-task-detail-artifacts">{artifacts.map((artifact) => <li key={artifact.id}><div><strong>{artifact.title}</strong><small>{artifact.state === "confirmed" ? "已确认" : "候选"}</small></div></li>)}</ul> : <p className="edupi-task-detail-empty">暂无已准备内容</p>}
+            <header><h3 id="edupi-task-detail-ready">已准备</h3><span>{artifactCount} 项</span></header>
+            {preparedFiles.length > 0 ? <ul className="edupi-task-detail-artifacts">{preparedFiles.map((artifact) => <li key={artifact.id}><button type="button" disabled={!artifact.available} onClick={() => { if (!artifact.available) return; onOpenFile(`${workspaceRoot}/${artifact.relativePath}`); }}><strong>{artifact.title}</strong><small>{!artifact.available ? "文件不可用" : task.status === "accepted" || task.status === "modified" ? "已确认" : "候选"}</small></button></li>)}</ul> : artifacts.length > 0 ? <ul className="edupi-task-detail-artifacts">{artifacts.map((artifact) => <li key={artifact.id}><div><strong>{artifact.title}</strong><small>{artifact.state === "confirmed" ? "已确认" : "候选"}</small></div></li>)}</ul> : !file ? <p className="edupi-task-detail-empty">暂无已准备内容</p> : null}
             {plans.length > 0 ? <div className="edupi-task-detail-plans"><strong>计划交付</strong><ul>{plans.map((plan) => <li key={plan}>{plan}</li>)}</ul></div> : null}
             {file && preparedFiles.length === 0 ? <div className="edupi-task-detail-file"><span aria-hidden="true">文</span><div><strong>{fileName(file.path)}</strong><small>{fileHasVerification ? "文件已核验" : "文件已留存"}</small></div><EduPiIconButton type="button" icon="open" label="打开产物" onClick={() => onOpenFile(file.path)}/></div> : null}
           </section>

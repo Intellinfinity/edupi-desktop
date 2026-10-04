@@ -75,7 +75,7 @@ export function EduPiPreparationArtifactEditor({ artifactId, preview, onSaved, o
       <button className="native-button native-button-primary" type="button" disabled={busy} onClick={() => void history(undefined, editing)}>{conflict ? "重新读取版本" : "重试读取"}</button>
     </div> : null}
     {pending === "read" ? <p className="edupi-artifact-editor__status" role="status">正在读取产物…</p> : null}
-    {readOnly && !editing ? <label>历史版本<select aria-label="产物历史版本" disabled={busy} value={artifact.revision} onChange={event => void history(Number(event.target.value))}>{artifact.history.map(item => <option key={item.revision} value={item.revision}>版本 {item.revision}</option>)}</select></label> : null}
+    {readOnly && !editing ? <label className="edupi-artifact-editor__history">历史版本<select aria-label="产物历史版本" disabled={busy} value={artifact.revision} onChange={event => void history(Number(event.target.value))}>{artifact.history.map(item => <option key={item.revision} value={item.revision}>版本 {item.revision}</option>)}</select></label> : null}
     {editing && artifact ? <div className="edupi-artifact-editor__fields">
       {!readOnly ? <label>历史版本<select aria-label="产物历史版本" disabled={busy} value={artifact.revision} onChange={event => void history(Number(event.target.value))}>{artifact.history.map(item => <option key={item.revision} value={item.revision}>版本 {item.revision} · {item.actor === "agent" ? "AI 修订" : "教师修订"}</option>)}</select></label> : null}
       <textarea aria-label="产物正文" rows={24} value={draft} disabled={busy} readOnly={readOnly} onChange={event => { if (!readOnly) setDraft(event.target.value); }} />

@@ -22,6 +22,13 @@ test("an indexed unavailable artifact is not revived by the work-case fallback",
   assert.match(html, /<button[^>]*><strong>学案<\/strong><small>候选<\/small><\/button>/);
 });
 
+test("held preparation files keep their Core readonly label and remain openable", () => {
+  const files = [{ artifact_id: "artifact-1", title: "教案", relative_path: ".edupi/output/lesson.md", task_id: "task-1", origin: "preparation", access: "read_only" }];
+  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { task: { ...task, status: "hold" },
+    workCase: null, files, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} }));
+  assert.match(html, /<button[^>]*><strong>教案<\/strong><small>只读<\/small><\/button>/);
+});
+
 test("task handoff stays visibly pending and reports a retryable activation error", () => {
   const props = { task, workCase, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} };
   const pending = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { ...props, agentBusy: true }));

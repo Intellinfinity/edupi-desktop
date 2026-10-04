@@ -86,7 +86,7 @@ function editorHarness({ read, revise, props = {} } = {}) {
 function artifact(overrides = {}) {
   return {
     artifact_id: "synthetic-a", task_id: "synthetic-task", title: "合成教案", content: "Core 已保存正文",
-    revision: 2, current_revision: 2, relative_path: ".edupi/output/synthetic-a-v2.md",
+    revision: 2, current_revision: 2, relative_path: ".edupi/output/synthetic-a-v2.md", access: "editable",
     history: [
       { revision: 2, actor: "teacher", updated_at: "2026-10-04T00:00:00.000Z" },
       { revision: 1, actor: "agent", updated_at: "2026-10-03T00:00:00.000Z" },
@@ -100,6 +100,44 @@ function deferred() {
 }
 function nodes(node) { return !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]; }
 function textOf(node) { return typeof node === "string" || typeof node === "number" ? String(node) : Array.isArray(node) ? node.map(textOf).join("") : node && typeof node === "object" ? textOf(node.props?.children) : ""; }
+
+test("held drafts and their history are readable without edit, restore or AI actions", async () => {
+  let agentCalls = 0;
+  const app = editorHarness({ read: async (_id, revision) => artifact({ access: "read_only", revision: revision ?? 2,
+    content: revision === 1 ? "保留的历史正文" : "保留的最新正文" }), props: { onAgent() { agentCalls++; } } });
+  app.render(); await app.settle();
+  assert.match(textOf(app.render()), /只读/);
+  assert.equal(app.get("article", "合成预览").props.children, "保留的最新正文");
+  for (const label of ["编辑正文", "AI 协作", "保存草稿", "恢复此版本"]) assert.equal(app.find("button", label), undefined);
+  app.change("select", "产物历史版本", "1"); await app.settle();
+  assert.equal(app.get("article", "合成预览").props.children, "保留的历史正文");
+  assert.equal(app.find("button", "恢复此版本"), undefined);
+  assert.equal(app.writes.length, 0); assert.equal(agentCalls, 0);
+});
+
+test("a newly held draft preserves unsaved input and cannot be submitted again", async () => {
+  for (const code of ["artifact_read_only", "stale_revision"]) {
+  const app = editorHarness({ revise: async () => { throw Object.assign(new Error("产物已更新"), { code }); },
+    read: async () => artifact({ access: app?.writes.length ? "read_only" : "editable" }) });
+  app.render(); await app.settle();
+  app.click("编辑正文"); app.change("textarea", "产物正文", "尚未保存的教师修改");
+  app.click("保存草稿"); await app.settle();
+  assert.equal(app.get("textarea", "产物正文").props.value, "尚未保存的教师修改");
+  if (code === "artifact_read_only") {
+    assert.equal(app.get("textarea", "产物正文").props.readOnly, true);
+    assert.equal(app.find("button", "保存草稿"), undefined);
+  }
+  assert.equal(app.saved.length, 0);
+  app.click("重新读取版本"); await app.settle();
+  assert.equal(app.get("textarea", "产物正文").props.value, "尚未保存的教师修改");
+  assert.equal(app.get("textarea", "产物正文").props.readOnly, true);
+  assert.equal(app.find("button", "保存草稿"), undefined);
+  assert.equal(app.writes.length, 1);
+  app.click("放弃修改"); await app.settle();
+  assert.equal(app.get("article", "合成预览").props.children, "Core 已保存正文");
+  assert.equal(app.writes.length, 1);
+  }
+});
 
 test("initial read failure offers a read retry without previewing an unconfirmed parent snapshot", async () => {
   let unavailable = true;

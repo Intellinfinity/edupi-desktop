@@ -461,7 +461,7 @@ export type EducationContract = {
   teacherMaterials?: EducationTeacherMaterial[];
   workspaceResourcesUnavailable?: boolean;
   generatedArtifactsUnavailable?: boolean;
-  generatedArtifacts?: Array<{ artifact_id: string; title: string; relative_path: string; available?: boolean; session_id: string; task_id: string | null; updated_at: string; size_bytes: number; origin?: "preparation" }>;
+  generatedArtifacts?: Array<{ artifact_id: string; title: string; relative_path: string; available?: boolean; session_id: string; task_id: string | null; updated_at: string; size_bytes: number; origin?: "preparation"; access?: "editable" | "read_only" }>;
   entityDeletionCount?: number;
   entityDeletionHistoryCount?: number;
   entityDeletionLedgerUnavailable?: boolean;

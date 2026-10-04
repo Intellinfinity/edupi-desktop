@@ -1928,16 +1928,21 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-workspace-drawer__body > * { height: 100%; }
 .edupi-artifact-editor { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
 .edupi-artifact-editor__toolbar { display: flex; flex: 0 0 auto; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--ep-border); }
+.edupi-artifact-editor__toolbar > span { align-self: center; color: var(--ep-muted); font-size: 13px; }
 .edupi-artifact-editor__error { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 16px 0; padding: 12px; border: 1px solid var(--ep-border-strong); border-radius: 8px; background: var(--ep-surface-soft); font-size: 13px; line-height: 1.5; }
 .edupi-artifact-editor__error > span { flex: 1 1 180px; }
 .edupi-artifact-editor__error > button { flex: 0 0 auto; }
 .edupi-artifact-editor__status { flex: 0 0 auto; margin: 0; padding: 12px 16px; color: var(--ep-muted); font-size: 13px; }
 .edupi-artifact-editor__fields { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 12px; padding: 16px; overflow: auto; }
-.edupi-artifact-editor__fields > label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ep-muted); font-size: 13px; }
-.edupi-artifact-editor__fields select { max-width: 100%; padding: 6px 8px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); }
+.edupi-artifact-editor__history { flex: 0 0 auto; padding: 12px 16px; }
+.edupi-artifact-editor__fields > label,
+.edupi-artifact-editor__history { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ep-muted); font-size: 13px; }
+.edupi-artifact-editor__fields select,
+.edupi-artifact-editor__history select { max-width: 100%; padding: 6px 8px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); }
 .edupi-artifact-editor__fields textarea { flex: 1; width: 100%; min-width: 0; min-height: 200px; padding: 12px; resize: vertical; border: 1px solid var(--ep-border-strong); border-radius: 8px; background: var(--ep-surface); color: var(--ep-text); font-size: 14px; line-height: 1.6; }
 .edupi-artifact-editor__fields textarea:focus-visible,
-.edupi-artifact-editor__fields select:focus-visible { outline: 2px solid var(--ep-blue); outline-offset: 2px; }
+.edupi-artifact-editor__fields select:focus-visible,
+.edupi-artifact-editor__history select:focus-visible { outline: 2px solid var(--ep-blue); outline-offset: 2px; }
 .edupi-artifact-editor__preview { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .edupi-artifact-editor__preview > * { height: 100%; }
 .edupi-workspace-drawer .chat-window { background: var(--ep-surface); }

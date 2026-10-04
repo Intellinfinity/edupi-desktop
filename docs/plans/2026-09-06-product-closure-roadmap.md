@@ -1,5 +1,15 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-10-05 A1 暂缓草稿只读回看
+
+- 在 Pi 1/Core 配对风险修复后继续原 A1。Core [#220](https://github.com/Intellinfinity/edupi/pull/220) 的 `22a9f19` 从已合并 `4f0bab6` 开发，不改执行候选许可或新增状态库。明确教师暂缓、真实同次完成记录、当前来源与文件完整性全部通过后才允许回看；系统 hold、撤回、跨范围、未知 stale 或缺原始完成记录继续拒绝。
+- 已实现的读取合同：正文与 preparation 索引行的 `access` 为 `editable` 或 `read_only`，只读修订返回 `artifact_read_only`。任务保持 held，work-case 只加入 Core 核验过的同组产物 ID。calendar 来源快照使用显式无产物输入避免递归；读取本身不恢复任务、不扣预算、不运行模型、不写账本。
+- 既有 reconciliation 为有资格的完成草稿记录 `held_review_revision`；来源失效或审核变更清除此证明。旧无 transition history 的推导记录携带 `transition_history_inferred`，不能被保存后升级成真实完成证据。兼容旧记录不等于已验明旧 Core 降级；安装回退继续后置。
+- Desktop 正文读取必须有有效 access；只读隐藏编辑、保存、恢复和 AI 修订入口，历史仍可查看。编辑途中变只读保留可复制的输入，只有明确“放弃修改”才清除。任务列表显示“只读”，不把暂缓改写成已确认。
+- 工程证据：Desktop 四份定向测试 23/23 通过，追加两类冲突后只重跑编辑器 11/11 通过，TypeScript/目标 lint/diff 检查通过；Core 隔离文件读写、来源失效、旧证明拒绝、calendar 与 work-case 投影、writer/manifest 检查通过。独立复审发现并修复推导历史误获资格和返回按钮暗含丢稿两项 P2。交付与合并：[Desktop #297](https://github.com/Intellinfinity/edupi-desktop/pull/297)；代码 `cc750b1` 的最终 [CI 37237061458](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37237061458) 质量与 Rust 审计双绿，后续只补本账本。状态为**源码已配对、代码检查通过、产品验收后置**；真实页面、跨入口安装流程和真人验收均未执行，不据此勾选 A1 产品验收。
+- Core 首轮 CI `37230192277` 在既有异常投影输入测试失败；`22a9f19` 恢复数组与空项保护并加负例。[CI 37231393002](https://github.com/Intellinfinity/edupi/actions/runs/37231393002) 双绿后，主线新合并 #221 `cce31e0` 导致生成清单冲突；已在原分支合入为 `a7f591d`，四处冲突重算解决，最终 [CI 37233969057](https://github.com/Intellinfinity/edupi/actions/runs/37233969057) 双绿。#220 已合并为 `fb2bb9f8caa1b9633ea9954ca8fdde168856754f`，Desktop 精确 pin 和双清单已同步，Core Git/文件/依赖闭包及 schema 静态核对通过。
+- Runtime/Desktop component manifest 为 `6926a207465b53c1101a20e2ebe46cfb9d321add41fa1492be2d815dcc0e4f37` / `4cbd73946f3af1becbd8ac4b27baa99190405a274b2694b438ff1f539943f834`。SDK 仍是 1.0.2，schema 与 fixture 不变；新教学 Durable 私有试点继续不从 Desktop 启用，`d23de57` 的启动边界负例通过。Desktop 只读消费者 `89892b7`、样式 `2ff9384`、配对 `cc750b1` 均由 #297 交付；主线 Pi1 配对已单独合并，正式 App/feed 未更新。
+
 ## 2026-10-05 Pi 1.0.2 与 Core #218 对齐
 
 - 用户要求先消除 Core 适配落后与已有风险，再继续 A1。已核对 Core `main` 为 #218 `8d0bcdfaf08e529e453c44e71096942b664bddb7`，Pi/Chord/PiDurable 精确为 1.0.2。Desktop 原 0.84.1 正在迁移会话管理、分叉、空工具资源隔离与标题上下文；保留所有已有提交和未提交改动。
@@ -8,7 +18,8 @@
 - Core [#219](https://github.com/Intellinfinity/edupi/pull/219) 在 [CI 37225328980](https://github.com/Intellinfinity/edupi/actions/runs/37225328980) 质量与原生安全检查通过后合并为 `4f0bab6eb339944c0354d03e7bdd7b008a4866cf`。Desktop 已整体更新精确 pin、Bridge schema/夹具及两份清单，取代下文“新字段未配对”的状态。Runtime schema 为 `5d7080f2…`，Runtime/Desktop 清单为 `a9b0da22…` / `8cee54a6…`；实际 Core Git 身份、文件与依赖闭包只读核对通过。
 - 本机工程检查：干净 `npm ci` 审计 0 漏洞；SDK 安全与对齐门、Core 新合同审核回读、受影响 C1/跟进组件测试通过。Pi 1 会话定向组 62/62，后续缓存与分叉保存失败修复后重跑相关 22/22；TypeScript、目标 lint、发布版本清单和 diff 检查通过。使用临时数据、内存 provider 或纯函数，没有真实教师配置和外部模型调用。Core 依赖单测曾误包含一次本地 HTTP 请求，已记在其检查记录，不能写成本轮完全未跑 HTTP。
 - 风险修复包括：上轮合同 TS2339、Pi 只读状态赋值、主题新增必需颜色、同模式重载仍取旧扩展代码、分叉首写失败后的旧会话注册键。新 SDK 会话历史使用 SessionManager，工具全关使用官方 hook 和资源隔离，保留用户消息前分叉语义；Durable checkpoint 不代表发布或审核完成。
-- 本轮代码 CI 与合并用于完成配对；页面、真实模型、教师流程、睡眠/通知和安装验收继续后置，不启动 Windows 安装或手动试机，不改真实数据根、模型配置、launchd 或正式 App/feed。Desktop #296 合并结果仍待收口记录，状态为**已实现待代码 CI、产品验收后置**；完成配对后继续 A1 暂缓草稿只读合同。
+- Desktop [#296](https://github.com/Intellinfinity/edupi-desktop/pull/296) 已合并为 `0ec80644ffb15b0ebb89a9aec249543e64ae8eda`；最终 [CI 37229711216](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37229711216) 质量与 Rust 审计通过。前两次 CI 暴露的 G1 夹具缺 G2 开关模拟及两处 VM 测试变量 lint 错误已修，不改生产门禁。状态为**源码配对已合并、产品验收后置**，已继续 A1。
+- 页面、真实模型、教师流程、睡眠/通知和安装验收继续后置，不启动 Windows 安装或手动试机，不改真实数据根、模型配置、launchd 或正式 App/feed。后续每轮 Core 适配先核对远端 main、SDK 锁版本、schema 与两份组件清单；版本门校验用于阻止混搭，不代表会自动启用 Core 新试点。
 
 ## 2026-10-05 G2 只读合同增量
 

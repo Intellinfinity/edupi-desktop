@@ -8,6 +8,7 @@ import ts from "typescript";
 // deferred transport. Browser layout and React DOM behavior remain UI checks.
 function mount(initialState = "idle") {
   const slots = [], effects = new Map(), requests = [], notifications = [];
+  const readStates = Array.isArray(initialState) ? [...initialState] : [initialState];
   let cursor = 0, dirty = false, props, tree;
   const hooks = {
     useState(initial) { const index = cursor++; slots[index] ??= { value: initial }; return [slots[index].value, value => { slots[index].value = typeof value === "function" ? value(slots[index].value) : value; dirty = true; }]; },
@@ -17,7 +18,7 @@ function mount(initialState = "idle") {
   const jsx = (type, props) => ({ type, props });
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(new URL("./EduPiTaskPreparationAction.tsx", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, require: name => name === "react" ? hooks : { jsx, jsxs: jsx }, Event, window: { dispatchEvent: event => notifications.push(event.type), setInterval: () => 1, clearInterval() {} }, fetch: (url, options = {}) => options.method ? new Promise((resolve, reject) => requests.push({ body: JSON.parse(options.body), resolve, reject })) : Promise.resolve(response(new URL(url, "http://localhost").searchParams.get("taskId"), initialState)) });
+  vm.runInNewContext(code, { exports, require: name => name === "react" ? hooks : { jsx, jsxs: jsx }, Event, window: { dispatchEvent: event => notifications.push(event.type), setInterval: () => 1, clearInterval() {} }, fetch: (url, options = {}) => options.method ? new Promise((resolve, reject) => requests.push({ body: JSON.parse(options.body), resolve, reject })) : Promise.resolve(response(new URL(url, "http://localhost").searchParams.get("taskId"), readStates.length > 1 ? readStates.shift() : readStates[0])) });
   function render(next = props) {
     props = next;
     do { dirty = false; cursor = 0; tree = exports.EduPiTaskPreparationAction(props); } while (dirty);
@@ -30,13 +31,35 @@ function mount(initialState = "idle") {
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const response = (taskId, state = "ready") => ({ ok: true, json: async () => ({ taskId, state, prepared: 1, error: null }) });
 
-test("an initially ready task refreshes its artifacts and stays completed", async () => {
+test("an initially ready task refreshes its artifacts without changing the teacher's stage", async () => {
   const component = mount("ready"); let ready = 0;
   component.render({ taskId: "A", onReady: () => ready++ });
   await tick();
   const button = component.render();
   assert.equal(button.props.disabled, true);
   assert.equal(button.props.children, "已准备");
+  assert.equal(ready, 0);
+  assert.deepEqual(component.notifications, ["edupi-preparation-updated"]);
+  component.unmount();
+});
+
+test("a passively observed run can complete without changing the teacher's stage", async () => {
+  const component = mount(["running", "ready"]); let ready = 0;
+  component.render({ taskId: "A", onReady: () => ready++ });
+  await tick(); component.render(); await tick();
+  assert.equal(component.render().props.children, "已准备");
+  assert.equal(ready, 0);
+  assert.deepEqual(component.notifications, ["edupi-preparation-updated"]);
+  component.unmount();
+});
+
+test("a run explicitly started here still opens the artifacts when polling completes", async () => {
+  const component = mount(["idle", "ready"]); let ready = 0;
+  component.render({ taskId: "A", onReady: () => ready++ });
+  await tick(); component.render().props.onClick();
+  component.requests[0].resolve(response("A", "running"));
+  await tick(); component.render(); await tick();
+  assert.equal(component.render().props.children, "已准备");
   assert.equal(ready, 1);
   assert.deepEqual(component.notifications, ["edupi-preparation-updated"]);
   component.unmount();

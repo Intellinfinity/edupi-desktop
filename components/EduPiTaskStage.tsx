@@ -54,13 +54,13 @@ function BriefStage({ task, contextLabel }: { task: TeacherTask; contextLabel: s
 function RunStage({ task, agentSession, busy, error, onOpenAgent, canPrepare, onStage }: { task: TeacherTask; agentSession: TaskSessionBinding | null; busy: boolean; error: string | null; onOpenAgent: () => void; canPrepare: boolean; onStage: (stage: TaskStage) => void }) {
   const steps = taskAgentSteps(task);
   const runtime = agentSession?.status === "running"
-    ? { title: "Agent 正在运行", action: "查看进行中", tone: "running" }
+    ? { title: "正在协作", action: "查看进行中", tone: "running" }
     : agentSession?.status === "idle"
       ? { title: "协作记录已绑定", action: "继续协作", tone: "idle" }
       : agentSession?.status === "missing"
         ? { title: "协作记录需要恢复", action: "恢复协作", tone: "missing" }
         : { title: "尚未建立协作会话", action: "开始协作", tone: "unbound" };
-  return <div className="edupi-stage-run"><div className={`edupi-agent-session is-${runtime.tone}`}><span className="edupi-agent-session__dot" aria-hidden="true" /><div><strong>{runtime.title}</strong><small>{agentSession ? `Session ${agentSession.sessionId.slice(0, 8)}` : "将为此任务建立独立 Session"}</small></div><button type="button" disabled={busy} onClick={onOpenAgent}>{busy ? "正在准备" : runtime.action}</button></div>{canPrepare && task.id ? <EduPiTaskPreparationAction taskId={task.id} onReady={() => onStage("artifact")} /> : null}{error ? <div className="edupi-agent-session__error" role="alert">{error}</div> : null}<div className="edupi-stage-toolbar"><span>教学工作流</span></div><ol>{steps.map((step) => <li key={step.id} className={`is-${step.state}`}><span className="edupi-run-step__state">{step.state === "done" ? "✓" : step.state === "active" ? "●" : "○"}</span><div><strong>{step.title}</strong><p>{step.detail}</p><small>材料：{step.material}</small></div><em>{step.state === "done" ? "已完成" : step.state === "active" ? "当前步骤" : "待执行"}</em></li>)}</ol></div>;
+  return <div className="edupi-stage-run"><div className={`edupi-agent-session is-${runtime.tone}`}><span className="edupi-agent-session__dot" aria-hidden="true" /><div><strong>{runtime.title}</strong></div><button type="button" disabled={busy} onClick={onOpenAgent}>{busy ? "正在准备" : runtime.action}</button></div>{canPrepare && task.id ? <EduPiTaskPreparationAction taskId={task.id} onReady={() => onStage("artifact")} /> : null}{error ? <div className="edupi-agent-session__error" role="alert">{error}</div> : null}<div className="edupi-stage-toolbar"><span>教学工作流</span></div><ol>{steps.map((step) => <li key={step.id} className={`is-${step.state}`}><span className="edupi-run-step__state">{step.state === "done" ? "✓" : step.state === "active" ? "●" : "○"}</span><div><strong>{step.title}</strong><p>{step.detail}</p><small>材料：{step.material}</small></div><em>{step.state === "done" ? "已完成" : step.state === "active" ? "当前步骤" : "待执行"}</em></li>)}</ol></div>;
 }
 
 function EvidenceStage({ task, workspace, onOpenFile }: { task: TeacherTask; workspace: string; onOpenFile: (path: string) => void }) {

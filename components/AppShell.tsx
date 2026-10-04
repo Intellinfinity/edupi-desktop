@@ -1387,6 +1387,7 @@ export function AppShell() {
     {pendingReminderBinding ? <div role="alert">对话已保存，任务关联失败 <button type="button" className="native-button" onClick={() => void retryReminderBinding(pendingReminderBinding)}>重试关联</button></div> : null}
     <ChatWindow
       key={`edupi-chat-${sessionKey}`}
+      teacherMode
       session={selectedSession}
       newSessionCwd={effectiveNewSessionCwd}
       onAgentEnd={handleAgentEnd}

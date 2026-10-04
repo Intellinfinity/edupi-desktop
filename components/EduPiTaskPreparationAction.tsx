@@ -8,9 +8,9 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
   const [status, setStatus] = useState<PreparationState | null>(null);
   const [starting, setStarting] = useState(false);
   const onReadyRef = useRef(onReady);
-  const requestOwner = useRef({ taskId, sequence: 0 });
+  const requestOwner = useRef({ taskId, sequence: 0, startedHere: false });
   if (requestOwner.current.taskId !== taskId) {
-    requestOwner.current = { taskId, sequence: requestOwner.current.sequence + 1 };
+    requestOwner.current = { taskId, sequence: requestOwner.current.sequence + 1, startedHere: false };
     setStatus(null);
     setStarting(false);
   }
@@ -27,7 +27,6 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
         setStatus(next);
         if (next.state === "ready") {
           window.dispatchEvent(new Event("edupi-preparation-updated"));
-          onReadyRef.current();
         }
       }
     }).catch(() => {});
@@ -48,7 +47,7 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
         }
         setStatus(next);
         window.dispatchEvent(new Event("edupi-preparation-updated"));
-        if (next.state === "ready") onReadyRef.current();
+        if (next.state === "ready" && requestOwner.current.startedHere) onReadyRef.current();
       } catch { if (active) setStatus({ taskId, state: "error", prepared: 0, error: "状态读取失败，请重试" }); }
     };
     const timer = window.setInterval(() => void poll(), 1_000);
@@ -57,6 +56,7 @@ export function EduPiTaskPreparationAction({ taskId, onReady }: { taskId: string
   }, [status?.state, status?.taskId, taskId]);
   const start = async () => {
     const sequence = ++requestOwner.current.sequence;
+    requestOwner.current.startedHere = true;
     const current = () => requestOwner.current.taskId === taskId && requestOwner.current.sequence === sequence;
     setStarting(true);
     try {

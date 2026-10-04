@@ -188,6 +188,23 @@ export type EducationMemoryCandidate = {
   externalSend: false;
 };
 
+export type EducationFollowUp = {
+  followUpId: string;
+  snapshotId: string;
+  stateHash: string;
+  revision: number;
+  title: string;
+  summary: string;
+  internalDraftSummary: string;
+  status: "candidate" | "pending_review" | "accepted" | "modified" | "rejected" | "held" | "suppressed";
+  permissionState: "not_required" | "permission_required" | "approved" | "blocked";
+  sourceIds: string[];
+  evidenceIds: string[];
+  observedEventIds: string[];
+  teacherReview: EducationTeacherReview;
+  externalSend: false;
+};
+
 export type EducationC1Memory = {
   memoryId: string;
   category: EducationMemoryCategory;
@@ -456,6 +473,9 @@ export type EducationContract = {
   timetable: Array<Record<string, unknown>>;
   observations: EducationObservation[];
   memoryCandidates: EducationMemoryCandidate[];
+  followUps: EducationFollowUp[];
+  followUpReceipts: EducationC1Receipt[];
+  followUpReviewHistory: EducationReviewHistory[];
   c1Memories: EducationC1Memory[];
   receipts: EducationC1Receipt[];
   reviewHistory: EducationReviewHistory[];
@@ -507,6 +527,7 @@ export type EducationContract = {
     timetable: { enabled: boolean; mode: "read_only" | "canonical_safe_store"; reason: string };
     materialIntake: { enabled: boolean; mode: "read_only" | "canonical_safe_store"; reason: string };
     c1Review: C1ReviewCapability;
+    followUpReview: { enabled: boolean; commands: ["review_follow_up"]; actions: Array<"accept" | "modify" | "reject" | "hold">; reason: string };
     teacherContextReview: TeacherContextReviewCapability;
     workCandidateReview: WorkCandidateReviewCapability;
     memoryUpdate: { enabled: boolean; commands: ["update_memory"]; reason: string };
@@ -695,6 +716,44 @@ function normalizeMemoryCandidates(value: unknown): EducationMemoryCandidate[] {
       externalSend: false,
     } satisfies EducationMemoryCandidate];
   }).slice(0, 200);
+}
+
+function normalizeFollowUps(value: unknown, snapshotPayload: RawRecord | undefined): EducationFollowUp[] {
+  const snapshotId = strictText(snapshotPayload?.snapshot_id, 160);
+  const stateHash = strictText(snapshotPayload?.state_hash, 80);
+  if (!snapshotId || !stateHash || !/^sha256:[A-Za-z0-9_-]+$/.test(stateHash)) return [];
+  const states: Record<EducationFollowUp["status"], EducationTeacherReview["state"]> = {
+    candidate: "pending_review", pending_review: "pending_review", accepted: "accepted", modified: "modified",
+    rejected: "rejected", held: "held", suppressed: "rejected",
+  };
+  const followUps: EducationFollowUp[] = [];
+  const seen = new Set<string>();
+  for (const entry of objectArray(value)) {
+    const target = strictRecord(entry.target);
+    if (entry.projection_kind !== "follow_up" || !target || target.target_kind !== "follow_up" || target.command_type !== "review_follow_up") continue;
+    if (!hasExactKeys(target, ["target_kind", "target_id", "command_type"])
+      || !hasExactKeys(entry, ["projection_kind", "target", "revision", "title", "summary", "status", "source_ids", "evidence_ids", "teacher_review", "external_send", "observed_event_ids", "internal_draft_summary", "permission_state"])) continue;
+    const followUpId = strictText(target.target_id, 160);
+    const title = strictText(entry.title, 240);
+    const summary = strictText(entry.summary, 2000);
+    const internalDraftSummary = strictText(entry.internal_draft_summary, 2000);
+    const status = strictText(entry.status, 40) as EducationFollowUp["status"] | null;
+    const permissionState = strictText(entry.permission_state, 40) as EducationFollowUp["permissionState"] | null;
+    const sourceIds = boundedUniqueStrings(entry.source_ids, "follow_up.source_ids");
+    const evidenceIds = boundedUniqueStrings(entry.evidence_ids, "follow_up.evidence_ids");
+    const observedEventIds = boundedUniqueStrings(entry.observed_event_ids, "follow_up.observed_event_ids");
+    const teacherReview = strictWorkTeacherReview(entry.teacher_review);
+    if (!followUpId || !title || !summary || !internalDraftSummary || !status || !Object.hasOwn(states, status)
+      || !permissionState || !["not_required", "permission_required", "approved", "blocked"].includes(permissionState)
+      || !Number.isSafeInteger(entry.revision) || Number(entry.revision) < 0 || entry.external_send !== false
+      || !sourceIds || sourceIds.length !== 1 || sourceIds[0] !== followUpId || !evidenceIds?.length || !observedEventIds?.length
+      || !teacherReview || teacherReview.revision !== entry.revision || teacherReview.state !== states[status]) continue;
+    if (seen.has(followUpId)) return [];
+    seen.add(followUpId);
+    followUps.push({ followUpId, snapshotId, stateHash, revision: Number(entry.revision), title, summary, internalDraftSummary,
+      status, permissionState, sourceIds, evidenceIds, observedEventIds, teacherReview, externalSend: false });
+  }
+  return followUps.slice(0, 200);
 }
 
 function normalizeC1Memories(value: unknown): EducationC1Memory[] {
@@ -1812,6 +1871,12 @@ function c1ReviewCapability(snapshotPayload: RawRecord | undefined, supportedCom
   };
 }
 
+function followUpReviewCapability(snapshotPayload: RawRecord | undefined, supportedCommands?: readonly string[]): EducationContract["capabilities"]["followUpReview"] {
+  const commands = supportedCommands || [];
+  const enabled = commands.includes("review_follow_up") && exactStringList(record(snapshotPayload?.capabilities).supported_commands, commands);
+  return { enabled, commands: ["review_follow_up"], actions: [...C1_REVIEW_ACTIONS], reason: enabled ? "学生跟进审核已连接 Core。" : "Core 尚未启用学生跟进审核。" };
+}
+
 function teacherContextReviewCapability(snapshotPayload: RawRecord | undefined, supportedCommands?: readonly string[]): TeacherContextReviewCapability {
   const { commandsMatch, payloadMatches } = cumulativeReviewCapabilitiesMatch(snapshotPayload, supportedCommands);
   const enabled = commandsMatch && payloadMatches;
@@ -1876,6 +1941,9 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
   const snapshotPayload = options.snapshotPayload || options.snapshot;
   const observations = normalizeC1Observations(snapshotPayload?.observations);
   const memoryCandidates = normalizeMemoryCandidates(snapshotPayload?.memory_candidates);
+  const followUps = normalizeFollowUps(snapshotPayload?.review_targets, snapshotPayload);
+  const followUpReceipts = normalizeC1Receipts(snapshotPayload?.receipts, ["review_follow_up"]);
+  const followUpReviewHistory = normalizeReviewHistory(snapshotPayload?.review_history, ["review_follow_up"]);
   const rejectedCandidateIds = new Set(memoryCandidates.filter((candidate) => candidate.teacherReview.state === "rejected").map((candidate) => candidate.candidateId));
   const c1Memories = normalizeC1Memories(snapshotPayload?.memories).filter((memory) => !rejectedCandidateIds.has(memory.acceptedFromCandidateId));
   const receipts = normalizeC1Receipts(snapshotPayload?.receipts);
@@ -1942,6 +2010,9 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
     timetable,
     observations,
     memoryCandidates,
+    followUps,
+    followUpReceipts,
+    followUpReviewHistory,
     c1Memories,
     receipts,
     reviewHistory,
@@ -1988,6 +2059,7 @@ export function buildEducationContractFromWorkspace(workspaceInput: RawRecord, o
       timetable: intakeCapability("import_timetable", "课表导入", snapshotPayload, options.supportedCommands),
       materialIntake: intakeCapability("intake_material", "材料接入", snapshotPayload, options.supportedCommands),
       c1Review: c1ReviewCapability(snapshotPayload, options.supportedCommands),
+      followUpReview: followUpReviewCapability(snapshotPayload, options.supportedCommands),
       teacherContextReview: teacherContextReviewCapability(snapshotPayload, options.supportedCommands),
       workCandidateReview: workCandidateReviewCapability(snapshotPayload, options.supportedCommands),
       memoryUpdate: memoryUpdateCapability(snapshotPayload, options.supportedCommands),
@@ -2015,6 +2087,9 @@ export function buildEducationContract(input: ContractInput = {}): EducationCont
   const snapshotPayload = input.snapshotPayload || input.snapshot;
   const observations = normalizeC1Observations(snapshotPayload?.observations);
   const memoryCandidates = normalizeMemoryCandidates(snapshotPayload?.memory_candidates);
+  const followUps = normalizeFollowUps(snapshotPayload?.review_targets, snapshotPayload);
+  const followUpReceipts = normalizeC1Receipts(snapshotPayload?.receipts, ["review_follow_up"]);
+  const followUpReviewHistory = normalizeReviewHistory(snapshotPayload?.review_history, ["review_follow_up"]);
   const rejectedCandidateIds = new Set(memoryCandidates.filter((candidate) => candidate.teacherReview.state === "rejected").map((candidate) => candidate.candidateId));
   const receipts = normalizeC1Receipts(snapshotPayload?.receipts);
   const reviewHistory = normalizeReviewHistory(snapshotPayload?.review_history);
@@ -2047,6 +2122,9 @@ export function buildEducationContract(input: ContractInput = {}): EducationCont
     timetable,
     observations,
     memoryCandidates,
+    followUps,
+    followUpReceipts,
+    followUpReviewHistory,
     c1Memories: normalizeC1Memories(snapshotPayload?.memories).filter((memory) => !rejectedCandidateIds.has(memory.acceptedFromCandidateId)),
     receipts,
     reviewHistory,
@@ -2093,6 +2171,7 @@ export function buildEducationContract(input: ContractInput = {}): EducationCont
       timetable: intakeCapability("import_timetable", "课表导入", snapshotPayload, input.supportedCommands),
       materialIntake: intakeCapability("intake_material", "材料接入", snapshotPayload, input.supportedCommands),
       c1Review: c1ReviewCapability(snapshotPayload, input.supportedCommands),
+      followUpReview: followUpReviewCapability(snapshotPayload, input.supportedCommands),
       teacherContextReview: teacherContextReviewCapability(snapshotPayload, input.supportedCommands),
       workCandidateReview: workCandidateReviewCapability(snapshotPayload, input.supportedCommands),
       memoryUpdate: memoryUpdateCapability(snapshotPayload, input.supportedCommands),

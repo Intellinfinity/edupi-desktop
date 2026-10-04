@@ -36,7 +36,7 @@ export const INSIGHT_STATUSES: ReadonlyArray<{ id: InsightStatusId; label: strin
   { id: "signal", label: "弱信号" },
 ];
 
-export type ReviewTargetRoute = { kind: "observation" | "memory_candidate"; id: string };
+export type ReviewTargetRoute = { kind: "observation" | "memory_candidate" | "follow_up"; id: string };
 
 export function reviewTargetObjectId(target: ReviewTargetRoute): string {
   return `${target.kind}:${encodeURIComponent(target.id)}`;
@@ -47,7 +47,7 @@ export function reviewTargetRoute(value: string | null | undefined): ReviewTarge
   const separator = value.indexOf(":");
   if (separator <= 0 || separator === value.length - 1) return null;
   const kind = value.slice(0, separator);
-  if (kind !== "observation" && kind !== "memory_candidate") return null;
+  if (kind !== "observation" && kind !== "memory_candidate" && kind !== "follow_up") return null;
   try {
     const id = decodeURIComponent(value.slice(separator + 1)).trim();
     return id ? { kind, id } : null;

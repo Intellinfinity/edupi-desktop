@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   EducationC1Receipt,
   EducationContract,
+  EducationFollowUp,
   EducationMemoryCandidate,
   EducationObservation,
 } from "@/lib/edupi-education-contract";
+import { EduPiFollowUpFeedback } from "./EduPiFollowUpFeedback";
 
 type ReviewDecision = "accept" | "modify" | "reject" | "hold";
-type ReviewTargetKind = "observation" | "memory_candidate";
+type ReviewTargetKind = "observation" | "memory_candidate" | "follow_up";
 
 type Props = {
   data: EducationContract;
@@ -21,7 +23,8 @@ type Props = {
 
 type ReviewTarget =
   | { kind: "observation"; item: EducationObservation; id: string }
-  | { kind: "memory_candidate"; item: EducationMemoryCandidate; id: string };
+  | { kind: "memory_candidate"; item: EducationMemoryCandidate; id: string }
+  | { kind: "follow_up"; item: EducationFollowUp; id: string };
 
 type ReceiptResult = {
   receipt?: unknown;
@@ -32,9 +35,10 @@ type ReceiptResult = {
 
 type ReceiptSummary = Pick<EducationC1Receipt, "receiptId" | "commandType" | "decision" | "status" | "externalSend" | "afterSnapshotId">;
 
-const commandFor: Record<ReviewTargetKind, "review_observation" | "review_memory_candidate"> = {
+const commandFor: Record<ReviewTargetKind, "review_observation" | "review_memory_candidate" | "review_follow_up"> = {
   observation: "review_observation",
   memory_candidate: "review_memory_candidate",
+  follow_up: "review_follow_up",
 };
 
 const decisionLabels: Record<ReviewDecision, string> = {
@@ -69,10 +73,12 @@ function reviewStateLabel(value: EducationObservation["teacherReview"]["state"])
 }
 
 function uncertaintyLabel(target: ReviewTarget): string {
+  if (target.kind === "follow_up") return "内部草稿";
   return target.kind === "memory_candidate" ? "尚未确认" : "待确认";
 }
 
 function boundaryLabel(target: ReviewTarget): string {
+  if (target.kind === "follow_up") return "学生跟进草稿仅供教师内部审核，不会外发。";
   return target.kind === "memory_candidate"
     ? "候选内容不会自动进入正式记忆，不会外发。"
     : "教师观察仅作为内部事实候选，需确认后才能沉淀，不会外发。";
@@ -83,6 +89,7 @@ function safeText(value: unknown, fallback = "待补充"): string {
 }
 
 function sourceLabel(target: ReviewTarget): string {
+  if (target.kind === "follow_up") return `${target.item.observedEventIds.length} 条观察`;
   if (target.kind === "observation") {
     const teacherMessage = target.item.provenance.find((entry) => entry.sourceKind === "teacher_message");
     return safeText(teacherMessage?.sourceId, "教师消息");
@@ -98,10 +105,12 @@ function evidenceLabel(target: ReviewTarget): string {
 }
 
 function targetTitle(target: ReviewTarget): string {
+  if (target.kind === "follow_up") return target.item.internalDraftSummary;
   return target.kind === "observation" ? target.item.text : target.item.proposedContent;
 }
 
 function targetTypeLabel(target: ReviewTarget): string {
+  if (target.kind === "follow_up") return "学生跟进";
   return target.kind === "observation" ? "教师观察" : "记忆候选";
 }
 
@@ -109,7 +118,7 @@ function receiptRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-function trustedReceipt(value: unknown, target: ReviewTarget): value is Record<string, unknown> {
+function trustedReceipt(value: unknown, target: ReviewTarget, decision: ReviewDecision): value is Record<string, unknown> {
   const receipt = receiptRecord(value);
   const receiptTarget = receiptRecord(receipt?.target);
   const commandType = commandFor[target.kind];
@@ -123,6 +132,9 @@ function trustedReceipt(value: unknown, target: ReviewTarget): value is Record<s
       && receiptTarget.command_type === commandType
       && receipt.external_send === false
       && receipt.status !== "failed"
+      && (target.kind !== "follow_up" || receipt.decision === decision
+        && receipt.status === { accept: "accepted", modify: "modified", reject: "rejected", hold: "held" }[decision]
+        && receiptRecord(receipt.teacher_review)?.revision === target.item.revision + 1)
       && typeof receipt.after_snapshot_id === "string"
       && receipt.after_snapshot_id.trim(),
   );
@@ -153,6 +165,7 @@ function pendingTarget(target: ReviewTarget): boolean {
 
 function ReviewCard({
   target,
+  observations,
   capabilityEnabled,
   supportedCommands,
   supportedActions,
@@ -165,6 +178,7 @@ function ReviewCard({
   onCancelEdit,
 }: {
   target: ReviewTarget;
+  observations: EducationObservation[];
   capabilityEnabled: boolean;
   supportedCommands: readonly string[];
   supportedActions: readonly ReviewDecision[];
@@ -177,11 +191,12 @@ function ReviewCard({
   onCancelEdit: () => void;
 }) {
   const commandType = commandFor[target.kind];
-  const canReview = capabilityEnabled && supportedCommands.includes(commandType);
   const status = target.item.teacherReview.state;
+  const canReview = capabilityEnabled && supportedCommands.includes(commandType)
+    && (target.kind !== "follow_up" || isPending(status) && target.item.permissionState !== "blocked");
   const content = targetTitle(target);
   const recordedAt = target.kind === "observation" ? target.item.observedAt : target.item.teacherReview.reviewedAt;
-  const canSubmitEdit = draft.trim().length > 0;
+  const canSubmitEdit = draft.trim().length > 0 && (target.kind !== "follow_up" || draft.trim() !== target.item.internalDraftSummary);
   return (
     <article className="edupi-c1-review-card" id={`edupi-c1-review-${target.kind}-${target.id}`}>
       <div className="edupi-c1-review-card__header">
@@ -195,9 +210,11 @@ function ReviewCard({
 
       {editing ? (
         <label className="edupi-c1-review-card__editor">
-          <span>修改内容</span>
-          <textarea value={draft} onChange={(event) => onDraft(event.target.value)} rows={3} autoFocus />
+          <span>{target.kind === "follow_up" ? "草稿摘要" : "修改内容"}</span>
+          <textarea aria-label={target.kind === "follow_up" ? "跟进草稿摘要" : "修改内容"} maxLength={target.kind === "follow_up" ? 2000 : undefined} value={draft} onChange={(event) => onDraft(event.target.value)} rows={3} autoFocus />
         </label>
+      ) : target.kind === "follow_up" ? (
+        <><h2>{target.item.title}</h2><p>{content}</p></>
       ) : (
         <h2>{content}</h2>
       )}
@@ -211,13 +228,13 @@ function ReviewCard({
       <details className="edupi-c1-review-card__evidence">
         <summary>来源与边界</summary>
         <div>
-          <p>{target.kind === "observation" ? `观察内容：${content}` : `基于观察：${target.item.basedOnObservationIds.join("、") || "待补"}`}</p>
+          <p>{target.kind === "observation" ? `观察内容：${content}` : `基于观察：${(target.kind === "follow_up" ? target.item.observedEventIds.map(id => observations.find(item => item.observationId === id)?.text || id) : target.item.basedOnObservationIds).join("、") || "待补"}`}</p>
           <p>证据：{target.item.evidenceIds.join("、") || "待补"}</p>
           <p>{boundaryLabel(target)}</p>
         </div>
       </details>
 
-      <div className="edupi-c1-review-card__actions" aria-label={`${targetTypeLabel(target)}审核动作`}>
+      {target.kind !== "follow_up" || isPending(status) ? <div className="edupi-c1-review-card__actions" aria-label={`${targetTypeLabel(target)}审核动作`}>
         {editing ? (
           <>
             <button type="button" className="is-primary" disabled={!canReview || busy !== null || !canSubmitEdit} onClick={() => onDecision("modify")}>
@@ -238,7 +255,7 @@ function ReviewCard({
             </button>
           ))
         )}
-      </div>
+      </div> : null}
       {!canReview ? <p className="edupi-c1-review-card__disabled" role="status">当前只读。</p> : null}
       {error ? <p className="edupi-c1-review-card__error" role="alert">{error}</p> : null}
     </article>
@@ -257,7 +274,25 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
   const targets = useMemo<ReviewTarget[]>(() => [
     ...data.observations.filter((item) => pendingTarget({ kind: "observation", item, id: item.observationId }) && includesQuery(`${item.text} ${item.observationId} ${item.evidenceIds.join(" ")}`, query)).map((item) => ({ kind: "observation" as const, item, id: item.observationId })),
     ...data.memoryCandidates.filter((item) => item.teacherReview.state !== "rejected" && pendingTarget({ kind: "memory_candidate", item, id: item.candidateId }) && includesQuery(`${item.proposedContent} ${item.candidateId} ${item.tags.join(" ")}`, query)).map((item) => ({ kind: "memory_candidate" as const, item, id: item.candidateId })),
-  ], [data.memoryCandidates, data.observations, query]);
+    ...(data.followUps || []).filter((item) => isPending(item.teacherReview.state) && includesQuery(`${item.title} ${item.internalDraftSummary} ${item.followUpId}`, query)).map(item => ({ kind: "follow_up" as const, item, id: item.followUpId })),
+  ], [data.memoryCandidates, data.observations, data.followUps, query]);
+  const selectedFollowUp = selectedTarget?.kind === "follow_up" ? data.followUps?.find(item => item.followUpId === selectedTarget.id) : null;
+  const visibleTarget = selectedTarget
+    ? selectedFollowUp ? { kind: "follow_up" as const, item: selectedFollowUp, id: selectedFollowUp.followUpId }
+      : targets.find((target) => target.kind === selectedTarget.kind && target.id === selectedTarget.id) || null
+    : targets[0] || null;
+  const visibleKey = visibleTarget ? targetKey(visibleTarget) : null;
+  const requestContext = useRef<{ key: string | null; sequence: number } | null>(null);
+  useLayoutEffect(() => {
+    const context = { key: visibleKey, sequence: 0 };
+    requestContext.current = context;
+    setBusyKey(null);
+    setBusyDecision(null);
+    setError(null);
+    setErrorKey(null);
+    setReceipt(null);
+    return () => { context.sequence += 1; if (requestContext.current === context) requestContext.current = null; };
+  }, [visibleKey]);
 
   useEffect(() => {
     if (editingKey && !targets.some((target) => targetKey(target) === editingKey)) {
@@ -276,17 +311,21 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
 
   const handleDecision = async (target: ReviewTarget, decision: ReviewDecision) => {
     const commandType = commandFor[target.kind];
-    const capability = data.capabilities.c1Review;
+    const capability = target.kind === "follow_up" ? data.capabilities.followUpReview : data.capabilities.c1Review;
     if (decision === "modify" && editingKey !== targetKey(target)) {
       startEdit(target);
       return;
     }
-    if (!capability.enabled || !capability.commands.includes(commandType) || !capability.actions.includes(decision)) return;
+    if (!capability.enabled || !(capability.commands as readonly string[]).includes(commandType) || !capability.actions.includes(decision)) return;
     const patch = decision === "modify"
-      ? target.kind === "observation" ? { text: draft.trim() } : { proposed_content: draft.trim() }
+      ? target.kind === "observation" ? { text: draft.trim() } : target.kind === "follow_up" ? { internalDraftSummary: draft.trim() } : { proposed_content: draft.trim() }
       : null;
     if (decision === "modify" && !draft.trim()) return;
     const key = targetKey(target);
+    const context = requestContext.current;
+    if (!context || context.key !== key) return;
+    const sequence = ++context.sequence;
+    const current = () => requestContext.current === context && context.sequence === sequence;
     setBusyKey(key);
     setBusyDecision(decision);
     setError(null);
@@ -303,6 +342,7 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
           patch,
           reviewerId: reviewerId.trim() || "teacher",
           externalSend: false,
+          ...(target.kind === "follow_up" ? { expectedSnapshotId: target.item.snapshotId, expectedRevision: target.item.revision } : {}),
         }),
       });
       let result: ReceiptResult = {};
@@ -311,30 +351,37 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
       } catch {
         result = {};
       }
+      if (!current()) return;
       if (!response.ok) throw new Error(result.reason || result.error || `审核失败（HTTP ${response.status}）`);
-      if (!trustedReceipt(result.receipt, target)) throw new Error("未收到可信审核回执，列表保持不变。");
-      setReceipt(normalizeReceipt(result.receipt));
+      if (!trustedReceipt(result.receipt, target, decision)) throw new Error("未收到可信审核回执，列表保持不变。");
+      if (target.kind === "follow_up") {
+        const refreshed = result.data?.followUps?.find(item => item.followUpId === target.id);
+        if (!refreshed || refreshed.revision !== target.item.revision + 1 || refreshed.snapshotId !== result.receipt.after_snapshot_id || refreshed.status !== result.receipt.status
+          || decision === "modify" && refreshed.internalDraftSummary !== draft.trim()) throw new Error("未核对跟进草稿的新版本，请刷新后重试。");
+      }
       await onRefresh();
+      if (!current()) return;
+      setReceipt(normalizeReceipt(result.receipt));
       setErrorKey(null);
       setEditingKey(null);
       setDraft("");
     } catch (caught) {
+      if (!current()) return;
       setError(caught instanceof Error ? caught.message : String(caught));
       setErrorKey(key);
     } finally {
-      setBusyKey(null);
-      setBusyDecision(null);
+      if (current()) {
+        setBusyKey(null);
+        setBusyDecision(null);
+      }
     }
   };
 
   const activeMemoryIds = new Set(data.c1Memories.filter((memory) => memory.state === "active").map((memory) => memory.memoryId));
   const activeMemoryCount = activeMemoryIds.size;
-  const latestReceipts = data.receipts.slice(-3).reverse();
-  const latestHistory = data.reviewHistory.slice(-3).reverse();
-  const reviewCapability = data.capabilities.c1Review;
-  const visibleTarget = selectedTarget
-    ? targets.find((target) => target.kind === selectedTarget.kind && target.id === selectedTarget.id) || null
-    : targets[0] || null;
+  const latestReceipts = [...data.receipts, ...(data.followUpReceipts || [])].sort((left, right) => left.createdAt.localeCompare(right.createdAt)).slice(-3).reverse();
+  const latestHistory = [...data.reviewHistory, ...(data.followUpReviewHistory || [])].sort((left, right) => left.reviewedAt.localeCompare(right.reviewedAt)).slice(-3).reverse();
+  const reviewCapability = visibleTarget?.kind === "follow_up" ? data.capabilities.followUpReview : data.capabilities.c1Review;
 
   return (
     <main className="edupi-c1-review" aria-labelledby="edupi-c1-review-title">
@@ -354,6 +401,7 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
             <ReviewCard
               key={targetKey(visibleTarget)}
               target={visibleTarget}
+              observations={data.observations}
               capabilityEnabled={reviewCapability.enabled}
               supportedCommands={reviewCapability.commands}
               supportedActions={reviewCapability.actions}
@@ -369,21 +417,29 @@ export function EduPiC1Review({ data, reviewerId, onRefresh, query = "", selecte
       ) : (
         <section className="edupi-c1-review__empty" role="status">
           <strong>暂无新的待确认内容</strong>
-          <span>教师观察或记忆候选出现后，会先在这里等你确认。</span>
         </section>
       )}
+
+      {visibleTarget?.kind === "follow_up" ? <EduPiFollowUpFeedback key={`${visibleTarget.id}:${visibleTarget.item.revision}`} followUp={visibleTarget.item} /> : null}
+      {error && visibleTarget?.kind === "follow_up" && errorKey === targetKey(visibleTarget) ? <button type="button" disabled={busyKey !== null} onClick={() => {
+        const context = requestContext.current;
+        const sequence = context?.sequence;
+        void onRefresh().catch(() => {
+          if (requestContext.current !== context || context?.sequence !== sequence) return;
+          setError("刷新失败，请重试。"); setErrorKey(targetKey(visibleTarget));
+        });
+      }}>刷新</button> : null}
 
       {receipt ? (
         <section className="edupi-c1-review__receipt" role="status">
           <span>✓ 已记录回执</span>
           <strong>{receiptLabel(receipt)}</strong>
-          <small>已刷新队列与正式记忆 · 外发关闭</small>
         </section>
       ) : null}
 
       {latestReceipts.length > 0 || latestHistory.length > 0 ? (
         <details className="edupi-c1-review__history">
-          <summary>最近回执与审核记录（{data.receipts.length + data.reviewHistory.length}）</summary>
+          <summary>最近回执与审核记录（{data.receipts.length + data.reviewHistory.length + (data.followUpReceipts?.length || 0) + (data.followUpReviewHistory?.length || 0)}）</summary>
           <div>
             {latestReceipts.map((item) => <p key={`receipt:${item.receiptId}`}>回执 {receiptLabel(item)} · {item.externalSend === false ? "不外发" : "边界异常"}</p>)}
             {latestHistory.map((item) => <p key={`history:${item.reviewId}`}>{item.decision} · {item.status} · {item.target?.targetId || "目标待补"} · {item.externalSend === false ? "不外发" : "边界异常"}</p>)}

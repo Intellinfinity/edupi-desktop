@@ -6,9 +6,9 @@
 - 已实现的读取合同：正文与 preparation 索引行的 `access` 为 `editable` 或 `read_only`，只读修订返回 `artifact_read_only`。任务保持 held，work-case 只加入 Core 核验过的同组产物 ID。calendar 来源快照使用显式无产物输入避免递归；读取本身不恢复任务、不扣预算、不运行模型、不写账本。
 - 既有 reconciliation 为有资格的完成草稿记录 `held_review_revision`；来源失效或审核变更清除此证明。旧无 transition history 的推导记录携带 `transition_history_inferred`，不能被保存后升级成真实完成证据。兼容旧记录不等于已验明旧 Core 降级；安装回退继续后置。
 - Desktop 正文读取必须有有效 access；只读隐藏编辑、保存、恢复和 AI 修订入口，历史仍可查看。编辑途中变只读保留可复制的输入，只有明确“放弃修改”才清除。任务列表显示“只读”，不把暂缓改写成已确认。
-- 工程证据：Desktop 四份定向测试 23/23 通过，追加两类冲突后只重跑编辑器 11/11 通过，TypeScript/目标 lint/diff 检查通过；Core 隔离文件读写、来源失效、旧证明拒绝、calendar 与 work-case 投影、writer/manifest 检查通过。独立复审发现并修复推导历史误获资格和返回按钮暗含丢稿两项 P2。当前**已实现并配对，Desktop 代码 CI 待执行**，真实页面、跨入口安装流程和真人验收均未执行，不据此勾选 A1 产品验收。
+- 工程证据：Desktop 四份定向测试 23/23 通过，追加两类冲突后只重跑编辑器 11/11 通过，TypeScript/目标 lint/diff 检查通过；Core 隔离文件读写、来源失效、旧证明拒绝、calendar 与 work-case 投影、writer/manifest 检查通过。独立复审发现并修复推导历史误获资格和返回按钮暗含丢稿两项 P2。交付与合并：[Desktop #297](https://github.com/Intellinfinity/edupi-desktop/pull/297)；代码 `cc750b1` 的最终 [CI 37237061458](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37237061458) 质量与 Rust 审计双绿，后续只补本账本。状态为**源码已配对、代码检查通过、产品验收后置**；真实页面、跨入口安装流程和真人验收均未执行，不据此勾选 A1 产品验收。
 - Core 首轮 CI `37230192277` 在既有异常投影输入测试失败；`22a9f19` 恢复数组与空项保护并加负例。[CI 37231393002](https://github.com/Intellinfinity/edupi/actions/runs/37231393002) 双绿后，主线新合并 #221 `cce31e0` 导致生成清单冲突；已在原分支合入为 `a7f591d`，四处冲突重算解决，最终 [CI 37233969057](https://github.com/Intellinfinity/edupi/actions/runs/37233969057) 双绿。#220 已合并为 `fb2bb9f8caa1b9633ea9954ca8fdde168856754f`，Desktop 精确 pin 和双清单已同步，Core Git/文件/依赖闭包及 schema 静态核对通过。
-- Runtime/Desktop component manifest 为 `6926a207465b53c1101a20e2ebe46cfb9d321add41fa1492be2d815dcc0e4f37` / `4cbd73946f3af1becbd8ac4b27baa99190405a274b2694b438ff1f539943f834`。SDK 仍是 1.0.2，schema 与 fixture 不变；新教学 Durable 私有试点继续不从 Desktop 启用，`d23de57` 的启动边界负例通过。Desktop 只读消费者 `89892b7`、样式 `2ff9384`，代码交付与 CI 另记；主线 Pi1 配对已单独合并。
+- Runtime/Desktop component manifest 为 `6926a207465b53c1101a20e2ebe46cfb9d321add41fa1492be2d815dcc0e4f37` / `4cbd73946f3af1becbd8ac4b27baa99190405a274b2694b438ff1f539943f834`。SDK 仍是 1.0.2，schema 与 fixture 不变；新教学 Durable 私有试点继续不从 Desktop 启用，`d23de57` 的启动边界负例通过。Desktop 只读消费者 `89892b7`、样式 `2ff9384`、配对 `cc750b1` 均由 #297 交付；主线 Pi1 配对已单独合并，正式 App/feed 未更新。
 
 ## 2026-10-05 Pi 1.0.2 与 Core #218 对齐
 

@@ -1,6 +1,19 @@
 # Pi 1 与暂缓草稿风险验收
 
-状态：审核快照错配与工具选择丢失已修复，开发页面与 `.52` 签名候选核验通过。Codex 原生 computer use 已成功读取安装版；本次执行退出时系统明确返回锁屏，安装尚未开始。本机 stapler 联网复核仍失败，未计为通过。本文补充原 R01/R20/R22，不替代发布门。
+状态：审核快照错配与工具选择丢失已修复，开发页面与 `.52` 签名候选核验通过。`.52` 已在唯一安装路径完成隔离冷启动并连接正确 Core；完整交互因再次锁屏未完成。公开版恢复结果见最新记录。本机 stapler 联网复核仍失败，未计为通过。本文补充原 R01/R20/R22，不替代发布门。
+
+## 2026-10-06 安装版冷启动与恢复
+
+- 用户解锁后，Codex 原生工具正常退出空闲公开 `.45`；退出前 `runningSessionIds=[]`，实际原 PID 63552 消失。建立新的真实资料基线 173 文件，摘要 `90f471d0df1a3ea532889a572e9fb04a92a1cd6ced9be7af6078d680dcfb3256`。
+- 经已核验的 DMG 复制至唯一 `/Applications/EduPi.app`，版本回读 `.52`，安装路径严格签名校验通过。以 canary 环境启动实际 Tauri App，PID 77648，数据根 `/Users/iguppp/edupi-route1-canary-s8QOeo`；没有运行第二个 EduPi UI 副本。
+- 原生窗口显示 `.52`、隔离教师工作区和测试事项。安装服务独立回读：Core ready、bundled、commit `a84590c`，双组件和 Bridge schema 与 pin 一致；1 个合成任务、0 个学生、0 份产物；G1/G2/G3 为 activation_pending，外发 false。环境为正常模式，启动诊断为空。证据 `installed-cold-start.json`；这是实际安装版冷启动证据，不是包内独立服务替代。
+- 点击管理中心与自动运行成功；后续原生 `getAXState` 再次返回 “Mac is locked and automatic unlock could not unlock it”。未点击启用试用，模型调用仍为 0，草稿生成、审核、续聊、分叉、Safe Mode 与安装版重启保留未补验。已请求保持解锁，没有用 HTTP 写入替代受阻的 UI 操作。
+- 冷启动后 171/173 项摘要相同，仅飞书错误日志和应用版本缓存变化；教师业务文件、模型/认证配置和真实数据根偏好保持。证据 `real-data-after-installed-cold-start.json`。
+- 回收本轮自己启动的 canary App 与本机模型后，发现临时 `.45` App 备份缺少 Info.plist 等文件，已不完整，原因未确认。保留该副本作为证据，未将其用作恢复来源。`.52` 移至持久目录 `/Users/iguppp/edupi-install-checkpoints/v0.3.52/EduPi-candidate-052.app`，避免误启动到真实根。
+- 改从公开 Release `396929237` 下载 `.45` DMG asset `589341637`，210255357 字节、SHA-256 `54de27d5c9e0663b334afb7679e027072914ef43424d29233a821ef183f25160`。慢速下载中断时保留前缀并按经校验的 Content-Range 补齐；最终完整摘要精确匹配后只读挂载、验签并恢复 `/Applications/EduPi.app`。恢复后的版本为 `.45`，严格 codesign 与 Gatekeeper 均通过，主程序与原副本尚存的主程序字节一致。
+- 恢复后仍为 171/173 项摘要相同，变动仍仅是飞书错误日志与应用版本缓存；没有恢复覆盖真实教师数据。测试 App、模型和两个挂载卷已停止，未在锁屏期间自动重开公开 App。最终证据 `real-data-after-public-restore-20261006.json`。
+- 后续回退使用持久目录中的官方 `.45` DMG，避免依赖 `/tmp` 下的展开 App。`.52` 候选和证据保留在 `/Users/iguppp/edupi-install-checkpoints/v0.3.52`，并非第二个正在运行的安装。原临时备份缺文件的原因仍未确认，不计作已解决的根因。
+- 原生控制的恢复入口为该持久目录下 `RESUME.md`；模型脚本支持 `--resume-model`，启动脚本强制 `.52` 与指定 canary 根。只读指纹与安装状态已另存到持久 evidence 目录，不依赖旧临时路径继续存在。
 
 ## 原生控制与历史检查点
 

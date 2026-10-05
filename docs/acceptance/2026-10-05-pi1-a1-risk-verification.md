@@ -1,6 +1,13 @@
 # Pi 1 与暂缓草稿风险验收
 
-状态：审核快照错配与工具选择丢失已修复，开发页面与 `.52` 签名候选核验通过；安装交互受辅助功能权限阻断。本机 stapler 联网复核仍失败，未计为通过。本文补充原 R01/R20/R22，不替代发布门。
+状态：审核快照错配与工具选择丢失已修复，开发页面与 `.52` 签名候选核验通过。Codex 原生 computer use 已成功读取安装版；本次执行退出时系统明确返回锁屏，安装尚未开始。本机 stapler 联网复核仍失败，未计为通过。本文补充原 R01/R20/R22，不替代发布门。
+
+## 原生控制与历史检查点
+
+- 用户要求改用 Codex 原生 computer use 并先固定历史检查点。已用 `/Applications/EduPi.app` 完整路径成功读取公开 `.45` 的原生窗口；bundle ID 选择会命中多个历史 helper，因此本轮使用精确安装路径。无需把 Orca 的访问失败当作所有桌面工具不可用。
+- 远端 annotated tag `v0.3.52` 已创建并回读，tag object `3d55d6e031f2e193a020796fa545ce14adafb3ab`，目标为已构建源码 `072f2fa8dcfd0618ae2391312f18dfd6ff82436e`。注释记录 Core `a84590c`、成功 CI `37281905644`、Draft Release `403498252`、DMG asset `612017261` 和完整摘要；没有重建或覆盖同版本包，也没有更新公开 feed。
+- 原生退出前只读核对正式 App 没有运行中的 Agent 会话。退出动作返回 “The Mac is locked and automatic unlock could not unlock it”，随后 PID 80004 与 `.45` 版本仍在；尚未备份移动或替换安装。已请求手动解锁，不用终端退出代替受阻的 UI 动作。
+- 已准备独立合成根 `/Users/iguppp/edupi-route1-canary-s8QOeo`、703 班数学、任务 `teacher-task-52525252-5252-4252-8252-525252525252`。准备过程通过原 intake/任务接口形成测试材料与待处理任务，G1 未启用、模型调用为 0；此步骤仅为数据准备，不计安装运行证据。配置记录为本轮临时证据目录的 `installed-fixture.json`。
 
 ## 基线
 

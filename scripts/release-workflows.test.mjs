@@ -64,10 +64,10 @@ test("official releases require Developer ID and notarization before publishing"
     assert.match(requirement, new RegExp(`test -n "\\$${credential}"`));
   }
   assert.doesNotMatch(buildJob, /APPLE_SIGNING_IDENTITY=-|ad-hoc signed/);
-  assert.match(buildJob, /xcrun stapler validate "\$app_path"/);
+  assert.match(buildJob, /node scripts\/validate-macos-staple\.mjs "\$app_path"/);
   assert.match(buildJob, /xcrun notarytool submit "\$\{dmgs\[0\]\}"/);
   assert.match(buildJob, /xcrun stapler staple "\$\{dmgs\[0\]\}"/);
-  assert.match(buildJob, /xcrun stapler validate "\$\{dmgs\[0\]\}"/);
+  assert.match(buildJob, /node scripts\/validate-macos-staple\.mjs "\$\{dmgs\[0\]\}"/);
   assert.match(buildJob, /spctl --assess --type open --context context:primary-signature/);
   assert.match(buildJob, /RELEASE_ID: \$\{\{ needs\.release\.outputs\.release_id \}\}/);
   assert.match(buildJob, /node scripts\/replace-release-asset\.mjs/);
@@ -77,7 +77,7 @@ test("official releases require Developer ID and notarization before publishing"
   assert.doesNotMatch(buildJob, /gh release upload|--clobber/);
   assert.match(buildJob, /codesign --verify --verbose=2 "\$\{dmgs\[0\]\}"/);
   assert.match(buildJob, /spctl --assess/);
-  assert.ok(buildJob.indexOf("xcrun stapler validate") > buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
+  assert.ok(buildJob.indexOf("node scripts/validate-macos-staple.mjs") > buildJob.indexOf("name: Build, sign, and upload updater artifacts"));
 });
 
 test("every release platform starts the staged server before uploading", async () => {

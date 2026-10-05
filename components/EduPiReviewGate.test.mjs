@@ -138,6 +138,12 @@ test("task review offers an explicit refresh after a stale Core snapshot without
   assert.doesNotMatch(renderTaskWorkspaceData(dataFor(workCase(["artifact-1"]))), /刷新任务/);
 });
 
+test("an uncertain post-write result offers reread without claiming the decision was not saved", () => {
+  const html = renderTaskWorkspaceData(dataFor(workCase(["artifact-1"])), "审核结果未能确认，请刷新任务后核对。");
+  assert.match(html, /刷新任务/);
+  assert.doesNotMatch(html, /没有写入/);
+});
+
 test("review board excludes a task whose Core work case has no artifacts", () => {
   const html = renderBoard(workCase([]));
   assert.equal(isTaskReviewable(task, workCase([])), false);

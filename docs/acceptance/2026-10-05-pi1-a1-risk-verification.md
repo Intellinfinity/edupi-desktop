@@ -1,6 +1,6 @@
 # Pi 1 与暂缓草稿风险验收
 
-状态：`.52` 已完成 macOS 原生安装交互，包括生成、修订、取消、暂缓只读、续聊、分叉、重启与安全模式恢复；已恢复公开 `.45`。验收发现的分叉任务路由缺口已修复并通过两任务开发页面验证，准备 `.53` 签名候选补验。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
+状态：`.52` 已完成 macOS 原生安装交互，包括生成、修订、取消、暂缓只读、续聊、分叉、重启与安全模式恢复；已恢复公开 `.45`。分叉任务路由修复已通过两任务开发页面与CI，PR #302已合并；`.53` 签名构建等待GitHub runner。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
 
 ## 2026-10-06 原生安装交互与分叉修复
 
@@ -16,7 +16,8 @@
 - 新发现：任务内 fork 按既有服务端合同允许任务跟随合法副本，但 Desktop 删除 URL task、保留 tasks/run 和抽屉，导致多任务时 activeTask 可回退到另一任务。修复保留 tasks/review 的显式 task，自动重绑只针对路由与抽屉 agentTask 相符的对象；普通/提醒聊天继续清除关联。生产代码只改两处守卫，不改 Core schema、pin 或绑定存储。
 - 新增13项实际回调/effect回归，旧代码8项失败、修复后全部通过；相关组37/37、TypeScript、lint和独立复审通过。全量首次1952 pass、2 fail、27 skipped；失败为旧结构断言和上一轮文档的本机绝对路径，修正后相关21/21通过。未把 skipped 或首次失败计为通过，最终CI另记。
 - 新隔离根 `~/edupi-route1-canary-llGmUw` 的两任务开发页面：从第二任务发两轮、分叉、发送子消息、关闭再续聊；URL保留task，第一任务会话 `01a10d79-6b9c-75de-91bb-dacc982b0775` 不变，第二任务合法子会话为 `01a10d7a-cf45-75de-91bb-dad130051d1d`，历史不串。该根最初准备脚本 owner bootstrap 返回503 `runtime_unavailable`；保留失败，之后服务 Core ready，此轮仅验会话路由，不计主动运行验收。证据目录 `~/edupi-fork-route-QNdXqV`。
-- `.52` tag/签名包不覆盖；新修复使用 `.53` 元数据和 macOS-only Draft。Windows、Univer、远程手机仍延期，公开 Release/feed 不推进。
+- 最终代码 `a163987e49ed73e265c22ea6732a74b175ef7289` 的 [CI 37363398268](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37363398268) 质量与Rust审计通过：CI全量1953 pass、28 skipped、0 fail，跳过项不计验收；本机版本核验、`cargo metadata --locked --no-deps` 和npm审计0漏洞。PR [#302](https://github.com/Intellinfinity/edupi-desktop/pull/302) 合并为 `42dec58504f124f988d0a7ca0e2e3c9f860a00a8`。
+- `.52` tag/资产不覆盖；`.53` macOS-only [Draft run 37363416800](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37363416800) 绑定 `a163987`。UTC 19:35仍queued，release job `111943052091` 的runner为空、steps为空，尚未生成可安装资产；未据此触发重复候选。恢复入口 `~/edupi-fork-route-QNdXqV/RESUME.md`，另备无网络合成扩展/技能以补安装过滤验证。Windows、Univer、远程手机仍延期，公开Release/feed不推进。
 
 ## 2026-10-06 安装版冷启动与恢复
 

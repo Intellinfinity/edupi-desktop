@@ -2126,6 +2126,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, [isNew]);
 
   const handleToolPresetChange = useCallback(async (preset: "none" | "default" | "full") => {
+    toolsLoadIdRef.current++;
     const toolNames = getToolNamesForPreset(preset);
     setToolPresetState(preset);
     toolPresetRef.current = preset;
@@ -2141,6 +2142,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, [setToolPresetState]);
 
   const handlePermissionModeChange = useCallback(async (mode: PermissionMode) => {
+    toolsLoadIdRef.current++;
     const preset = getToolPresetForPermissionMode(mode);
     const toolNames = getToolNamesForPreset(preset);
     setPermissionMode(mode);

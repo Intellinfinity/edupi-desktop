@@ -40,6 +40,7 @@ import { withEducationModel } from "./edupi-model-context";
 import { ensureLoopbackModelAuth } from "./loopback-model-auth";
 import type { PermissionMode } from "./tool-presets";
 import { createRpcResourceLoader, rpcResourceOptions, type RpcToolMode } from "./rpc-resource-loader";
+import { readSessionToolNames, saveSessionToolNames } from "./session-tool-preferences";
 
 // The legacy HTTP adapter is intentionally not a production authority. Until
 // Core owns one-shot grants and receipts, do not retain connector credentials in
@@ -137,7 +138,7 @@ export interface LiveSessionSnapshot {
   parentSessionPath?: string;
 }
 
-const CODING_TOOL_NAMES = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+const CODING_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
 
 // Extensions require a complete Theme, while the web UI applies its own styling.
 class PlainTextTheme extends Theme {
@@ -678,6 +679,11 @@ export class AgentSessionWrapper {
           throw new Error("Cannot navigate while a shell command is running");
         }
         const result = await this.inner.navigateTree(command.targetId as string, {});
+        const toolNames = readSessionToolNames(this.inner.sessionManager);
+        if (!result.cancelled && toolNames !== undefined) {
+          this.setForceEmptySystemPrompt(toolNames.length === 0);
+          this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
+        }
         return { cancelled: result.cancelled };
       }
 
@@ -789,9 +795,14 @@ export class AgentSessionWrapper {
       }
 
       case "set_tools": {
-        const toolNames = command.toolNames as string[];
         if (this.isRunning()) throw new Error("Cannot change tools while the session is running");
         await this.waitForExtensionsBound();
+        let toolNames: string[];
+        try { toolNames = saveSessionToolNames(this.inner.sessionManager, command.toolNames); }
+        catch {
+          this.destroy();
+          throw new Error("工具设置未保存，会话已停止，请重试。");
+        }
         const changedMode = this.forceEmptySystemPrompt !== (toolNames.length === 0);
         this.setForceEmptySystemPrompt(toolNames.length === 0);
         if (changedMode) {
@@ -1241,6 +1252,11 @@ export class AgentSessionWrapper {
       fork: async () => ({ cancelled: true }),
       navigateTree: async (targetId, options) => {
         const result = await this.inner.navigateTree(targetId, { summarize: options?.summarize });
+        const toolNames = readSessionToolNames(this.inner.sessionManager);
+        if (!result.cancelled && toolNames !== undefined) {
+          this.setForceEmptySystemPrompt(toolNames.length === 0);
+          this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
+        }
         return { cancelled: result.cancelled };
       },
       switchSession: async () => ({ cancelled: true }),
@@ -1446,6 +1462,10 @@ export async function startRpcSession(
     const toolMode = { disabled: toolNames?.length === 0 };
     const host: { wrapper?: AgentSessionWrapper } = {};
     const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: sessionCwd, sessionManager, sessionStartEvent }) => {
+      const explicitTools = sessionStartEvent?.reason === "fork" ? host.wrapper?.inner.getActiveToolNames() : toolNames;
+      const requestedTools = explicitTools === undefined ? readSessionToolNames(sessionManager)
+        : saveSessionToolNames(sessionManager, explicitTools);
+      toolMode.disabled = requestedTools?.length === 0;
       const normalizedSessionCwd = normalizeRpcCwd(sessionCwd);
       const sessionIsEduPiDataRoot = normalizedSessionCwd === EDUPI_ROOT;
       const sessionIsEduPiCoreRoot = normalizedSessionCwd === EDUPI_CODE_ROOT;
@@ -1559,7 +1579,6 @@ export async function startRpcSession(
       // If specific tool names were requested (non-empty), set the active tools to the
       // requested builtin coding tools PLUS all extension/package tools, so installed
       // extensions stay usable in Pi Web just like in the `pi` CLI.
-      const requestedTools = host.wrapper?.inner.getActiveToolNames() ?? toolNames;
       if (toolMode.disabled) inner.setActiveToolsByName([]);
       else if (requestedTools) {
         inner.setActiveToolsByName(withExtensionTools(inner, requestedTools));
@@ -1577,7 +1596,7 @@ export async function startRpcSession(
     // When all tools are disabled, clear the system prompt entirely.
     // pi's buildSystemPrompt always produces a non-empty prompt even with no tools;
     // keep this forced after extension resource discovery and reloads as well.
-    if (toolNames?.length === 0) {
+    if (toolMode.disabled) {
       wrapper.setForceEmptySystemPrompt(true);
     }
     wrapper.start();
@@ -1588,7 +1607,7 @@ export async function startRpcSession(
 
     wrapper.onDestroy(() => registry.delete(realSessionId));
     registry.set(realSessionId, wrapper);
-    wrapper.beginExtensionBinding({ forceEmptySystemPrompt: toolNames?.length === 0 });
+    wrapper.beginExtensionBinding({ forceEmptySystemPrompt: toolMode.disabled });
 
     return { session: wrapper, realSessionId };
   })().catch((error) => {

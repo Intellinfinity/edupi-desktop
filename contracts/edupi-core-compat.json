@@ -3,10 +3,10 @@
   "core_repository": "edupi",
   "core_sdk": { "pi": "1.0.2", "pi_durable": "1.0.2" },
   "core_runtime": {
-    "core_commit": "fb2bb9f8caa1b9633ea9954ca8fdde168856754f",
+    "core_commit": "a84590cbd62ada4f75fa10e109f0cdc07a13368e",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:4cbd73946f3af1becbd8ac4b27baa99190405a274b2694b438ff1f539943f834",
-    "runtime_component_manifest_hash": "sha256:6926a207465b53c1101a20e2ebe46cfb9d321add41fa1492be2d815dcc0e4f37",
+    "component_manifest_hash": "sha256:e9db9a19be023e6c7c57d9079f199caaa5d7b9b5ebd229c8c2022563b9933c35",
+    "runtime_component_manifest_hash": "sha256:1f07aa40a771f7a5a6bc2cd28a1b7117432ae3f150acd55dd401987a1454c511",
     "runtime_schema_hash": "sha256:5d7080f29011969c134a8b84e2e3497dcae1d27ee6531db04d8e51105d53c521"
   },
   "contract_identities": [
@@ -177,7 +177,8 @@
     "https://github.com/Intellinfinity/edupi/pull/219",
     "https://github.com/Intellinfinity/edupi/pull/220",
     "https://github.com/Intellinfinity/edupi/pull/221",
+    "https://github.com/Intellinfinity/edupi/pull/222",
     "https://github.com/Intellinfinity/edupi-desktop/pull/287"
   ],
-  "change_note": "Desktop pairs merged Core #220/#221 at Pi/PiDurable 1.0.2. Explicitly teacher-held, completed preparation drafts expose verified read-only access; unknown stale or inferred completion history cannot authorize reads, and source changes revoke retained proof. Desktop requires the access field and cannot revise read-only artifacts. Both component manifests are refreshed; Bridge/Runtime/occurrence schema identities and the 12 commands remain unchanged from #219. G2 public next_step, budget and execution projections remain paired. New Durable teaching and calendar pilots stay Core-owned and disabled at Desktop bootstrap. Current scoped grants, source validation, budgets and G3/G4 defaults remain; G5 relationships and unverified materials/term attribution are not promoted. external_send=false."
+  "change_note": "Desktop pairs merged Core #222 at Pi/PiDurable 1.0.2. Held-review receipt previews and persisted reads use the same candidate state for verified artifact access, preserving strict after_snapshot validation. Both component manifests are refreshed; Bridge/Runtime/occurrence schemas and 12 commands are unchanged. Explicitly teacher-held completed drafts stay read-only; unknown history, stale sources and tampering remain denied. G2 next_step, budget and execution projections remain paired. New Durable pilots and G3/G4 remain disabled; existing scope, budget and source gates remain. G5 relationships and unverified materials/term attribution are not promoted. external_send=false."
 }

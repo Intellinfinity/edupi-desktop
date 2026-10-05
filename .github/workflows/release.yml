@@ -409,7 +409,7 @@ jobs:
             --team-id "$NOTARY_TEAM_ID" \
             --wait
           xcrun stapler staple "${dmgs[0]}"
-          xcrun stapler validate "${dmgs[0]}"
+          node scripts/validate-macos-staple.mjs "${dmgs[0]}"
           spctl --assess --type open --context context:primary-signature --verbose=2 "${dmgs[0]}"
           node scripts/replace-release-asset.mjs \
             --repository "$RELEASE_REPOSITORY" \
@@ -429,9 +429,9 @@ jobs:
           test -d "$app_path"
           test "${#dmgs[@]}" -eq 1
           codesign --verify --deep --strict --verbose=2 "$app_path"
-          xcrun stapler validate "$app_path"
+          node scripts/validate-macos-staple.mjs "$app_path"
           codesign --verify --verbose=2 "${dmgs[0]}"
-          xcrun stapler validate "${dmgs[0]}"
+          node scripts/validate-macos-staple.mjs "${dmgs[0]}"
           spctl --assess --type open --context context:primary-signature --verbose=2 "${dmgs[0]}"
           spctl --assess --type execute --verbose=2 "$app_path"
 

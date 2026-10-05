@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "appVersion": "0.3.51",
+  "appVersion": "0.3.52",
   "components": [
     {
       "id": "pi-agent-desktop",
       "repository": "Intellinfinity/edupi-desktop",
-      "version": "0.3.51"
+      "version": "0.3.52"
     },
     {
       "id": "pi",

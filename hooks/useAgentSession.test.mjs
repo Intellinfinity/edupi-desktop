@@ -2,10 +2,42 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
+import { createJiti } from "jiti";
 
 const source = await readFile(new URL("./useAgentSession.ts", import.meta.url), "utf8");
 const chatWindowSource = await readFile(new URL("../components/ChatWindow.tsx", import.meta.url), "utf8");
 const rpcManagerSource = await readFile(new URL("../lib/rpc-manager.ts", import.meta.url), "utf8");
+
+test("a late tool read cannot overwrite the teacher's newer tool or permission choice", async () => {
+  const presets = await createJiti(import.meta.url).import("../lib/tool-presets.ts");
+  const callbacks = source.slice(source.indexOf("  const loadTools = useCallback"), source.indexOf("  const promoteNewSession"))
+    + source.slice(source.indexOf("  const handleToolPresetChange = useCallback"), source.indexOf("  const scrollUserMsgToTop"));
+  const compiled = ts.transpileModule(callbacks + "\nreturn { loadTools, handleToolPresetChange, handlePermissionModeChange };",
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+  for (const [method, choice, expected] of [["handleToolPresetChange", "none", "none"], ["handlePermissionModeChange", "full", "full"]]) {
+    let resolveRead;
+    const delayed = new Promise(resolve => { resolveRead = resolve; });
+    let preset = "default", reads = 0;
+    const context = {
+      useCallback: callback => callback,
+      sessionIdRef: { current: "synthetic-tools" }, toolsLoadIdRef: { current: 0 },
+      toolPresetRef: { current: "default" }, permissionModeRef: { current: "workspace" },
+      ensuringNewSessionRef: { current: null },
+      setToolPresetState: value => { preset = value; }, setPermissionMode() {},
+      ...presets,
+      sendAgentCommand: async (_sid, command) => command.type === "get_tools" ? (++reads === 1 ? delayed : []) : null,
+      require: name => { assert.equal(name, "@/lib/tool-presets"); return presets; },
+    };
+    const handlers = new Function(...Object.keys(context), compiled)(...Object.values(context));
+    const pending = handlers.loadTools("synthetic-tools");
+    await handlers[method](choice);
+    resolveRead(presets.PRESET_DEFAULT.map(name => ({ name, active: true })));
+    await pending;
+    assert.equal(preset, expected, "the old read must not undo the explicit choice");
+    await handlers.loadTools("synthetic-tools");
+    assert.equal(preset, "none", "a fresh server read still reconciles normally");
+  }
+});
 
 test("task-update tool completion refreshes the workspace once using the matched call id", () => {
   const cases = source.slice(source.indexOf('case "tool_execution_start"'), source.indexOf('case "queue_update"'));

@@ -1,18 +1,34 @@
 # Pi 1 与暂缓草稿风险验收
 
-状态：审核快照错配与工具选择丢失已修复，开发页面与 `.52` 签名候选核验通过。`.52` 已在唯一安装路径完成隔离冷启动并连接正确 Core；完整交互因再次锁屏未完成。公开版恢复结果见最新记录。本机 stapler 联网复核仍失败，未计为通过。本文补充原 R01/R20/R22，不替代发布门。
+状态：`.52` 已完成 macOS 原生安装交互，包括生成、修订、取消、暂缓只读、续聊、分叉、重启与安全模式恢复；已恢复公开 `.45`。验收发现的分叉任务路由缺口已修复并通过两任务开发页面验证，准备 `.53` 签名候选补验。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
+
+## 2026-10-06 原生安装交互与分叉修复
+
+以下结果取代上一轮“锁屏未完成”的对应项目；未覆盖的验收条件不据此补勾。
+
+- 安装身份：唯一 `/Applications/EduPi.app` 为 `.52`，代码 `072f2fa`、Core `a84590c`。原生工具实际读到解锁桌面后，将严格签名核验通过的公开 `.45` 保留到持久检查点，再切换候选。隔离根仍为 `~/edupi-route1-canary-s8QOeo`，课次 2026-10-06 09:00，在本次 02:23 生成时尚未开始；没有改时钟或教师数据。
+- 原生点击自动运行中 703/数学“启用试用”，只启用 G1，生成两份合成草稿；Core execution attempt=1，模型日志只有一次 preparation 调用，预算剩余11。G2/G3/G4 和外发未启用，模型仅监听 loopback。
+- 从今天→任务详情打开检测卷，原生编辑增加检验题，保存为 revision=2；再次输入后取消，正文仍为已保存修订。填写意见并点击暂缓，页面显示已暂缓、审核历史1，无“已写入却报失败”。任务产物与材料列表分别打开同一 artifact，最新修订和只读状态一致；历史下拉可查看 revision=1，没有编辑、保存或恢复入口。安装服务补充负例返回409 `artifact_read_only`，拒写前后正文/版本完全一致。
+- 从任务打开协作，参考卡片与老师输入分开；关闭工具后发两轮，收到合成模型回复。原生从第二轮前分叉，子会话不含第二轮，原会话不含子消息，关闭工具保持。父/子为 `01a10d55-2f8f-7704-8df4-e84ce9e3b2cb` / `01a10d58-03ec-7704-8df4-e84fcb933b5a`。
+- 正常退出 PID38261 后实际启动新 App PID68833；任务、意见、两稿和会话历史保留，工具回读关闭，再发送成功。以 `--safe-mode` 启动 PID90690，横幅显示“第三方扩展已暂停”，诊断为空，Core和基础对话可用。点击“恢复正常启动”后原生观察短暂超时，实际重启为 PID4045；页面横幅消失、safeMode=false，仍为隔离根。该根没有第三方插件，此安装证据不单独证明真实插件过滤。
+- 全轮结束仍只有1条 execution、attempt=1、两稿 revision=2/1、审核历史1；合计1次 preparation 和5次 chat，重启未重做备课。证据在持久检查点 `evidence/installed-interaction-checks.json`、`installed-after-held-20261006.json`、`installed-after-restart-20261006.json`、`installed-safe-mode-20261006.json`、`installed-restored-normal-20261006.json`；原生AX/画面在本任务工具记录。
+- 已正常退出测试 App、停止精确模型进程，恢复严格签名复核过的 `.45`。前后173项中172项相同，唯一变化为既有 `feishu-bridge.error.log`；教师业务、模型/认证配置、真实根偏好保持。指纹为 `real-data-before-installed-resume-20261006.json` 和 `real-data-after-installed-resume-20261006.json`，未声称全根摘要不变。
+- 新发现：任务内 fork 按既有服务端合同允许任务跟随合法副本，但 Desktop 删除 URL task、保留 tasks/run 和抽屉，导致多任务时 activeTask 可回退到另一任务。修复保留 tasks/review 的显式 task，自动重绑只针对路由与抽屉 agentTask 相符的对象；普通/提醒聊天继续清除关联。生产代码只改两处守卫，不改 Core schema、pin 或绑定存储。
+- 新增13项实际回调/effect回归，旧代码8项失败、修复后全部通过；相关组37/37、TypeScript、lint和独立复审通过。全量首次1952 pass、2 fail、27 skipped；失败为旧结构断言和上一轮文档的本机绝对路径，修正后相关21/21通过。未把 skipped 或首次失败计为通过，最终CI另记。
+- 新隔离根 `~/edupi-route1-canary-llGmUw` 的两任务开发页面：从第二任务发两轮、分叉、发送子消息、关闭再续聊；URL保留task，第一任务会话 `01a10d79-6b9c-75de-91bb-dacc982b0775` 不变，第二任务合法子会话为 `01a10d7a-cf45-75de-91bb-dad130051d1d`，历史不串。该根最初准备脚本 owner bootstrap 返回503 `runtime_unavailable`；保留失败，之后服务 Core ready，此轮仅验会话路由，不计主动运行验收。证据目录 `~/edupi-fork-route-QNdXqV`。
+- `.52` tag/签名包不覆盖；新修复使用 `.53` 元数据和 macOS-only Draft。Windows、Univer、远程手机仍延期，公开 Release/feed 不推进。
 
 ## 2026-10-06 安装版冷启动与恢复
 
 - 用户解锁后，Codex 原生工具正常退出空闲公开 `.45`；退出前 `runningSessionIds=[]`，实际原 PID 63552 消失。建立新的真实资料基线 173 文件，摘要 `90f471d0df1a3ea532889a572e9fb04a92a1cd6ced9be7af6078d680dcfb3256`。
-- 经已核验的 DMG 复制至唯一 `/Applications/EduPi.app`，版本回读 `.52`，安装路径严格签名校验通过。以 canary 环境启动实际 Tauri App，PID 77648，数据根 `/Users/iguppp/edupi-route1-canary-s8QOeo`；没有运行第二个 EduPi UI 副本。
+- 经已核验的 DMG 复制至唯一 `/Applications/EduPi.app`，版本回读 `.52`，安装路径严格签名校验通过。以 canary 环境启动实际 Tauri App，PID 77648，数据根 `~/edupi-route1-canary-s8QOeo`；没有运行第二个 EduPi UI 副本。
 - 原生窗口显示 `.52`、隔离教师工作区和测试事项。安装服务独立回读：Core ready、bundled、commit `a84590c`，双组件和 Bridge schema 与 pin 一致；1 个合成任务、0 个学生、0 份产物；G1/G2/G3 为 activation_pending，外发 false。环境为正常模式，启动诊断为空。证据 `installed-cold-start.json`；这是实际安装版冷启动证据，不是包内独立服务替代。
 - 点击管理中心与自动运行成功；后续原生 `getAXState` 再次返回 “Mac is locked and automatic unlock could not unlock it”。未点击启用试用，模型调用仍为 0，草稿生成、审核、续聊、分叉、Safe Mode 与安装版重启保留未补验。已请求保持解锁，没有用 HTTP 写入替代受阻的 UI 操作。
 - 冷启动后 171/173 项摘要相同，仅飞书错误日志和应用版本缓存变化；教师业务文件、模型/认证配置和真实数据根偏好保持。证据 `real-data-after-installed-cold-start.json`。
-- 回收本轮自己启动的 canary App 与本机模型后，发现临时 `.45` App 备份缺少 Info.plist 等文件，已不完整，原因未确认。保留该副本作为证据，未将其用作恢复来源。`.52` 移至持久目录 `/Users/iguppp/edupi-install-checkpoints/v0.3.52/EduPi-candidate-052.app`，避免误启动到真实根。
+- 回收本轮自己启动的 canary App 与本机模型后，发现临时 `.45` App 备份缺少 Info.plist 等文件，已不完整，原因未确认。保留该副本作为证据，未将其用作恢复来源。`.52` 移至持久目录 `~/edupi-install-checkpoints/v0.3.52/EduPi-candidate-052.app`，避免误启动到真实根。
 - 改从公开 Release `396929237` 下载 `.45` DMG asset `589341637`，210255357 字节、SHA-256 `54de27d5c9e0663b334afb7679e027072914ef43424d29233a821ef183f25160`。慢速下载中断时保留前缀并按经校验的 Content-Range 补齐；最终完整摘要精确匹配后只读挂载、验签并恢复 `/Applications/EduPi.app`。恢复后的版本为 `.45`，严格 codesign 与 Gatekeeper 均通过，主程序与原副本尚存的主程序字节一致。
 - 恢复后仍为 171/173 项摘要相同，变动仍仅是飞书错误日志与应用版本缓存；没有恢复覆盖真实教师数据。测试 App、模型和两个挂载卷已停止，未在锁屏期间自动重开公开 App。最终证据 `real-data-after-public-restore-20261006.json`。
-- 后续回退使用持久目录中的官方 `.45` DMG，避免依赖 `/tmp` 下的展开 App。`.52` 候选和证据保留在 `/Users/iguppp/edupi-install-checkpoints/v0.3.52`，并非第二个正在运行的安装。原临时备份缺文件的原因仍未确认，不计作已解决的根因。
+- 后续回退使用持久目录中的官方 `.45` DMG，避免依赖 `/tmp` 下的展开 App。`.52` 候选和证据保留在 `~/edupi-install-checkpoints/v0.3.52`，并非第二个正在运行的安装。原临时备份缺文件的原因仍未确认，不计作已解决的根因。
 - 原生控制的恢复入口为该持久目录下 `RESUME.md`；模型脚本支持 `--resume-model`，启动脚本强制 `.52` 与指定 canary 根。只读指纹与安装状态已另存到持久 evidence 目录，不依赖旧临时路径继续存在。
 
 ## 原生控制与历史检查点
@@ -20,7 +36,7 @@
 - 用户要求改用 Codex 原生 computer use 并先固定历史检查点。已用 `/Applications/EduPi.app` 完整路径成功读取公开 `.45` 的原生窗口；bundle ID 选择会命中多个历史 helper，因此本轮使用精确安装路径。无需把 Orca 的访问失败当作所有桌面工具不可用。
 - 远端 annotated tag `v0.3.52` 已创建并回读，tag object `3d55d6e031f2e193a020796fa545ce14adafb3ab`，目标为已构建源码 `072f2fa8dcfd0618ae2391312f18dfd6ff82436e`。注释记录 Core `a84590c`、成功 CI `37281905644`、Draft Release `403498252`、DMG asset `612017261` 和完整摘要；没有重建或覆盖同版本包，也没有更新公开 feed。
 - 原生退出前只读核对正式 App 没有运行中的 Agent 会话。退出动作返回 “The Mac is locked and automatic unlock could not unlock it”，随后 PID 80004 与 `.45` 版本仍在；尚未备份移动或替换安装。已请求手动解锁，不用终端退出代替受阻的 UI 动作。
-- 已准备独立合成根 `/Users/iguppp/edupi-route1-canary-s8QOeo`、703 班数学、任务 `teacher-task-52525252-5252-4252-8252-525252525252`。准备过程通过原 intake/任务接口形成测试材料与待处理任务，G1 未启用、模型调用为 0；此步骤仅为数据准备，不计安装运行证据。配置记录为本轮临时证据目录的 `installed-fixture.json`。
+- 已准备独立合成根 `~/edupi-route1-canary-s8QOeo`、703 班数学、任务 `teacher-task-52525252-5252-4252-8252-525252525252`。准备过程通过原 intake/任务接口形成测试材料与待处理任务，G1 未启用、模型调用为 0；此步骤仅为数据准备，不计安装运行证据。配置记录为本轮临时证据目录的 `installed-fixture.json`。
 
 ## 基线
 

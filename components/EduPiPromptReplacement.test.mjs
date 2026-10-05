@@ -39,7 +39,15 @@ test("EduPi handoffs offer a page reference without replacing teacher text", asy
   assert.match(contextHandoff, /startAgent\(prompt, "replace"\)/);
   assert.doesNotMatch(contextHandoff, /selectView\("chat"\)/);
   assert.doesNotMatch(contextHandoff, /setPendingAgentPromptMode/);
-  assert.match(panel, /drawer !== "agent" \|\| \(activeView !== "tasks" && activeView !== "review"\)/);
+  const forkBindingStart = panel.indexOf('    if (drawer !== "agent"');
+  assert.notEqual(forkBindingStart, -1);
+  const forkBinding = panel.slice(forkBindingStart, panel.indexOf("  useEffect(", forkBindingStart));
+  assert.match(forkBinding, /drawer !== "agent" \|\| \(routeView !== "tasks" && routeView !== "review"\)/);
+  assert.match(forkBinding, /pendingTaskBinding \|\| !agentTask\?\.id/);
+  assert.match(forkBinding, /if \(requestedTaskKey !== taskKey\(agentTask\)\) return/);
+  assert.match(forkBinding, /const binding = education\.taskSessions\[agentTask\.id\]/);
+  assert.match(forkBinding, /setPendingTaskBinding\(\{ taskId: agentTask\.id, previousSessionId: binding\.sessionId \}\)/);
+  assert.doesNotMatch(forkBinding, /activeTask|activeView/);
 
   const startAgent = panel.slice(panel.indexOf("const startAgent"), panel.indexOf("useEffect", panel.indexOf("const startAgent")));
   const replaceBranchStart = startAgent.indexOf('if (mode === "replace")');

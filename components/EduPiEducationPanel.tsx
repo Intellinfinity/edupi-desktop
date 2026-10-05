@@ -1170,12 +1170,13 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [activeAgentSessionId, commitEducationSnapshot, pendingTaskBinding]);
 
   useEffect(() => {
-    if (drawer !== "agent" || (activeView !== "tasks" && activeView !== "review") || pendingTaskBinding || !activeTask?.id || !activeAgentSessionId || !education) return;
-    const binding = education.taskSessions[activeTask.id];
+    if (drawer !== "agent" || (routeView !== "tasks" && routeView !== "review") || pendingTaskBinding || !agentTask?.id || !activeAgentSessionId || !education) return;
+    if (requestedTaskKey !== taskKey(agentTask)) return;
+    const binding = education.taskSessions[agentTask.id];
     if (binding && binding.sessionId !== activeAgentSessionId) {
-      setPendingTaskBinding({ taskId: activeTask.id, previousSessionId: binding.sessionId });
+      setPendingTaskBinding({ taskId: agentTask.id, previousSessionId: binding.sessionId });
     }
-  }, [activeAgentSessionId, activeTask, activeView, drawer, education, pendingTaskBinding]);
+  }, [activeAgentSessionId, agentTask, drawer, education, pendingTaskBinding, requestedTaskKey, routeView]);
 
   useEffect(() => {
     if (!pendingAgentPrompt || (drawer !== "agent" && activeView !== "chat")) return;

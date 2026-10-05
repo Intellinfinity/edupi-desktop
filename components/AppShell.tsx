@@ -1031,7 +1031,7 @@ export function AppShell() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("edupi", "1");
     params.set("session", newSessionId);
-    params.delete("task");
+    if (params.get("view") !== "tasks" && params.get("view") !== "review") params.delete("task");
     params.delete("reminders");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [hydrateSelectedSession, router, searchParams]);

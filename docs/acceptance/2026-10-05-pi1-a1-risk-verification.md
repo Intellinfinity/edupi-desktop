@@ -1,6 +1,14 @@
 # Pi 1 与暂缓草稿风险验收
 
-状态：`.52` 已完成 macOS 原生安装交互，包括生成、修订、取消、暂缓只读、续聊、分叉、重启与安全模式恢复；已恢复公开 `.45`。分叉任务路由修复已通过两任务开发页面与CI，PR #302已合并；`.53` 签名构建等待GitHub runner。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
+状态：`.52` 已完成 macOS 原生安装交互，包括生成、修订、取消、暂缓只读、续聊、分叉、重启与安全模式恢复；已恢复公开 `.45`。分叉任务路由修复已通过两任务开发页面与CI，PR #302已合并；`.53` 签名构建两次因GitHub未分配runner失败，安装补验为外部阻塞，按约定暂停心跳。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
+
+## 2026-10-06 签名构建外部阻塞
+
+- [run 37363416800](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37363416800) 的代码始终为 `a163987e49ed73e265c22ea6732a74b175ef7289`，版本 `.53`、Core `a84590c` 不变。attempt1在UTC19:41:41因release准备job没有runner失败，已对同一run做一次failed重试，没有新建候选。
+- attempt2的release准备于UTC20:03:05成功，创建 Draft `404064845`；macOS ARM构建job `111955498823` 等待15分钟后，于UTC20:18:07取消，整个run结果为failure。GitHub注释再次明确 “The job was not acquired by Runner of type hosted even after multiple attempts”，并提示macOS arm64容量不足。steps为空，没有进入编译、签名或公证，不应归类为这些检查失败。
+- UTC20:21核对 Draft 仍为true、资产0、target精确为上述提交。本机唯一安装版本仍为 `.45`；本次未启动或替换App，也没有发布Release或更新feed。没有重跑已通过的源码CI或测试。
+- 按本轮事先约定，第二次同类runner失败后停止自动重试并暂停 `edupi-1`。恢复入口与原始失败摘要保留在 `~/edupi-fork-route-QNdXqV/RESUME.md` 和 `signed-attempt2-runner-failure.json`。后续重新推进须先确认runner恢复及该固定候选的状态；只有成功生成并核验资产后才可继续安装流程。
+- `.53` 两任务分叉和扩展/技能过滤安装补验均未执行，`.52`证据不替代它们；真实睡眠、真人质量、Windows与Core #223的独立配对边界保持。
 
 ## 2026-10-06 原生安装交互与分叉修复
 

@@ -1,5 +1,12 @@
 # 自动下载安装
 
+## 2026-10-05 Pi 1 与审核修复候选
+
+- Core #222 已合并为 `a84590c`，Desktop #298 已合并为 `bffbd91`；Pi/PiDurable 为 1.0.2。真实开发页面已验证暂缓审核回读、只读历史、拒写保稿、会话分叉与工具关闭后重启保持；完整分层结果见[本轮验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md)。
+- `.51` Draft CI `37267593584` 在最终 App CloudKit 核验时报离线错误，整次 CI 失败，本机首次下载亦中断，未安装或发布。后续修复使用新 `.52`，不覆盖 `.51` 资产。
+- `.52` macOS-only Draft CI `37281905644` 绑定代码 `072f2fa` 并成功，Release `403498252` 保持 Draft。DMG asset `612017261` 本机下载摘要 `ad416f27d16cee418f0b7d80aee65e8ee5a490cdd54db025c5abb4d188316087` 匹配；App 严格签名、App/DMG Gatekeeper 与包内 Core/SDK 身份独立核验通过。本机 stapler 联网复核报 CloudKit TLS `-1200`，未计为通过；CI 同资产公证、装订及复核通过。
+- 公开 App、Latest 和 raw feed 仍 `.45`。正在运行的公开实例未退出、安装路径未替换；Orca 对 EduPi 的实际访问仍报 `permission_denied`，安装交互未验。Windows 安装、真实睡眠、真人质量及公开升级继续保留，不能用签名成功补勾。
+
 ## 2026-10-04 安全补丁候选状态
 
 - 当前源码已修复新安全审计失败，标准 npm 审计为 0 漏洞并验证实际安装及包内依赖版本；[PR #291](https://github.com/Intellinfinity/edupi-desktop/pull/291) 已合并为 `3f1c5f7`，修复提交 `6c82e87` 的 [CI 37138282482](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37138282482) npm / Rust 审计、干净安装、依赖回归、全量测试及静态检查均通过。本次没有覆盖 v0.3.50 Draft 的不可变资产，未生成新签名版本，正式安装与公开 feed 仍 v0.3.45。下一次签名构建须使用新版本号和本轮修复提交，不能复用旧 .50 公证证据。

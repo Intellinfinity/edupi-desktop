@@ -13,7 +13,7 @@ const { getRootDirs } = nextRequire("./utils/get-root-dirs.js");
 
 test("the complete lockfile excludes affected runtime and glob dependency versions", async () => {
   const lock = JSON.parse(await readFile(new URL("../package-lock.json", import.meta.url), "utf8"));
-  const patched = { next: ">=16.3.6", undici: ">=8.10.2", nodemailer: ">=10.0.9", "brace-expansion": "^1.1.21 || ^3.0.9 || >=5.0.12", dompurify: ">=3.4.16", sharp: ">=0.35.5" };
+  const patched = { next: ">=16.3.6", undici: ">=8.10.2", nodemailer: ">=10.0.9", "brace-expansion": "^1.1.21 || ^3.0.9 || >=5.0.12", dompurify: ">=3.4.16", sharp: ">=0.35.5", "@modelcontextprotocol/client": ">=2.2.0" };
   for (const [location, entry] of Object.entries(lock.packages)) {
     const name = location.split("node_modules/").at(-1);
     assert.notEqual(name, "braces", `${location} restores the unpatched dependency`);
@@ -29,6 +29,32 @@ test("patched sharp renders a bounded SVG through its prebuilt image library", a
   const { data, info } = await sharp(image).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   assert.deepEqual([info.width, info.height, info.channels], [2, 2, 4]);
   assert.deepEqual([...data.slice(0, 4)], [255, 0, 0, 255]);
+});
+
+test("OpenConnector uses the patched MCP client and completes an in-memory tool call", async () => {
+  const entry = import.meta.resolve("@oomol-lab/open-connector");
+  const connectorRequire = createRequire(entry);
+  const clientEntry = connectorRequire.resolve("@modelcontextprotocol/client");
+  const installed = JSON.parse(await readFile(path.resolve(path.dirname(clientEntry), "..", "package.json"), "utf8"));
+  assert.equal(installed.version, "2.2.0");
+  const { withMcpClient } = await import(new URL("../providers/mcp-client.js", entry));
+  const methods = [];
+  const endpoint = "https://synthetic-mcp.example.invalid/mcp";
+  const fetcher = async (input, init) => {
+    assert.equal(String(input), endpoint);
+    if (init.method === "GET") return new Response(null, { status: 405 });
+    const message = JSON.parse(init.body);
+    methods.push(message.method);
+    if (message.id === undefined) return new Response(null, { status: 202 });
+    const result = message.method === "server/discover"
+      ? { supportedVersions: ["2026-07-28"], capabilities: { tools: {} } }
+      : { resultType: "complete", content: [{ type: "text", text: "synthetic result" }] };
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }), { headers: { "content-type": "application/json" } });
+  };
+  const result = await withMcpClient({ endpoint, transport: "streamable_http", protocolVersion: "modern", fetcher, headers: {}, redirect: "manual" }, client => client.callTool({ name: "synthetic_read", arguments: {} }));
+  assert.equal(result.content[0].text, "synthetic result");
+  assert.ok(methods.includes("server/discover"));
+  assert.ok(methods.includes("tools/call"));
 });
 
 test("Next root matching preserves static, absolute, brace and stepped patterns", async () => {

@@ -1,6 +1,19 @@
 # Pi 1 与暂缓草稿风险验收
 
-最新风险复核：`.55`构建后新披露MCP client OAuth凭据issuer高危已由Desktop最小依赖补丁修复。`.56`源码CI、签名构建及本机完整摘要/签名/Gatekeeper/包内MCP版本核验通过，最终高危审计为0；余6低/3中仍记录。现有受控入口不使用SDK OAuth provider，不改用户凭据，Core仍`a84590c`。`.55`保留历史Draft，`.56`尚未安装/发布。
+最新状态：`.56`已按用户明确授权完成三平台构建并正式发布，公开更新源为`.56`、七个平台键。高危门为0，余6低/3中仍记录；Core仍`a84590c`。完整安装、真实睡眠、真人质量和六领域Live验收后置，不能据此计路线1全部通过。下方Mac-only候选及不发布的段落是历史状态。
+
+## 2026-10-07 v0.3.56 三平台正式发布
+
+- 用户明确选择“补齐三平台构建并发布，安装验收仍后置”，取代此前Windows构建延期和不发布的对应范围。没有改真实教师根、模型凭据、launchd或正式安装；Core #223/Durable独立配对、Univer和远程手机仍保持原范围。
+- 原发布门要求同一次三平台成功，因此在精确源码`6d8e696995040a2dd0191f178460dae5b24f7d99`上执行一次全平台构建；tag`v0.3.56`已精确固定该源码。首次dispatch返回HTTP500且没有生成run，核对后仅重试一次。[构建37521682413](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37521682413)三平台、draft-proof均成功；Windows/Linux桌面壳测试通过，macOS公证Accepted、App/DMG装订、严格签名和Gatekeeper通过。Windows的包内身份检查不替代正式根启动验收。
+- 资产指纹`sha256:cf3594cc12877aee7928c44588b2828e04787953a79318ac28d5f332064f2d0f`由原验证脚本计算并回验。该字段表示本次用户授权发布的资产身份，**不表示安装验收已完成**；原发布脚本和签名/摘要/三平台检查没有削弱。
+- 原Mac-only三个远端Draft资产在本机完整备份并核对ID/名称/大小/SHA后移出，避免旧时间戳混入全平台证明。原DMG、archive/sig及删除前快照保留在`~/edupi-install-checkpoints/v0.3.56`与新发布检查点，可恢复；不覆盖旧本机文件，不沿用旧资产ID或摘要。
+- 新DMG asset`616584630`，209186885字节，SHA256`c8c7bee8239f99b02613c905355350f2abd382c5b25d58d3bd533fc47951519a`；archive/sig为`616570895`/`616571202`，摘要分别`5b05d7c701583911ffd6ba9d52d735630021fffeb309b0a14ab1124c4e41fef6`/`f122db6f8bd74a8306da977a8be735c35e285e4a2e78db2d4b476dc8f405bb74`。九个完整下载均与GitHub摘要及长度匹配。
+- 本机从正式`.45`可执行文件只读提取公开更新公钥，以离线缓存的minisign-verify0.2.5核验四种updater格式，正常签名全部通过，一字节内存篡改全部被拒绝。新DMG本机codesign和Gatekeeper均通过，source=Notarized Developer ID。没有安装或修改认证文件。
+- [发布37527490223](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37527490223)成功；[Release](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.56)为Latest、非Draft、非prerelease，UTC2026-10-06T20:35:37Z发布，共11资产。公开Raw普通URL不加缓存参数即返回`.56`、七键；四种API资产端点不带token返回206及正确gzip/ELF/ar/MZ二进制前缀。
+- 更新说明旧“Mac-only、不更新feed”文本已校正；仅改变manifest的notes字段，九项签名资产、URL、签名、版本和日期均不变。Release的派生latest.json原文留作恢复记录，feed修订为`239c19d68054c334d06e47542630d7b73b81c521`。教师降级仍须保留新数据并恢复升级前完整备份，不能删除审核字段强行兼容。
+- 原生工具本轮实际返回锁屏，未绕过、未重复要求解锁，也未点击安装。唯一`/Applications/EduPi.app`回读仍`.45`、PID45102；客户端界面检测提示与实际升级未验，公开源与匿名二进制探针不替代它们。G2/G3/G4及外发不因发布自动启用，G5关系、未核实材料和课次归属不计已验证。
+- 可恢复证据在`~/edupi-install-checkpoints/v0.3.56-publish/RESUME.md`和`evidence`：全量build/publish日志、draft-run/jobs/assets、download-signature-checks、publication-authorization、published-release、public-verification、notes-correction。编译用Actions机器，本机执行离线验签及一次性发布脚本；没有新增模型驱动子任务。
 
 ## 2026-10-07 v0.3.56 MCP 补丁与构建
 

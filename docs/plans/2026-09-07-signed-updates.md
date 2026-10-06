@@ -1,5 +1,12 @@
 # 自动下载安装
 
+## 2026-10-07 v0.3.56 正式发布
+
+- 用户明确授权补齐三平台构建并发布，安装验收后置。本节取代下方候选“不发布/Windows构建延期”的对应状态，不把安装、真实睡眠、教学质量或六领域Live计为通过。
+- 精确源码`6d8e696995040a2dd0191f178460dae5b24f7d99`的[全平台构建37521682413](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37521682413)与[发布37527490223](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37527490223)成功；原三平台、资产身份、签名/公证和原子feed发布门保留。资产身份`sha256:cf3594cc12877aee7928c44588b2828e04787953a79318ac28d5f332064f2d0f`为授权发布指纹，不是安装验收证明。
+- [v0.3.56](https://github.com/Intellinfinity/edupi-desktop/releases/tag/v0.3.56)已为Latest、非Draft/预发布，共11资产；公开Raw版本`.56`、七平台键。四种API路径匿名返回二进制，九个完整下载摘要一致，四份更新签名匹配旧Mac客户端公钥，篡改均拒绝。新DMG本机签名/Gatekeeper通过；SHA256为`c8c7bee8239f99b02613c905355350f2abd382c5b25d58d3bd533fc47951519a`。
+- 仅notes字段修正旧Mac-only文字，签名资产与下载映射不变。完整旧Mac检查点保留，新证据在`~/edupi-install-checkpoints/v0.3.56-publish`，详见[唯一验收记录](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-07-v0356-三平台正式发布)。正式App仍`.45`；原生工具实际锁屏，界面检测及升级未验，不操作安装或教师数据。
+
 ## 2026-10-07 v0.3.56 MCP 修复候选
 
 - `.55`构建成功后新披露MCP高危，最小修复固定OpenConnector client2.2.0和配套私有core2.2.0；server未受该公告影响，不为审计强行整体升级。现有目录/Console没有SDK OAuth provider路径，不清空用户连接或改凭据。高危门重新清零，另6低/3中仍保留。

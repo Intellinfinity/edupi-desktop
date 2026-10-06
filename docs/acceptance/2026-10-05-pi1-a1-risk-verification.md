@@ -1,6 +1,16 @@
 # Pi 1 与暂缓草稿风险验收
 
-状态：`.52` 已完成既有 macOS 原生安装交互，正式安装仍为 `.45`。用户重新要求先构建后，`.53` 第三次尝试获得runner，质量门被新披露的 source-map-js 高危漏洞阻断；已更新1.2.2并准备 `.54` 签名候选。分叉修复已合并，安装补验尚未完成。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
+状态：`.54` macOS签名构建成功，DMG完整摘要、App/DMG严格签名与本机Gatekeeper、包内Core身份均核验通过；用户“先构建”的交付已完成。正式安装仍为 `.45`，`.54`安装交互另行待验。`.52`既有安装证据保持，真实睡眠、真人质量及公开更新门仍欠证。本机stapler联网复核边界单列。本文补充原R01/R20/R22，不替代发布门。
+
+## 2026-10-06 v0.3.54 签名包交付
+
+- 代码 `c861347625be8ec477a8aa8f82790204a5eff845`，Core `a84590c`、Pi/PiDurable1.0.2。PR [#305](https://github.com/Intellinfinity/edupi-desktop/pull/305) 经CI `37408183426` 质量/Rust审计通过，合并为 `414716b4f0c1ef1ab8b18094ec4de5c58ff909f6`。本批只更新source-map-js安全补丁和版本元数据。
+- macOS-only [run 37408179317](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37408179317) 成功；质量门1953 pass、28 skipped、0 fail，Core配对、打包服务、OCR/DOCX/OpenConnector、macOS资源及签名后运行验证通过。App与DMG公证、装订、stapler、严格签名、Gatekeeper核验成功；DMG的Apple结果为Accepted。本次没有Windows/Linux构建，不能据此计三平台发布门通过。
+- Draft Release `404276650` 绑定精确代码。最终DMG asset `614416762`，208962272字节，SHA-256 `50139f5e0f42cb405d6372d4adbc708c65430f0946f9a8e8e91b77128df619b8`。App archive/sig为 `614406612` / `614406786`，远端摘要分别为 `d76d786d3de740ce6d889818fda021cdb24488b2228a9510f717357a9fa81993` / `32a4ba3800a54b4dc761e5558d47461ae92f99a1bb2e94d7d248cb7ac91e6a17`；后两项未执行本机updater安装验签。
+- 代理单流与直连单流下载均曾超时，保留部分文件。复用分段下载脚本，逐段验证Content-Range和长度后拼接，最终完整SHA-256精确匹配。可交付文件为 `~/edupi-install-checkpoints/v0.3.54/EduPi_0.3.54_aarch64.dmg`，没有把中间文件当作安装包。
+- 只读、无Finder浏览地挂载后，App `codesign --verify --deep --strict`、DMG签名，以及两者`spctl --assess`均通过，source均为Notarized Developer ID。包内版本`.54`、Core `a84590c`、双清单/文件闭包与固定合同核对通过。没有启动挂载App，检查后已卸载镜像，正式`/Applications/EduPi.app`回读仍`.45`。
+- 原始构建日志与本机身份记录保留在持久检查点 `evidence/build-success.log` 和 `evidence/candidate-identity.json`；分段原件亦保留。本机先前CloudKit TLS导致的stapler问题未重复运行，不把CI同资产装订验证误称本机stapler已通过。
+- “先构建”已完成，构建心跳暂停。`.54`真实安装、分叉修复与扩展/技能过滤交互、真实睡眠、真人价值、Core #223独立适配及公开更新仍待各自验证；Release保持Draft，feed不更新。6低危/3中危依赖项仍按上一节记录，不宣称零漏洞。
 
 ## 2026-10-06 恢复构建与依赖修复
 

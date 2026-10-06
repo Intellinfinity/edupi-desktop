@@ -1,6 +1,14 @@
 # Pi 1 与暂缓草稿风险验收
 
-状态：`.52` 已完成 macOS 原生安装交互，包括生成、修订、取消、暂缓只读、续聊、分叉、重启与安全模式恢复；已恢复公开 `.45`。分叉任务路由修复已通过两任务开发页面与CI，PR #302已合并；`.53` 签名构建两次因GitHub未分配runner失败，安装补验为外部阻塞，按约定暂停心跳。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
+状态：`.52` 已完成既有 macOS 原生安装交互，正式安装仍为 `.45`。用户重新要求先构建后，`.53` 第三次尝试获得runner，质量门被新披露的 source-map-js 高危漏洞阻断；已更新1.2.2并准备 `.54` 签名候选。分叉修复已合并，安装补验尚未完成。真实睡眠、真人质量及公开更新门仍欠证。本机 stapler 联网复核失败单列。本文补充原 R01/R20/R22，不替代发布门。
+
+## 2026-10-06 恢复构建与依赖修复
+
+- 用户明确要求“先构建吧”，本次重新授权后对同一 `.53` run进行attempt3。macOS job `112080499229` 实际获得runner并执行依赖安装，1953测试通过、28跳过、0失败，TypeScript/lint通过。北京时间10:40，`npm audit --audit-level=high` 报1项高危而失败，尚未进入签名或公证；这次失败原因与前两次runner容量不足不同。
+- 高危为 [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q)：source-map-js的indexed source map行偏移未限制，可能阻塞事件循环。官方首个修复版本1.2.2。`npm update source-map-js --ignore-scripts` 只更新锁文件对应版本、tarball和完整性摘要三行；Next/Tailwind/PostCSS共享此补丁，Core固定依赖树未包含此包。
+- 本机 `npm run security:audit` 高危门通过，剩6低危、3中危，来自KaTeX和sprintf-js传播链。自动建议涉及KaTeX破坏性升级或Mammoth降级，本批不执行force；后续依赖批次单独评估，不能写成0漏洞。原始审计和失败日志在 `.53` 持久检查点的 `evidence/current-audit.json`、`attempt3-failed.log`。
+- 定向运行验证巨大indexed行偏移立即被拒绝、正常indexed定位及PostCSS映射/输出保持；版本清单校验、Cargo locked metadata和diff检查通过。临时验证初版使用IndexedConsumer转换入口时缺sourceRoot报错，改为直接验证indexed读取和普通flat-map的PostCSS处理后通过，未把该夹具错误记成应用回归。
+- `.53` 保留原提交和失败记录；依赖补丁采用 `.54`，Core仍为 `a84590c`、Pi/PiDurable1.0.2，macOS-only签名构建。当前按用户优先级只构建和核验资产，不替换正式安装、不发布Release或更新feed。
 
 ## 2026-10-06 签名构建外部阻塞
 

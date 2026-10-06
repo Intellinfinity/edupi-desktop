@@ -16,7 +16,7 @@ G2 的 `next_step`、剩余预算和执行记录已完成合同配对；原 #217
 
 ## 2026-10-06 ZCode 参考评估
 
-状态：只读源码评估完成，尚未移植或运行验收，不扩展本轮“先构建”的实现范围。参考固定为官方 [zai-org/ZCode `29628c9`](https://github.com/zai-org/ZCode/tree/29628c9acdb81b703bbd4080c207a0e7ce5e276e)。README列出桌面、共享React UI、服务端与Agent源码；第一方代码为[Apache-2.0](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/LICENSE)，复用须保留许可/适用NOTICE及改动标记，第三方素材和依赖按其各自条款处理。截图不证明所用发行版与该开源版本完全相同。
+状态：参考评估完成。用户已同意实施前三项；紧凑任务卡、统一任务/文件右栏与真实产物列表已完成源码和隔离开发页验证，交付与剩余边界见[本轮验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-06-任务卡右栏与真实文件)。参考固定为官方 [zai-org/ZCode `29628c9`](https://github.com/zai-org/ZCode/tree/29628c9acdb81b703bbd4080c207a0e7ce5e276e)。README列出桌面、共享React UI、服务端与Agent源码；第一方代码为[Apache-2.0](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/LICENSE)，复用须保留许可/适用NOTICE及改动标记，第三方素材和依赖按其各自条款处理。截图不证明所用发行版与该开源版本完全相同。
 
 | 优先范围 | 可借鉴交互 | EduPi落点与依赖 |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ G2 的 `next_step`、剩余预算和执行记录已完成合同配对；原 #217
 - 源码依据：[WorkflowTimeline](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/components/workflow-timeline/WorkflowTimeline.tsx)限制默认展示行数并支持键盘/减少动画；[WorkflowRunSidePane](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/app-shell/WorkflowRunSidePane.tsx)读取父会话权威投影，按run ID打开详情并按真实能力显示恢复动作；[useWorkflowRunArtifacts](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/hooks/useWorkflowRunArtifacts.ts)合并实时摘要与持久化产物/版本，区分缺能力、加载失败和真正无产物。
 - EduPi当前`taskAgentSteps()`按证据、产物和审核状态推导四步，不提供真实阶段总数或子Agent。要显示`19/23`或`+18`必须由Core提供相应工作单元和身份。已有kernel的`attempt_count`在客户端normalization未保留，是后续小范围适配点，不能据此推导子任务关系。
 - 控制保持原语义：Pi停止、Core备课重试、后台文档取消各自接既有入口；暂停自动运行授权不等于暂停当前run。按钮只对Core确认可用的动作显示，拒绝/失败保留内容。执行结束显示“草稿已生成/待确认”，教师接受才显示“已确认”。
-- 第一批建议前三项呈现整合。加载中、失败、停止和空列表分别可辨；Enter/Space可打开卡片，子按钮不重复触发；关闭右栏不清空输入，切任务/重试不串对象，1440×900与800×900复核。沿用现有字体、颜色和间距，不默认展示token用量、脚本或技术日志。上述均为后续验收条件，本次未执行。
+- 第一批前三项已实现并验证：Enter/Space打开卡片，宽窗并排、窄窗抽屉；Tab/Escape与焦点恢复、文件返回、会话切换、暂缓只读和读取失败后重试均有开发页证据。1440×900与800×900无横向溢出，未发送文字在跳转与重载后保留。采用原字体、颜色和间距，未复制ZCode代码。实际阶段/子任务计数、安装版与真人质量继续单列。
 
 ## 基线与已知问题
 

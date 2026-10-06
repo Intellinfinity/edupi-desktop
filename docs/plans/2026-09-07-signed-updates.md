@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-10-06 v0.3.54 构建完成
+
+- 签名run `37408179317` 成功，Draft `404276650` 固定源码 `c861347`。最终DMG asset `614416762` 的本机完整SHA256为 `50139f5e0f42cb405d6372d4adbc708c65430f0946f9a8e8e91b77128df619b8`，与Release精确匹配；App/DMG严格签名、Gatekeeper和内嵌Core身份通过。
+- CI同资产公证Accepted、装订复核通过；本机stapler旧TLS问题不计已解决。包位于 `~/edupi-install-checkpoints/v0.3.54/EduPi_0.3.54_aarch64.dmg`。仅只读挂载核验并已卸载，未安装、未发布、未更新feed。构建心跳暂停，安装/公开升级门仍分别待验。[验收记录](../acceptance/2026-10-05-pi1-a1-risk-verification.md)。
+
 ## 2026-10-06 依赖门修复后构建
 
 - 重新授权的`.53` attempt3通过runner分配和代码检查，在source-map-js新高危审计失败；没有进入签名。更新到官方修复1.2.2后高危门通过，另6低危/3中危仍保留记录，未降低审计级别或force升级。

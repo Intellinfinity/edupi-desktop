@@ -14,6 +14,22 @@ Core #217 当前为已实现待验收：pin/CAS、独立默认关闭的 G2 授�
 
 G2 的 `next_step`、剩余预算和执行记录已完成合同配对；原 #217 源码准备/Draft 边界由最新配对取代。A1 只读资格、正文权限与 Desktop 保稿已完成代码检查，安装验收仍独立待执行。[状态与证据](2026-09-06-product-closure-roadmap.md#2026-10-05-a1-暂缓草稿只读回看)。
 
+## 2026-10-06 ZCode 参考评估
+
+状态：只读源码评估完成，尚未移植或运行验收，不扩展本轮“先构建”的实现范围。参考固定为官方 [zai-org/ZCode `29628c9`](https://github.com/zai-org/ZCode/tree/29628c9acdb81b703bbd4080c207a0e7ce5e276e)。README列出桌面、共享React UI、服务端与Agent源码；第一方代码为[Apache-2.0](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/LICENSE)，复用须保留许可/适用NOTICE及改动标记，第三方素材和依赖按其各自条款处理。截图不证明所用发行版与该开源版本完全相同。
+
+| 优先范围 | 可借鉴交互 | EduPi落点与依赖 |
+| --- | --- | --- |
+| B/C，R18/R19/R20 | 聊天只放紧凑任务卡，显示名称、当前动作、状态，整卡打开详情 | 复用`EduPiRuntimeFlow`与`ChatWindow`；现有运行/工具事件可用，导航步骤不能伪装成真实执行进度 |
+| A/B，R01/R04/R20 | 固定右栏集中任务、执行记录、文件和审核，窄窗转抽屉 | 复用`EduPiInspector`、`EduPiTaskDetailDrawer`与`EduPiEducationPanel`，保留`EduPiPersistentChatHost`的单一聊天实例与输入草稿 |
+| A3/A4，R01/R02/R04 | 文件作为可打开的交付物，有版本、只读状态；失败/取消后仍能找回已生成文件 | 从Core产物投影按artifact ID合并，复用现有编辑器/预览；计划交付名称不计实际文件，PPTX缩略图和Office编辑能力另验 |
+| 后续C，R19/R21 | 阶段与并行子任务计数、折叠“还有N个”、单次恢复/重试 | 需Core公开阶段、父子run、attempt、完成数/可靠总数与可用动作；不新增Desktop调度器或状态库 |
+
+- 源码依据：[WorkflowTimeline](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/components/workflow-timeline/WorkflowTimeline.tsx)限制默认展示行数并支持键盘/减少动画；[WorkflowRunSidePane](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/app-shell/WorkflowRunSidePane.tsx)读取父会话权威投影，按run ID打开详情并按真实能力显示恢复动作；[useWorkflowRunArtifacts](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/hooks/useWorkflowRunArtifacts.ts)合并实时摘要与持久化产物/版本，区分缺能力、加载失败和真正无产物。
+- EduPi当前`taskAgentSteps()`按证据、产物和审核状态推导四步，不提供真实阶段总数或子Agent。要显示`19/23`或`+18`必须由Core提供相应工作单元和身份。已有kernel的`attempt_count`在客户端normalization未保留，是后续小范围适配点，不能据此推导子任务关系。
+- 控制保持原语义：Pi停止、Core备课重试、后台文档取消各自接既有入口；暂停自动运行授权不等于暂停当前run。按钮只对Core确认可用的动作显示，拒绝/失败保留内容。执行结束显示“草稿已生成/待确认”，教师接受才显示“已确认”。
+- 第一批建议前三项呈现整合。加载中、失败、停止和空列表分别可辨；Enter/Space可打开卡片，子按钮不重复触发；关闭右栏不清空输入，切任务/重试不串对象，1440×900与800×900复核。沿用现有字体、颜色和间距，不默认展示token用量、脚本或技术日志。上述均为后续验收条件，本次未执行。
+
 ## 基线与已知问题
 
 - Desktop main `11c2c69`；当前工作树 `route1-core-a8fe471`，分支 `codex/route1-core-a8fe471-20260926`。保留所有既有改动，不 reset、clean、stash 或创建替代分支。

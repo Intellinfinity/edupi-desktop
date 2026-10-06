@@ -2,6 +2,7 @@
 
 ## 2026-10-07 v0.3.55 macOS 候选
 
+- 构建后风险复核新增MCP客户端高危[GHSA-6qxp-vccf-f47h](https://github.com/advisories/GHSA-6qxp-vccf-f47h)，来自OpenConnector的client2.1.0；`.55`在审计数据更新前通过构建门。`.55`资产作为签名/下载检查点保留，不发布，补丁采用新候选版本，不覆盖既有资产。
 - 用户要求在当前风险修复后开始Mac构建。元数据/组件版本与Cargo锁定更新至`.55`，Core仍精确`a84590c`、Pi/PiDurable1.0.2；包含已合并任务卡/文件右栏和sharp0.35.5补丁。版本/发布42检查、locked metadata、组件pin和高危审计通过，余6低危/3中危继续记录。
 - 源码`d3107c4b3686ef0fec5b506124269d21e88a02e2`的CI`37498670567`双绿，PR [#310](https://github.com/Intellinfinity/edupi-desktop/pull/310)合并为`1a7fa48cd89300ef4740ecfff5427cf7f2bd1470`。macOS-only [run 37498750385](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37498750385)成功，Draft`404950486`与tag`v0.3.55`绑定该源码；Apple公证Accepted、装订、App/DMG签名与Gatekeeper检查全通过。CI全量1981 pass、28 skipped、0 fail，跳过项不计安装验收。
 - 最终DMG asset`616184804`，209005219字节，SHA256`9fdd3e46d8bc3ad49533eb7d0744e9d76facbfbc119643a9523f740b11bf077a`；本机完整摘要、DMG与App严格签名/Gatekeeper、包内Core/SDK/文件闭包通过，sharp0.35.5及source-map-js1.2.2确实进入包内。候选与公开版签名团队一致，只读挂载后已卸载。文件位于`~/edupi-install-checkpoints/v0.3.55/EduPi_0.3.55_aarch64.dmg`。

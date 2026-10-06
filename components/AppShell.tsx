@@ -620,6 +620,7 @@ export function AppShell() {
 
   const handleEducationSelectSession = useCallback((session: SessionInfo, isRestore = false) => {
     if (!isRestore) { setPendingEduPiContext(null); setPendingTeacherDraft(null); }
+    if (!isRestore) window.dispatchEvent(new Event("edupi-session-navigated"));
     setNewSessionCwd(null);
     setSelectedSession(session);
     setBranchTree([]);
@@ -640,6 +641,7 @@ export function AppShell() {
     params.set("view", "chat");
     params.set("session", session.id);
     params.delete("task");
+    params.delete("taskDetail");
     params.delete("reminders");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
@@ -668,6 +670,7 @@ export function AppShell() {
   }, [router, isMobile]);
 
   const handleEducationNewSession = useCallback((_sessionId: string, cwd: string) => {
+    window.dispatchEvent(new Event("edupi-session-navigated"));
     setPendingEduPiContext(null);
     setPendingTeacherDraft(null);
     resetNewSessionDraft(`new:${cwd}`);
@@ -686,6 +689,7 @@ export function AppShell() {
     params.set("view", "chat");
     params.delete("session");
     params.delete("task");
+    params.delete("taskDetail");
     params.delete("reminders");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
@@ -1019,6 +1023,7 @@ export function AppShell() {
   }, [router, hydrateSelectedSession]);
 
   const handleEducationSessionForked = useCallback((newSessionId: string) => {
+    if (searchParams.get("view") !== "tasks" && searchParams.get("view") !== "review") window.dispatchEvent(new Event("edupi-session-navigated"));
     setPendingEduPiContext(null);
     setPendingTeacherDraft(null);
     setRefreshKey((key) => key + 1);
@@ -1032,6 +1037,7 @@ export function AppShell() {
     params.set("edupi", "1");
     params.set("session", newSessionId);
     if (params.get("view") !== "tasks" && params.get("view") !== "review") params.delete("task");
+    params.delete("taskDetail");
     params.delete("reminders");
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [hydrateSelectedSession, router, searchParams]);

@@ -1,79 +1,53 @@
 import assert from "node:assert/strict";
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createJiti } from "jiti";
 
-const { EduPiTaskDetailDrawer } = await createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } }).import("./EduPiTaskDetailDrawer.tsx");
-const task = { id: "task-1", title: "备课", trigger: "capability_package", status: "planned", contentStatus: "draft_ready", deliveryStatus: "not_approved", sourceEventId: "trigger-1", sourceEventName: "备课", sourceEventDate: "2026-09-15", triggerDate: "2026-09-14", dueDate: "2026-09-14", deliverables: ["教案", "学案"], audience: ["teacher"], requiresTeacherReview: true, externalSend: false, scope: "teacher_internal", student: null, studentEventType: null, materialId: null, materialKind: null, topic: null, revision: 0, reviewedAt: null, reviewer: null, reviewNote: null, reviewHistory: [], evidence: {}, boardStage: "review", boardRevision: 0, boardUpdatedAt: null };
-const workCase = { id: "case-1", kind: "capability_package", triggerId: "trigger-1", taskId: "task-1", title: "备课", currentState: "draft_ready", dueDate: "2026-09-14", executionRevision: 1, artifactRevision: 1, transitionRevision: 0, sourceIds: ["trigger-1"], artifactIds: ["artifact-1", "artifact-2"], artifacts: [{ id: "artifact-1", key: "lesson", title: "教案", type: "markdown", relativePath: ".edupi/output/lesson.md", sha256: `sha256:${"a".repeat(64)}`, revision: 1, evidenceIds: [], externalSend: false }, { id: "artifact-2", key: "worksheet", title: "学案", type: "markdown", relativePath: ".edupi/output/worksheet.md", sha256: `sha256:${"b".repeat(64)}`, revision: 1, evidenceIds: [], externalSend: false }], transitions: [], externalSend: false };
+const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconfigPaths: true });
+const { EduPiTaskDetailDrawer } = await jiti.import("./EduPiTaskDetailDrawer.tsx");
+const { buildEducationContract } = await jiti.import("../lib/edupi-education-contract.ts");
+const task = buildEducationContract({ tasks: [{ id: "task-a", title: "备课甲", status: "planned", deliverables: ["计划教案", "计划答案"] }] }).tasks[0];
+const file = { artifact_id: "file-a", task_id: "task-a", title: "实际教案", relative_path: ".edupi/output/lesson.md", available: true, access: "read_only" };
+const render = props => renderToStaticMarkup(createElement(EduPiTaskDetailDrawer, { task, workCase: null, workspace: "/workspace", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {}, ...props }));
 
-test("task details expose every authoritative work-case artifact when the generated index is empty", () => {
-  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { task, workCase, files: [], workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} }));
-  assert.match(html, /<button[^>]*><strong>教案<\/strong>/);
-  assert.match(html, /<button[^>]*><strong>学案<\/strong>/);
-  assert.doesNotMatch(html, /打开产物/);
+test("wide details are complementary and narrow details retain modal semantics", () => {
+  const docked = render({ docked: true });
+  assert.match(docked, /role="complementary"/);
+  assert.doesNotMatch(docked, /aria-modal="true"/);
+  assert.match(render({}), /role="dialog" aria-modal="true"/);
 });
 
-test("an indexed unavailable artifact is not revived by the work-case fallback", () => {
-  const files = [{ artifact_id: "artifact-1", title: "教案", relative_path: ".edupi/output/lesson.md", available: false, session_id: "session-1", task_id: "task-1", updated_at: "2026-09-14T00:00:00.000Z", size_bytes: 0 }];
-  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { task, workCase, files, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} }));
-  assert.match(html, /<button[^>]*disabled=""[^>]*><strong>教案<\/strong><small>文件不可用<\/small><\/button>/);
-  assert.match(html, /<button[^>]*><strong>学案<\/strong><small>候选<\/small><\/button>/);
+test("planned deliverables are not counted as files or claimed as execution progress", () => {
+  const html = render({});
+  assert.match(html, /0 份文件/);
+  assert.match(html, /计划交付/);
+  assert.match(html, /暂无执行记录/);
+  assert.doesNotMatch(html, /edupi-task-artifact-list__item|\d\/4|已完成/);
 });
 
-test("held preparation files keep their Core readonly label and remain openable", () => {
-  const files = [{ artifact_id: "artifact-1", title: "教案", relative_path: ".edupi/output/lesson.md", task_id: "task-1", origin: "preparation", access: "read_only" }];
-  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { task: { ...task, status: "hold" },
-    workCase: null, files, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} }));
-  assert.match(html, /<button[^>]*><strong>教案<\/strong><small>只读<\/small><\/button>/);
+test("details share real file counts, access state and unavailable-index behavior", () => {
+  const html = render({ files: [file, file, { ...file, artifact_id: "other", task_id: "task-b", title: "不属于甲" }] });
+  assert.match(html, /1 份文件/);
+  assert.match(html, /实际教案/);
+  assert.match(html, /只读/);
+  assert.doesNotMatch(html, /不属于甲/);
+  const unavailable = render({ files: [file], artifactsUnavailable: true, unavailable: true });
+  assert.match(unavailable, /任务状态暂不可用/);
+  assert.match(unavailable, /文件列表暂不可用/);
+  assert.doesNotMatch(unavailable, /\d 份文件/);
+  assert.match(unavailable, /实际教案/);
 });
 
-test("task handoff stays visibly pending and reports a retryable activation error", () => {
-  const props = { task, workCase, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} };
-  const pending = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { ...props, agentBusy: true }));
-  assert.match(pending, /disabled=""[^>]*>正在准备<\/button>/);
-  const failed = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, { ...props, agentError: "会话暂不可用" }));
-  assert.match(failed, /role="alert"[^>]*>会话暂不可用<\/p>/);
-  assert.match(failed, />继续让 EduPi 做<\/button>/);
+test("another task's execution cannot appear in the selected task's details", () => {
+  const html = render({ workCase: { taskId: "task-b", currentState: "running", transitions: [{ id: "wrong", state: "running", sourceKind: "execution", occurredAt: "2026-10-06T00:00:00Z" }], artifacts: [] } });
+  assert.match(html, /暂无执行记录/);
+  assert.doesNotMatch(html, /开始准备/);
 });
 
-test("prepared count follows the visible deduplicated files instead of planned deliverables", () => {
-  const files = [
-    { artifact_id: "artifact-1", title: "教案", relative_path: ".edupi/output/lesson.md", available: false, task_id: "task-1" },
-    { artifact_id: "artifact-3", title: "答案", relative_path: ".edupi/output/answers.md", task_id: "task-1" },
-    { artifact_id: "another-task", title: "其他任务文件", relative_path: ".edupi/output/other.md", task_id: "task-2" },
-  ];
-  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
-    task: { ...task, deliverables: ["一套备课材料"] }, workCase, files, workspace: "/tmp/teacher",
-    onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {},
-  }));
-  assert.match(html, /id="edupi-task-detail-ready">已准备<\/h3><span>3 项<\/span>/);
-  assert.equal((html.match(/<strong>教案<\/strong>/g) || []).length, 1);
-  assert.match(html, /<button[^>]*disabled=""[^>]*><strong>教案<\/strong>/);
-  assert.doesNotMatch(html, /其他任务文件/);
-});
-
-test("work-case files remain counted without legacy deliverable labels", () => {
-  const html = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
-    task: { ...task, deliverables: [] }, workCase, workspace: "/tmp/teacher",
-    onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {},
-  }));
-  assert.match(html, /id="edupi-task-detail-ready">已准备<\/h3><span>2 项<\/span>/);
-  assert.match(html, /<button[^>]*><strong>学案<\/strong>/);
-});
-
-test("a legacy file counts as one without an empty-state message, while a truly empty task stays empty", () => {
-  const props = { workCase: null, workspace: "/tmp/teacher", onClose() {}, onOpenFile() {}, onOpenTask() {}, onOpenAgent() {}, onDelete() {} };
-  const withFile = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
-    ...props, task: { ...task, deliverables: [], evidence: { artifact_file_path: ".edupi/output/lesson.md" } },
-  }));
-  assert.match(withFile, /id="edupi-task-detail-ready">已准备<\/h3><span>1 项<\/span>/);
-  assert.match(withFile, /aria-label="打开产物"/);
-  assert.doesNotMatch(withFile, /暂无已准备内容/);
-  const empty = renderToStaticMarkup(React.createElement(EduPiTaskDetailDrawer, {
-    ...props, task: { ...task, deliverables: [], contentStatus: null },
-  }));
-  assert.match(empty, /id="edupi-task-detail-ready">已准备<\/h3><span>0 项<\/span>/);
-  assert.match(empty, /暂无已准备内容/);
+test("the available review action is the sole primary action", () => {
+  const html = render({ onReview() {} });
+  assert.match(html, /审核草稿/);
+  assert.doesNotMatch(html, />继续协作</);
+  assert.equal((html.match(/class="is-primary"/g) || []).length, 1);
 });

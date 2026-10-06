@@ -11,6 +11,7 @@ import type { GeneratedArtifact } from "@/lib/edupi-generated-artifacts";
 type Props = {
   task: TeacherTask;
   files?: GeneratedArtifact[];
+  artifactsUnavailable?: boolean;
   workReview?: boolean;
   workCandidate?: EducationWorkCandidate | null;
   workCase: EducationWorkCase | null;
@@ -81,6 +82,7 @@ export function EduPiTaskWorkspace(props: Props) {
           workReview={props.workReview}
           workCandidate={props.workCandidate}
           files={props.files?.filter(file => file.task_id === props.task.id)}
+          artifactsUnavailable={props.artifactsUnavailable}
           stage={props.stage}
           workspace={props.workspace}
           contextLabel={contextLabel}

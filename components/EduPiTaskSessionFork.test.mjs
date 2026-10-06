@@ -27,7 +27,7 @@ function forkRoute(query, education = true) {
   let location, selected = { id: "parent-b", cwd: "/synthetic-workspace" };
   const hydrated = [];
   const context = {
-    URLSearchParams, searchParams: new URLSearchParams(query), useCallback: callback => callback,
+    URLSearchParams, Event, window: { dispatchEvent() {} }, searchParams: new URLSearchParams(query), useCallback: callback => callback,
     setPendingEduPiContext() {}, setPendingTeacherDraft() {}, setRefreshKey() {}, setNewSessionCwd() {},
     setSelectedSession: update => { selected = update(selected); },
     hydrateSelectedSession: id => hydrated.push(id),

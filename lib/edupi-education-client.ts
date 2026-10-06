@@ -35,7 +35,9 @@ export function readEduPiWorkspace({
   signal?: AbortSignal;
 } = {}): Promise<EduPiWorkspaceBundle> {
   if (!inFlightWorkspaceRequest) {
-    const request = fetcher("/api/edupi/workspace", { cache: "no-store" }).then(async (response) => {
+    const request = fetcher("/api/edupi/workspace", { cache: "no-store" }).catch(() => {
+      throw new Error("教育工作区暂不可用，请重试");
+    }).then(async (response) => {
       if (!response.ok) throw new Error(`教育工作区读取失败（HTTP ${response.status ?? "unknown"}）`);
       const bundle = await response.json() as EduPiWorkspaceBundle;
       if (!bundle?.context || !bundle?.data) throw new Error("教育工作区数据无效。");

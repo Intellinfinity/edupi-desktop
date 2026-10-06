@@ -133,6 +133,10 @@ function renderTaskWorkspace(boundWorkCase, stage = "review", files = [], workRe
   }));
 }
 
+function artifactButtons(html) {
+  return html.match(/<button\b[^>]*class="edupi-task-artifact-list__item[^"]*"[^>]*>[\s\S]*?<\/button>/g) || [];
+}
+
 test("blocks review navigation and teacher actions until Core and projected artifacts exist", () => {
   const html = renderTaskWorkspace(workCase([]));
   assert.equal(isTaskReviewable(task, workCase([])), false);
@@ -163,10 +167,17 @@ test("artifact stage renders each linked file once and excludes other tasks", ()
     {artifact_id:"c",task_id:"other",title:"其他任务文件",relative_path:".edupi/output/c.md"},
   ];
   const html = renderTaskWorkspace(workCase(["a","b"]),"artifact",files);
-  assert.equal((html.match(/>真实教案<\/button>/g)||[]).length,1);
-  assert.match(html,/<button[^>]*disabled[^>]*>真实学案<\/button>/);
+  const buttons = artifactButtons(html);
+  assert.equal(buttons.length, 2);
+  const lessons = buttons.filter(button => button.includes('class="edupi-task-artifact-list__title">真实教案</span>'));
+  assert.equal(lessons.length, 1);
+  assert.doesNotMatch(lessons[0], /^<button[^>]*disabled/);
+  const worksheets = buttons.filter(button => button.includes('class="edupi-task-artifact-list__title">真实学案</span>'));
+  assert.equal(worksheets.length, 1);
+  assert.match(worksheets[0], /^<button[^>]*disabled/);
+  assert.match(worksheets[0], /文件不可用/);
   assert.doesNotMatch(html,/其他任务文件|本次对话文件/);
-  assert.match(renderTaskWorkspace(workCase([]),"artifact"),/暂无可打开的产物/);
+  assert.match(renderTaskWorkspace(workCase([]),"artifact"),/暂无已生成文件/);
 });
 
 test("artifact stage opens every Core capability-package file without a generated-artifact fallback", () => {
@@ -175,8 +186,13 @@ test("artifact stage opens every Core capability-package file without a generate
     { id: "gaps", title: "材料缺口清单", relativePath: ".edupi/output/capability/gaps.md" },
   ];
   const html = renderTaskWorkspace({ ...workCase(artifacts.map(item => item.id), artifacts), kind: "capability_package" }, "artifact");
-  assert.match(html, />安全教育工作总结<\/button>/);
-  assert.match(html, />材料缺口清单<\/button>/);
+  const buttons = artifactButtons(html);
+  assert.equal(buttons.length, 2);
+  for (const artifact of artifacts) {
+    const matches = buttons.filter(button => button.includes(`class="edupi-task-artifact-list__title">${artifact.title}</span>`));
+    assert.equal(matches.length, 1);
+    assert.doesNotMatch(matches[0], /^<button[^>]*disabled/);
+  }
   assert.equal((html.match(/\.edupi\/output\/capability\//g) || []).length, 0, "local paths stay in click handlers rather than visible copy");
 });
 

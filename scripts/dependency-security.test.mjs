@@ -13,12 +13,22 @@ const { getRootDirs } = nextRequire("./utils/get-root-dirs.js");
 
 test("the complete lockfile excludes affected runtime and glob dependency versions", async () => {
   const lock = JSON.parse(await readFile(new URL("../package-lock.json", import.meta.url), "utf8"));
-  const patched = { next: ">=16.3.6", undici: ">=8.10.2", nodemailer: ">=10.0.9", "brace-expansion": "^1.1.21 || ^3.0.9 || >=5.0.12", dompurify: ">=3.4.16" };
+  const patched = { next: ">=16.3.6", undici: ">=8.10.2", nodemailer: ">=10.0.9", "brace-expansion": "^1.1.21 || ^3.0.9 || >=5.0.12", dompurify: ">=3.4.16", sharp: ">=0.35.5" };
   for (const [location, entry] of Object.entries(lock.packages)) {
     const name = location.split("node_modules/").at(-1);
     assert.notEqual(name, "braces", `${location} restores the unpatched dependency`);
     if (patched[name]) assert.ok(semver.satisfies(entry.version, patched[name]), `${location}: ${entry.version}`);
   }
+});
+
+test("patched sharp renders a bounded SVG through its prebuilt image library", async () => {
+  const sharp = require("sharp");
+  assert.ok(semver.gte(sharp.versions.sharp, "0.35.5"));
+  assert.ok(semver.gte(sharp.versions.rsvg, "2.63.2"));
+  const image = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2" fill="#ff0000"/></svg>')).png().toBuffer();
+  const { data, info } = await sharp(image).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  assert.deepEqual([info.width, info.height, info.channels], [2, 2, 4]);
+  assert.deepEqual([...data.slice(0, 4)], [255, 0, 0, 255]);
 });
 
 test("Next root matching preserves static, absolute, brace and stepped patterns", async () => {

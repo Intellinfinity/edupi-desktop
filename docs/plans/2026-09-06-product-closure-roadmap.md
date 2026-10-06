@@ -1,9 +1,15 @@
 # EduPi 产品闭环 PR 路线图
 
+## 2026-10-06 任务卡与文件右栏
+
+- 原R01/R02/R04/R18/R20的前三项呈现整合已完成源码和开发页验证：仅按真实任务Session绑定显示卡片；统一任务详情与文件预览位置；列表按实际artifact ID/路径去重，计划交付不算文件。教师新看板操作优先于历史状态，任务切换清除旧右栏，暂缓保留只读文件与输入草稿。
+- 隔离开发页完成两任务切换、键盘、1440×900/800×900、两份Core草稿、续聊绑定、右栏审核暂缓和重载恢复。证据与失败记录见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-06-任务卡右栏与真实文件)。sharp高危已用0.35.5补丁处理，最终1982 pass、27 skipped、0 fail、类型/lint/高危审计通过；[CI 37487513876](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37487513876)双绿，PR [#308](https://github.com/Intellinfinity/edupi-desktop/pull/308)合并为 `c4bde1545553d774b5f139a603e589fa7d7738e6`。
+- 此项不替代A–D全部验收、安装版、真实跨到期睡眠或真人教学质量。Core仍为`a84590c`，Pi/PiDurable1.0.2；新Core阶段/子任务合同、Windows、Univer与远程手机继续后置。正式安装仍`.45`，既有`.54` Draft保留，本批不构建或发布。
+
 ## 2026-10-06 签名包与 ZCode 参考
 
 - 用户“先构建”已完成：`.54`源码PR #305合并，签名run `37408179317` 成功；最终DMG摘要、App/DMG签名、Gatekeeper和包内Core身份本机核验通过，交付包保留在持久检查点。只读挂载后已卸载，正式安装仍`.45`，Release仍Draft。[完整证据](../acceptance/2026-10-05-pi1-a1-risk-verification.md)。
-- 用户提出学习ZCode，已核对官方开源仓库、Apache-2.0/NOTICE及时间线、右栏、产物恢复源码。参考项挂回原A/B/C：紧凑任务卡、统一右栏、真实产物列表优先；真实阶段/子任务计数与恢复操作须Core合同支持。[评估与最小范围](2026-10-04-desktop-teacher-workflow.md#2026-10-06-zcode-参考评估)。此项为源码评估和建议，未计为界面实现或运行验收。
+- 用户提出学习ZCode，已核对官方开源仓库、Apache-2.0/NOTICE及时间线、右栏、产物恢复源码。参考项挂回原A/B/C；后续前三项源码与开发页状态已由本文顶部取代，真实阶段/子任务计数与恢复操作仍须Core合同支持。[评估与最小范围](2026-10-04-desktop-teacher-workflow.md#2026-10-06-zcode-参考评估)。
 
 ## 2026-10-06 恢复 macOS 构建
 

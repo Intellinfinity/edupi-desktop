@@ -1,6 +1,29 @@
 # Pi 1 与暂缓草稿风险验收
 
+本轮前三项任务呈现整合已通过源码与隔离开发页验收。当前源码为 `6868648c8dc5180513ee83f3d151e568ab3210b1`，包含 `e2bb44a` 的 sharp 补丁；新UI与补丁未进入既有 `.54` 包。安装版和公开发布继续分别记录。
+
 状态：`.54` macOS签名构建成功，DMG完整摘要、App/DMG严格签名与本机Gatekeeper、包内Core身份均核验通过；用户“先构建”的交付已完成。正式安装仍为 `.45`，`.54`安装交互另行待验。`.52`既有安装证据保持，真实睡眠、真人质量及公开更新门仍欠证。本机stapler联网复核边界单列。本文补充原R01/R20/R22，不替代发布门。
+
+## 2026-10-06 任务卡右栏与真实文件
+
+- 对应原R01/R02/R04/R18/R20，沿用当前分支和账本。源码基线 `7975253`，最终功能提交 `6868648`；Core精确 `a84590cbd62ada4f75fa10e109f0cdc07a13368e`、Pi/PiDurable1.0.2、两份组件清单与schema不变。未复制ZCode代码，未新增调度器、任务数据库、阶段百分比或子Agent计数。
+- 交付：[Desktop #308](https://github.com/Intellinfinity/edupi-desktop/pull/308) 的 [CI 37487513876](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37487513876) 绑定精确源码 `6868648`，audit与rust-audit均成功；2026-10-06 UTC15:33:22已合并为 `c4bde1545553d774b5f139a603e589fa7d7738e6`。安装版与发布状态仍独立未验。
+
+| 验收条件 | 操作与预期 | 实际结果 |
+| --- | --- | --- |
+| 任务身份 | 从已绑定会话打开卡片；切另一任务/新对话不保留旧详情 | 两任务根 `~/edupi-route1-canary-llGmUw` 中卡片仅按Core Session绑定显示；第二任务切入后旧详情0，新对话卡片/详情均0；返回第一会话草稿保留 |
+| 键盘与布局 | Enter/Space打开，Tab/Escape关闭及恢复焦点；1440×900和800×900 | 宽窗为complementary右栏，聊天可继续输入、聊天中的Escape不关闭右栏；窄窗为dialog且Tab循环，关闭返回卡片；实测无横向溢出 |
+| 实际文件 | 计划名称不算文件；任务页、详情与预览打开同一对象 | 空任务为0文件并独立列计划；新Core夹具生成检测卷/参考答案2文件，任务页和右栏一致，正文预览确实读到题目 |
+| 文件往返与保稿 | 任务内聊天→卡片→文件→返回→关闭 | 路由保留Session，聊天保持单一实例；文件在同一侧栏位置打开，返回原任务，未发送要求全文保留 |
+| 审核与只读 | 右栏审核入口进入原审核流程并暂缓，另一个入口回读 | 只写回指定任务；审核历史1，卡片“已暂缓”，2文件仍可打开且显示只读，编辑/AI修订按钮不出现，历史版本1可见 |
+| 断连和重载 | 阻断工作区请求→重载→重试→返回聊天 | 页面显示“教育工作区暂不可用，请重试”，未显示假空列表；取消浏览器阻断后重试成功，任务、2文件、暂缓意见和未发送要求保持 |
+
+- 文件夹具复用现有 `test-edupi-teacher-created-preparation-e2.mjs` 的公开Core/受控G1流程，保留在 `~/edupi-task-surface-nrvf0F/fixture-6RV7Ng/teacher-data`。唯一任务 `teacher-task-22222222-2222-4222-8222-222222222222`，703/数学，课次2026-10-07、截止2026-10-06；合成材料的人工确认摘录不计PDF识别或真人教学证据。G1仅该范围，G2/G3/G4关闭、外发false；1次备课调用、execution attempt=1、2份文件，创建/运行重放未重做。页面只发送1次本机合成聊天，Session为 `01a111b8-6060-747e-9c23-d9501954a507`，审核暂缓1次。生成由测试脚本准备，续聊、文件打开/返回、审核和重载由Codex浏览器实际操作；不称为安装版生成验收。
+- 保留失败：旧隔离根 `~/edupi-route1-canary-s8QOeo` 的Runtime返回 `runtime_root_invalid`，只读核对当前根指纹与writer-admission持久指纹不一致；没有改写指纹、删除数据库或修补历史证据。新夹具首次准备的Core snapshot超时也保留，第二个独立新根按原门验证成功。初次页面沿用了另一隔离项目选择，出现project trust拒绝；任务入口选入正确合成根后续聊成功，未放宽文件允许根。
+- 回归：新增当前Session/跨任务、真实文件去重/路径与权限、键盘模式/焦点、教师较新看板操作和网络失败后重试的行为验证。看板时序回归先失败、修复后通过；最后定向39/39。首次全量1976 pass、3 fail、27 skipped，其中2个旧结构哨兵按新共享组件更新，另1个进程测试在高负载下先超时、独立重跑通过。UI收口全量1981 pass、0 fail、27 skipped；sharp补丁后最终 `npm test -- --test-concurrency=4` 为1982 pass、0 fail、27 skipped，跳过项不计验收。TypeScript、lint和diff通过；保留原intake未使用导入warning。
+- 依赖门：最终审计新披露 [GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)，sharp0.35.4使高危门失败。`npm update sharp --ignore-scripts` 只更新sharp家族27个锁条目，sharp0.35.5/libvips1.3.4；本机librsvg2.63.2，实际小SVG→PNG→RGBA与像素检验通过，安全依赖组6/6。安装尚在写入时过早运行检查曾读到不完整库，完整安装后该问题消失；新版不导出package.json导致的测试入口错误已改用公开 `sharp.versions`。最终审计高危/严重为0，剩6低危、3中危，不执行force或相关Dependabot PR。页面证据在补丁前取得，UI源码未再改变；补丁后单独验证原生图像行为和全套检查。
+- 原始证据在 `~/edupi-task-surface-nrvf0F`：`after-held-workspace.json`、`final-wide-state.json`、`held-details-1440.jpg`、`held-file-narrow.jpg`、`read-failure-chinese.jpg`、`final-recovered.jpg`、`post-sharp-full-tests.log`。辅助夹具与恢复入口同目录保留。全轮服务/模型已退出，浏览器网络阻断和viewport覆盖已撤销；正式App只读版本回查为 `.45`，未启动或替换，不改真实教师数据根、凭据或launchd。
+- 未验：本批安装交互、各平台图片原生库及完整Office格式、失败/取消后的安装版恢复、真实睡眠、真人质量和六领域Live。Core #223/Durable独立适配、Windows、Univer、远程手机和公开更新保持原边界。既有 `.54` Draft的签名身份不因源代码补丁改变，本轮不触发构建、发布或feed更新；R01–R23整体不能据此勾为完成。
 
 ## 2026-10-06 v0.3.54 签名包交付
 

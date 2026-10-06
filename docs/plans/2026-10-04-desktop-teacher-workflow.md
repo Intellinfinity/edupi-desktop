@@ -8,7 +8,7 @@
 
 进度唯一入口仍为 [产品闭环路线图](2026-09-06-product-closure-roadmap.md)。本文件细化原 R01/R02/R04/R13/R18/R19/R20/R21/R23，不替代原欠项，也不改变发布门。用户已同意此顺序，实施在当前任务继续，不再新开同分支对话。
 
-**最新执行约束：** 用户本轮要求先解决 Risk 和 Unverified，本批集中运行验收。Pi 1.0.2/G2 由 Desktop #296、A1 由 #297 交付；页面发现的快照错配由 Core #222 修复，当前精确配对 `a84590c`。历史草稿拒绝/完整备份恢复、页面暂缓只读与保稿、有限真实 G2 模型、会话工具关闭的实际服务重启已有分层证据，新 `.52` macOS 签名候选继续验证。Windows、Univer、公开发布及真人教学质量分别保留，新 Durable 试点默认关闭。
+**最新执行约束：** 用户已同意落实ZCode参考前三项。任务卡、统一右栏和实际文件列表的源码与隔离开发页验证由Desktop #308交付；Core精确 `a84590c`、Pi/PiDurable1.0.2保持。`.52`已有分层安装证据，`.54`仅是已核验签名资产的历史检查点，不包含本批UI或sharp补丁。本批不重新构建或替换安装；Core #223/Durable独立适配、Windows、Univer、远程手机、公开发布与真人教学质量继续按原边界记录。
 
 Core #217 当前为已实现待验收：pin/CAS、独立默认关闭的 G2 授权与模型通道、捕获消息入队、公开跟进摘要审核/反馈消费者均已写入；原 G1 权限与数据边界保持。实现和缺失的上游字段见[唯一账本最新条目](2026-09-06-product-closure-roadmap.md#2026-10-05-core-217-源码适配)。本阶段不合并为已验收能力，不触发签名包。
 
@@ -16,7 +16,7 @@ G2 的 `next_step`、剩余预算和执行记录已完成合同配对；原 #217
 
 ## 2026-10-06 ZCode 参考评估
 
-状态：只读源码评估完成，尚未移植或运行验收，不扩展本轮“先构建”的实现范围。参考固定为官方 [zai-org/ZCode `29628c9`](https://github.com/zai-org/ZCode/tree/29628c9acdb81b703bbd4080c207a0e7ce5e276e)。README列出桌面、共享React UI、服务端与Agent源码；第一方代码为[Apache-2.0](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/LICENSE)，复用须保留许可/适用NOTICE及改动标记，第三方素材和依赖按其各自条款处理。截图不证明所用发行版与该开源版本完全相同。
+状态：参考评估完成。用户已同意实施前三项；紧凑任务卡、统一任务/文件右栏与真实产物列表已完成源码和隔离开发页验证，交付与剩余边界见[本轮验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-06-任务卡右栏与真实文件)。参考固定为官方 [zai-org/ZCode `29628c9`](https://github.com/zai-org/ZCode/tree/29628c9acdb81b703bbd4080c207a0e7ce5e276e)。README列出桌面、共享React UI、服务端与Agent源码；第一方代码为[Apache-2.0](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/LICENSE)，复用须保留许可/适用NOTICE及改动标记，第三方素材和依赖按其各自条款处理。截图不证明所用发行版与该开源版本完全相同。
 
 | 优先范围 | 可借鉴交互 | EduPi落点与依赖 |
 | --- | --- | --- |
@@ -28,16 +28,16 @@ G2 的 `next_step`、剩余预算和执行记录已完成合同配对；原 #217
 - 源码依据：[WorkflowTimeline](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/components/workflow-timeline/WorkflowTimeline.tsx)限制默认展示行数并支持键盘/减少动画；[WorkflowRunSidePane](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/app-shell/WorkflowRunSidePane.tsx)读取父会话权威投影，按run ID打开详情并按真实能力显示恢复动作；[useWorkflowRunArtifacts](https://github.com/zai-org/ZCode/blob/29628c9acdb81b703bbd4080c207a0e7ce5e276e/packages/ui/src/hooks/useWorkflowRunArtifacts.ts)合并实时摘要与持久化产物/版本，区分缺能力、加载失败和真正无产物。
 - EduPi当前`taskAgentSteps()`按证据、产物和审核状态推导四步，不提供真实阶段总数或子Agent。要显示`19/23`或`+18`必须由Core提供相应工作单元和身份。已有kernel的`attempt_count`在客户端normalization未保留，是后续小范围适配点，不能据此推导子任务关系。
 - 控制保持原语义：Pi停止、Core备课重试、后台文档取消各自接既有入口；暂停自动运行授权不等于暂停当前run。按钮只对Core确认可用的动作显示，拒绝/失败保留内容。执行结束显示“草稿已生成/待确认”，教师接受才显示“已确认”。
-- 第一批建议前三项呈现整合。加载中、失败、停止和空列表分别可辨；Enter/Space可打开卡片，子按钮不重复触发；关闭右栏不清空输入，切任务/重试不串对象，1440×900与800×900复核。沿用现有字体、颜色和间距，不默认展示token用量、脚本或技术日志。上述均为后续验收条件，本次未执行。
+- 第一批前三项已实现并验证：Enter/Space打开卡片，宽窗并排、窄窗抽屉；Tab/Escape与焦点恢复、文件返回、会话切换、暂缓只读和读取失败后重试均有开发页证据。1440×900与800×900无横向溢出，未发送文字在跳转与重载后保留。采用原字体、颜色和间距，未复制ZCode代码。实际阶段/子任务计数、安装版与真人质量继续单列。
 
 ## 基线与已知问题
 
 - Desktop main `11c2c69`；当前工作树 `route1-core-a8fe471`，分支 `codex/route1-core-a8fe471-20260926`。保留所有既有改动，不 reset、clean、stash 或创建替代分支。
 - 本日开始时 Core main 与 pin 为 `22bf414`；收尾回读已合并 #216 为 `17abf51`。已完成差异审查与精确 pin/两份组件清单更新，IPC/桥接/课次 schema 和 12 命令不变；[配对记录](../acceptance/2026-10-04-core-216-pairing.md)。原 A3/B 页面证据仍明确绑定 `22bf414`，不改写成新安装证据。
-- 正式安装与公开 feed 为 v0.3.45；v0.3.50 仅是先前签名验收候选。10 月安全修复尚无新签名包，不能借用 .50 公证或安装证据。
+- 正式安装与公开feed仍为v0.3.45。历史`.52`安装与`.54`签名包各自有证据；本批新UI/sharp补丁没有签名包，不能借用旧包的公证或安装结果。
 - 已有官方 OpenConnector Console、常用设置直达、AI 参考卡片、输入草稿隔离和审核刷新入口。下一轮只修实际残余问题，不重复建这些能力。
 - 已有安装证据：教师暂缓后，执行账本的四份草稿仍在，但 Core 不投影它们，正文 read 也拒绝；页面显示 0 项。只改 Desktop 不能完成安全回看。
-- 当前源码另有数量不一致风险：`EduPiTaskDetailDrawer` 渲染 `preparedFiles`，标题却计数另一份 `taskArtifacts`。须用回归和页面复现后修复。
+- 计划启动时的数量不一致风险已由#308取代：任务详情与任务产物页共用实际文件投影和计数，回归及开发页验证通过；安装版另验。
 - 结构证据来自当前源码和既有验收记录；本轮 CodeGraph 工具不可用。静态阅读不算运行验收。
 
 ## 执行顺序

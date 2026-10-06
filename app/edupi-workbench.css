@@ -298,6 +298,15 @@ html.dark .edupi-teacher-shell {
 .edupi-chat-surface,
 .edupi-chat-surface > * { height: 100%; min-height: 0; }
 .edupi-teacher-main { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ep-canvas); }
+
+/* Keep one details surface beside the persistent conversation on wide windows. */
+.edupi-teacher-body > .edupi-task-detail-layer { top: 0; }
+.edupi-task-detail-layer.is-docked { position: relative; inset: auto; z-index: auto; display: flex; min-width: 0; min-height: 0; background: transparent; }
+.edupi-task-detail-layer.is-docked .edupi-task-detail-drawer { position: relative; inset: auto; width: 100%; min-width: 0; min-height: 0; box-shadow: none; animation: none; }
+.edupi-workspace-drawer.is-docked { position: relative; inset: auto; z-index: auto; width: 100%; min-width: 0; min-height: 0; box-shadow: none; animation: none; }
+@media (min-width: 1280px) {
+  .edupi-teacher-body.is-chat.has-task-pane { grid-template-columns: 220px minmax(0, 1fr) 380px; }
+}
 .edupi-reminder-surface { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--ep-canvas); }
 .edupi-reminder-inbox {
   color: var(--ep-text);
@@ -1111,7 +1120,6 @@ html.dark .edupi-teacher-shell {
 .edupi-task-board-create__source fieldset input { width: 14px; height: 14px; }
 .edupi-task-board-create__source fieldset p { margin: 0; color: var(--ep-danger); font-size: 10px; }
 .edupi-task-board-create__source > p { grid-column: 1 / -1; margin: 0; color: var(--ep-danger); font-size: 10px; }
-.edupi-task-detail-artifacts li > button { display: flex; width: 100%; padding: 0; align-items: center; justify-content: space-between; gap: 10px; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .edupi-operation-history,
 .edupi-context-history { margin: 12px 16px; border-top: 1px solid var(--ep-border); }
 .edupi-operation-history > summary,
@@ -1918,9 +1926,9 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-workspace-drawer { position: absolute; z-index: 120; top: 0; right: 0; bottom: 0; display: grid; width: min(580px, calc(100% - 72px)); grid-template-rows: 58px minmax(0, 1fr); border-left: 1px solid var(--ep-border-strong); background: var(--ep-surface); box-shadow: -18px 0 44px rgba(19, 25, 34, .16); animation: edupi-drawer-in 160ms ease-out both; }
 @keyframes edupi-drawer-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
 .edupi-workspace-drawer > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 15px; border-bottom: 1px solid var(--ep-border); }
-.edupi-workspace-drawer > header > div:first-child { display: flex; min-width: 0; flex-direction: column; }
+.edupi-workspace-drawer > header > div:first-child { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .edupi-workspace-drawer > header span { color: var(--ep-blue); font-size: 10px; font-weight: 700; }
-.edupi-workspace-drawer > header h2 { margin: 1px 0 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-workspace-drawer > header h2 { margin: 0; min-width: 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .edupi-workspace-drawer > header > div:last-child { display: flex; align-items: center; gap: 7px; }
 .edupi-workspace-drawer > header button { height: 30px; padding: 0 9px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface-soft); color: var(--ep-text); cursor: pointer; font-size: 11px; }
 .edupi-workspace-drawer > header button.is-close { width: 30px; padding: 0; color: var(--ep-muted); font-size: 17px; }
@@ -1958,6 +1966,22 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-task-detail-drawer__close:hover { background: var(--ep-surface-soft); color: var(--ep-text); }
 .edupi-task-detail-drawer__body { min-width: 0; min-height: 0; overflow-y: auto; }
 .edupi-task-detail-summary { padding: 12px 16px; border-bottom: 1px solid var(--ep-border); background: color-mix(in srgb, var(--ep-blue-soft) 42%, var(--ep-surface)); }
+.edupi-task-detail-evidence-section > summary { padding: 12px 16px; color: var(--ep-muted); font-size: 13px; cursor: pointer; }
+.edupi-task-detail-evidence-section > summary:focus-visible { outline: 2px solid var(--ep-blue); outline-offset: -2px; }
+.edupi-workspace-drawer .is-back { width: 30px; min-width: 30px; padding: 0; font-size: 18px; }
+.edupi-workspace-drawer .is-back:focus-visible { outline: 2px solid var(--ep-blue); outline-offset: 2px; }
+
+.edupi-task-artifact-list { display: grid; gap: 8px; min-width: 0; padding: 0 16px 16px; }
+.edupi-stage-artifact .edupi-task-artifact-list { padding: 0; }
+.edupi-task-artifact-list__item { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 56px; padding: 12px; border: 1px solid var(--ep-border); border-radius: 8px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; text-align: left; }
+.edupi-task-artifact-list__item:hover:not(:disabled) { border-color: var(--ep-border-strong); background: var(--ep-surface-soft); }
+.edupi-task-artifact-list__item:focus-visible { outline: 2px solid var(--ep-blue); outline-offset: 2px; }
+.edupi-task-artifact-list__item.is-unavailable { cursor: not-allowed; background: var(--ep-surface-soft); color: var(--ep-muted); }
+.edupi-task-artifact-list__icon { display: grid; flex: 0 0 28px; place-items: center; color: var(--ep-muted); }
+.edupi-task-artifact-list__content { display: grid; min-width: 0; gap: 4px; }
+.edupi-task-artifact-list__title { overflow: hidden; color: inherit; font-size: 13px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.edupi-task-artifact-list__meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--ep-muted); font-size: 11px; line-height: 1.4; }
+.edupi-task-artifact-list__empty { margin: 0; padding: 8px 0; color: var(--ep-muted); font-size: 12px; line-height: 1.5; }
 .edupi-task-detail-status { display: inline-flex; width: max-content; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 6px; background: var(--ep-blue-soft); color: var(--ep-blue); font-size: 11px; font-weight: 650; }
 .edupi-task-detail-status.is-success { background: var(--ep-green-soft); color: var(--ep-green); }
 .edupi-task-detail-status.is-warning { background: var(--ep-orange-soft); color: var(--ep-orange); }
@@ -1970,18 +1994,6 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-task-detail-section > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 16px 8px; }
 .edupi-task-detail-section > header h3 { margin: 0; font-size: 13px; letter-spacing: -.01em; }
 .edupi-task-detail-section > header span { color: var(--ep-muted); font-size: 10px; }
-.edupi-task-detail-steps { display: grid; gap: 0; margin: 0; padding: 0 16px 9px; list-style: none; }
-.edupi-task-detail-steps li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; min-width: 0; padding: 8px 0; }
-.edupi-task-detail-steps li + li { border-top: 1px solid color-mix(in srgb, var(--ep-border) 76%, transparent); }
-.edupi-task-detail-steps li > span { color: var(--ep-dim); font-size: 12px; line-height: 1.4; text-align: center; }
-.edupi-task-detail-steps li.is-done > span { color: var(--ep-green); }
-.edupi-task-detail-steps li.is-active > span { color: var(--ep-orange); }
-.edupi-task-detail-steps li.is-failed > span,
-.edupi-task-detail-steps li.is-failed em { color: var(--ep-red); }
-.edupi-task-detail-steps li > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.edupi-task-detail-steps li strong { font-size: 12px; font-weight: 620; }
-.edupi-task-detail-steps li small { color: var(--ep-muted); font-size: 10px; line-height: 1.45; }
-.edupi-task-detail-steps li em { color: var(--ep-muted); font-size: 10px; font-style: normal; white-space: nowrap; }
 .edupi-task-flow > ol { margin: 0; padding: 0 16px 12px; list-style: none; }
 .edupi-task-flow > ol > li { position: relative; display: grid; min-height: 43px; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 7px 0; }
 .edupi-task-flow > ol > li:not(:last-child)::after { position: absolute; top: 19px; bottom: -7px; left: 3px; width: 1px; background: var(--ep-border); content: ""; }
@@ -1990,22 +2002,9 @@ html.dark .edupi-page-section { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .edupi-task-flow li strong { font-size: 11px; }
 .edupi-task-flow li small,
 .edupi-task-flow li time { color: var(--ep-muted); font-size: 9px; }
-.edupi-task-detail-artifacts { display: grid; gap: 0; margin: 0; padding: 0 16px 8px; list-style: none; }
-.edupi-task-detail-artifacts li { display: flex; min-width: 0; align-items: center; padding: 8px 0; }
-.edupi-task-detail-artifacts li + li { border-top: 1px solid color-mix(in srgb, var(--ep-border) 76%, transparent); }
-.edupi-task-detail-artifacts li > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.edupi-task-detail-artifacts strong { overflow-wrap: anywhere; font-size: 12px; font-weight: 620; }
-.edupi-task-detail-artifacts small { color: var(--ep-muted); font-size: 10px; }
 .edupi-task-detail-plans { margin: 0 16px 13px; padding: 9px 10px; border: 1px dashed var(--ep-border); border-radius: 6px; background: var(--ep-surface-soft); }
 .edupi-task-detail-plans > strong { color: var(--ep-muted); font-size: 10px; font-weight: 650; }
 .edupi-task-detail-plans ul { display: grid; gap: 3px; margin: 5px 0 0; padding-left: 16px; color: var(--ep-text); font-size: 11px; line-height: 1.45; }
-.edupi-task-detail-file { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 3px 16px 14px; padding: 9px; border: 1px solid var(--ep-border); border-radius: 7px; background: var(--ep-surface-soft); }
-.edupi-task-detail-file > span { display: grid; width: 27px; height: 30px; place-items: center; border-radius: 5px; background: var(--ep-blue-soft); color: var(--ep-blue); font-size: 9px; font-weight: 700; }
-.edupi-task-detail-file > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.edupi-task-detail-file strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.edupi-task-detail-file small { color: var(--ep-muted); font-size: 10px; }
-.edupi-task-detail-file button { height: 28px; padding: 0 8px; border: 1px solid var(--ep-border-strong); border-radius: 5px; background: var(--ep-surface); color: var(--ep-text); cursor: pointer; font-size: 10px; white-space: nowrap; }
-.edupi-task-detail-file button:hover { border-color: var(--ep-blue); color: var(--ep-blue); }
 .edupi-task-detail-file .edupi-icon-action { width: 28px; min-width: 28px; padding: 0; }
 .edupi-task-detail-evidence { margin: 0; padding: 0 16px 12px; }
 .edupi-task-detail-evidence > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px; padding: 7px 0; }

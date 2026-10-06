@@ -11,7 +11,10 @@ test("workspace, chat, material, and calendar drawers share Escape and focus res
     read("./EduPiMaterialsWorkspace.tsx"),
     read("./EduPiCalendarWorkspace.tsx"),
   ]);
-  for (const source of [workspace, chat, materials, calendar]) {
+  assert.match(workspace, /usePanelDismiss<HTMLElement>\(onClose, docked, Boolean\(kind\)\)/);
+  const adaptive = await read("../hooks/usePanelDismiss.ts");
+  assert.match(adaptive, /useModalDismiss<T>\(onClose, enabled && !docked\)/);
+  for (const source of [chat, materials, calendar]) {
     assert.match(source, /useModalDismiss<HTMLElement>/);
     assert.match(source, /"dialog"/);
     assert.match(source, /data-autofocus/);
@@ -22,7 +25,8 @@ test("student drawer closes with Escape and restores the invoking control", asyn
   const students = await read("./EduPiStudentWorkspace.tsx");
   assert.match(students, /useModalDismiss<HTMLElement>/);
   const tasks = await read("./EduPiTaskDetailDrawer.tsx");
-  assert.match(tasks, /useModalDismiss<HTMLElement>/);
+  assert.match(tasks, /usePanelDismiss<HTMLElement>\(onClose, docked\)/);
+  assert.match(tasks, /docked \? "complementary" : "dialog"/);
   assert.doesNotMatch(tasks, /addEventListener\("keydown"/);
   assert.match(students, /ref=\{studentDrawerRef\}/);
 });

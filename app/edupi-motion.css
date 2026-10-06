@@ -9,9 +9,38 @@
 .edupi-student-graph .is-selected .edupi-student-graph__edge {
   animation: edupi-edge-flow 1.8s ease-out 1;
 }
-.edupi-runtime-flow { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--text-muted); font-size: 12px; }
-.edupi-runtime-flow svg { width: 72px; height: 16px; color: var(--accent); }
-.edupi-runtime-flow path { animation: edupi-edge-flow 1.8s linear infinite; }
+.edupi-runtime-flow--generic { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--text-muted); font-size: 12px; }
+.edupi-runtime-flow--generic > span { min-width: 0; overflow-wrap: anywhere; }
+.edupi-runtime-flow--generic svg { flex-shrink: 0; width: 72px; height: 16px; color: var(--accent); }
+.edupi-runtime-flow--generic path { animation: edupi-edge-flow 1.8s linear infinite; }
+.edupi-task-run-card {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 24px);
+  min-width: 0;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--ep-border, var(--border));
+  border-radius: 8px;
+  background: var(--ep-surface, var(--bg-panel));
+  color: var(--ep-text, var(--text));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.edupi-task-run-card:hover { background: var(--ep-surface-soft, var(--bg-hover)); border-color: var(--ep-border-strong, var(--border)); }
+.edupi-task-run-card:focus-visible { outline: 2px solid var(--ep-blue, var(--accent)); outline-offset: 2px; }
+.edupi-task-run-card__icon { flex: 0 0 24px; width: 24px; height: 24px; color: var(--ep-muted, var(--text-muted)); }
+.edupi-task-run-card__body { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.edupi-task-run-card__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.edupi-task-run-card__meta { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; color: var(--ep-muted, var(--text-muted)); font-size: 12px; line-height: 1.4; }
+.edupi-task-run-card__status { min-width: 0; overflow-wrap: anywhere; }
+.edupi-task-run-card.edupi-runtime-flow .edupi-task-run-card__status { color: var(--ep-blue, var(--accent)); }
+.edupi-task-run-card__chevron { flex: 0 0 16px; width: 16px; height: 16px; color: var(--ep-muted, var(--text-muted)); }
 @media (prefers-reduced-motion: reduce) {
-  .edupi-runtime-flow path, .edupi-student-graph .is-selected .edupi-student-graph__edge { animation: none; }
+  .edupi-runtime-flow--generic path, .edupi-student-graph .is-selected .edupi-student-graph__edge { animation: none; }
+  .edupi-task-run-card { transition: none; }
 }

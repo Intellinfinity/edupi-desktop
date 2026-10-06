@@ -15,7 +15,8 @@ test("Today, workspace cards, and the shared drawer consume Core work cases", ()
   assert.match(today, /taskById\.get\(candidate\.taskId\)/);
   assert.match(board, /workCaseForTask\(data, task\.id\)/);
   assert.match(drawer, /workCase: EducationWorkCase \| null/);
-  assert.match(drawer, /workCase\.transitions/);
+  assert.match(drawer, /workCase\?\.taskId === task\.id \? workCase : null/);
+  assert.match(drawer, /matchedCase\.transitions/);
   assert.match(panel, /workCaseForTask\(education, taskDetail\.id\)/);
 });
 

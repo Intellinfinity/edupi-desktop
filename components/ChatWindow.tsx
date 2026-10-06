@@ -916,7 +916,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {onEduPiAction ? <EduPiRuntimeFlow running={sessionBusy} toolRunning={bashRunning} compacting={isCompacting} activeTools={agentPhase?.kind === "running_tools" ? agentPhase.tools.map(tool => tool.name) : []} /> : null}
+      {onEduPiAction ? <EduPiRuntimeFlow sessionId={session?.id} running={sessionBusy} toolRunning={bashRunning} compacting={isCompacting} activeTools={agentPhase?.kind === "running_tools" ? agentPhase.tools.map(tool => tool.name) : []} /> : null}
       {reminderTitle ? <div role="status" style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{reminderTitle}</div> : null}
       {onEduPiAction && onEduPiProactiveTarget && onOpenEduPiReminders ? <div className="edupi-chat-utilities">
         <EduPiProactiveHub open={openEduPiUtility === "proactive"} onOpenChange={(next) => setOpenEduPiUtility(next ? "proactive" : null)} onAction={onEduPiAction} onTarget={onEduPiProactiveTarget} onOpenReminders={onOpenEduPiReminders} />

@@ -43,7 +43,7 @@ test("quick suggestions cannot replace a drafted home command", async () => {
 
 test("task detail handoff closes after activation without a competing route update", async () => {
   const [drawer, panel] = await Promise.all([read("./EduPiTaskDetailDrawer.tsx"), read("./EduPiEducationPanel.tsx")]);
-  assert.match(drawer, /onClick=\{\(\) => onOpenAgent\(task\)\}>\{agentBusy \? "正在准备" : "继续让 EduPi 做"\}/);
+  assert.match(drawer, /onClick=\{\(\) => onOpenAgent\(task\)\}>\{agentBusy \? "正在准备" : "继续协作"\}/);
   const activation = panel.slice(panel.indexOf("const activateAgent"), panel.indexOf("const openAgentForTask"));
   assert.match(activation, /setTaskDetailTask\(null\)/);
   assert.match(activation, /if \(!task\.id \|\| !education\) \{[\s\S]*updateTaskDetailLocation\(null\)/);

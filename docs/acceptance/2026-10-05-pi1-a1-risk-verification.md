@@ -1,6 +1,17 @@
 # Pi 1 与暂缓草稿风险验收
 
-本轮前三项任务呈现整合已通过源码与隔离开发页验收。当前源码为 `6868648c8dc5180513ee83f3d151e568ab3210b1`，包含 `e2bb44a` 的 sharp 补丁；新UI与补丁未进入既有 `.54` 包。安装版和公开发布继续分别记录。
+2026-10-07已按用户要求完成`.55` macOS签名候选构建，固定源码`d3107c4`与Core`a84590c`。CI公证/装订、App/DMG签名/Gatekeeper及本机完整资产摘要与包内身份通过；构建不替代安装/真人验收，详见[签名更新记录](../plans/2026-09-07-signed-updates.md#2026-10-07-v0355-macos-候选)。
+
+前三项任务呈现整合已通过源码与隔离开发页验收，功能提交为 `6868648c8dc5180513ee83f3d151e568ab3210b1`，包含 `e2bb44a` 的 sharp 补丁。新UI与补丁已进入`.55`候选，未进入既有 `.54` 包；安装版和公开发布继续分别记录。
+
+## 2026-10-07 v0.3.55 构建核验
+
+- 版本PR #310/source CI37498670567成功并合并；macOS-only签名CI37498750385固定源码`d3107c4`、Core`a84590c`、Pi/PiDurable1.0.2。质量门1981 pass、28 skipped、0 fail；Core配对、打包运行、离线OCR、DOCX、OpenConnector目录与Mac集成通过。Windows未构建，Test desktop shell步骤未运行，不计为Cargo测试通过。
+- App构建签名及包内真实服务运行、updater公钥检查通过；DMG公证为Accepted，App/DMG装订与最终签名、Gatekeeper均通过。Draft`404950486`保留3项资产，不执行draft-proof/manifest/notify发布步骤，不更改公开feed。
+- DMG asset`616184804`，209005219字节、SHA256`9fdd3e46d8bc3ad49533eb7d0744e9d76facbfbc119643a9523f740b11bf077a`。首次下载有9个完整分片和1个未完成分片，保留原件；只补缺失片后全量摘要匹配，不把部分文件当通过。App archive asset`616172355`、sig`616172716`的远端摘要分别为`aca612c4868b4c340ee074f2b02c3e415bc7d050edad567a932828fea6d7fb67`、`0c87d96f3c42c99d8fbaf477ed371759b4b5805e7234c2751ddef2541aff3f4a`；本机updater安装验签另列未验。
+- 本机DMG签名与Gatekeeper accepted，只读无Finder挂载后App strict/deep codesign与Gatekeeper accepted，source均为Notarized Developer ID；签名团队与公开`.45`一致。包内版本`.55`、bundled Core`a84590c`、SDK1.0.2、Desktop组件清单与完整文件闭包核对通过，sharp0.35.5和source-map-js1.2.2确实随包。未启动候选App，核验后已卸载镜像，唯一正式App版本仍`.45`。
+- 证据位于`~/edupi-install-checkpoints/v0.3.55/evidence`：`run.json`、`release.json`、`build-success.log`、`download.log`、`download-resume.log`、`candidate-identity-final.json`及只读挂载记录。下载文件为同目录上一层`EduPi_0.3.55_aarch64.dmg`。状态查询通过7897曾TLS超时，改为只读直连后同一run继续，不触发重复候选。
+- 本机stapler旧CloudKit TLS边界仍未解决，此轮未重复联网验证。6低危/3中危依赖问题保留；新UI安装、任务分叉/真实扩展过滤安装补验、真实睡眠、真人质量、六领域Live和其他平台未据此通过。正式数据根/凭据/launchd/安装与公开Release/feed未改，`.54`检查点保持。
 
 状态：`.54` macOS签名构建成功，DMG完整摘要、App/DMG严格签名与本机Gatekeeper、包内Core身份均核验通过；用户“先构建”的交付已完成。正式安装仍为 `.45`，`.54`安装交互另行待验。`.52`既有安装证据保持，真实睡眠、真人质量及公开更新门仍欠证。本机stapler联网复核边界单列。本文补充原R01/R20/R22，不替代发布门。
 

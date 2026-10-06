@@ -1,5 +1,13 @@
 # 自动下载安装
 
+## 2026-10-07 v0.3.55 macOS 候选
+
+- 用户要求在当前风险修复后开始Mac构建。元数据/组件版本与Cargo锁定更新至`.55`，Core仍精确`a84590c`、Pi/PiDurable1.0.2；包含已合并任务卡/文件右栏和sharp0.35.5补丁。版本/发布42检查、locked metadata、组件pin和高危审计通过，余6低危/3中危继续记录。
+- 源码`d3107c4b3686ef0fec5b506124269d21e88a02e2`的CI`37498670567`双绿，PR [#310](https://github.com/Intellinfinity/edupi-desktop/pull/310)合并为`1a7fa48cd89300ef4740ecfff5427cf7f2bd1470`。macOS-only [run 37498750385](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37498750385)成功，Draft`404950486`与tag`v0.3.55`绑定该源码；Apple公证Accepted、装订、App/DMG签名与Gatekeeper检查全通过。CI全量1981 pass、28 skipped、0 fail，跳过项不计安装验收。
+- 最终DMG asset`616184804`，209005219字节，SHA256`9fdd3e46d8bc3ad49533eb7d0744e9d76facbfbc119643a9523f740b11bf077a`；本机完整摘要、DMG与App严格签名/Gatekeeper、包内Core/SDK/文件闭包通过，sharp0.35.5及source-map-js1.2.2确实进入包内。候选与公开版签名团队一致，只读挂载后已卸载。文件位于`~/edupi-install-checkpoints/v0.3.55/EduPi_0.3.55_aarch64.dmg`。
+- 首轮分片下载只有1个分片未完成，其他9个完整分片保留并复用，补齐后才核对完整摘要。CI与下载/身份原件保留在同目录`evidence`。本机stapler旧TLS边界未重复验证，App archive/sig的本机updater安装验签仍未执行。
+- 仅构建候选，不替换正式`.45`、不覆盖`.54`检查点、不发布Release或更新feed。新UI安装、真实睡眠、真人质量和其他平台仍分别待验。恢复入口为`~/edupi-install-checkpoints/v0.3.55/RESUME.md`。
+
 ## 2026-10-06 v0.3.54 构建完成
 
 - 签名run `37408179317` 成功，Draft `404276650` 固定源码 `c861347`。最终DMG asset `614416762` 的本机完整SHA256为 `50139f5e0f42cb405d6372d4adbc708c65430f0946f9a8e8e91b77128df619b8`，与Release精确匹配；App/DMG严格签名、Gatekeeper和内嵌Core身份通过。

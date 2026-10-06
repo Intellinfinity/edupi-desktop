@@ -1,5 +1,13 @@
 # 自动下载安装
 
+## 2026-10-07 v0.3.56 MCP 修复候选
+
+- `.55`构建成功后新披露MCP高危，最小修复固定OpenConnector client2.2.0和配套私有core2.2.0；server未受该公告影响，不为审计强行整体升级。现有目录/Console没有SDK OAuth provider路径，不清空用户连接或改凭据。高危门重新清零，另6低/3中仍保留。
+- 安全组7/7，实际withMcpClient内存HTTP现代发现与工具调用通过；全量1983 pass、27 skipped、0 fail，类型/lint、版本/发布42检查、locked metadata与组件pin检查通过。源码`6d8e696995040a2dd0191f178460dae5b24f7d99`的CI`37509377920`双绿，PR [#312](https://github.com/Intellinfinity/edupi-desktop/pull/312)合并为`1400ede8a842957879d3867dfc167e630739be59`。
+- macOS-only [run 37509562059](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37509562059)成功，Draft`405013321`、tag`v0.3.56`固定该源码，Core仍`a84590c`/SDK1.0.2。CI质量1982 pass、28 skipped、0 fail；公证Accepted、装订、App/DMG严格签名、Gatekeeper、包内服务与updater公钥检查通过。跳过项不计验收。
+- DMG asset`616378660`，209185115字节，SHA256`e3cb98da3fceca9021d3b8317ac7bababef01a7bb6e55254f67c5a3b1c19fd02`，本机完整下载精确匹配。只读挂载验证App/DMG签名/Gatekeeper、Core文件闭包/SDK和补丁版本通过：MCPclient/core2.2.0、sharp0.35.5、source-map-js1.2.2确实在包内；签名团队与公开版相同。镜像已卸载，未启动或安装候选。
+- 文件位于`~/edupi-install-checkpoints/v0.3.56/EduPi_0.3.56_aarch64.dmg`，原始构建、摘要与身份记录同目录`evidence`。本机stapler旧TLS与updater安装验签继续未验；`.55`不可变检查点、正式`.45`、公开Release/feed及其他平台边界保持。最终npm高危门再次通过，余6低/3中，不称零风险。
+
 ## 2026-10-07 v0.3.55 macOS 候选
 
 - 构建后风险复核新增MCP客户端高危[GHSA-6qxp-vccf-f47h](https://github.com/advisories/GHSA-6qxp-vccf-f47h)，来自OpenConnector的client2.1.0；`.55`在审计数据更新前通过构建门。`.55`资产作为签名/下载检查点保留，不发布，补丁采用新候选版本，不覆盖既有资产。

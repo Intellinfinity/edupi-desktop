@@ -1,6 +1,16 @@
 # Pi 1 与暂缓草稿风险验收
 
-最新风险复核：`.55`构建和本机核验完成后，新披露MCP client OAuth凭据issuer高危使审计门重新失败。`.55`保持Draft检查点，不发布/安装；最小依赖补丁正在处理，修复后采用新版本候选，Core pin不因该Desktop独立依赖改变。
+最新风险复核：`.55`构建后新披露MCP client OAuth凭据issuer高危已由Desktop最小依赖补丁修复。`.56`源码CI、签名构建及本机完整摘要/签名/Gatekeeper/包内MCP版本核验通过，最终高危审计为0；余6低/3中仍记录。现有受控入口不使用SDK OAuth provider，不改用户凭据，Core仍`a84590c`。`.55`保留历史Draft，`.56`尚未安装/发布。
+
+## 2026-10-07 v0.3.56 MCP 补丁与构建
+
+- `.55`最终文档push警告触发复核，npm审计和GitHub alert31共同确认新高危[GHSA-6qxp-vccf-f47h](https://github.com/advisories/GHSA-6qxp-vccf-f47h)。来源仅为OpenConnector1.6.5的client2.1.0，EduPi Core依赖/清单不含该包。官方修复最低2.2.0；npm初次浮动解析2.3.1后收敛为OpenConnector scoped override精确2.2.0，其私有core同为2.2.0，server/rootcore2.1.0未受该公告影响并保持。
+- 独立只读复审确认MCP工厂仅传HTTP/SSE fetch/headers/redirect/signal，不使用SDK authProvider/withOAuth/内置provider或SDK凭据schema；自有OAuth使用目录token URL和manual redirect。目录/Console受限GET、临时数据根与Action/Proxy禁用，不能据此推断历史连接一定无泄露，但本轮无需清空用户连接或迁移issuer。没有访问真实凭据、发出真实MCP调用或改Core pin。
+- 安全组7/7含真实withMcpClient内存HTTP现代server/discover/tools/call，最终全量1983 pass、27 skipped、0 fail，类型/lint/高危审计/42发布检查/locked metadata/组件pin通过。最初测试夹具路径和现代协议字段不完整导致失败，按已安装SDK真实schema修正后通过，未改生产协议或降低验证。PR [#312](https://github.com/Intellinfinity/edupi-desktop/pull/312)源码`6d8e696995040a2dd0191f178460dae5b24f7d99`的CI`37509377920`双绿，合并为`1400ede8a842957879d3867dfc167e630739be59`。
+- `.56` [macOS-only CI37509562059](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37509562059)成功：1982 pass、28 skipped、0 fail，Core配对、打包真实服务、OCR/DOCX/OpenConnector目录/Mac集成、签名后运行/updater公钥及App/DMG公证装订、strict签名/Gatekeeper通过，Apple状态Accepted。Windows未构建，Cargo Test desktop shell步骤未执行，不冒充通过。
+- Draft`405013321`固定原始源码`6d8e696`，最终DMG asset`616378660`，209185115字节、SHA256`e3cb98da3fceca9021d3b8317ac7bababef01a7bb6e55254f67c5a3b1c19fd02`。首轮10个分片均完成，拼接后本机摘要匹配。App archive/sig资产`616365839`/`616366141`远端摘要`1ce2ad41b5ac4b2f08bd5ba1d8247490a9a266d459cf3110f8abba5fe6245785`/`5e168836189b11885ca9a7a27ae42690acf8ce350dec6edc36d027d1494fcca3`，本机updater安装验签仍未做。
+- 本机DMG/App签名与Gatekeeper均accepted，source=Notarized Developer ID，签名团队与`.45`一致。只读挂载核对版本`.56`、bundled Core`a84590c`、SDK1.0.2、组件/文件闭包及MCPclient/core2.2.0、sharp0.35.5、source-map-js1.2.2。核验脚本最初误读server依赖路径报ENOENT，实际MCP位于独立OpenConnector资源；改为真实路径后严格版本断言通过，非包内缺依赖。镜像已卸载，候选未启动，唯一正式安装仍`.45`。
+- 原始证据在`~/edupi-install-checkpoints/v0.3.56/evidence`的`run.json`、`release.json`、`build-success.log`、`download.log`、`candidate-identity-final.json`、`final-audit.log`；DMG在同目录上一层。状态监听曾TLS/EOF退出，但实际run继续，恢复查询后只跟进同一候选。最终高危门通过，6低/3中保留；本机stapler旧TLS、安装交互、真实睡眠/质量/六领域Live、其他平台仍未验，不发布Release/feed或改真实根/凭据/launchd。`.54`/`.55`检查点不覆盖。
 
 2026-10-07已按用户要求完成`.55` macOS签名候选构建，固定源码`d3107c4`与Core`a84590c`。CI公证/装订、App/DMG签名/Gatekeeper及本机完整资产摘要与包内身份通过；构建不替代安装/真人验收，详见[签名更新记录](../plans/2026-09-07-signed-updates.md#2026-10-07-v0355-macos-候选)。
 

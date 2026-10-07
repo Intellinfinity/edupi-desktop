@@ -24,7 +24,7 @@ export async function notifyDesktop(options: {
   title: string;
   body: string;
   reminder?: Pick<NativeReminderNotification, "target" | "claims">;
-  isCurrent?: () => boolean;
+  isCurrent?: () => boolean | Promise<boolean>;
 }): Promise<"attempted" | "skipped" | "failed" | "cancelled"> {
   if (!isTauriDesktop() || !desktopNotificationsEnabled()) return "skipped";
 
@@ -43,9 +43,19 @@ export async function notifyDesktop(options: {
     return "skipped";
   }
 
+  // The teacher can disable notifications or reopen the window while the OS
+  // permission prompt is pending. An unsent reminder claim must be released.
+  if (!desktopNotificationsEnabled()) return options.reminder ? "cancelled" : "skipped";
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    if (await getCurrentWindow().isFocused()) return options.reminder ? "cancelled" : "skipped";
+  } catch {
+    // Keep the existing fallback when focus cannot be determined.
+  }
+
   try {
     if (options.reminder) {
-      if (options.isCurrent && !options.isCurrent()) return "cancelled";
+      if (options.isCurrent && !await options.isCurrent()) return "cancelled";
       await sendReminderNotificationNative({ title: options.title, body: options.body, ...options.reminder }, options.isCurrent);
     }
     else {
@@ -79,6 +89,7 @@ export async function testDesktopNotification(): Promise<void> {
   if (!isTauriDesktop()) throw new Error("请在桌面应用中测试通知");
   if (!desktopNotificationsEnabled()) throw new Error("请先开启通知");
   if (!(await ensurePermission())) throw new Error("通知权限未开启，请在系统设置中允许 EduPi 通知");
+  if (!desktopNotificationsEnabled()) throw new Error("请先开启通知");
   await sendReminderNotificationNative({
     title: "EduPi",
     body: "点击后打开提醒",

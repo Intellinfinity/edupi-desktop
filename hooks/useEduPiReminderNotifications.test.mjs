@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 function waitingHookFixture() {
   let cleanup, finishWait, startedWait;
   const started = new Promise(resolve => { startedWait = resolve; });
-  const state = { day: "2026-10-08", graceDays: 7, pins: [] };
+  const state = { day: "2026-10-08", graceDays: 7, pins: [], nativeMatches: true, enabled: true, focused: false };
   const outcomes = [];
   let sends = 0;
   const claim = { id: "synthetic-reminder", attemptedAt: "2026-10-08T00:00:00.000Z" };
@@ -20,11 +20,11 @@ function waitingHookFixture() {
     react: { useEffect: work => { cleanup = work(); } },
     "@/lib/desktop-updater": { isTauriDesktop: () => true },
     "@/lib/desktop-native": { listenReminderNotificationsNative: async () => () => {} },
-    "@/lib/edupi-foreground-settings": { readForegroundSettings: () => ({ graceDays: state.graceDays, pinnedTaskIds: state.pins }) },
+    "@/lib/edupi-foreground-settings": { readForegroundSettings: () => ({ graceDays: state.graceDays, pinnedTaskIds: state.pins }), foregroundNotificationPolicyMatchesNative: async () => state.nativeMatches },
     "@/lib/edupi-foreground": { shanghaiDate: () => state.day },
-    "@/lib/desktop-notify": { desktopNotificationsEnabled: () => true, notifyDesktop: async options => {
+    "@/lib/desktop-notify": { desktopNotificationsEnabled: () => state.enabled, notifyDesktop: async options => {
       startedWait(); await new Promise(resolve => { finishWait = resolve; });
-      if (!options.isCurrent()) return "cancelled";
+      if (!await options.isCurrent()) return "cancelled";
       sends += 1; return "attempted";
     } },
   };
@@ -36,14 +36,15 @@ function waitingHookFixture() {
   };
   const hookModule = { exports: {} };
   new Function("require", "module", "exports", "fetch", "document", "setTimeout", "clearTimeout", compiled)(
-    name => dependencies[name] || require(name), hookModule, hookModule.exports, fetch, { hasFocus: () => false }, () => 1, () => {});
+    name => dependencies[name] || require(name), hookModule, hookModule.exports, fetch, { hasFocus: () => state.focused }, () => 1, () => {});
   hookModule.exports.useEduPiReminderNotifications(() => {});
   return { state, claim, outcomes, started, cleanup: () => cleanup(), finish: () => finishWait(), sends: () => sends };
 }
 
 test("late preference, pin, day and unmount vetoes release the exact attempt without sending or acknowledging the task", async () => {
   for (const change of [fixture => { fixture.state.graceDays = 3; }, fixture => { fixture.state.pins = ["changed-pinned-task"]; },
-    fixture => { fixture.state.day = "2026-10-09"; }, fixture => fixture.cleanup()]) {
+    fixture => { fixture.state.day = "2026-10-09"; }, fixture => { fixture.state.nativeMatches = false; },
+    fixture => { fixture.state.enabled = false; }, fixture => { fixture.state.focused = true; }, fixture => fixture.cleanup()]) {
     const fixture = waitingHookFixture();
     await fixture.started;
     change(fixture);
@@ -53,6 +54,68 @@ test("late preference, pin, day and unmount vetoes release the exact attempt wit
     assert.deepEqual(fixture.outcomes, [{ ...fixture.claim, type: "release_notification" }]);
     fixture.cleanup();
   }
+});
+
+test("an unmounted hook waits for a delayed persisted claim and releases its exact attempt", async () => {
+  let cleanup, finishClaim, claimStarted;
+  const started = new Promise(resolve => { claimStarted = resolve; });
+  const outcomes = [];
+  let sends = 0;
+  const claim = { id: "synthetic-delayed", attemptedAt: "2026-10-08T00:00:00.000Z" };
+  const dependencies = {
+    react: { useEffect: work => { cleanup = work(); } },
+    "@/lib/desktop-updater": { isTauriDesktop: () => true },
+    "@/lib/desktop-native": { listenReminderNotificationsNative: async () => () => {} },
+    "@/lib/edupi-foreground-settings": { readForegroundSettings: () => ({ graceDays: 3, pinnedTaskIds: [] }), foregroundNotificationPolicyMatchesNative: async () => true },
+    "@/lib/edupi-foreground": { shanghaiDate: () => "2026-10-08" },
+    "@/lib/desktop-notify": { desktopNotificationsEnabled: () => true, notifyDesktop: async () => { sends += 1; return "attempted"; } },
+  };
+  const fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    if (body.type === "claim_notifications") {
+      assert.equal(options.signal, undefined, "the client cannot abort after the attempt is persisted");
+      claimStarted();
+      await new Promise(resolve => { finishClaim = resolve; });
+      return Response.json({ notifications: [{ id: claim.id, taskId: "synthetic-task", kind: "ready", title: "合成事项", notificationAttemptedAt: claim.attemptedAt }], nativeNotificationIds: [claim.id] });
+    }
+    outcomes.push(body);
+    return Response.json({});
+  };
+  const hookModule = { exports: {} };
+  new Function("require", "module", "exports", "fetch", "document", "setTimeout", "clearTimeout", compiled)(
+    name => dependencies[name] || require(name), hookModule, hookModule.exports, fetch, { hasFocus: () => false }, () => 1, () => {});
+  hookModule.exports.useEduPiReminderNotifications(() => {});
+  await started;
+  cleanup();
+  finishClaim();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(sends, 0);
+  assert.deepEqual(outcomes, [{ ...claim, type: "release_notification" }]);
+});
+
+test("unmount during native policy read cannot create a fresh server claim", async () => {
+  let cleanup, finishPolicy, policyStarted;
+  const started = new Promise(resolve => { policyStarted = resolve; });
+  let claims = 0;
+  const dependencies = {
+    react: { useEffect: work => { cleanup = work(); } },
+    "@/lib/desktop-updater": { isTauriDesktop: () => true },
+    "@/lib/desktop-native": { listenReminderNotificationsNative: async () => () => {} },
+    "@/lib/edupi-foreground-settings": { readForegroundSettings: () => ({ graceDays: 3, pinnedTaskIds: [] }), foregroundNotificationPolicyMatchesNative: () => {
+      policyStarted(); return new Promise(resolve => { finishPolicy = resolve; });
+    } },
+    "@/lib/edupi-foreground": { shanghaiDate: () => "2026-10-08" },
+    "@/lib/desktop-notify": { desktopNotificationsEnabled: () => true, notifyDesktop: async () => "attempted" },
+  };
+  const hookModule = { exports: {} };
+  new Function("require", "module", "exports", "fetch", "document", "setTimeout", "clearTimeout", compiled)(
+    name => dependencies[name] || require(name), hookModule, hookModule.exports, async () => { claims += 1; return Response.json({ notifications: [] }); }, { hasFocus: () => false }, () => 1, () => {});
+  hookModule.exports.useEduPiReminderNotifications(() => {});
+  await started;
+  cleanup();
+  finishPolicy(true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(claims, 0);
 });
 
 test("one notification opens only its exact task continuation", () => {

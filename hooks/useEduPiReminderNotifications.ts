@@ -4,7 +4,7 @@ import { desktopNotificationsEnabled, notifyDesktop } from "@/lib/desktop-notify
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { listenReminderNotificationsNative, type ReminderNotificationTarget, type ReminderNotificationClaim } from "@/lib/desktop-native";
 import type { Reminder } from "@/lib/edupi-reminder-store";
-import { readForegroundSettings } from "@/lib/edupi-foreground-settings";
+import { foregroundNotificationPolicyMatchesNative, readForegroundSettings } from "@/lib/edupi-foreground-settings";
 import { shanghaiDate } from "@/lib/edupi-foreground";
 
 export function reminderContinuationTaskId(target: ReminderNotificationTarget | null): string | null {
@@ -42,13 +42,16 @@ export function useEduPiReminderNotifications(onOpen: (target: ReminderNotificat
     };
     const poll = async () => {
       try {
-        const notify = nativeReady && isTauriDesktop() && desktopNotificationsEnabled() && !document.hasFocus();
+        const mayNotify = nativeReady && isTauriDesktop() && desktopNotificationsEnabled() && !document.hasFocus();
+        const nativePolicyCurrent = mayNotify && await foregroundNotificationPolicyMatchesNative();
+        if (controller.signal.aborted) return;
+        const notify = nativePolicyCurrent && desktopNotificationsEnabled() && !document.hasFocus();
         const localPolicy = () => { const { graceDays, pinnedTaskIds } = readForegroundSettings(); return JSON.stringify({ today: shanghaiDate(), graceDays, pinnedTaskIds }); };
         const policyAtClaim = localPolicy();
         const response = await fetch("/api/edupi/reminders", {
-          // A claim already being persisted must return its exact attempt even
-          // after unmount, so cancellation can release it without touching a newer one.
-          signal: notify ? AbortSignal.timeout(15000) : controller.signal,
+          // Let a persisted claim return its exact attempt after unmount;
+          // aborting here would strand an unknown attempt on the server.
+          signal: notify ? undefined : controller.signal,
           ...(notify ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: "*", type: "claim_notifications" }) } : {}),
         });
         if (!response.ok) return;
@@ -61,8 +64,13 @@ export function useEduPiReminderNotifications(onOpen: (target: ReminderNotificat
         if (items.length) {
           const claims = items.map(item => ({ id: item.id, attemptedAt: item.notificationAttemptedAt! }));
           const target = items.length === 1 ? { reminderId: items[0].id, taskId: items[0].taskId, kind: items[0].kind } : null;
+          const isCurrent = async () => {
+            const localCurrent = () => !controller.signal.aborted && desktopNotificationsEnabled() && !document.hasFocus() && policyAtClaim === localPolicy();
+            return localCurrent() && await foregroundNotificationPolicyMatchesNative() && localCurrent();
+          };
+          if (!await isCurrent()) { await updateClaims(claims, "release_notification"); return; }
           const status = await notifyDesktop({ title: "EduPi 提醒", body: items.length === 1 ? items[0].title : `${items.length} 项待处理`, reminder: { target, claims },
-            isCurrent: () => !controller.signal.aborted && policyAtClaim === localPolicy() });
+            isCurrent });
           await updateClaims(claims, reminderOutcomeType(status));
         }
       } catch { /* Persistent inbox remains available after network or notification failure. */ }

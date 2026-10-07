@@ -455,11 +455,11 @@ export async function validateReminderNotificationClaims(claims: ReminderNotific
   } catch { return false; }
 }
 
-export async function sendReminderNotificationNative(request: NativeReminderNotification, isCurrent?: () => boolean): Promise<void> {
+export async function sendReminderNotificationNative(request: NativeReminderNotification, isCurrent?: () => boolean | Promise<boolean>): Promise<void> {
   if (!isTauriDesktop()) throw new Error("请在桌面应用中使用通知");
   const { invoke } = await import("@tauri-apps/api/core");
   if (!isNotificationDiagnostic(request) && !await validateReminderNotificationClaims(request.claims)
-    || isCurrent && !isCurrent()) throw nativeReminderError("notification_stale", "提醒已变化");
+    || isCurrent && !await isCurrent()) throw nativeReminderError("notification_stale", "提醒已变化");
   try {
     await invoke("send_reminder_notification", { request });
   } catch (error) {

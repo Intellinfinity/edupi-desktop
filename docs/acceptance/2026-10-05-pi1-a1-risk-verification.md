@@ -20,6 +20,8 @@
 - 独立复审发现并关闭：外窗口request ID、冷loading、SSE前置失败失稿、会话切换期间旧POST、显示偏好迟到native/跨页覆盖、原生隔离失效写真实偏好、模型配置TOCTOU执行resolver与丢弃modelOverrides扩大tokens。命令resolver负例为计数stub，不执行真实命令；immutable配置快照后计数0。非空选中modelOverrides、OAuth及自定义headers当前明确停用G1，不能假称全提供商兼容。
 - 最终配对全量`EDUPI_CORE_ROOT=<固定main根> npm test`：2130pass、9skipped、0fail；无Core根运行的P0–P2门为2104pass/27skipped/0fail。类型/lint、npm高危审计、locked metadata、Cargo44和针对性host检查分别记录；跳过项不计通过。原失败日志保留，包括dev冷编译/SSE5秒、立即刷新失稿、manifest文件SHA误作payload identity。生产源码编译成功，未在运行dev目录执行next build。
 - 原始证据：`p0-browser-evidence.json`、`p1-browser-evidence.json`、`p2-800-source.jpg`、`p2-800-family.jpg`、`p2-1440-loaded-22.jpg`、`p2-1440-stale-revision.jpg`、`core230-pairing.log`、`core229-calendar-e2.log`和各最终检查log。0c2新增来源会话为`01a11577-ded8-76e2-b887-034eec343498`，日程会话为`01a11575-57dc-76e2-b887-034db438dc66`；均为隔离合成消息，不转录真实学生截图。
+- 首次源码检查点`78d8ee9f8daf06bc6329fd6986ab8997131eea25`已推送至[Desktop #315](https://github.com/Intellinfinity/edupi-desktop/pull/315)。该精确源码的[CI37595448625](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37595448625) `audit/rust-audit`双绿；后续仅删日程详情眉题与`class/routine`技术标签，26针对性检查、重新生产源码编译及真实页标题/来源状态复核通过，新的提交CI另外绑定。
+- `core230-browser-evidence.json`补存权威日程/来源闭环。实际改期10/8→10/11返回held而非保存成功，Core保留原10/8和新冲突候选；web冲突接口403且核对入口native-only，完整确认仍须安装版授权。没有用直接账本改写清掉测试冲突，也没有放宽该门。最终标题无眉题截图为`calendar-copy-final.png`，仅合成日程，不当作改期确认通过。
 - 保留边界：Core假期后台、已核实家庭人物关系、真实阶段/并行子任务合同尚未交付；不能用前端隐藏、教师称谓或四个展示步骤推定已完成。普通Pi自动记忆缺真实Core opaque host scope时held，不从投影/姓名/标签构造权限或复制authority store。新DOCX/ICS/PDF操作进入固定Core闭包但完整上传消费者与PDF可见性另验。安装、跨平台、真实通知/睡眠/模型教学质量/真人价值仍按缺证记录；本轮不发布Release/feed。
 
 ## 2026-10-07 v0.3.56 三平台正式发布

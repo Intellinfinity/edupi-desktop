@@ -344,7 +344,7 @@ function timetableStatus(slot: RecordValue): CalendarEntryStatus {
 function timetableSource(slot: RecordValue): { sourceLabel: string; sourceIcon: string } {
   if (isRecognizedTimetableNote(slot.notes)) return { sourceLabel: "材料识别", sourceIcon: "识" };
   const kind = text(firstValue(slot, ["kind", "type"]));
-  return { sourceLabel: kind ? `课程表 · ${kind}` : "课程表", sourceIcon: "课" };
+  return { sourceLabel: kind === "class" ? "课程表" : kind === "routine" ? "固定事务" : "课程表", sourceIcon: "课" };
 }
 
 function valueAsNumber(value: unknown): number | null {

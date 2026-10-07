@@ -9,7 +9,7 @@ const eventWireSource = await readFile(new URL("../../../lib/agent-event-wire.ts
 test("agent SSE projects SDK events onto the fields consumed by the web client", () => {
   assert.match(eventWireSource, /OMITTED_EVENT_TYPES = new Set\(\["turn_start", "turn_end", "tool_execution_update"\]\)/);
   assert.match(eventWireSource, /delete assistantMessageEvent\.partial/);
-  assert.match(eventWireSource, /event\.type === "agent_end"\) return \{ type: "agent_end" \}/);
+  assert.match(eventWireSource, /event\.type === "agent_end"\) return \{ type: "agent_end", .*clientRequestId/);
   assert.match(agentEventsSource, /const clientEvent = projectAgentEventForClient\(event\)/);
 });
 

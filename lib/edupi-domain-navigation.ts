@@ -139,11 +139,12 @@ export function materialObjectId(category: MaterialCategoryId, materialId?: stri
 }
 
 export function viewKeepsObjectItem(view: string): boolean {
-  return view === "teaching" || view === "memory" || view === "insights" || view === "growth" || view === "materials";
+  return ["teaching", "memory", "insights", "growth", "materials", "workspace", "dashboard", "calendar", "review"].includes(view);
 }
 
 export function objectItemForView(view: string, item: string | null | undefined): string | null {
-  return viewKeepsObjectItem(view) && item?.startsWith(`${view}:`) ? item : null;
+  const prefix = view === "dashboard" ? "today" : view;
+  return viewKeepsObjectItem(view) && item?.startsWith(`${prefix}:`) ? item : null;
 }
 
 export function matchesWorkspaceQuery(value: string, query: string): boolean {

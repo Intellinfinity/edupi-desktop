@@ -43,6 +43,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { testDesktopNotification } from "@/lib/desktop-notify";
 import {
   computerUsePermissionFlowAfterStatus,
+  computerUsePermissionLabel,
+  computerUseHostLabel,
   computerUsePrimaryAction,
   computerUsePrimaryActionLabel,
   type ComputerUsePermissionFlow,
@@ -51,6 +53,7 @@ import type { TeacherContextSnapshot } from "@/lib/edupi-onboarding-types";
 import { UpdateProxySettingsCard } from "./UpdateProxySettingsCard";
 import { announceComputerUseChanged, COMPUTER_USE_CHANGED_EVENT } from "./EduPiComputerUseStop";
 import { MobileBridgeSettingsCard } from "./MobileBridgeSettingsCard";
+import { readForegroundSettings, writeForegroundSettings } from "@/lib/edupi-foreground-settings";
 
 const sectionCardStyle: CSSProperties = {
   padding: "13px 14px",
@@ -86,6 +89,26 @@ function TeacherContextSettingsCard() {
   const [context, setContext] = useState<TeacherContextSnapshot | null>(null);
   useEffect(() => { fetch("/api/edupi/onboarding", { cache: "no-store" }).then((response) => response.json()).then(setContext).catch(() => undefined); }, []);
   return <div className="native-settings-card app-settings-context" style={sectionCardStyle}><div><div style={sectionTitleStyle}>教师信息</div><div className="settings-context-summary"><strong>{context?.name || "尚未设置称呼"}</strong><span>{context?.school || "学校待设置"} · {context?.subject || "学科待设置"} · {context?.grade || "年级待设置"}</span></div></div><button type="button" className="native-button" onClick={() => window.dispatchEvent(new CustomEvent("edupi-open-context"))}>编辑</button></div>;
+}
+
+function ForegroundSettingsCard() {
+  const [settings, setSettings] = useState(readForegroundSettings);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const refresh = () => setSettings(readForegroundSettings());
+    const failed = () => setError("当前窗口已生效，重启设置未保存");
+    window.addEventListener("edupi-foreground-settings-changed", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("edupi-foreground-save-failed", failed);
+    return () => { window.removeEventListener("edupi-foreground-settings-changed", refresh); window.removeEventListener("storage", refresh); window.removeEventListener("edupi-foreground-save-failed", failed); };
+  }, []);
+  return <div className="native-settings-card" style={sectionCardStyle}><label className="settings-foreground-days"><span>过期事务收起</span><input type="number" min={0} max={365} step={1} value={settings.graceDays} aria-label="过期事务收起天数" onChange={event => {
+    const days = event.currentTarget.valueAsNumber;
+    if (!Number.isInteger(days) || days < 0 || days > 365) return;
+    const next = { ...readForegroundSettings(), graceDays: days };
+    void writeForegroundSettings(next).then(() => setError(null), () => setError("当前窗口已生效，重启设置未保存"));
+    setSettings(next);
+  }} /><span>天后</span></label>{error ? <div role="alert">{error}</div> : null}<details><summary>历史记录</summary><p style={sectionHintStyle}>只收起前台，不删除记录；可在历史中找回。课前工作按上课日期判断。</p></details></div>;
 }
 
 function ComputerUseSettingsCard() {
@@ -214,7 +237,6 @@ function ComputerUseSettingsCard() {
     }
   };
 
-  const permissionLabel = (value: boolean | null | undefined) => value === undefined || value === null ? "无需" : value ? "已授权" : "待授权";
   const primaryAction = computerUsePrimaryAction({ status, flow });
   const runPrimaryAction = async () => {
     if (primaryAction.kind === "detect") return refreshStatus();
@@ -225,17 +247,23 @@ function ComputerUseSettingsCard() {
   const activePermission = flow?.permission;
   return <div className="native-settings-card" style={sectionCardStyle}>
     <div style={sectionTitleStyle}>桌面控制</div>
-    <div style={sectionHintStyle}>默认关闭。开启后，每次读取或操作仍需你确认。</div>
+    <details className="settings-permission-identity"><summary>{computerUseHostLabel(status?.host)}</summary><dl>
+      <div><dt>安装路径</dt><dd>{status?.host?.bundlePath || status?.host?.executablePath || "未检测"}</dd></div>
+      <div><dt>应用标识</dt><dd>{status?.host?.bundleId || "未检测"}</dd></div>
+      <div><dt>签名团队</dt><dd>{status?.host?.signingTeam || "无法检测"}</dd></div>
+      <div><dt>探测进程</dt><dd>{status?.host?.processId || "未检测"}</dd></div>
+    </dl></details>
     <div className="computer-use-settings">
       <div className="computer-use-status-row"><strong>总开关</strong><span className={status?.enabled ? "is-ready" : "is-off"}>{status?.enabled ? "已开启" : "已关闭"}</span></div>
-      <div className={activePermission === "accessibility" ? "computer-use-status-row is-active" : "computer-use-status-row"}><strong>辅助功能</strong><span className={status?.accessibility ? "is-ready" : "is-off"}>{permissionLabel(status?.accessibility)}</span></div>
-      <div className={activePermission === "screen_recording" ? "computer-use-status-row is-active" : "computer-use-status-row"}><strong>屏幕录制</strong><span className={status?.screenRecording ? "is-ready" : "is-off"}>{permissionLabel(status?.screenRecording)}</span></div>
+      <div className={activePermission === "accessibility" ? "computer-use-status-row is-active" : "computer-use-status-row"}><strong>辅助功能</strong><span className={status?.accessibility ? "is-ready" : "is-off"}>{computerUsePermissionLabel(status?.accessibility)}</span></div>
+      <div className={activePermission === "screen_recording" ? "computer-use-status-row is-active" : "computer-use-status-row"}><strong>屏幕录制</strong><span className={status?.screenRecording ? "is-ready" : "is-off"}>{computerUsePermissionLabel(status?.screenRecording, flow?.screenRecordingRequested)}</span></div>
       <div className="computer-use-actions">
         <button type="button" className="native-button native-button-primary computer-use-primary-action" disabled={busy} onClick={() => void runPrimaryAction()}>{computerUsePrimaryActionLabel(primaryAction)}</button>
         <button type="button" className="native-button native-button-compact" disabled={busy} onClick={() => void refreshStatus()} aria-label="重新检测权限" title="重新检测权限">↻</button>
         {status?.enabled && primaryAction.kind !== "stop" ? <button type="button" className="native-button native-button-compact" disabled={busy} onClick={() => void updateEnabled(false)} aria-label="停止控制" title="停止控制">×</button> : null}
       </div>
-      {flow?.permission === "accessibility" ? <div style={sectionHintStyle} role="status">在系统设置允许 EduPi 后返回。</div> : null}
+      <details><summary>权限用途</summary><p style={sectionHintStyle}>辅助功能用于键盘与鼠标操作，屏幕录制用于读取屏幕；每次操作仍需你确认。请核对上方正式应用路径，不要授权旧 Canary。系统开关已开启但检测未更新时，退出并重启此应用后再检测。</p></details>
+      {flow?.permission === "accessibility" ? <div style={sectionHintStyle} role="status">请在系统设置授权上方应用后返回。{status?.accessibility === false ? <button type="button" className="native-button" onClick={() => void restartForPermission()} disabled={busy}>已授权，重启核对</button> : null}</div> : null}
       {flow?.permission === "screen_recording" && flow.screenRecordingRequested ? <div style={sectionHintStyle} role="status">在系统设置允许 EduPi，重启后开启控制。</div> : null}
       {error ? <div className="computer-use-error" role="alert">{error}</div> : null}
     </div>
@@ -432,6 +460,7 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [upgradeProgress, setUpgradeProgress] = useState<DesktopUpgradeProgress | null>(null);
+  const [upgradePreflightOpen, setUpgradePreflightOpen] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [upgradeErrorDetails, setUpgradeErrorDetails] = useState<ReturnType<typeof desktopUpgradeErrorDetails> | null>(null);
   const [closeQuits, setCloseQuits] = useState(() => getPrefBool(APP_PREF_KEYS.closeQuits, false));
@@ -558,8 +587,10 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
     ? `${t("appSettings.version")}: ${currentVersionText}. ${statusText}`
     : `${t("appSettings.currentVersion")}: ${currentVersionText}. ${t("appSettings.latestRelease")}: ${latestReleaseText}. ${statusText}`;
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (confirmed = false) => {
     if (!canUpgrade) return;
+    if (!confirmed) { setUpgradePreflightOpen(true); return; }
+    setUpgradePreflightOpen(false);
     setUpgradeError(null);
     setUpgradeErrorDetails(null);
     try {
@@ -663,6 +694,7 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
                 </button>
               )}
             </div>
+            {upgradePreflightOpen ? <div className="settings-update-preflight" role="group" aria-label="安装前确认"><p>更新需要替换当前应用并重启，请先保存正在进行的工作。macOS 可能要求“App 管理”授权；该权限由系统核对，EduPi 不会自动打开开关。</p><div><button type="button" className="native-button" onClick={() => setUpgradePreflightOpen(false)}>取消</button><button type="button" className="native-button native-button-primary" onClick={() => void handleUpgrade(true)}>继续更新</button></div></div> : null}
             {upgradeError && (
               <div className="native-inline-alert is-error" role="alert" style={{ marginTop: 9 }}>
                 <div>{upgradeError}</div>
@@ -710,6 +742,7 @@ export function AppSettings({ onClose, initialSection = null }: { onClose: () =>
             </div>
           </div>
           <TeacherContextSettingsCard />
+          <ForegroundSettingsCard />
           {desktop && <UpdateProxySettingsCard onSaved={() => void checkForUpdates()} />}
 
           {desktop && (

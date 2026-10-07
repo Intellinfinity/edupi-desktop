@@ -54,6 +54,11 @@ description = "Allows the UI to persist light/dark theme for the next cold start
 commands.allow = ["set_ui_theme"]
 
 [[permission]]
+identifier = "allow-foreground-settings"
+description = "Allows the trusted main WebView to read and save bounded display-only task preferences."
+commands.allow = ["get_foreground_settings", "set_foreground_settings"]
+
+[[permission]]
 identifier = "allow-get-update-proxy"
 description = "Allows the trusted desktop WebView to read the saved update proxy."
 commands.allow = ["get_update_proxy"]

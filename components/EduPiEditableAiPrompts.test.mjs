@@ -34,11 +34,11 @@ test("the generic student-profile entry leaves the teacher draft untouched", asy
   assert.doesNotMatch(handoff, /replaceText|offerTeacherDraft|resetNewSessionDraft/);
 });
 
-test("quick suggestions cannot replace a drafted home command", async () => {
-  const workspace = await read("./EduPiWorkspaceViews.tsx");
-  const commandCenter = workspace.slice(workspace.indexOf("function CommandCenter"), workspace.indexOf("function SectionHeader"));
-  assert.match(commandCenter, /setCommand\(current => current\.trim\(\) \? current : item\.prompt\)/);
-  assert.match(commandCenter, /disabled=\{Boolean\(command\.trim\(\)\)\}/);
+test("today has no competing composer and collaboration starts through the teacher sidebar", async () => {
+  const [workspace, sidebar] = await Promise.all([read("./EduPiWorkspaceViews.tsx"), read("./SessionSidebar.tsx")]);
+  assert.doesNotMatch(workspace, /function CommandCenter|edupi-command-center|setCommand|quickPrompts/);
+  assert.match(sidebar, /<EduPiChatSidebarActions resourceActions=\{resourceActions\} onNewChat=\{handleNewSession\}/);
+  assert.match(sidebar, /onNewSession\?\.\(tempId, selectedCwd\)/);
 });
 
 test("task detail handoff closes after activation without a competing route update", async () => {

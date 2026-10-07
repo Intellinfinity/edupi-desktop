@@ -42,11 +42,12 @@ test("a late tool read cannot overwrite the teacher's newer tool or permission c
 test("task-update tool completion refreshes the workspace once using the matched call id", () => {
   const cases = source.slice(source.indexOf('case "tool_execution_start"'), source.indexOf('case "queue_update"'));
   const compiled = ts.transpileModule(`switch (event.type) { ${cases} }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  const handle = new Function("event", "educationToolCallsRef", "setAgentPhase", "onEducationImportCompleted", compiled);
+  const handle = new Function("event", "educationToolCallsRef", "setAgentPhase", "onEducationImportCompleted", "addNotice", compiled);
   const tracked = { current: new Map() };
   const refreshed = [];
   let phase = null;
-  const emit = event => handle(event, tracked, update => { phase = update(phase); }, name => refreshed.push(name));
+  const notices = [];
+  const emit = event => handle(event, tracked, update => { phase = update(phase); }, name => refreshed.push(name), notice => notices.push(notice));
   emit({ type: "tool_execution_start", toolCallId: "task-update-1", toolName: "edupi_update_task" });
   emit({ type: "tool_execution_start", toolCallId: "read-1", toolName: "read" });
   assert.deepEqual(refreshed, []);
@@ -56,6 +57,12 @@ test("task-update tool completion refreshes the workspace once using the matched
   emit({ type: "tool_execution_end", toolCallId: "task-update-1" });
   assert.deepEqual(refreshed, ["edupi_update_task"]);
   assert.equal(tracked.current.size, 0);
+  emit({ type: "tool_execution_start", toolCallId: "calendar-failed", toolName: "calendar_add" });
+  emit({ type: "tool_execution_end", toolCallId: "calendar-failed", isError: true, result: { content: [{ type: "text", text: "日程写入未确认：Core 暂不可用。没有安排自动补录。" }] } });
+  emit({ type: "tool_execution_end", toolCallId: "calendar-failed", isError: true });
+  assert.deepEqual(refreshed, ["edupi_update_task"], "a failed write must not trigger the success refresh");
+  assert.equal(notices.length, 1);
+  assert.match(notices[0].message, /写入未确认/);
 });
 
 test("keeps the session event stream open through the idle grace window", () => {
@@ -236,7 +243,7 @@ test("tracks education import tools by call id and refreshes only once on comple
   assert.match(startSource, /educationToolCallsRef\.current\.set\(id, name\)/);
   assert.match(endSource, /const name = educationToolCallsRef\.current\.get\(id\)/);
   assert.match(endSource, /educationToolCallsRef\.current\.delete\(id\)/);
-  assert.match(endSource, /if \(name === "calendar_import" \|\| name === "timetable_import" \|\| name === "edupi_create_task" \|\| name === "edupi_update_task"\) \{[\s\S]*?onEducationImportCompleted\?\.\(name\)/);
+  assert.match(endSource, /if \(!failed && \(name === "calendar_import" \|\| name === "timetable_import" \|\| name === "edupi_create_task" \|\| name === "edupi_update_task" \|\| name === "calendar_add"\)\) \{[\s\S]*?onEducationImportCompleted\?\.\(name\)/);
   assert.match(resetSource, /educationToolCallsRef\.current\.clear\(\)/);
   assert.match(unmountSource, /educationToolCallsRef\.current\.clear\(\)/);
   assert.match(chatWindowSource, /onEducationImportCompleted\?: \(toolName: EducationImportToolName\) => void/);

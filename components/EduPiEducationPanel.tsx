@@ -36,6 +36,8 @@ import { EduPiWorkspaceDrawer } from "./EduPiWorkspaceDrawer";
 import { EduPiWorkspaceViews } from "./EduPiWorkspaceViews";
 import { EduPiC1Review } from "./EduPiC1Review";
 import { EduPiReviewBoard } from "./EduPiReviewBoard";
+import { isTaskForeground } from "@/lib/edupi-foreground";
+import { useEduPiForegroundPolicy } from "./EduPiForeground";
 import { EduPiQuickEntry } from "./EduPiQuickEntry";
 import { useDesktopChrome, WindowControls } from "./desktop";
 import { useEduPiContentSiderCollapse } from "@/hooks/useEduPiContentSiderCollapse";
@@ -129,6 +131,7 @@ function hasDroppedFiles(event: ReactDragEvent): boolean {
 }
 
 export function EduPiEducationPanel({ initialModule = "home", refreshKey, activeAgentSessionId, onActivateAgentSession, chatPanel, reminderPanel, chatSidebar, renderFilePreview, onOpenAdmin, onOpenSettings, onOpenProactive, onOpenGuide, onOpenPhoneControl, onPrepareAgentPrompt, onReplaceAgentPrompt, onPrepareTeacherDraft, quickEntryOpen, onCloseQuickEntry, onFocusAgentChat }: Props) {
+  const foregroundPolicy = useEduPiForegroundPolicy();
   const router = useRouter();
   const searchParams = useSearchParams();
   const desktopChrome = useDesktopChrome();
@@ -158,7 +161,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   const runningAgentCount = runningSessionCount + runningKernelCount;
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("q") || "");
+  const queryRef = useRef(query);
   const [inspectorOpen, setInspectorOpen] = useState(() => searchParams.get("inspector") === "1");
   const [contextOpen, setContextOpen] = useState(false);
   const [contextBusy, setContextBusy] = useState(false);
@@ -578,16 +582,17 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   useEffect(() => () => cancelActivation(), [cancelActivation]);
 
   const tasks = useMemo(() => education?.tasks ?? [], [education]);
+  const foregroundTasks = useMemo(() => tasks.filter(task => isTaskForeground(task, foregroundPolicy, education || {})), [tasks, foregroundPolicy, education]);
   const activeTask = useMemo(() => {
     const requested = selectedTaskKey ? tasks.find((task) => taskKey(task) === selectedTaskKey) : undefined;
     if (activeView === "review") {
       const reviewable = (task: TeacherTask) => isTaskActionable(task) && isTaskReviewable(task, education ? workCaseForTask(education, task.id) : null);
-      return requested ?? tasks.find(reviewable);
+      return requested ?? foregroundTasks.find(reviewable);
     }
-    return requested ?? tasks.find((task) => task.boardStage !== "done" && task.status === "planned") ?? tasks[0];
-  }, [activeView, education, selectedTaskKey, tasks]);
+    return requested ?? foregroundTasks.find((task) => task.boardStage !== "done" && task.status === "planned") ?? foregroundTasks[0];
+  }, [activeView, education, selectedTaskKey, tasks, foregroundTasks]);
   const activeWorkReview = Boolean(education?.workCandidates.some(item => item.taskId === activeTask?.id));
-  const pendingCount = tasks.filter((task) => isTaskActionable(task) && isTaskReviewable(task, education ? workCaseForTask(education, task.id) : null)).length;
+  const pendingCount = foregroundTasks.filter((task) => isTaskActionable(task) && isTaskReviewable(task, education ? workCaseForTask(education, task.id) : null)).length;
   const c1PendingCount = (education?.observations ?? []).filter((item) => item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length
     + (education?.memoryCandidates ?? []).filter((item) => item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length
     + (education?.followUps ?? []).filter((item) => item.teacherReview.state === "pending_review" || item.teacherReview.state === "held").length;
@@ -603,6 +608,8 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
 
   const updateLocation = useCallback((view: WorkbenchView, task: TeacherTask | undefined, stage: TaskStage | undefined, nextInspector = inspectorOpen, nextStudentId = selectedStudentId, nextObjectId = selectedObjectId, nextCalendarSelection = calendarSelection, nextReviewTarget: ReviewTargetRoute | null = null) => {
     const params = new URLSearchParams(searchParams.toString());
+    if (view !== activeView) { queryRef.current = ""; setQuery(""); }
+    if (queryRef.current.trim()) params.set("q", queryRef.current); else params.delete("q");
     params.set("edupi", "1");
     params.set("module", moduleFromView(view));
     params.set("view", view);
@@ -624,12 +631,26 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
     params.set("inspector", nextInspector ? "1" : "0");
     router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [calendarSelection, inspectorOpen, router, searchParams, selectedObjectId, selectedStudentId]);
+  }, [activeView, calendarSelection, inspectorOpen, router, searchParams, selectedObjectId, selectedStudentId]);
+
+  const updateQuery = useCallback((next: string) => {
+    queryRef.current = next;
+    setQuery(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("edupi", "1");
+    params.set("module", moduleFromView(activeView));
+    params.set("view", activeView);
+    if (viewKeepsObjectItem(activeView) && selectedObjectId) params.set("item", selectedObjectId); else params.delete("item");
+    if (next.trim()) params.set("q", next); else params.delete("q");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [activeView, router, searchParams, selectedObjectId]);
 
   const updateTaskDetailLocation = useCallback((key: string | null, fromChat = false) => {
     const params = new URLSearchParams(searchParams.toString());
     if (fromChat) {
       setActiveView("chat");
+      queryRef.current = "";
+      setQuery("");
       setInspectorOpen(false);
       params.set("edupi", "1");
       params.set("module", "home");
@@ -637,6 +658,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       params.set("inspector", "0");
       for (const name of ["task", "stage", "reminders", "reviewTarget"]) params.delete(name);
     }
+    if (queryRef.current.trim()) params.set("q", queryRef.current); else params.delete("q");
     if (key) {
       params.set("taskDetail", key);
       params.delete("calendarKind");
@@ -699,7 +721,6 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     setFileReturnTaskKey(null);
     setTaskDetailTask(null);
     setAgentTask(null);
-    setQuery("");
     setPendingTaskBinding(null);
     setCalendarSelection(nextCalendarSelection);
     if (view === "review") setReviewMode("board");
@@ -764,7 +785,6 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     cancelActivation();
     setActiveView("review");
     setSelectedTaskKey(null);
-    setQuery("");
     setReviewMode("c1");
     setSelectedC1Target(target);
     setDrawer(null);
@@ -792,7 +812,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
   }, [activeView, education?.students, inspectorOpen, objectSider, updateLocation]);
 
   const selectObject = useCallback((id: string) => {
-    if (id === "review:board") setReviewMode("board");
+    if (id === "review:board" || id.startsWith("review:list:")) setReviewMode("board");
     setSelectedObjectId(id);
     updateLocation(activeView, undefined, undefined, inspectorOpen, selectedStudentId, id);
     if (window.matchMedia("(max-width: 820px)").matches && !objectSider.collapsed) objectSider.toggle();
@@ -1249,14 +1269,14 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       <div className="edupi-teacher-app">
         <div className={`edupi-teacher-body${activeView === "chat" ? " is-chat" : ""}${showingReminders ? " is-reminders" : ""}${bodyControlsVisible ? " has-body-controls" : ""}${detailSurfaceOpen ? " has-detail-surface" : ""}${objectSiderAvailable ? " has-object-sider" : ""}${objectSiderAvailable && objectSider.collapsed ? " is-object-sider-collapsed" : ""}${inspectorAvailable && inspectorOpen ? " has-inspector" : ""}${hasTaskPane ? " has-task-pane" : ""}`} style={bodyControlStyle}>
           {bodyControlsVisible ? <div className="edupi-teacher-body__controls">{loadError ? <button className="edupi-teacher-body__icon-button" type="button" onClick={retryLoadWorkspace} aria-label="重试读取工作区" title={`重试读取工作区：${loadError}`}><RetryWorkspaceIcon /></button> : null}{inspectorAvailable ? <button className={`edupi-teacher-body__icon-button${inspectorOpen ? " is-open" : ""}`} type="button" onClick={toggleInspector} aria-label={inspectorOpen ? "收起检查" : "打开检查"} title={inspectorOpen ? "收起检查" : "打开检查"} aria-pressed={inspectorOpen}><InspectorIcon /></button> : null}</div> : null}
-          {activeView === "chat" && !showingReminders ? <aside className="edupi-chat-session-sidebar" aria-label="对话与文件">{chatSidebar}</aside> : showObjectSider ? <EduPiObjectSider view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} query={query} onQuery={setQuery} selectedStudentId={selectedStudentId} onStudent={selectStudent} selectedObjectId={selectedObjectId} onObject={selectObject} selectedTaskKey={activeTask ? taskKey(activeTask) : null} onTask={selectTask} onReviewTarget={focusC1Review} selectedCalendarSourceId={calendarSelection?.sourceId ?? null} onCalendarItem={selectCalendarItem} onUpload={openUpload} onCollapse={objectSider.toggle} /> : objectSiderAvailable ? <button type="button" className="edupi-object-sider-strip" onClick={objectSider.toggle} aria-label="展开列表"><span aria-hidden="true">›</span></button> : null}
+          {activeView === "chat" && !showingReminders ? <aside className="edupi-chat-session-sidebar" aria-label="对话与文件">{chatSidebar}</aside> : showObjectSider ? <EduPiObjectSider view={activeView} data={education} context={context} memoryScopes={memoryScopes} teachingSkills={teachingSkills} query={query} onQuery={updateQuery} selectedStudentId={selectedStudentId} onStudent={selectStudent} selectedObjectId={selectedObjectId} onObject={selectObject} onNavigate={selectView} selectedTaskKey={activeTask ? taskKey(activeTask) : null} onTask={selectTask} onReviewTarget={focusC1Review} selectedCalendarSourceId={calendarSelection?.sourceId ?? null} onCalendarItem={selectCalendarItem} onUpload={openUpload} onCollapse={objectSider.toggle} /> : objectSiderAvailable ? <button type="button" className="edupi-object-sider-strip" onClick={objectSider.toggle} aria-label="展开列表"><span aria-hidden="true">›</span></button> : null}
           <div className={`edupi-teacher-main${activeView === "chat" ? " is-chat" : ""}`}>
             <EduPiTaskRunContext.Provider value={chatTaskInfo}>
               <EduPiPersistentChatHost mode={showingReminders ? "hidden" : drawer === "agent" ? "drawer" : activeView === "chat" ? "main" : "hidden"} task={drawer === "agent" ? currentAgentTask : null} onClose={closeDrawer} onPreparePrompt={onPrepareAgentPrompt}>{chatPanel}</EduPiPersistentChatHost>
             </EduPiTaskRunContext.Provider>
             {showingReminders ? <div className="edupi-reminder-surface">{reminderPanel}</div> : null}
             {activeView === "review" ? <div className="edupi-review-surface">
-            {reviewMode === "board" ? <EduPiReviewBoard data={education} query={query} onTask={(task) => selectTask(task, "review")} onReviewTarget={focusC1Review} onEducation={commitEducationSnapshot} reviewer={context?.name || "teacher"} /> : null}
+            {reviewMode === "board" ? <EduPiReviewBoard data={education} query={query} selectedObjectId={selectedObjectId} onObject={selectObject} onTask={(task) => selectTask(task, "review")} onReviewTarget={focusC1Review} onEducation={commitEducationSnapshot} reviewer={context?.name || "teacher"} /> : null}
             {reviewMode === "task" && activeTask ? <section className="edupi-c1-review-task-bridge"><div className="edupi-c1-review-task-bridge__heading"><h2>任务审核</h2><span>{pendingCount} 项</span></div><EduPiTaskWorkspace workReview={activeWorkReview} workCandidate={education.workCandidates.find(item => item.taskId === activeTask.id) ?? null} files={education.generatedArtifacts} artifactsUnavailable={education.workspaceResourcesUnavailable} task={activeTask} workCase={workCaseForTask(education, activeTask.id)} stage={taskStage} workspace={education.workspace} context={context} reviewEnabled={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).enabled} reviewReason={(activeWorkReview ? education.capabilities.workCandidateReview : education.capabilities.taskReview).reason} reviewBusy={reviewBusy} reviewMessage={reviewMessage} agentSession={activeTask.id ? education.taskSessions[activeTask.id] ?? null : null} taskSessionBusy={taskSessionBusy} taskSessionError={taskSessionError} onStage={selectStage} onReview={reviewTask} onOpenAgent={openAgent} onOpenFile={openFile} /></section> : null}
             {reviewMode === "c1" ? <EduPiC1Review data={education} reviewerId={context?.name || "teacher"} onRefresh={async () => { await loadWorkspace(); }} query={query} selectedTarget={selectedC1Target} /> : null}
             {reviewMode === "task" && !activeTask ? <section className="edupi-c1-review-task-empty"><span>任务审核</span><strong>暂无待审核任务</strong></section> : null}

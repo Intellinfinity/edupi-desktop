@@ -3,11 +3,11 @@
   "core_repository": "edupi",
   "core_sdk": { "pi": "1.0.2", "pi_durable": "1.0.2" },
   "core_runtime": {
-    "core_commit": "a84590cbd62ada4f75fa10e109f0cdc07a13368e",
+    "core_commit": "0c2c72a18a06ec35a3e7e7568ce4e6b932532df4",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:e9db9a19be023e6c7c57d9079f199caaa5d7b9b5ebd229c8c2022563b9933c35",
-    "runtime_component_manifest_hash": "sha256:1f07aa40a771f7a5a6bc2cd28a1b7117432ae3f150acd55dd401987a1454c511",
-    "runtime_schema_hash": "sha256:5d7080f29011969c134a8b84e2e3497dcae1d27ee6531db04d8e51105d53c521"
+    "component_manifest_hash": "sha256:852b9b1dcd416ad56200b9db840dee30cfa3855867bfac3f9d22b196633899d2",
+    "runtime_component_manifest_hash": "sha256:2e1f46dfe0a24fdee6dd27c7e5248822d2100bff4c306b547b7978428e32b809",
+    "runtime_schema_hash": "sha256:ba67351caa58e12d9786f59e3be5921eec5ee29483be4301a1b6086b814f6a53"
   },
   "contract_identities": [
     {
@@ -178,7 +178,15 @@
     "https://github.com/Intellinfinity/edupi/pull/220",
     "https://github.com/Intellinfinity/edupi/pull/221",
     "https://github.com/Intellinfinity/edupi/pull/222",
+    "https://github.com/Intellinfinity/edupi/pull/223",
+    "https://github.com/Intellinfinity/edupi/pull/224",
+    "https://github.com/Intellinfinity/edupi/pull/225",
+    "https://github.com/Intellinfinity/edupi/pull/226",
+    "https://github.com/Intellinfinity/edupi/pull/227",
+    "https://github.com/Intellinfinity/edupi/pull/228",
+    "https://github.com/Intellinfinity/edupi/pull/229",
+    "https://github.com/Intellinfinity/edupi/pull/230",
     "https://github.com/Intellinfinity/edupi-desktop/pull/287"
   ],
-  "change_note": "Desktop pairs merged Core #222 at Pi/PiDurable 1.0.2. Held-review receipt previews and persisted reads use the same candidate state for verified artifact access, preserving strict after_snapshot validation. Both component manifests are refreshed; Bridge/Runtime/occurrence schemas and 12 commands are unchanged. Explicitly teacher-held completed drafts stay read-only; unknown history, stale sources and tampering remain denied. G2 next_step, budget and execution projections remain paired. New Durable pilots and G3/G4 remain disabled; existing scope, budget and source gates remain. G5 relationships and unverified materials/term attribution are not promoted. external_send=false."
+  "change_note": "Desktop pairs merged Core main #223–#230 at Pi/PiDurable 1.0.2. Runtime schema, both component manifests and complete reviewed closure are pinned together. Bridge v1.1, occurrence v1.2 and 12 public bridge commands remain unchanged. Core retains sole authority over Durable recovery/retention, scoped memory, natural intake and material schedule parsing. Missing memory host scope remains held; raw legacy memory is not promoted. Exact G1 grants retain canonical source, claim and persistent budget checks. G2/G3/G4 Live remain off by default; G5 relationships and unverified materials/term attribution are not promoted. external_send=false. Source pairing does not constitute installation verification."
 }

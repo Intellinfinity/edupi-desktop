@@ -1,4 +1,17 @@
+import type { ComputerUseHostIdentity } from "./edupi-computer-use";
+
 export type ComputerUsePermission = "accessibility" | "screen_recording";
+
+export function computerUsePermissionLabel(value: boolean | null | undefined, requested = false): string {
+  if (value === undefined) return "未检测";
+  if (value === null) return "无法检测";
+  if (value) return "已授权";
+  return requested ? "待系统确认或重启" : "未授权";
+}
+
+export function computerUseHostLabel(host: ComputerUseHostIdentity | undefined): string {
+  return host ? `${host.appName} · v${host.appVersion}` : "应用身份未检测";
+}
 
 export type ComputerUsePermissionFlow = {
   permission: ComputerUsePermission;
@@ -68,7 +81,7 @@ export function computerUsePrimaryActionLabel(action: ComputerUsePrimaryAction):
     case "detect":
       return "检测权限";
     case "request":
-      return "一键处理权限";
+      return "申请权限";
     case "restart":
       return "授权后重启";
     case "enable":

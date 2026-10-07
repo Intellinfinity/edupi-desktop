@@ -38,6 +38,7 @@ use tauri::{
 };
 
 mod computer_use;
+mod foreground_prefs;
 mod reminder_notification;
 #[cfg(windows)]
 mod windows_native_source_guard;
@@ -2990,6 +2991,8 @@ pub fn run() {
             show_main_window_cmd,
             show_openconnector_console,
             set_ui_theme,
+            foreground_prefs::get_foreground_settings,
+            foreground_prefs::set_foreground_settings,
             get_update_proxy,
             set_update_proxy,
             get_edupi_root_status,

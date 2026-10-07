@@ -16,8 +16,8 @@ export function projectAgentEventForClient(event: AgentEventLike): AgentEventLik
     const sdkEvent = event as unknown as SdkMessageUpdateEvent;
     const assistantMessageEvent = { ...sdkEvent.assistantMessageEvent } as unknown as Record<string, unknown>;
     delete assistantMessageEvent.partial;
-    return { type: "message_update", assistantMessageEvent };
+    return { type: "message_update", assistantMessageEvent, ...(typeof event.clientRequestId === "string" ? { clientRequestId: event.clientRequestId } : {}) };
   }
-  if (event.type === "agent_end") return { type: "agent_end" };
+  if (event.type === "agent_end") return { type: "agent_end", ...(typeof event.clientRequestId === "string" ? { clientRequestId: event.clientRequestId } : {}) };
   return event;
 }

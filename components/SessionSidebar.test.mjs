@@ -43,10 +43,10 @@ test("exposes EduPi education modules in the sidebar", () => {
   assert.match(source, /审核/);
 });
 
-test("embedded chat uses named icon controls for new chat and view switching", () => {
-  assert.match(source, /sidebar-new-row\$\{embeddedChat \? " is-icon-only" : ""\}/);
-  assert.match(source, /aria-label=\{embeddedChat \? "新建对话" : undefined\}/);
-  assert.match(source, /\{embeddedChat \? null : "新建教学任务"\}/);
+test("embedded chat uses named resource controls and retains view switching", () => {
+  assert.match(source, /<EduPiChatSidebarActions resourceActions=\{resourceActions\} onNewChat=\{handleNewSession\}/);
+  assert.match(source, /aria-label="新建对话"/);
+  assert.match(source, /<EduPiSidebarAdvanced teacher=\{embeddedChat\}>/);
   assert.match(source, /aria-label=\{embeddedChat \? "对话" : undefined\}/);
   assert.match(source, /aria-label=\{embeddedChat \? "文件" : undefined\}/);
 });

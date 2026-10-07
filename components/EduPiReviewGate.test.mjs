@@ -17,6 +17,7 @@ const [{ EduPiReviewBoard }, { EduPiInspector }, { EduPiTaskWorkspace }, { isTas
   jiti.import("./EduPiTaskWorkspace.tsx"),
   jiti.import("../lib/edupi-work-case.ts"),
 ]);
+const { EduPiForegroundContext } = await jiti.import("./EduPiForeground.tsx");
 
 const task = {
   id: "review-gate-task",
@@ -86,12 +87,12 @@ function renderBoard(boundWorkCase) {
 }
 
 function renderBoardData(data) {
-  return renderToStaticMarkup(React.createElement(EduPiReviewBoard, {
+  return renderToStaticMarkup(React.createElement(EduPiForegroundContext.Provider, { value: { today: "2026-09-02", graceDays: 3, pinnedTaskIds: [] } }, React.createElement(EduPiReviewBoard, {
     data,
     query: "",
     onTask() {},
     onReviewTarget() {},
-  }));
+  })));
 }
 
 function renderInspector(boundWorkCase) {
@@ -262,9 +263,9 @@ test("sidebar and panel review surfaces consume the shared reviewability predica
   assert.match(sider, /const pendingReview = pending\.filter\(\(task\) => isTaskReviewable\(task, workCaseForTask\(data, task\.id\)\)\)/);
   assert.match(sider, /CategoryRow label="审核看板" count=\{pendingReview\.length \+ pendingC1\.length \+ pendingFacts\.length\}/);
   assert.match(sider, /GroupTitle count=\{pendingReview\.length\}>任务审核/);
-  assert.match(sider, /taskRows\(pendingReview, "review"\)/);
+  assert.match(sider, /taskRows\(pendingReview, "review", "review"\)/);
   assert.match(panel, /const reviewable = \(task: TeacherTask\) => isTaskActionable\(task\) && isTaskReviewable\(task, education \? workCaseForTask\(education, task\.id\) : null\)/);
-  assert.match(panel, /const pendingCount = tasks\.filter\(\(task\) => isTaskActionable\(task\) && isTaskReviewable\(task, education \? workCaseForTask\(education, task\.id\) : null\)\)\.length/);
+  assert.match(panel, /const pendingCount = foregroundTasks\.filter\(\(task\) => isTaskActionable\(task\) && isTaskReviewable\(task, education \? workCaseForTask\(education, task\.id\) : null\)\)\.length/);
 });
 
 test("Inspector guards review stage selection with the same predicate", async () => {

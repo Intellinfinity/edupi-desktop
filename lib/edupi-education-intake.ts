@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { validateCoreEnvelopeSchema } from "./edupi-bridge-contract";
 import { activeBridgeIdentity, scheduleOccurrenceIdentity } from "./edupi-bridge-manifest";
-import { callEduPiCore } from "./edupi-core-process-client";
+import { callEduPiCore, EduPiCoreProcessError, isCoreWriterDenialCode } from "./edupi-core-process-client";
 import { readEduPiEducationSnapshot, validateScheduleOccurrenceV12Envelope, type CoreEducationSnapshotPayload, type EduPiBridgeRoots } from "./edupi-core-snapshot";
 
 type IntakeSource = {
@@ -188,6 +188,9 @@ function validateReceiptResponse(value: unknown, envelope: RawRecord): { receipt
   const bridge = activeBridgeIdentity();
   const occurrence = envelope.contract_version === "1.2";
   const identity = occurrence ? scheduleOccurrenceIdentity() : bridge.contract;
+  if (response?.ok === false && response.operation === "command" && isCoreWriterDenialCode(response.code)) {
+    throw new EducationIntakeError(response.code, "Core 写入未获准，本次导入未确认。");
+  }
   if (!response || response.ok !== true || response.operation !== "command"
     || !sameList(response.supported_commands, bridge.contract.supported_commands)
     || !sameList(response.supported_projections, bridge.contract.supported_projections)) {
@@ -232,7 +235,8 @@ export async function issueEducationIntake(command: EducationIntakeCommand, depe
   let rawReceipt: unknown;
   try {
     rawReceipt = await dispatch(envelope, initial.roots);
-  } catch {
+  } catch (error) {
+    if (error instanceof EduPiCoreProcessError && isCoreWriterDenialCode(error.code)) throw new EducationIntakeError(error.code, "Core 写入未获准，本次导入未确认。");
     throw new EducationIntakeError("unavailable", "Core 教育导入暂不可用。");
   }
   const { receiptEnvelope, receipt } = validateReceiptResponse(rawReceipt, envelope);

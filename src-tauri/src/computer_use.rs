@@ -5,9 +5,10 @@
 use std::{
     fs::{self, OpenOptions},
     io::Write,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -67,6 +68,73 @@ pub struct ComputerUseStatus {
     enabled: bool,
     accessibility: Option<bool>,
     screen_recording: Option<bool>,
+    host: ComputerUseHostIdentity,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComputerUseHostIdentity {
+    app_name: String,
+    app_version: String,
+    platform: String,
+    process_id: u32,
+    executable_path: Option<String>,
+    bundle_path: Option<String>,
+    bundle_id: String,
+    signing_team: Option<String>,
+}
+
+fn application_bundle_path(executable: &Path) -> Option<PathBuf> {
+    executable
+        .ancestors()
+        .find(|path| path.extension().is_some_and(|ext| ext == "app"))
+        .map(Path::to_path_buf)
+}
+
+fn host_identity(app: &AppHandle) -> ComputerUseHostIdentity {
+    static IDENTITY: OnceLock<ComputerUseHostIdentity> = OnceLock::new();
+    IDENTITY
+        .get_or_init(|| {
+            let executable = std::env::current_exe().ok();
+            let bundle = executable.as_deref().and_then(application_bundle_path);
+            let signing_team = if cfg!(target_os = "macos") {
+                bundle
+                    .as_ref()
+                    .and_then(|path| {
+                        std::process::Command::new("/usr/bin/codesign")
+                            .args(["-d", "--verbose=4"])
+                            .arg(path)
+                            .output()
+                            .ok()
+                    })
+                    .and_then(|output| {
+                        String::from_utf8_lossy(&output.stderr)
+                            .lines()
+                            .find_map(|line| {
+                                line.strip_prefix("TeamIdentifier=")
+                                    .filter(|value| !value.is_empty() && *value != "not set")
+                                    .map(str::to_owned)
+                            })
+                    })
+            } else {
+                None
+            };
+            ComputerUseHostIdentity {
+                app_name: app
+                    .config()
+                    .product_name
+                    .clone()
+                    .unwrap_or_else(|| "EduPi".into()),
+                app_version: env!("CARGO_PKG_VERSION").into(),
+                platform: std::env::consts::OS.into(),
+                process_id: std::process::id(),
+                executable_path: executable.map(|path| path.to_string_lossy().into_owned()),
+                bundle_path: bundle.map(|path| path.to_string_lossy().into_owned()),
+                bundle_id: app.config().identifier.clone(),
+                signing_team,
+            }
+        })
+        .clone()
 }
 
 #[derive(Debug, Serialize)]
@@ -86,22 +154,27 @@ pub struct ComputerUseResult {
     operation_id: String,
 }
 
-fn status(state: &ComputerUseState) -> ComputerUseStatus {
+fn status(state: &ComputerUseState, app: &AppHandle) -> ComputerUseStatus {
     let permissions = permissions::permission_status();
     ComputerUseStatus {
         enabled: state.enabled.load(Ordering::SeqCst),
         accessibility: permissions.accessibility,
         screen_recording: permissions.screen_recording,
+        host: host_identity(app),
     }
 }
 
 #[tauri::command]
-pub fn computer_use_status(state: State<'_, ComputerUseState>) -> ComputerUseStatus {
-    status(&state)
+pub fn computer_use_status(
+    app: AppHandle,
+    state: State<'_, ComputerUseState>,
+) -> ComputerUseStatus {
+    status(&state, &app)
 }
 
 #[tauri::command]
 pub fn computer_use_set_enabled(
+    app: AppHandle,
     enabled: bool,
     state: State<'_, ComputerUseState>,
 ) -> ComputerUseStatus {
@@ -109,18 +182,22 @@ pub fn computer_use_set_enabled(
     if !enabled {
         state.clear_snapshot();
     }
-    status(&state)
+    status(&state, &app)
 }
 
 #[tauri::command]
-pub fn computer_use_emergency_stop(state: State<'_, ComputerUseState>) -> ComputerUseStatus {
+pub fn computer_use_emergency_stop(
+    app: AppHandle,
+    state: State<'_, ComputerUseState>,
+) -> ComputerUseStatus {
     state.enabled.store(false, Ordering::SeqCst);
     state.clear_snapshot();
-    status(&state)
+    status(&state, &app)
 }
 
 #[tauri::command]
 pub fn computer_use_request_permission(
+    app: AppHandle,
     permission: String,
     state: State<'_, ComputerUseState>,
 ) -> Result<ComputerUseStatus, String> {
@@ -133,7 +210,7 @@ pub fn computer_use_request_permission(
         }
         _ => return Err("Unknown computer-use permission".to_string()),
     }
-    Ok(status(&state))
+    Ok(status(&state, &app))
 }
 
 fn now_ms() -> u128 {
@@ -587,6 +664,20 @@ pub async fn computer_use_execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn permission_identity_uses_the_running_bundle_not_a_search_result() {
+        assert_eq!(
+            application_bundle_path(Path::new(
+                "/Applications/EduPi.app/Contents/MacOS/pi-agent-desktop"
+            )),
+            Some(PathBuf::from("/Applications/EduPi.app"))
+        );
+        assert_eq!(
+            application_bundle_path(Path::new("/tmp/target/pi-agent-desktop")),
+            None
+        );
+    }
 
     #[test]
     fn rejects_unknown_fields_and_unbounded_inputs() {

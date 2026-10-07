@@ -1,6 +1,7 @@
 import type { EducationModule } from "./edupi-education-ui";
 import type { EducationInsight, EducationMemory, EducationWorkCandidate, TeacherTask } from "./edupi-education-contract";
 import { taskCategory } from "./edupi-task-category.ts";
+import { candidateCompletionTime, compareCompletionTimes, compareForegroundDates, isCandidateForeground, shanghaiDate, taskReferenceDate, transactionDate, type ForegroundContext, type ForegroundPolicy } from "./edupi-foreground.ts";
 
 const TASK_TYPE_LABELS = {
   teaching: "教学准备",
@@ -151,16 +152,23 @@ export type WorkCandidateGroups = {
   done: EducationWorkCandidate[];
 };
 
-export function groupWorkCandidates(candidates: EducationWorkCandidate[], todayIso?: string): WorkCandidateGroups {
+export function groupWorkCandidates(candidates: EducationWorkCandidate[], todayIso?: string, policy?: ForegroundPolicy & ForegroundContext): WorkCandidateGroups {
   const identityOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
     left.candidateId.localeCompare(right.candidateId) || left.title.localeCompare(right.title);
   const dueOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
     String(left.dueAt).localeCompare(String(right.dueAt)) || identityOrder(left, right);
   const todayTime = todayIso ? Date.parse(`${todayIso}T00:00:00.000Z`) : Number.NaN;
   const attentionOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number => {
+    if (policy) {
+      const reference = (candidate: EducationWorkCandidate) => {
+        const task = policy.tasks?.find(item => item.id === candidate.taskId);
+        return (task ? taskReferenceDate(task, policy) : null) || transactionDate(candidate.dueAt);
+      };
+      return compareForegroundDates(reference(left), reference(right), policy.today) || identityOrder(left, right);
+    }
     if (!Number.isFinite(todayTime)) return dueOrder(left, right);
-    const leftTime = Date.parse(`${left.dueAt}T00:00:00.000Z`);
-    const rightTime = Date.parse(`${right.dueAt}T00:00:00.000Z`);
+    const leftTime = Date.parse(`${transactionDate(left.dueAt)}T00:00:00.000Z`);
+    const rightTime = Date.parse(`${transactionDate(right.dueAt)}T00:00:00.000Z`);
     if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return dueOrder(left, right);
     const distance = Math.abs(leftTime - todayTime) - Math.abs(rightTime - todayTime);
     if (distance !== 0) return distance;
@@ -168,13 +176,14 @@ export function groupWorkCandidates(candidates: EducationWorkCandidate[], todayI
     return side || leftTime - rightTime || identityOrder(left, right);
   };
   const laterOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
-    String(left.snoozeUntil ?? left.dueAt ?? "9999-12-31").localeCompare(String(right.snoozeUntil ?? right.dueAt ?? "9999-12-31")) || identityOrder(left, right);
+    String(transactionDate(left.snoozeUntil) ?? transactionDate(left.dueAt) ?? "9999-12-31").localeCompare(String(transactionDate(right.snoozeUntil) ?? transactionDate(right.dueAt) ?? "9999-12-31")) || identityOrder(left, right);
   const doneOrder = (left: EducationWorkCandidate, right: EducationWorkCandidate): number =>
-    String(right.teacherReview.reviewedAt ?? "").localeCompare(String(left.teacherReview.reviewedAt ?? "")) || identityOrder(left, right);
+    compareCompletionTimes(candidateCompletionTime(left, policy), candidateCompletionTime(right, policy)) || identityOrder(left, right);
+  const visible = policy ? candidates.filter(candidate => isCandidateForeground(candidate, policy, policy)) : candidates;
   return {
-    now: candidates.filter((candidate) => candidate.status === "pending_review").slice().sort(attentionOrder),
-    later: candidates.filter((candidate) => candidate.status === "held" || candidate.status === "snoozed").slice().sort(laterOrder),
-    done: candidates.filter((candidate) => candidate.status === "accepted" || candidate.status === "modified" || candidate.status === "rejected" || candidate.status === "suppressed").slice().sort(doneOrder),
+    now: visible.filter((candidate) => candidate.status === "pending_review").slice().sort(attentionOrder),
+    later: visible.filter((candidate) => candidate.status === "held" || candidate.status === "snoozed").slice().sort(laterOrder),
+    done: visible.filter((candidate) => candidate.status === "accepted" || candidate.status === "modified" || candidate.status === "rejected" || candidate.status === "suppressed").slice().sort(doneOrder),
   };
 }
 
@@ -185,9 +194,7 @@ export function taskTypeLabel(task: TeacherTask): string {
 export function isTaskActionable(task: TeacherTask, today = new Date()): boolean {
   if (task.boardStage === "done") return false;
   if (task.status !== "planned" && task.status !== "hold") return false;
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  const todayIso = `${today.getFullYear()}-${month}-${day}`;
+  const todayIso = shanghaiDate(today)!;
   const activationDate = task.triggerDate || task.dueDate;
   return !activationDate || activationDate <= todayIso;
 }

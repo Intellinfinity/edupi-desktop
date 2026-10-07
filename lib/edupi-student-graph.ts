@@ -3,6 +3,16 @@ import type { StudentEvent } from "./edupi-student-events";
 export const STUDENT_GRAPH_PAGE_SIZE = 20;
 export const STUDENT_GRAPH_RECORD_LIMIT = 60;
 export const STUDENT_GRAPH_PARTICIPANT_LIMIT = 100;
+export const STUDENT_GRAPH_MIN_ZOOM = 0.01;
+export const STUDENT_GRAPH_MAX_ZOOM = 2;
+
+export function clampStudentGraphZoom(value: number): number {
+  return Math.min(STUDENT_GRAPH_MAX_ZOOM, Math.max(STUDENT_GRAPH_MIN_ZOOM, value));
+}
+
+export function studentGraphFitZoom(canvas: { width: number; height: number }, viewport: { width: number; height: number }): number {
+  return clampStudentGraphZoom(Math.min(1, Math.max(1, viewport.width - 24) / canvas.width, Math.max(1, viewport.height - 24) / canvas.height));
+}
 
 export type StudentGraphNode = {
   id: string;

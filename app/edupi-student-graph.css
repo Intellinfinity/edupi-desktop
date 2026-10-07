@@ -1,0 +1,90 @@
+.edupi-student-drawer { grid-template-rows: auto minmax(0, 1fr); }
+.edupi-student-drawer > header { min-height: 76px; }
+.edupi-student-drawer > header h2 { margin-top: 0; }
+
+.edupi-student-graph__expand { margin-bottom: 12px; }
+.edupi-graph-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.edupi-graph-controls output { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+.edupi-student-graph__legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); text-align: center; }
+.edupi-student-graph__viewport { min-height: 240px; cursor: grab; touch-action: none; }
+.edupi-student-graph__viewport.is-panning { cursor: grabbing; user-select: none; }
+.edupi-student-graph__viewport:focus-visible { outline: 2px solid var(--ep-blue); outline-offset: 2px; }
+.edupi-student-graph__scaled { margin-inline: auto; overflow: hidden; }
+.edupi-student-graph__canvas { position: absolute; }
+.edupi-student-graph__node { cursor: pointer; }
+.edupi-student-graph__empty { display: grid; min-height: 240px; place-items: center; margin: 0; color: var(--ep-muted); }
+.edupi-student-graph__keyboard-help { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.edupi-student-graph g:focus-visible .edupi-student-graph__edge { stroke: var(--ep-blue); stroke-width: 4; }
+
+.edupi-student-graph-backdrop {
+  position: fixed;
+  z-index: 500;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ep-text) 28%, transparent);
+}
+.edupi-student-graph-dialog {
+  display: flex;
+  flex-direction: column;
+  width: calc(100vw - 32px);
+  height: calc(100dvh - 48px);
+  max-width: 1600px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 16px;
+  background: var(--ep-surface);
+  color: var(--ep-text);
+  border: 1px solid var(--ep-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--ep-text) 16%, transparent);
+}
+.edupi-student-graph-dialog__header { flex: 0 0 auto; padding-bottom: 12px; border-bottom: 1px solid var(--ep-border); }
+.edupi-student-graph-dialog__header h2 { margin: 0; font-size: 18px; }
+.edupi-student-graph-dialog__header span { color: var(--ep-muted); overflow-wrap: anywhere; }
+.edupi-student-graph-dialog__header button { margin-left: auto; }
+.edupi-student-graph-dialog__body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) clamp(260px, 26vw, 340px);
+  gap: 16px;
+  min-height: 0;
+  padding-top: 16px;
+}
+.edupi-student-graph-dialog__body > .edupi-student-graph { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.edupi-student-graph-dialog .edupi-student-graph__viewport { flex: 1; max-height: none; min-height: 160px; }
+.edupi-student-graph-dialog .edupi-student-graph__related { max-height: 160px; overflow-y: auto; }
+.edupi-student-graph-dialog .edupi-student-graph > small { padding-top: 8px; }
+.edupi-student-graph-dialog__details { min-width: 0; min-height: 0; overflow-y: auto; padding-left: 16px; border-left: 1px solid var(--ep-border); overflow-wrap: anywhere; }
+.edupi-student-graph-dialog__details h3 { margin: 0 0 8px; font-size: 13px; }
+.edupi-student-graph-dialog__details > p { color: var(--ep-muted); }
+.edupi-student-graph-dialog__details input,
+.edupi-student-graph-dialog__details textarea { width: 100%; min-width: 0; }
+.edupi-student-graph-dialog__details a { color: var(--ep-blue); }
+
+.edupi-student-family-records article { padding: 12px 0; border-top: 1px solid var(--ep-border); }
+.edupi-student-family-records article > header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.edupi-student-family-records article > header time { color: var(--ep-muted); font-size: 10px; }
+.edupi-student-family-records__identity { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; color: var(--ep-muted); font-size: 11px; }
+.edupi-student-family-records article > p { border: 0; font-size: 12px; line-height: 1.6; }
+.edupi-student-family-records article > details { margin-top: 8px; font-size: 11px; }
+.edupi-student-family-records article > details > summary { color: var(--ep-muted); cursor: pointer; }
+.edupi-student-family-records dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; margin-bottom: 0; }
+.edupi-student-family-records dt { color: var(--ep-muted); }
+.edupi-student-family-records dd { margin: 0; overflow-wrap: anywhere; }
+.edupi-student-graph-dialog .edupi-student-family-records > summary { cursor: pointer; }
+.edupi-student-family-records > summary > span { margin-left: 8px; }
+
+@media (max-width: 900px) {
+  .edupi-student-graph-dialog__body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(160px, 28dvh); gap: 12px; }
+  .edupi-student-graph-dialog__details { padding: 12px 0 0; border-top: 1px solid var(--ep-border); border-left: 0; }
+  .edupi-student-graph-dialog .edupi-student-graph__related { max-height: 100px; }
+}
+
+@media (max-width: 480px) {
+  .edupi-student-graph-dialog { width: calc(100vw - 16px); height: calc(100dvh - 16px); padding: 12px; }
+  .edupi-student-graph-dialog__header h2 { font-size: 16px; }
+  .edupi-student-graph-dialog__header span { font-size: 10px; }
+}

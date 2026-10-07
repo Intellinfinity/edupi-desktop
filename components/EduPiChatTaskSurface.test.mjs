@@ -32,7 +32,7 @@ test("chat metadata follows the saved session binding, never the first selected 
 test("opening task details preserves the chat session while leaving the task execution route", () => {
   let location, view;
   const code = compile(section(panel, "  const updateTaskDetailLocation =", "  useEffect(() => {\n    if (drawer ===") + "\nglobalThis.open = updateTaskDetailLocation;");
-  const context = { URLSearchParams, useCallback: fn => fn, searchParams: new URLSearchParams("edupi=1&view=tasks&task=second&session=session-b&stage=run"), setActiveView: value => { view = value; }, setInspectorOpen() {}, router: { replace: url => { location = new URL(url, "http://localhost"); } } };
+  const context = { URLSearchParams, useCallback: fn => fn, searchParams: new URLSearchParams("edupi=1&view=tasks&task=second&session=session-b&stage=run&q=原任务筛选"), queryRef: { current: "原任务筛选" }, setQuery() {}, setActiveView: value => { view = value; }, setInspectorOpen() {}, router: { replace: url => { location = new URL(url, "http://localhost"); } } };
   vm.runInNewContext(code, context);
   context.open("second", true);
   assert.equal(view, "chat");
@@ -40,6 +40,7 @@ test("opening task details preserves the chat session while leaving the task exe
   assert.equal(location.searchParams.get("taskDetail"), "second");
   assert.equal(location.searchParams.get("task"), null);
   assert.equal(location.searchParams.get("stage"), null);
+  assert.equal(location.searchParams.get("q"), null);
 });
 
 test("choosing another chat removes the previous task details route", () => {

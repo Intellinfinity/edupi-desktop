@@ -106,11 +106,11 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(taskBoard, /onInput/);
   assert.match(taskBoard, /await onMoveTask/);
   assert.doesNotMatch(workspaceViews, /EduPiRhythmImporter/);
-  for (const label of ["行事历", "待确认", "今天", "上一时段", "下一时段", "日", "周", "月", "新建日程", "添加课表", "上传文件", "日期待确认"]) assert.match(calendarWorkspace, new RegExp(label));
+  for (const label of ["日程", "待确认", "今天", "上一时段", "下一时段", "日", "周", "月", "新建日程", "添加课表", "上传文件", "日期待确认"]) assert.match(calendarWorkspace, new RegExp(label));
   assert.match(calendarWorkspace, /compact=\{entry\.kind !== "task"\}/);
   assert.match(calendarWorkspace, /entry\.sourceLabel/);
   assert.match(calendarWorkspace, /entry\.statusLabel/);
-  assert.match(objectSider, /isRecognizedTimetableNote\(slot\.notes\)/);
+  assert.match(objectSider, /isRecognizedTimetableNote\(slot\?\.notes\)/);
   assert.match(calendarModule, /isRecognizedTimetableNote\(slot\.notes\) \? " · 待确认"/);
   for (const group of ["协作", "教师工作", "长期积累", "控制"]) assert.match(rail, new RegExp(group));
   assert.doesNotMatch(rail, /views: \[[^\]]*"tasks"/);
@@ -125,7 +125,7 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(workspaceViews, /calendarFactSelection/);
   assert.match(workspaceViews, /onCalendarSelection\(calendarFactSelection\(event\)\)/);
   assert.doesNotMatch(workspaceViews, /onCalendarSelection\(calendarFactSelection\(event\)\); onNavigate\("calendar"\)/);
-  assert.match(workspaceViews, /onNavigate\("insights", `insights:\$\{insightCategory\(latestInsight\.content\)\}:surfaced`\)/);
+  assert.doesNotMatch(workspaceViews, /edupi-attention-note/);
   assert.match(workspaceViews, /EduPiGrowthWorkspace/);
   assert.match(memoryDatabase, /edupi-database/);
   assert.match(insightDatabase, /edupi-database/);
@@ -135,7 +135,8 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(teaching, /taskCategory\(task\) === "teaching"/);
   assert.match(await read("./EduPiStudentWorkspace.tsx"), /task\.student === selectedName/);
   for (const label of ["教学首页", "课程表", "教学重点", "备课任务", "教学记忆"]) assert.match(`${teaching}\n${await read("../lib/edupi-domain-navigation.ts")}`, new RegExp(label));
-  for (const section of ["交给 EduPi", "早安简报", "今天要判断", "接下来", "值得留意"]) assert.match(`${workspaceViews}\n${await read("./EduPiTodayWork.tsx")}`, new RegExp(section));
+  for (const section of ["简报", "工作判断", "接下来"]) assert.match(`${workspaceViews}\n${await read("./EduPiTodayWork.tsx")}`, new RegExp(section));
+  assert.doesNotMatch(workspaceViews, /edupi-command-center/);
   assert.match(workspaceViews, /onStartAgent/);
   assert.match(workspaceViews, /event !== currentWeek/);
   assert.match(panel, /showObjectSider/);
@@ -156,8 +157,7 @@ test("the teacher workbench exposes the complete task and review workflow", asyn
   assert.match(panel, /stage: activeStage/);
   for (const label of ["正在协作", "继续协作", "开始协作", "恢复协作"]) assert.match(taskStage, new RegExp(label));
   assert.doesNotMatch(taskStage, /将为此任务建立独立 Session|`Session /);
-  assert.match(workspaceViews, /Agent 就绪/);
-  assert.match(workspaceViews, /个 Agent 运行中/);
+  assert.doesNotMatch(workspaceViews, /Agent 就绪|个 Agent 运行中/);
   assert.match(panel, /searchParams\.get\("inspector"\) === "1"/);
   assert.match(panel, /aria-label=\{inspectorOpen \? "收起检查" : "打开检查"\}/);
   assert.match(panel, /aria-pressed=\{inspectorOpen\}/);
@@ -175,8 +175,8 @@ test("the dashboard wires the Core work-candidate inbox with six receipt-bound a
   const helper = await read("../lib/edupi-today-work.ts");
   assert.match(workspaceViews, /EduPiTodayWork/);
   assert.match(component, /data\.workCandidates/);
-  for (const label of ["今天要判断", "待你决定", "稍后处理", "已记录", "接受", "调整", "暂缓", "稍后", "停止提示", "拒绝"]) assert.match(component, new RegExp(label));
-  assert.match(component, /教师工作/);
+  for (const label of ["工作判断", "待你决定", "稍后处理", "已记录", "接受", "调整", "暂缓", "稍后", "停止提示", "拒绝"]) assert.match(component, new RegExp(label));
+  assert.match(component, /useEduPiForegroundPolicy/);
   assert.doesNotMatch(component, /Core Today|Core 尚未开放/);
   assert.match(component, /<h3 id=/);
   assert.match(component, /<h4>/);

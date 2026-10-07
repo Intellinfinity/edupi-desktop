@@ -3,6 +3,19 @@ import fs from "node:fs";
 import vm from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import { createJiti } from "jiti";
+
+const foreground = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../lib/edupi-foreground.ts");
+function mockRequire(name, react, jsx, query) {
+  if (name === "react") return react;
+  if (name.includes("jsx-runtime")) return { jsx, jsxs: jsx };
+  if (name === "next/navigation") return { useSearchParams: () => new URLSearchParams(query) };
+  if (name === "@/lib/edupi-foreground") return foreground;
+  if (name === "./EduPiForeground") return { useEduPiForegroundPolicy: () => ({ today: "2026-09-09", graceDays: 3, pinnedTaskIds: [] }) };
+  // Source reads are independent of the reminder boundary being exercised here.
+  if (name === "@/lib/edupi-education-client") return { readEduPiWorkspace: async () => ({ data: { tasks: [], calendar: [], workCases: [], workCandidates: [], taskSessions: {}, continuity: { documents: [] } } }) };
+  throw new Error(`Unexpected test import: ${name}`);
+}
 
 test("standalone reminders wait for the first fetch before showing an empty state", async () => {
   const slots = [], effects = [];
@@ -14,7 +27,7 @@ test("standalone reminders wait for the first fetch before showing an empty stat
   };
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(new URL("./EduPiReminderInbox.tsx", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, AbortController, Date, setInterval: () => 1, clearInterval() {}, fetch: () => new Promise(resolve => { finishFetch = resolve; }), require: name => name === "react" ? react : name.includes("jsx-runtime") ? { jsx, jsxs: jsx } : { useSearchParams: () => new URLSearchParams("reminders=1") } });
+  vm.runInNewContext(code, { exports, AbortController, Date, setInterval: () => 1, clearInterval() {}, fetch: () => new Promise(resolve => { finishFetch = resolve; }), require: name => mockRequire(name, react, jsx, "reminders=1") });
   const render = () => { cursor = 0; const tree = exports.EduPiReminderInbox({ onAction: () => true, standalone: true, onClose: () => {} }); while (effects.length) effects.shift()(); return JSON.stringify(tree); };
 
   const before = render();
@@ -39,7 +52,7 @@ test("a failed first reminder read never claims there are no reminders", async (
   };
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(new URL("./EduPiReminderInbox.tsx", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, AbortController, Date, setInterval: () => 1, clearInterval() {}, fetch: async () => { throw new Error("offline"); }, require: name => name === "react" ? react : name.includes("jsx-runtime") ? { jsx, jsxs: jsx } : { useSearchParams: () => new URLSearchParams("reminders=1") } });
+  vm.runInNewContext(code, { exports, AbortController, Date, setInterval: () => 1, clearInterval() {}, fetch: async () => { throw new Error("offline"); }, require: name => mockRequire(name, react, jsx, "reminders=1") });
   const render = () => { cursor = 0; const tree = exports.EduPiReminderInbox({ onAction: () => true, standalone: true, onClose: () => {} }); while (effects.length) effects.shift()(); return JSON.stringify(tree); };
 
   render();
@@ -59,7 +72,7 @@ test("opening reminders reads newly available items without waiting for polling"
   };
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(new URL("./EduPiReminderInbox.tsx", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, AbortController, Date, setInterval: () => 1, clearInterval() {}, fetch: async () => { requests++; return { ok: true, json: async () => ({ items: requests === 1 ? [] : [{ id: "reminder", title: "新备课已准备", kind: "ready", taskId: "task", createdAt: "2026-09-09T00:00:00Z", read: false, handled: false, snoozedUntil: null }] }) }; }, require: name => name === "react" ? react : name.includes("jsx-runtime") ? { jsx, jsxs: jsx } : { useSearchParams: () => new URLSearchParams() } });
+  vm.runInNewContext(code, { exports, AbortController, Date, setInterval: () => 1, clearInterval() {}, fetch: async () => { requests++; return { ok: true, json: async () => ({ items: requests === 1 ? [] : [{ id: "reminder", title: "新备课已准备", kind: "ready", taskId: "task", createdAt: "2026-09-09T00:00:00Z", read: false, handled: false, snoozedUntil: null }] }) }; }, require: name => mockRequire(name, react, jsx, "") });
   const render = () => { cursor = 0; tree = exports.EduPiReminderInbox({ onAction: () => true }); while (effects.length) effects.shift()(); return tree; };
   const nodes = value => !value || typeof value !== "object" ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children)];
   render(); await new Promise(resolve => setImmediate(resolve));

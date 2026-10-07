@@ -161,6 +161,14 @@ export function getDesktopRuntimeStatusNative(): Promise<DesktopRuntimeStatus> {
   return invokeEduPiRootCommand<DesktopRuntimeStatus>("get_desktop_runtime_status");
 }
 
+export function getForegroundSettingsNative(): Promise<unknown> {
+  return invokeEduPiRootCommand("get_foreground_settings");
+}
+
+export function setForegroundSettingsNative(settings: { graceDays: number; pinnedTaskIds: string[]; dismissedStaleTaskIds: string[] }): Promise<void> {
+  return invokeEduPiRootCommand("set_foreground_settings", { settings });
+}
+
 export function setMobileBridgeEnabledNative(enabled: boolean): Promise<DesktopRuntimeStatus> {
   return invokeEduPiRootCommand<DesktopRuntimeStatus>("set_mobile_bridge_enabled", { enabled });
 }

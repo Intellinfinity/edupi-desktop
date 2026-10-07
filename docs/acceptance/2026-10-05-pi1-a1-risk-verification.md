@@ -1,6 +1,26 @@
 # Pi 1 与暂缓草稿风险验收
 
-最新状态：`.56`已按用户明确授权完成三平台构建并正式发布，公开更新源为`.56`、七个平台键。高危门为0，余6低/3中仍记录；Core仍`a84590c`。完整安装、真实睡眠、真人质量和六领域Live验收后置，不能据此计路线1全部通过。下方Mac-only候选及不发布的段落是历史状态。
+最新源码状态：P0–P2前台修复和Core #223–#230配对已实现；Core精确`0c2c72a18a06ec35a3e7e7568ce4e6b932532df4`，Pi/PiDurable1.0.2。消息、日程写入、历史分页、资源引用和大图来源有本机隔离生产源码页面证据，默认数学Durable有真实私有桌面宿主证据。Core假期后台修复仍在独立PR前验证，不计已消费；家庭人物/G5身份和真实阶段/子任务合同缺口保留。公开Release/feed仍`.56`，其Core仍`a84590c`，新源码未打包或安装；真实睡眠、真人质量、六领域Live及其他平台安装继续后置。
+
+## 2026-10-07 P0–P2 与 Core #230
+
+- 沿用原Desktop分支和R编号，保留全部既有改动；本轮无reset/clean/stash/替代Desktop分支，无真实资料根、模型凭据、launchd、系统权限/时钟/能源设置或外发变更。macOS arm64、Node22.23.1，源码基线`1dacf819`，功能提交/PR/CI在收口后补记。验收仅为`.next-desktop`生产源码运行，不是Tauri安装或旧客户端升级。
+- 隔离目录`~/edupi-desktop-p0p2-canary-QgYYbX`包含合成teacher-data/pi-agent/desktop-state、仅loopback确定性模型。首次a845页面与后续0c2页面证据分别记录，未将旧配对结果改名成新安装证据；Core根是本任务只读main快照，原a845工作树保留。
+
+| 原任务 | 操作与预期 | 实际结果与边界 |
+| --- | --- | --- |
+| R14/R18/R20 | Pi1系统工具声明穿插user echo，发送/重载不重复；主动同文再发允许 | 真实SDK先复现disk1/UI2；修复后页面同文两次，2user/2assistant落盘与显示，system不渲染；刷新仍2。ID/request replay去重不删除原历史；并发创建/模型设置迟到结果、外窗口prompt、冷SSE连接与加载所有权回归已独立复核 |
+| R04/R09/R20 | 实际工具保存同名三天并回读；失败不承诺自动补录 | 0c2页面一条消息/一次calendar_import，显示权威“3条日程已确认”；10/8、10/9、10/10是3个真实Core ID，日程入口能找回。隔离E2另证同日replay不增、inferred待确认、未知日期held、真正Core重启保留、writer竞争拒绝且未安排重试；legacy写拒绝不是OS全访问不足 |
+| R06/R14/R15 | 显示实际App身份、区分未知/未授权/待重启，更新前提示App管理 | 原生readonly身份/实时权限读、状态映射与更新前置提示已实现；Cargo44通过。TCC和新原生显示偏好仍缺安装证据，不能说旧Canary授权已修复或自动移除系统条目 |
+| R03/R04/R05/R08 | 共用上海自然日、3天阈值、10条、真实完成倒序、历史找回 | a845真实页7天偏好刷新保持，15天36项/恢复3天27项，历史36；列表第二页/返回/硬刷新保持，teaching history与q硬刷新仍8旧行。旧节日集中整理，dismiss刷新不再问，pin28/取消27；当前简报不借旧日期充当今天 |
+| R06/R16/R18/R20 | 5资源入口与4类引用；输入/引用独立，切换与立即刷新保留 | 连接器/插件/Skills/知识/自动化均实际打开；4引用选择/移除/重添不改老师文字。A有未发草稿和引用、B空、回A恢复；最新输入与新增引用立即刷新保持。800资源两行、历史可滚动，不再被固定栏裁切；Escape/选择取消焦点已实际复核 |
+| R10/R12/R17 | 学习术语、大图缩放/平移/来源、修改与并发保稿 | 1440/800真页通过fit/缩放/键盘/筛选保留、20→22加载、并发拒写/重试保稿、修订历史恢复、互动删除取消/确认/同名跨班不串。0c2新增真正Pi会话的合成观察，703图可见，展开来源后回到同一Session与原用户消息，关闭此前“来源仅缺fixture文件”欠证；旧缺文件样本仍未验 |
+| R22/Core #223–#230 | 精确schema/双manifest/closure/pin；默认Durable不靠跨进程函数冒充品牌 | 15/15完整闭包/篡改拒绝/CAS/合同配对通过；Runtime schema`ba67351c…`、Core component`2e1f46df…`、Desktop component`852b9b1d…`。private IPC只读配置，真实Core进程exact runner进入数学plan+draft两call/4文件/SQLite；重启0新call且签名预算保持；实际取消/断链回收worker/socket。缺配置/不支持配置保Core可读/可停，不回退宽松生成 |
+
+- 独立复审发现并关闭：外窗口request ID、冷loading、SSE前置失败失稿、会话切换期间旧POST、显示偏好迟到native/跨页覆盖、原生隔离失效写真实偏好、模型配置TOCTOU执行resolver与丢弃modelOverrides扩大tokens。命令resolver负例为计数stub，不执行真实命令；immutable配置快照后计数0。非空选中modelOverrides、OAuth及自定义headers当前明确停用G1，不能假称全提供商兼容。
+- 最终配对全量`EDUPI_CORE_ROOT=<固定main根> npm test`：2130pass、9skipped、0fail；无Core根运行的P0–P2门为2104pass/27skipped/0fail。类型/lint、npm高危审计、locked metadata、Cargo44和针对性host检查分别记录；跳过项不计通过。原失败日志保留，包括dev冷编译/SSE5秒、立即刷新失稿、manifest文件SHA误作payload identity。生产源码编译成功，未在运行dev目录执行next build。
+- 原始证据：`p0-browser-evidence.json`、`p1-browser-evidence.json`、`p2-800-source.jpg`、`p2-800-family.jpg`、`p2-1440-loaded-22.jpg`、`p2-1440-stale-revision.jpg`、`core230-pairing.log`、`core229-calendar-e2.log`和各最终检查log。0c2新增来源会话为`01a11577-ded8-76e2-b887-034eec343498`，日程会话为`01a11575-57dc-76e2-b887-034db438dc66`；均为隔离合成消息，不转录真实学生截图。
+- 保留边界：Core假期后台、已核实家庭人物关系、真实阶段/并行子任务合同尚未交付；不能用前端隐藏、教师称谓或四个展示步骤推定已完成。普通Pi自动记忆缺真实Core opaque host scope时held，不从投影/姓名/标签构造权限或复制authority store。新DOCX/ICS/PDF操作进入固定Core闭包但完整上传消费者与PDF可见性另验。安装、跨平台、真实通知/睡眠/模型教学质量/真人价值仍按缺证记录；本轮不发布Release/feed。
 
 ## 2026-10-07 v0.3.56 三平台正式发布
 

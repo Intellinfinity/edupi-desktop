@@ -20,7 +20,16 @@ export function rpcResourceOptions(base: LoaderOptions, mode: RpcToolMode): Load
     } : {}),
     extensionFactories: [
       ...(mode.disabled ? [] : base.extensionFactories ?? []),
-      (pi) => { pi.on("before_agent_start", () => mode.disabled ? { systemPrompt: "" } : undefined); },
+      (pi) => {
+        // Reload re-registers direct custom tools even without extensions.
+        // Keep the host's empty-tool choice effective after that registration.
+        pi.on("session_start", () => { if (mode.disabled) pi.setActiveTools([]); });
+        pi.on("before_agent_start", () => {
+          if (!mode.disabled) return undefined;
+          pi.setActiveTools([]);
+          return { systemPrompt: "" };
+        });
+      },
     ],
   };
 }

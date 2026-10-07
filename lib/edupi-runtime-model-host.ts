@@ -3,17 +3,33 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { getAgentDir, ModelRuntime, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { readRuntimeModelConfiguration, type PrivateRuntimeModelConfiguration } from "./edupi-runtime-model-config";
+import { boundedPrivateData, privateDataKeys, validatePrivateModelConfiguration } from "../desktop/core-runtime-model-config.mjs";
 
 type LiveRequest = Record<string, unknown>;
 type LiveResult = Record<string, unknown>;
-type ModelHost = { run(request: LiveRequest, options: { signal: AbortSignal }): Promise<LiveResult>; close(): Promise<void> };
+type ModelHost = { run(request: LiveRequest, options: { signal: AbortSignal }): Promise<LiveResult>;
+  configuration?(options: { signal: AbortSignal }): Promise<PrivateRuntimeModelConfiguration>; close(): Promise<void> };
 
 export function createRuntimeModelHost({ coreRoot, projectRoot, agentDir = getAgentDir(), allowLoopback = false }: { coreRoot: string; projectRoot: string; agentDir?: string; allowLoopback?: boolean }): ModelHost {
   const packagedAdapter = path.join(process.cwd(), "scripts/core_runtime_model_adapter.mjs");
   const adapterFile = existsSync(packagedAdapter) ? packagedAdapter : path.join(coreRoot, "scripts/core_runtime_model_adapter.mjs");
-  const running = new Map<AbortController, Promise<LiveResult>>();
+  const running = new Map<AbortController, Promise<unknown>>();
   let closed = false;
   return {
+    configuration({ signal }) {
+      const controller = new AbortController();
+      let rejectCancelled: (reason: Error) => void;
+      const cancelled = new Promise<never>((_resolve, reject) => { rejectCancelled = reject; });
+      const cancel = () => { controller.abort(); rejectCancelled(Object.assign(new Error("Model host unavailable."), { code: "model_unavailable" })); };
+      signal.addEventListener("abort", cancel, { once: true });
+      if (closed || signal.aborted) cancel();
+      const operation = Promise.race([cancelled, readRuntimeModelConfiguration({ projectRoot, agentDir, signal: controller.signal, allowLoopback })])
+        .finally(() => { signal.removeEventListener("abort", cancel); running.delete(controller); });
+      controller.signal.addEventListener("abort", () => rejectCancelled(Object.assign(new Error("Model host unavailable."), { code: "model_unavailable" })), { once: true });
+      running.set(controller, operation);
+      return operation;
+    },
     run(value, { signal }) {
       const controller = new AbortController();
       const cancel = () => controller.abort();
@@ -82,14 +98,15 @@ export function createRuntimeModelHost({ coreRoot, projectRoot, agentDir = getAg
 }
 
 export function attachRuntimeModelHost(child: ChildProcess, host: ModelHost) {
-  const pending = new Map<string, AbortController>();
+  const pending = new Map<string, { controller: AbortController; configuration: boolean }>();
+  const seenConfigurations = new Set<string>();
   let closed = false;
   let closing: Promise<void> | undefined;
   const close = () => {
     if (closing) return closing;
     closed = true;
     child.off("message", message);
-    for (const controller of pending.values()) controller.abort();
+    for (const item of pending.values()) item.controller.abort();
     closing = host.close().finally(() => pending.clear());
     return closing;
   };
@@ -97,17 +114,34 @@ export function attachRuntimeModelHost(child: ChildProcess, host: ModelHost) {
     if (closed || !value || typeof value !== "object") return;
     const data = value as { type?: string; id?: string; request?: LiveRequest };
     if (typeof data.id !== "string" || !/^[a-zA-Z0-9-]{1,100}$/.test(data.id)) return;
-    if (data.type === "model-cancel") { pending.get(data.id)?.abort(); return; }
-    if (data.type !== "model-run" || !data.request || pending.has(data.id)) return;
-    if (pending.size >= 2) { if (child.connected) child.send({ type: "model-error", id: data.id, code: "model_unavailable" }, () => {}); return; }
+    if (data.type === "model-cancel" || data.type === "model-config-cancel") {
+      if (!privateDataKeys(data, ["type", "id"])) return;
+      const item = pending.get(data.id);
+      if (item && item.configuration === (data.type === "model-config-cancel")) item.controller.abort();
+      return;
+    }
+    const configuration = data.type === "model-config-request";
+    if (!configuration && data.type !== "model-run") return;
+    if (!privateDataKeys(data, configuration ? ["type", "id"] : ["type", "id", "request"])
+      || !boundedPrivateData(data, configuration ? 1024 : 100_256) || !configuration && !data.request || pending.has(data.id)) return;
+    const errorType = configuration ? "model-config-error" : "model-error";
+    const fail = () => { if (!closed && child.connected) child.send({ type: errorType, id: data.id, code: "model_unavailable" }, () => {}); };
+    if (pending.size >= 2 || configuration && (seenConfigurations.has(data.id) || seenConfigurations.size >= 32 || !host.configuration)) { fail(); return; }
     const id = data.id;
     const controller = new AbortController();
-    pending.set(id, controller);
-    void host.run(data.request, { signal: controller.signal }).then(result => {
-      if (!closed && child.connected) child.send({ type: "model-result", id, result }, () => {});
-    }, () => {
-      if (!closed && child.connected) child.send({ type: "model-error", id, code: "model_unavailable" }, () => {});
-    }).finally(() => pending.delete(id));
+    if (configuration) seenConfigurations.add(id);
+    pending.set(id, { controller, configuration });
+    let operation: Promise<unknown>;
+    try { operation = configuration ? host.configuration!({ signal: controller.signal }) : host.run(data.request!, { signal: controller.signal }); }
+    catch { pending.delete(id); fail(); return; }
+    void operation.then(result => {
+      if (closed || !child.connected || controller.signal.aborted) return;
+      try {
+        if (configuration) child.send({ type: "model-config-result", id, configuration: validatePrivateModelConfiguration(result) }, () => {});
+        else if (boundedPrivateData(result, 2 * 1024 * 1024 + 4096)) child.send({ type: "model-result", id, result }, () => {});
+        else fail();
+      } catch { fail(); }
+    }, fail).finally(() => pending.delete(id));
   };
   child.on("message", message);
   child.once("disconnect", () => { void close(); });

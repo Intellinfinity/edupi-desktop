@@ -69,7 +69,7 @@ test("teaching keeps a home route and the calendar exposes a ten-period weekday 
   assert.match(timetable, /period === 6 \? " is-afternoon-start"/);
   assert.match(timetable, /其他时段/);
   assert.match(timetable, /overflowSlots\.map/);
-  assert.match(calendar, /contentMode === "timetable" \? <EduPiTimetableGrid/);
+  assert.match(calendar, /contentMode === "timetable" && !sourceEvents && !sourceCourses \? <EduPiTimetableGrid/);
 });
 
 test("class workspace keeps the student directory mounted and opens a right drawer", async () => {
@@ -78,7 +78,7 @@ test("class workspace keeps the student directory mounted and opens a right draw
   assert.match(await read("../lib/edupi-student-pagination.ts"), /localeCompare\(studentRecordName\(right\.student\), "zh-CN"\)/);
   assert.match(student, /edupi-student-directory/);
   assert.match(student, /edupi-student-drawer/);
-  assert.match(student, /EduPi 相关记忆/);
+  assert.match(student, /相关记忆/);
   assert.match(student, /手动修改/);
   assert.match(student, /AI 协作/);
   assert.match(student, /onStudent\(null\)/);
@@ -92,7 +92,7 @@ test("class workspace keeps the student directory mounted and opens a right draw
 test("review keeps the selected task visible after its decision changes", async () => {
   const source = await read("./EduPiEducationPanel.tsx");
   const selection = source.slice(source.indexOf("const activeTask = useMemo"), source.indexOf("const activeWorkReview"));
-  assert.match(selection, /return requested \?\? tasks\.find\(reviewable\)/);
+  assert.match(selection, /return requested \?\? foregroundTasks\.find\(reviewable\)/);
   assert.doesNotMatch(selection, /requested && reviewable\(requested\)/);
   assert.match(source, /const requestedTaskKey = searchParams\.get\("task"\)/);
   assert.match(source, /setSelectedTaskKey\(routeView === "tasks" \|\| routeView === "review" \? requestedTaskKey : null\)/);

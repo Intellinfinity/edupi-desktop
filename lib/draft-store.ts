@@ -1,5 +1,5 @@
 import { APP_PREF_KEYS, getPrefJson, trySetPrefJson } from "@/lib/app-prefs";
-import { parseTeacherMessage, type EduPiComposerContext } from "@/lib/edupi-composer-context";
+import { isComposerContext, parseTeacherMessage, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import type { ImageContent, UserMessage } from "@/lib/types";
 
 export interface ChatDraftImage {
@@ -37,13 +37,19 @@ const dirtyKeys = new Set<string>();
 
 let hydrated = false;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let exitFlushRegistered = false;
+
+function cloneContext(context: EduPiComposerContext): EduPiComposerContext {
+  return { title: context.title, reference: context.reference,
+    ...(context.resources ? { resources: context.resources.map(item => ({ ...item })) } : {}) };
+}
 
 function cloneDraft(draft: ChatDraft): ChatDraft {
   return {
     value: draft.value,
     images: draft.images.map((image) => ({ ...image })),
-    ...(draft.context ? { context: { ...draft.context } } : {}),
-    ...(draft.offeredContext ? { offeredContext: { ...draft.offeredContext } } : {}),
+    ...(draft.context ? { context: cloneContext(draft.context) } : {}),
+    ...(draft.offeredContext ? { offeredContext: cloneContext(draft.offeredContext) } : {}),
     ...(draft.pendingTeacherText ? { pendingTeacherText: draft.pendingTeacherText } : {}),
     ...(draft.pendingQueueMessages?.length ? { pendingQueueMessages: [...draft.pendingQueueMessages] } : {}),
     ...(draft.pendingQueueRecoveryId ? { pendingQueueRecoveryId: draft.pendingQueueRecoveryId } : {}),
@@ -53,7 +59,7 @@ function cloneDraft(draft: ChatDraft): ChatDraft {
     ...(draft.pendingFailedMessages?.length ? { pendingFailedMessages: draft.pendingFailedMessages.map(item => ({
       value: item.value,
       images: item.images.map(image => ({ ...image })),
-      ...(item.context ? { context: { ...item.context } } : {}),
+      ...(item.context ? { context: cloneContext(item.context) } : {}),
       ...(item.sourceLabel ? { sourceLabel: item.sourceLabel } : {}),
     })) } : {}),
   };
@@ -64,10 +70,7 @@ function isEmptyDraft(draft: ChatDraft): boolean {
 }
 
 function validContext(value: unknown): value is EduPiComposerContext {
-  if (!value || typeof value !== "object") return false;
-  const context = value as Partial<EduPiComposerContext>;
-  return typeof context.title === "string" && context.title.length > 0 && context.title.length <= 60
-    && typeof context.reference === "string" && context.reference.length > 0 && context.reference.length <= 500_000;
+  return isComposerContext(value);
 }
 
 function imagePersistable(image: ChatDraftImage): boolean {
@@ -122,8 +125,8 @@ function hydrateFromStorage(): void {
         .filter((image) => image && typeof image.data === "string" && typeof image.mimeType === "string")
         .filter(imagePersistable)
         .map((image) => ({ data: image.data, mimeType: image.mimeType })),
-      ...(validContext(draft.context) ? { context: { ...draft.context } } : {}),
-      ...(validContext(draft.offeredContext) ? { offeredContext: { ...draft.offeredContext } } : {}),
+      ...(validContext(draft.context) ? { context: cloneContext(draft.context) } : {}),
+      ...(validContext(draft.offeredContext) ? { offeredContext: cloneContext(draft.offeredContext) } : {}),
       ...(typeof draft.pendingTeacherText === "string" && draft.pendingTeacherText.length > 0 && draft.pendingTeacherText.length <= 500_000
         ? { pendingTeacherText: draft.pendingTeacherText } : {}),
       ...(Array.isArray(draft.pendingQueueMessages) ? {
@@ -141,7 +144,7 @@ function hydrateFromStorage(): void {
           .slice(0, 20).map(item => ({
           value: item.value,
           images: item.images.filter(image => image && typeof image.data === "string" && typeof image.mimeType === "string" && imagePersistable(image)),
-          ...(validContext(item.context) ? { context: item.context } : {}),
+          ...(validContext(item.context) ? { context: cloneContext(item.context) } : {}),
           ...(typeof item.sourceLabel === "string" && item.sourceLabel.length <= 60 ? { sourceLabel: item.sourceLabel } : {}),
           })),
       } : {}),
@@ -163,6 +166,8 @@ function persistDirtyDrafts(): Map<string, boolean> {
     for (const key of changed) {
       const draft = drafts.get(key);
       if (!draft || !eligible.has(key)) continue;
+      if (draft.context && !validContext(draft.context) || draft.offeredContext && !validContext(draft.offeredContext)
+        || draft.pendingFailedMessages?.some(item => item.context && !validContext(item.context))) continue;
       const candidate = { ...retained };
       delete candidate[key];
       candidate[key] = persistableDraft(draft);
@@ -182,6 +187,16 @@ function persistDirtyDrafts(): Map<string, boolean> {
 
 function schedulePersist(): void {
   if (typeof window === "undefined") return;
+  if (!exitFlushRegistered && typeof window.addEventListener === "function") {
+    const flushOnExit = () => {
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = null;
+      persistDirtyDrafts();
+    };
+    window.addEventListener("pagehide", flushOnExit);
+    window.addEventListener("beforeunload", flushOnExit);
+    exitFlushRegistered = true;
+  }
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     persistTimer = null;

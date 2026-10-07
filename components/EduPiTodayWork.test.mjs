@@ -36,7 +36,7 @@ test("renders Core ambient preparation without exposing decision authority contr
           opportunity_id: "sha256:ready", shadow_opportunity_id: "goal-1:lesson", goal_id: "goal-1",
           work_case_id: "work_case_ready", logical_occurrence_key: "lesson:lesson", source_revision: "sha256:source",
           evidence_ids: ["event"], gap: "none", action: "act", reason: "prepare", current: true,
-          valid_until: "2026-09-20T00:00:00.000Z", next_wakeup_at: null, recheck_on: [], fire_key: "sha256:fire",
+          valid_until: "2099-09-20T00:00:00.000Z", next_wakeup_at: null, recheck_on: [], fire_key: "sha256:fire",
           priority: { urgency: 90, impact: 85, evidence_quality: 60, risk: 10, interruption_cost: 10, compute_cost: 30, score: 700 },
           expected_satisfied: true,
         }],
@@ -60,9 +60,9 @@ test("renders Core ambient preparation without exposing decision authority contr
   assert.doesNotMatch(html, /sha256:ready/);
 });
 
-test("keeps large review queues behind progressive disclosure", () => {
+test("caps review previews at ten and gives larger queues a complete list entry", () => {
   const data = buildEducationContract({ workspace: "/tmp/today-attention-budget" });
-  data.workCandidates = Array.from({ length: 6 }, (_, index) => ({
+  data.workCandidates = Array.from({ length: 13 }, (_, index) => ({
     candidateId: `candidate-${index}`,
     taskId: `task-${index}`,
     snapshotId: `snapshot-${index}`,
@@ -86,9 +86,9 @@ test("keeps large review queues behind progressive disclosure", () => {
     onEducation: () => {},
     onTaskDetail: () => {},
   }));
-  assert.match(html, /查看其余 2 项/);
-  assert.doesNotMatch(html, /edupi-today-work__more" open/u);
-  for (let index = 0; index < 6; index += 1) assert.match(html, new RegExp(`待判断 ${index}`));
+  assert.match(html, /查看更多/);
+  assert.equal((html.match(/edupi-today-work__item is-pending_review/g) || []).length, 10);
+  assert.doesNotMatch(html, />待判断 12</);
 });
 
 test("Today does not invent scope or value from a work candidate", () => {

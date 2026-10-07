@@ -1,6 +1,7 @@
 import type { CalendarFact, EducationContract, TeacherTask } from "./edupi-education-contract";
 import { taskDisplayTitle, taskPresentation } from "./edupi-workbench";
 import { isRecognizedTimetableNote } from "./edupi-recognition-markers";
+import { calendarReferenceDate, isForegroundDate, isRegularTeachingDate, isTaskForeground, isTaskRunning, shanghaiDate, taskReferenceDate, type ForegroundPolicy, type ForegroundContext } from "./edupi-foreground";
 
 export type CalendarViewMode = "day" | "week" | "month";
 export type CalendarEntryKind = "calendar" | "task" | "timetable";
@@ -14,6 +15,8 @@ export type CalendarItemSelection = {
   detail: string | null;
   sourceLabel: string;
   statusLabel: string;
+  /** Local editor intent; this is never part of the Core object or saved link. */
+  editRequested?: boolean;
 };
 
 export type CalendarSelectionLink = {
@@ -134,7 +137,7 @@ function dateKey(date: Date): string {
 function parseDateInput(value: string | Date): Date | null {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
-    return utcDate(value.getFullYear(), value.getMonth() + 1, value.getDate());
+    return parseDateInput(shanghaiDate(value)!);
   }
   const match = ISO_DATE.exec(value);
   if (!match) return null;
@@ -172,8 +175,7 @@ function dateField(source: RecordValue, keys: string[]): { date: string | null; 
 }
 
 function localToday(): string {
-  const now = new Date();
-  return `${String(now.getFullYear()).padStart(4, "0")}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return shanghaiDate()!;
 }
 
 export function parseIsoDate(value: unknown): string | null {
@@ -413,6 +415,7 @@ export function getCalendarEntries(
   data: Pick<EducationContract, "calendar" | "tasks" | "timetable">,
   range: CalendarViewRange,
   query = "",
+  policy?: ForegroundPolicy & ForegroundContext,
 ): { entries: CalendarEntry[]; pending: CalendarPendingEntry[] } {
   const entries: CalendarEntry[] = [];
   const pending: CalendarPendingEntry[] = [];
@@ -421,6 +424,7 @@ export function getCalendarEntries(
   };
 
   data.calendar.forEach((event, index) => {
+    if (policy && !isForegroundDate(calendarReferenceDate(event), policy)) return;
     const startField = dateField(event as unknown as RecordValue, ["date"]);
     const source = calendarSource(event);
     const eventId = event.id || `calendar-${index}`;
@@ -455,15 +459,17 @@ export function getCalendarEntries(
   });
 
   data.tasks.forEach((task, index) => {
+    if (policy && !isTaskForeground(task, policy, { ...policy, calendar: data.calendar })) return;
     const taskId = task.id || task.sourceEventId || `task-${index}`;
-    const dateInfo = taskDate(task);
+    const referenceDate = policy ? taskReferenceDate(task, { ...policy, calendar: data.calendar }) : null;
+    const dateInfo = referenceDate ? { date: referenceDate, rawDate: referenceDate } : taskDate(task);
     const source = taskSource(task);
     const detail = task.sourceEventName || task.topic || task.student;
     if (!dateInfo.date) {
       addPending({ ...makePending({ id: taskId, sourceId: task.id || task.sourceEventId, kind: "task", title: taskDisplayTitle(task), detail, source: task.sourceEventName, ...source, rawDate: dateInfo.rawDate }), status: taskStatus(task) === "failed" ? "failed" : "pending", statusLabel: taskStatusLabel(task) });
       return;
     }
-    if (!dateIsBetween(dateInfo.date, range.start, range.end) || !matchesQuery(task.title, detail, source.sourceLabel, query)) return;
+    if ((!dateIsBetween(dateInfo.date, range.start, range.end) && !(policy && isTaskRunning(task, policy))) || !matchesQuery(task.title, detail, source.sourceLabel, query)) return;
     const entry = makeEntry({
       id: `${taskId}:${dateInfo.date}`,
       sourceId: task.id || task.sourceEventId,
@@ -500,6 +506,8 @@ export function getCalendarEntries(
     if (!matchesQuery(title, detail, source.sourceLabel, query)) return;
     for (const date of expandInclusiveDateRange(range.start, range.end)) {
       if (weekdayForDate(date) !== day) continue;
+      if (!isRegularTeachingDate(date, data.calendar)) continue;
+      if (policy && !isForegroundDate(date, policy)) continue;
       entries.push(makeEntry({
         id: `${slotId}:${date}`,
         sourceId: text(firstValue(slot, ["id", "slot_id"])),
@@ -530,12 +538,12 @@ export function getCalendarEntries(
 
 export function createCalendarProjection(
   data: Pick<EducationContract, "calendar" | "tasks" | "timetable">,
-  options: { view?: CalendarViewMode; anchorDate?: string; query?: string } = {},
+  options: { view?: CalendarViewMode; anchorDate?: string; query?: string; foregroundPolicy?: ForegroundPolicy & ForegroundContext } = {},
 ): CalendarProjection {
   const view = options.view || "month";
   const anchorDate = parseUnknownDate(options.anchorDate) || localToday();
   const range = getCalendarViewRange(view, anchorDate);
-  const projected = getCalendarEntries(data, range, options.query || "");
+  const projected = getCalendarEntries(data, range, options.query || "", options.foregroundPolicy);
   const entriesByDate: Record<string, CalendarEntry[]> = {};
   for (const entry of projected.entries) (entriesByDate[entry.date] ||= []).push(entry);
   return {

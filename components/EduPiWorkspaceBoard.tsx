@@ -6,9 +6,11 @@ import { workCaseForTask, workCaseStateLabel } from "@/lib/edupi-work-case";
 import { hasCurrentExplicitBoardStage, projectTaskBoard, taskBoardLane, taskBoardTargets, type TaskBoardLaneId } from "@/lib/edupi-task-board";
 import { taskCategory, TASK_CATEGORY_CONFIG, type TaskCategoryId } from "@/lib/edupi-task-category";
 import type { TaskSessionBinding } from "@/lib/edupi-task-sessions";
-import { taskContentStatusLabel, taskDisplayTitle, taskPresentation, taskStatusLabel, taskTypeLabel } from "@/lib/edupi-workbench";
+import { isTaskActionable, taskContentStatusLabel, taskDisplayTitle, taskPresentation, taskStatusLabel, taskTypeLabel } from "@/lib/edupi-workbench";
 import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 import { dateBefore, lessonDateMatchesSlot, MAX_PREPARATION_MATERIALS, preparationDeliverables, timetableDayOfWeek, timetableSlotId as slotId } from "@/lib/edupi-teacher-task-form";
+import { isTaskForeground, paginateForeground, shanghaiDate, taskCompletionTime, taskReferenceDate } from "@/lib/edupi-foreground";
+import { EduPiPagedRows, useEduPiForegroundPolicy } from "./EduPiForeground";
 
 type Props = {
   data: EducationContract;
@@ -17,6 +19,8 @@ type Props = {
   onCreateTask: (input: CreateTeacherTaskInput) => Promise<CreateTeacherTaskOutcome>;
   onMoveTask: (task: TeacherTask, stage: TaskBoardLaneId) => Promise<void>;
   mergeSuggestions?: ReactNode;
+  selectedObjectId?: string | null;
+  onObject?: (id: string) => void;
 };
 
 const stageLabels: Record<TaskBoardLaneId, string> = { todo: "待处理", progress: "进行中", review: "待我确认", done: "已完成" };
@@ -75,14 +79,16 @@ function TaskCard({ task, session, lane, candidate, workCase, busy, selected, dr
   onMove: (stage: TaskBoardLaneId) => void;
 }) {
   const title = taskDisplayTitle(task);
+  const sourceCaption = taskSource(task);
+  const completion = taskCompletionTime(task, { workCandidates: candidate ? [candidate] : [], workCases: workCase ? [workCase] : [] });
   const visibleFlowState = workCase?.currentState === "planned" && task.boardStage && task.boardStage !== "todo" ? task.boardStage : workCase?.currentState || lane;
   const selectId = `edupi-task-move-${String(task.id || title).replace(/[^A-Za-z0-9_-]/g, "-")}`;
   return (
     <article className={`edupi-task-board-card${workCase ? " has-flow" : ""}${busy ? " is-moving" : ""}${selected ? " is-selected" : ""}${dragSource ? " is-drag-source" : ""}`} aria-busy={busy || undefined} onPointerDown={onCardPointerDown}>
       <button type="button" className="edupi-task-board-card__open" onClick={(event) => { if (event.detail === 0) onOpen(); else onSelect(); }} onDoubleClick={onOpen} aria-label={`${title}，${taskState(task, session, lane, candidate, workCase)}，双击打开`} aria-pressed={selected}>
-        <span className="edupi-task-board-card__topline"><span>{taskTypeLabel(task)}</span><time>{taskDate(task)}</time></span>
+        <span className="edupi-task-board-card__topline"><span>{taskTypeLabel(task)}</span><time>{lane === "done" ? completion === null ? "完成时间待确认" : shanghaiDate(new Date(completion)) : taskDate(task)}</time></span>
         <strong>{title}</strong>
-        <span className="edupi-task-board-card__source">{taskSource(task)}</span>
+        {sourceCaption !== "教师内部" ? <span className="edupi-task-board-card__source">{sourceCaption}</span> : null}
       </button>
       <footer className="edupi-task-board-card__footer">
         <span className="edupi-task-board-card__handle" onPointerDown={(event) => { event.stopPropagation(); onHandlePointerDown(event); }} title="拖动任务" aria-hidden="true">⠿</span>
@@ -97,8 +103,17 @@ function TaskCard({ task, session, lane, candidate, workCase, busy, selected, dr
   );
 }
 
-export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, onMoveTask, mergeSuggestions }: Props) {
-  const [category, setCategory] = useState<"all" | TaskCategoryId>("all");
+export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, onMoveTask, mergeSuggestions, selectedObjectId, onObject }: Props) {
+  const policy = useEduPiForegroundPolicy();
+  const [localList, setLocalList] = useState<string | null>(null);
+  const [category, setCategory] = useState<"all" | TaskCategoryId>(() => {
+    const requested = selectedObjectId?.split(":")[3];
+    return TASK_CATEGORY_CONFIG.some(item => item.id === requested) ? requested as TaskCategoryId : "all";
+  });
+  useEffect(() => {
+    const requested = selectedObjectId?.split(":")[3];
+    if (TASK_CATEGORY_CONFIG.some(item => item.id === requested)) setCategory(requested as TaskCategoryId);
+  }, [selectedObjectId]);
   const [creating, setCreating] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -122,7 +137,13 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
   const [dropTarget, setDropTarget] = useState<TaskBoardLaneId | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const scopedTasks = category === "all" ? data.tasks : data.tasks.filter((task) => taskCategory(task) === category);
-  const columns = projectTaskBoard(scopedTasks, data.taskSessions, data.workCandidates, query);
+  const columns = projectTaskBoard(scopedTasks, data.taskSessions, data.workCandidates, query, { ...policy, ...data });
+  const historyColumns = projectTaskBoard(scopedTasks, data.taskSessions, data.workCandidates, query);
+  const listId = (selectedObjectId?.startsWith("workspace:list:") ? selectedObjectId : localList || "").replace(/^workspace:list:/, "").split(":")[0];
+  const listColumn = columns.find(column => column.id === listId);
+  const inList = Boolean(listColumn || listId === "history" || listId === "all" || listId === "actionable");
+  const openList = (id: string) => { const route = `workspace:list:${id}${category === "all" ? "" : `:${category}`}`; setLocalList(route); onObject?.(route); };
+  const foregroundTasks = data.tasks.filter(task => isTaskForeground(task, policy, data));
   const candidateByTask = new Map(data.workCandidates.map((candidate) => [candidate.taskId, candidate]));
   const taskById = new Map(data.tasks.filter((task) => task.id).map((task) => [task.id!, task]));
   const visibleCount = columns.reduce((total, column) => total + column.tasks.length, 0);
@@ -236,16 +257,28 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
   };
 
   const ghostTask = draggedTaskId ? taskById.get(draggedTaskId) ?? null : null;
+  if (inList) {
+    const listTasks = listColumn?.tasks || (listId === "history" ? historyColumns : columns).flatMap(column => column.tasks).filter(task => listId !== "actionable" || isTaskActionable(task));
+    return <main className="edupi-module-workspace"><header className="edupi-module-heading"><div><button type="button" className="edupi-back-link" onClick={() => { setLocalList(null); onObject?.("workspace:board"); }}>← 工作区</button><h1>{listColumn?.label || (listId === "history" ? "任务历史" : listId === "actionable" ? "需要处理" : "任务")}</h1></div></header>
+      <div className="edupi-foreground-controls"><select aria-label="列表状态" value={listId} onChange={event => openList(event.target.value)}><option value="all">全部状态</option><option value="actionable">需要处理</option>{columns.map(column => <option key={column.id} value={column.id}>{column.label}</option>)}<option value="history">历史</option></select><select aria-label="任务类型" value={category} onChange={event => { const next = event.target.value as typeof category; setCategory(next); onObject?.(`workspace:list:${listId}${next === "all" ? "" : `:${next}`}`); }}><option value="all">全部类型</option>{TASK_CATEGORY_CONFIG.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select><span>{query.trim() ? `搜索：${query}` : null}</span></div>
+      <EduPiPagedRows rows={listTasks} memoryKey={`workspace:${listId}:${category}:${query}`} renderRow={task => {
+        const lane = taskBoardLane(task, task.id ? data.taskSessions[task.id] : null, task.id ? candidateByTask.get(task.id) : null);
+        const completion = taskCompletionTime(task, data);
+        const pinned = Boolean(task.id && policy.pinnedTaskIds?.includes(task.id));
+        return <div key={task.id || task.title} className="edupi-task-history-row"><button type="button" onClick={() => onTaskDetail(task)}><strong>{taskDisplayTitle(task)}</strong><small>{taskTypeLabel(task)} · {stageLabels[lane]}</small></button><time>{lane === "done" ? completion === null ? "完成时间待确认" : shanghaiDate(new Date(completion)) : taskReferenceDate(task, data) || "日期待确认"}</time>{task.id && policy.onPinTask ? <button type="button" aria-pressed={pinned} onClick={() => policy.onPinTask!(task.id!, !pinned)}>{pinned ? "取消置顶" : "保留显示"}</button> : null}</div>;
+      }} />
+    </main>;
+  }
   return (
     <main className="edupi-workspace-board" onPointerMove={(event) => { if (!draggedTaskIdRef.current) { const start = dragStartRef.current; if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 6) return; suppressClickRef.current = true; beginDrag(start, event.clientX, event.clientY); } queueGhostPosition(event.clientX, event.clientY); setDropTarget(dragTarget(event)?.stage ?? null); }} onPointerUp={(event) => { const target = dragTarget(event); stopDragging(); if (target) void move(target.task, target.stage); }} onPointerCancel={stopDragging} onPointerLeave={() => { if (draggedTaskIdRef.current) stopDragging(); }}>
       <header className="edupi-workspace-board__heading">
-        <div><span>教师工作</span><h1>工作区</h1><p>{query.trim() ? `找到 ${visibleCount} 项` : `${data.tasks.length} 项任务`}</p></div>
-        <div className="edupi-workspace-board__actions"><span className="edupi-workspace-board__mode"><i aria-hidden="true" />状态实时同步</span><button type="button" onClick={() => setCreateOpen((open) => !open)}>新建任务</button></div>
+        <div><h1>工作区</h1><p>{visibleCount} 项</p></div>
+        <div className="edupi-workspace-board__actions"><button type="button" onClick={() => openList("history")}>历史 <span>{data.tasks.length}</span></button><button type="button" onClick={() => setCreateOpen((open) => !open)}>新建任务</button></div>
       </header>
       {mergeSuggestions}
       <div className="edupi-task-category-segment" role="group" aria-label="任务类型">
-        <button type="button" className={category === "all" ? "is-active" : ""} onClick={() => setCategory("all")} aria-pressed={category === "all"}>全部 <span>{data.tasks.length}</span></button>
-        {TASK_CATEGORY_CONFIG.map((item) => { const count = data.tasks.filter((task) => taskCategory(task) === item.id).length; return count > 0 ? <button type="button" key={item.id} className={category === item.id ? "is-active" : ""} onClick={() => setCategory(item.id)} aria-pressed={category === item.id}>{item.label} <span>{count}</span></button> : null; })}
+        <button type="button" className={category === "all" ? "is-active" : ""} onClick={() => setCategory("all")} aria-pressed={category === "all"}>全部 <span>{foregroundTasks.length}</span></button>
+        {TASK_CATEGORY_CONFIG.map((item) => { const count = foregroundTasks.filter((task) => taskCategory(task) === item.id).length; return count > 0 ? <button type="button" key={item.id} className={category === item.id ? "is-active" : ""} onClick={() => setCategory(item.id)} aria-pressed={category === item.id}>{item.label} <span>{count}</span></button> : null; })}
       </div>
       {createOpen ? <form className="edupi-task-board-create" onSubmit={submitCreate}>
         <label><span>任务</span><input autoFocus required maxLength={240} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：准备第一次单元检测" /></label>
@@ -272,19 +305,20 @@ export function EduPiWorkspaceBoard({ data, query, onTaskDetail, onCreateTask, o
             return <section data-board-stage={column.id} className={`edupi-task-board-column is-${column.id}${dropTarget === column.id && canDrop ? " is-drop-target" : ""}`} key={column.id} aria-labelledby={`edupi-task-board-${column.id}`}>
               <header><span className="edupi-task-board-column__mark" aria-hidden="true" /><h2 id={`edupi-task-board-${column.id}`}>{column.label}</h2><em>{column.tasks.length}</em></header>
               <div className="edupi-task-board-column__cards" role="list">
-                {column.tasks.map((task) => {
+                {paginateForeground(column.tasks, 0).rows.map((task) => {
                   const session = task.id ? data.taskSessions[task.id] ?? null : null;
                   const candidate = task.id ? candidateByTask.get(task.id) ?? null : null;
                   const workCase = workCaseForTask(data, task.id);
                   return <div role="listitem" key={task.id || `${task.trigger}:${task.title}`}><TaskCard task={task} session={session} lane={column.id} candidate={candidate} workCase={workCase} busy={movingTaskId === task.id} selected={Boolean(task.id) && selectedCardId === task.id} dragSource={draggedTaskId === task.id} onSelect={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } setSelectedCardId(task.id ?? null); }} onOpen={() => onTaskDetail(task)} onCardPointerDown={(event) => { suppressClickRef.current = false; if (!task.id || movingTaskId) return; if ((event.target as HTMLElement).closest("select")) return; const rect = event.currentTarget.getBoundingClientRect(); dragStartRef.current = { id: task.id, x: event.clientX, y: event.clientY, offX: event.clientX - rect.x, offY: event.clientY - rect.y, width: rect.width }; }} onHandlePointerDown={(event) => { if (!task.id || movingTaskId) return; event.preventDefault(); const card = event.currentTarget.closest<HTMLElement>(".edupi-task-board-card"); const rect = card?.getBoundingClientRect(); beginDrag({ id: task.id, offX: rect ? event.clientX - rect.x : 14, offY: rect ? event.clientY - rect.y : 14, width: rect?.width ?? 240 }, event.clientX, event.clientY); }} onMove={(stage) => void move(task, stage)} /></div>;
                 })}
                 {column.tasks.length === 0 ? <div className="edupi-task-board-column__empty" role="status">暂无任务</div> : null}
+                {column.tasks.length > 10 ? <button type="button" className="edupi-list-more" onClick={() => openList(column.id)}>查看更多 <span>{column.tasks.length} 项</span></button> : null}
               </div>
             </section>;
           })}
         </div>
       </div>
-      {dragGhost && ghostTask ? <div className="edupi-drag-ghost" style={{ left: dragGhost.x - dragGhost.offX, top: dragGhost.y - dragGhost.offY, width: dragGhost.width }} aria-hidden="true"><div className="edupi-task-board-card"><div className="edupi-task-board-card__open"><span className="edupi-task-board-card__topline"><span>{taskTypeLabel(ghostTask)}</span><time>{taskDate(ghostTask)}</time></span><strong>{taskDisplayTitle(ghostTask)}</strong><span className="edupi-task-board-card__source">{taskSource(ghostTask)}</span></div></div></div> : null}
+      {dragGhost && ghostTask ? <div className="edupi-drag-ghost" style={{ left: dragGhost.x - dragGhost.offX, top: dragGhost.y - dragGhost.offY, width: dragGhost.width }} aria-hidden="true"><div className="edupi-task-board-card"><div className="edupi-task-board-card__open"><span className="edupi-task-board-card__topline"><span>{taskTypeLabel(ghostTask)}</span><time>{taskDate(ghostTask)}</time></span><strong>{taskDisplayTitle(ghostTask)}</strong>{taskSource(ghostTask) !== "教师内部" ? <span className="edupi-task-board-card__source">{taskSource(ghostTask)}</span> : null}</div></div></div> : null}
     </main>
   );
 }

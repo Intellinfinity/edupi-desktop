@@ -10,6 +10,7 @@ const panel = await readFile(new URL("./EduPiEducationPanel.tsx", import.meta.ur
 const jiti = createJiti(import.meta.url);
 const workbench = await jiti.import("../lib/edupi-workbench.ts");
 const { isTaskReviewable, workCaseForTask } = await jiti.import("../lib/edupi-work-case.ts");
+const { isTaskForeground } = await jiti.import("../lib/edupi-foreground.ts");
 const compile = source => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 const section = (source, first, next) => {
   const start = source.indexOf(first), end = source.indexOf(next, start);
@@ -86,6 +87,7 @@ function bindingHarness(overrides = {}) {
       activeTask = vm.runInNewContext(bindingCode, {
         ...workbench, isTaskReviewable, workCaseForTask, ...state, ...hooks,
         tasks: state.education.tasks, AbortController, DOMException,
+        foregroundTasks: state.education.tasks.filter(task => isTaskForeground(task, { today: "2026-10-07", graceDays: 3 }, state.education)),
       });
       const pending = pendingEffects.splice(0);
       for (const { index } of pending) effects[index]?.cleanup?.();
@@ -160,6 +162,15 @@ test("the drawer's explicit task wins while the display selection catches up", a
   const component = bindingHarness({ selectedTaskKey: null });
   await component.settle();
   assert.equal(component.activeTask.id, taskA.id, "The presentation may still show its fallback");
+  assert.deepEqual(component.requests, [{ taskId: taskB.id, method: "PUT", sessionId: "child-b" }]);
+  assert.equal(component.stored.taskSessions[taskA.id].sessionId, "parent-a");
+});
+
+test("an explicit historical task URL remains bound to the original task after foreground expiry", async () => {
+  const expired = { ...taskB, trigger: "teacher_created", dueDate: "2026-09-20" };
+  const component = bindingHarness({ agentTask: expired, education: { tasks: [taskA, expired], workCases: [], taskSessions: { [taskA.id]: { sessionId: "parent-a" }, [taskB.id]: { sessionId: "parent-b" } } } });
+  await component.settle();
+  assert.equal(component.activeTask.id, taskB.id);
   assert.deepEqual(component.requests, [{ taskId: taskB.id, method: "PUT", sessionId: "child-b" }]);
   assert.equal(component.stored.taskSessions[taskA.id].sessionId, "parent-a");
 });

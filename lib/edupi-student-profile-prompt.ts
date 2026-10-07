@@ -15,6 +15,6 @@ export function buildStudentProfileConversationPrompt(input: StudentProfilePromp
     ...(input.className ? [`班级：${input.className}`] : []),
     `当前特征：${input.traits.join("、") || "暂无"}`,
     `当前家校备注：${input.parentNotes.join("、") || "暂无"}`,
-    `系统记录：${input.patternCount} 条学习模式 · ${input.trajectoryCount} 个成长节点。`,
+    ...((input.patternCount > 0 || input.trajectoryCount > 0) ? [`系统记录：${[input.patternCount > 0 ? `${input.patternCount} 条学习问题` : null, input.trajectoryCount > 0 ? `${input.trajectoryCount} 条成长记录` : null].filter(Boolean).join(" · ")}。`] : []),
   ].join("\n");
 }

@@ -15,6 +15,30 @@ import { revealItemInDirNative } from "@/lib/desktop-native";
 import { getDesktopPlatform, type DesktopPlatform } from "@/lib/desktop-window";
 import { visibleTeacherMessageText } from "@/lib/edupi-composer-context";
 
+export type SidebarResourceAction = { id: string; label: string; onClick: () => void; disabled?: boolean };
+
+function ResourceIcon({ id }: { id: string }) {
+  const paths: Record<string, string> = {
+    connectors: "M8 4v5m8-5v5M6 9h12v3a6 6 0 0 1-6 6v3M6 9V6m12 3V6",
+    plugins: "M9 4h6v4h4v6h-4v5H9v-5H4V8h5V4Z",
+    skills: "m12 3 2.5 5.5L21 9l-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6.5-.5L12 3Z",
+    knowledge: "M3 5h6a4 4 0 0 1 3 2 4 4 0 0 1 3-2h6v14h-6a4 4 0 0 0-3 2 4 4 0 0 0-3-2H3V5Zm9 2v14",
+    automations: "m13 3-8 11h6l-1 7 9-12h-6l1-6Z",
+  };
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[id] ? <path d={paths[id]} /> : <circle cx="12" cy="12" r="5" />}</svg>;
+}
+
+export function EduPiChatSidebarActions({ resourceActions, onNewChat, disabled }: { resourceActions: SidebarResourceAction[]; onNewChat: () => void; disabled: boolean }) {
+  return <nav className="edupi-chat-resources" aria-label="协作资源">
+    <button type="button" className="edupi-chat-resources__new" onClick={onNewChat} disabled={disabled} aria-label="新建对话" title={disabled ? "选择工作区后新建对话" : "新建对话"}><span aria-hidden="true">＋</span><span>新建对话</span></button>
+    {resourceActions.map(action => <button type="button" className="edupi-chat-resources__item" key={action.id} onClick={action.onClick} disabled={action.disabled}><ResourceIcon id={action.id} /><span>{action.label}</span></button>)}
+  </nav>;
+}
+
+export function EduPiSidebarAdvanced({ teacher, children }: { teacher: boolean; children: ReactNode }) {
+  return teacher ? <details className="edupi-chat-advanced"><summary>高级</summary><div>{children}</div></details> : <>{children}</>;
+}
+
 function ToolbarIconButton({
   onClick,
   title,
@@ -97,6 +121,7 @@ interface Props {
   materialInboxPath?: string | null;
   onOpenContext?: () => void;
   presentation?: "default" | "embedded-chat";
+  resourceActions?: SidebarResourceAction[];
 }
 interface WorktreeEntry {
   path: string;
@@ -221,7 +246,7 @@ function groupSessionTreeByAge(nodes: SessionTreeNode[]): SessionAgeGroup[] {
   ].flatMap(([key, label]) => groups.has(key) ? [{ key, label, nodes: groups.get(key)! }] : []);
 }
 
-export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, selectedFilePath, explorerRefreshKey, onAtMention, onAtMentions, headerControls, onOpenEduPiAdmin, onMaterialInboxRequest, materialInboxPath: materialInboxPathProp, onOpenContext, presentation = "default" }: Props) {
+export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, selectedFilePath, explorerRefreshKey, onAtMention, onAtMentions, headerControls, onOpenEduPiAdmin, onMaterialInboxRequest, materialInboxPath: materialInboxPathProp, onOpenContext, presentation = "default", resourceActions = [] }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -744,8 +769,8 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         </div> : null}
 
         {/* 教师任务入口；底层仍复用 Pi session/runtime。 */}
-        <button
-          className={`sidebar-header-row sidebar-new-row${embeddedChat ? " is-icon-only" : ""}`}
+        {embeddedChat ? <EduPiChatSidebarActions resourceActions={resourceActions} onNewChat={handleNewSession} disabled={!selectedCwd} /> : <button
+          className="sidebar-header-row sidebar-new-row"
           onClick={handleNewSession}
           disabled={!selectedCwd}
           aria-label={embeddedChat ? "新建对话" : undefined}
@@ -757,9 +782,10 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
               <line x1="1.5" y1="6" x2="10.5" y2="6" />
             </svg>
           </span>
-          {embeddedChat ? null : "新建教学任务"}
-        </button>
+          新建教学任务
+        </button>}
 
+        <EduPiSidebarAdvanced teacher={embeddedChat}>
         {/* 当前学校/班级工作区；底层仍对应原有 cwd。 */}
         <div className="sidebar-folder-row" style={{ display: "flex", alignItems: "center", gap: 2 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1156,6 +1182,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5 }}>{inactiveWorktreeSelector.label}</span>
           </button>
         )}
+        </EduPiSidebarAdvanced>
       </div>
 
       {(selectedCwdProp || selectedCwd) && (

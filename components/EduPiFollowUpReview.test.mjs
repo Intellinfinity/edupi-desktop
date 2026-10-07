@@ -10,6 +10,8 @@ const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
 const { buildEducationContract, buildEducationContractFromWorkspace } = await jiti.import("../lib/edupi-education-contract.ts");
 const navigation = await jiti.import("../lib/edupi-domain-navigation.ts");
 const feedback = await jiti.import("../lib/edupi-teacher-feedback.ts");
+const foreground = await jiti.import("../lib/edupi-foreground.ts");
+const foregroundUI = await createJiti(import.meta.url, { tsconfigPaths: true, jsx: { runtime: "automatic" } }).import("./EduPiForeground.tsx");
 const COMMANDS = ["review_observation", "review_memory_candidate", "review_teacher_context", "review_work_candidate", "review_follow_up", "review_task", "import_calendar", "import_timetable", "intake_material", "create_task", "move_task_stage", "update_memory"];
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const response = (value, status = 200) => new Response(JSON.stringify(value), { status });
@@ -67,6 +69,8 @@ function componentHarness(file, exportName, initialProps, fetcher = async () => 
       recordTeacherFeedback: input => feedback.recordTeacherFeedback(input, fetcher, async extra => extra || {}),
     },
     "@/lib/edupi-domain-navigation": navigation,
+    "@/lib/edupi-foreground": foreground,
+    "./EduPiForeground": { ...foregroundUI, useEduPiForegroundPolicy: () => ({ today: "2026-10-07", graceDays: 3, pinnedTaskIds: [] }) },
     "@/lib/edupi-workbench": {}, "@/lib/edupi-work-case": {}, "@/lib/edupi-fact-lifecycle-model": {}, "./EduPiFactActions": {},
   };
   const exports = {};
@@ -134,7 +138,7 @@ test("follow-up route and review board retain the public object for review and l
   assert.ok(row); row.props.onClick();
   assert.deepEqual(chosen.map(value => ({ ...value })), [{ kind: "follow_up", id: "synthetic-follow-up" }]);
   app.update({ data: dataFor({ revision: 1, status: "accepted" }) });
-  assert.match(textOf(app.render()), /已审核/);
+  assert.match(textOf(app.render()), /历史/);
 });
 
 // Forward-compatible public DTO fixtures; the pinned wire schema is not changed by these tests.

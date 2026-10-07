@@ -1,6 +1,7 @@
 import type { EducationContract, EducationWorkCase, EducationWorkCaseState, EducationWorkTransition, TeacherTask } from "./edupi-education-contract";
 import { hasCurrentExplicitBoardStage, taskBoardLane, taskBoardLaneLabel } from "./edupi-task-board.ts";
 import { taskArtifacts, taskDisplayTitle, taskStatusLabel } from "./edupi-workbench.ts";
+import { compareForegroundDates, isTaskForeground, taskReferenceDate, type ForegroundPolicy } from "./edupi-foreground.ts";
 
 const STATE_LABELS: Record<EducationWorkCaseState, string> = {
   planned: "计划中",
@@ -77,7 +78,7 @@ export type TodayActiveTask = {
   stateLabel: string;
 };
 
-export function todayActiveTasks(data: Pick<EducationContract, "tasks" | "taskSessions" | "workCandidates" | "workCases">): TodayActiveTask[] {
+export function todayActiveTasks(data: Pick<EducationContract, "tasks" | "taskSessions" | "workCandidates" | "workCases"> & Partial<Pick<EducationContract, "calendar">>, policy?: ForegroundPolicy): TodayActiveTask[] {
   const active = activeLivingWorkCases(data.workCases);
   const taskById = new Map(data.tasks.filter((task) => task.id).map((task) => [task.id!, task]));
   const workCaseByTask = new Map(data.workCases.map((workCase) => [workCase.taskId, workCase]));
@@ -100,5 +101,9 @@ export function todayActiveTasks(data: Pick<EducationContract, "tasks" | "taskSe
     return [{ task, workCase, title: workCase?.title || taskDisplayTitle(task), dueDate: workCase?.dueDate || task.dueDate, state: "progress", stateLabel } satisfies TodayActiveTask];
   }).sort((left, right) => String(left.dueDate || "9999-12-31").localeCompare(String(right.dueDate || "9999-12-31"))
     || String(left.task.id).localeCompare(String(right.task.id)));
-  return [...activeRows, ...manuallyActive];
+  const rows = [...activeRows, ...manuallyActive];
+  return policy ? rows.filter(row => isTaskForeground(row.task, policy, data)).sort((left, right) =>
+    Number(right.state === "running" || right.state === "queued") - Number(left.state === "running" || left.state === "queued")
+    || compareForegroundDates(taskReferenceDate(left.task, data), taskReferenceDate(right.task, data), policy.today)
+    || String(left.task.id).localeCompare(String(right.task.id))) : rows;
 }

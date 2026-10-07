@@ -29,6 +29,7 @@ import { createPreparationArtifactTool } from "./edupi-preparation-artifact-tool
 import { generatedArtifactsRequest, nativeToolArtifactPath, snapshotGeneratedFiles, writtenToolArtifactPath } from "./edupi-generated-artifacts";
 import { createStudentEventTool } from "./edupi-student-event-tool";
 import { createMemoryWriteTool } from "./edupi-memory-write-tool";
+import { createEduPiCalendarTools } from "./edupi-calendar-tool";
 import { createMemoryForgetTool } from "./edupi-memory-forget-tool";
 import { createPrepareTaskTool } from "./edupi-prepare-task-tool";
 import type { DesktopControlInput } from "./edupi-desktop-control";
@@ -194,6 +195,9 @@ export class AgentSessionWrapper {
   private extensionStatuses = new Map<string, string>();
   private extensionWidgets = new Map<string, ExtensionWidgetItem>();
   private promptRunning = false;
+  private promptRequestId: string | null = null;
+  private acceptedPromptRequestIds = new Set<string>();
+  private messageEventIds = new WeakMap<object, string>();
   private extensionsBound = false;
   private extensionBindingPromise: Promise<void> | null = null;
   private extensionBindingError: unknown = null;
@@ -345,7 +349,24 @@ export class AgentSessionWrapper {
         invalidateSessionListCache();
       }
       if (IDLE_RESET_EVENT_TYPES.has(event.type)) this.resetIdleTimer();
-      this.emit(event);
+      const clientRequestId = this.promptRequestId;
+      const scopedEvent = clientRequestId ? { ...event, clientRequestId } : event;
+      if (event.type === "message_end" && event.message && typeof event.message === "object") {
+        const message = event.message;
+        const manager = this.inner.sessionManager;
+        // Pi 1 publishes message_end just before appending the corresponding
+        // entry. Defer only this delivery one microtask to attach the actual
+        // persisted identity; the next SDK event still follows it in order.
+        queueMicrotask(() => {
+          const leaf = manager.getLeafEntry();
+          const entryId = leaf?.type === "message" && leaf.message === message ? leaf.id : undefined;
+          const messageId = entryId ?? this.messageEventIds.get(message) ?? `live:${randomUUID()}`;
+          this.messageEventIds.set(message, messageId);
+          this.emit({ ...scopedEvent, messageId, ...(entryId ? { entryId } : {}) });
+        });
+      } else {
+        this.emit(scopedEvent);
+      }
       if (RUNNING_STATE_EVENT_TYPES.has(event.type)) notifyRunningChange();
     });
     this.resetIdleTimer();
@@ -575,7 +596,18 @@ export class AgentSessionWrapper {
         // Fire and forget — events come via subscribe
         const promptImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
         const streamingBehavior = command.streamingBehavior as "steer" | "followUp" | undefined;
-        this.promptRunning = true;
+        const clientRequestId = typeof command.clientRequestId === "string" && command.clientRequestId.length <= 128
+          ? command.clientRequestId : undefined;
+        if (!streamingBehavior) {
+          if (clientRequestId && this.acceptedPromptRequestIds.has(clientRequestId)) return null;
+          if (this.promptRunning || this.inner.isStreaming) throw new Error("Agent is already processing");
+          this.promptRequestId = clientRequestId ?? null;
+          this.promptRunning = true;
+          if (clientRequestId) {
+            this.acceptedPromptRequestIds.add(clientRequestId);
+            if (this.acceptedPromptRequestIds.size > 256) this.acceptedPromptRequestIds.delete(this.acceptedPromptRequestIds.values().next().value!);
+          }
+        }
         notifyRunningChange();
         withEducationModel(this.inner, () => this.inner.prompt(command.message as string, {
           ...(promptImages?.length ? { images: promptImages } : {}),
@@ -583,19 +615,26 @@ export class AgentSessionWrapper {
           source: "rpc",
         })).then(async () => {
           await this.artifactWrites;
-          this.promptRunning = false;
+          if (!streamingBehavior) {
+            this.promptRunning = false;
+            this.promptRequestId = null;
+          }
           this.resetIdleTimer();
-          if (!streamingBehavior) this.emit({ type: "prompt_done" });
+          if (!streamingBehavior) this.emit({ type: "prompt_done", ...(clientRequestId ? { clientRequestId } : {}) });
           notifyRunningChange();
         }).catch((error) => {
-          this.promptRunning = false;
+          if (!streamingBehavior) {
+            this.promptRunning = false;
+            this.promptRequestId = null;
+          }
           this.resetIdleTimer();
           invalidateSessionListCache();
           this.emit({
             type: "prompt_error",
             errorMessage: error instanceof Error ? error.message : String(error),
+            ...(clientRequestId ? { clientRequestId } : {}),
           });
-          if (!streamingBehavior) this.emit({ type: "prompt_done" });
+          if (!streamingBehavior) this.emit({ type: "prompt_done", ...(clientRequestId ? { clientRequestId } : {}) });
           notifyRunningChange();
         });
         return null;
@@ -614,6 +653,7 @@ export class AgentSessionWrapper {
           isStreaming: this.inner.isStreaming,
           streamingMessage: this.inner.agent.state?.streamingMessage,
           isPromptRunning: this.promptRunning,
+          clientRequestId: this.promptRequestId,
           isBashRunning: this.inner.isBashRunning,
           isCompacting: this.inner.isCompacting,
           autoCompactionEnabled: this.inner.autoCompactionEnabled,
@@ -1542,14 +1582,14 @@ export async function startRpcSession(
         ...(toolMode.disabled ? { noTools: "builtin" as const } : {}),
         customTools: [
           defineTool(createBashToolDefinition(sessionCwd, { shellPath: services.settingsManager.getShellPath(), spawnHook: redactDesktopSpawnContext })),
-          ...(sessionIsEduPiDataRoot ? [createPreparationArtifactTool(EDUPI_ROOT), createEduPiDocumentTool(EDUPI_ROOT), createEduPiPresentationTool(EDUPI_ROOT), createPrepareTaskTool(EDUPI_ROOT), createStudentEventTool(EDUPI_ROOT), createMemoryWriteTool(EDUPI_ROOT), createMemoryForgetTool(EDUPI_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiAppControlTool({
+          ...(sessionIsEduPiDataRoot ? [...createEduPiCalendarTools({ projectRoot: EDUPI_ROOT }), createPreparationArtifactTool(EDUPI_ROOT), createEduPiDocumentTool(EDUPI_ROOT), createEduPiPresentationTool(EDUPI_ROOT), createPrepareTaskTool(EDUPI_ROOT), createStudentEventTool(EDUPI_ROOT), createMemoryWriteTool(EDUPI_ROOT), createMemoryForgetTool(EDUPI_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_ROOT }), createEduPiAppControlTool({
             projectRoot: EDUPI_ROOT,
             requestAction: (action, signal) => requestEduPiAppAction(action, signal),
           }), createEduPiComputerUseTool({
             projectRoot: EDUPI_ROOT,
             requestAction: (action, signal) => requestEduPiComputerAction(action, signal),
           })] : []),
-          ...(sessionIsEduPiCoreRoot && !sessionIsEduPiDataRoot ? [createStudentEventTool(EDUPI_CODE_ROOT), createMemoryWriteTool(EDUPI_CODE_ROOT), createMemoryForgetTool(EDUPI_CODE_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_CODE_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_CODE_ROOT })] : []),
+          ...(sessionIsEduPiCoreRoot && !sessionIsEduPiDataRoot ? [...createEduPiCalendarTools({ projectRoot: EDUPI_CODE_ROOT }), createStudentEventTool(EDUPI_CODE_ROOT), createMemoryWriteTool(EDUPI_CODE_ROOT), createMemoryForgetTool(EDUPI_CODE_ROOT), createEduPiTaskTool({ projectRoot: EDUPI_CODE_ROOT }), createEduPiUpdateTaskTool({ projectRoot: EDUPI_CODE_ROOT })] : []),
         ],
       });
       const { session: inner } = result;

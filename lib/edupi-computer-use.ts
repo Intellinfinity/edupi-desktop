@@ -50,6 +50,18 @@ export type ComputerUseStatus = {
   enabled: boolean;
   accessibility: boolean | null;
   screenRecording: boolean | null;
+  host?: ComputerUseHostIdentity;
+};
+
+export type ComputerUseHostIdentity = {
+  appName: string;
+  appVersion: string;
+  platform: string;
+  processId: number;
+  executablePath: string | null;
+  bundlePath: string | null;
+  bundleId: string;
+  signingTeam: string | null;
 };
 
 export type NativeComputerUseResult = {

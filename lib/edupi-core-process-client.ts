@@ -9,6 +9,15 @@ const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 const MAX_STDERR_BYTES = 64 * 1024;
 const CORE_READ_TIMEOUT_MS = 15_000;
 const CORE_COMMAND_TIMEOUT_MS = 15_000;
+const CORE_WRITER_DENIAL_CODES = new Set([
+  "writer_admission_unavailable", "writer_admission_layout_mismatch", "writer_admission_invalid_root",
+  "writer_admission_root_mismatch", "writer_admission_schema_mismatch", "writer_admission_path_invalid",
+  "writer_admission_required", "writer_admission_invalidated", "writer_admission_release_failed",
+]);
+
+export function isCoreWriterDenialCode(value: unknown): value is string {
+  return typeof value === "string" && CORE_WRITER_DENIAL_CODES.has(value);
+}
 
 export class EduPiCoreProcessError extends Error {
   constructor(public code: string, message: string) {
@@ -126,9 +135,21 @@ export function runCoreProcess<T = unknown>({
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
       const stderrText = redactedDiagnostic(Buffer.concat(stderr).toString("utf8"));
-      if (code !== 0) return reject(new EduPiCoreProcessError("nonzero_exit", `Core process exit ${code}: ${stderrText}`));
       const text = Buffer.concat(stdout).toString("utf8").trim();
       const frames = text ? text.split("\n").filter((line) => line.trim()) : [];
+      if (code !== 0) {
+        if (frames.length === 1) {
+          try {
+            const failure = JSON.parse(frames[0]) as Record<string, unknown> | null;
+            const sent = request as { operation?: unknown; request_id?: unknown } | null;
+            if (failure?.ok === false && typeof sent?.request_id === "string" && failure.request_id === sent.request_id
+              && typeof sent.operation === "string" && failure.operation === sent.operation && isCoreWriterDenialCode(failure.code)) {
+              return reject(new EduPiCoreProcessError(failure.code, "Core writer admission denied"));
+            }
+          } catch { /* Unknown or malformed failures retain the generic nonzero exit. */ }
+        }
+        return reject(new EduPiCoreProcessError("nonzero_exit", `Core process exit ${code}: ${stderrText}`));
+      }
       if (frames.length !== 1) return reject(new EduPiCoreProcessError("stdout_frames", "Core stdout must contain exactly one frame"));
       try { resolve(JSON.parse(frames[0]) as T); }
       catch { reject(new EduPiCoreProcessError("stdout_json", "Core stdout is not valid JSON")); }

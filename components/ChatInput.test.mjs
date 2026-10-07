@@ -84,7 +84,7 @@ test("shows a compact removable page reference while leaving the teacher input e
   setDraft(draftKey, { value: "", images: [], context: { title: "第一课备课", reference: "教学任务：第一课备课\n任务 ID：task-1" } });
   try {
     const html = renderWithI18n(React.createElement(ChatInput, { onSend() {}, onAbort() {}, isStreaming: false, draftKey }));
-    assert.match(html, /当前事项/);
+    assert.doesNotMatch(html, /当前事项/);
     assert.match(html, /<strong title="第一课备课">第一课备课<\/strong>/);
     assert.match(html, /<summary>查看参考<\/summary>/);
     assert.match(html, /aria-label="移除第一课备课参考"/);
@@ -92,6 +92,48 @@ test("shows a compact removable page reference while leaving the teacher input e
     assert.match(html, /composer-send-button[^>]+disabled/);
   } finally {
     clearDraft(draftKey);
+  }
+});
+
+test("teacher references render as individual removable chips without changing the teacher draft", () => {
+  const draftKey = "edupi-resource-render-test";
+  setDraft(draftKey, { value: "请使用我选的材料", images: [], context: { title: "引用", reference: "", resources: [
+    { id: "material:synthetic", kind: "material", title: "合成练习", reference: "material_id:synthetic" },
+    { id: "knowledge:synthetic", kind: "knowledge", title: "合成知识", reference: "memory_id:synthetic" },
+  ] } });
+  try {
+    const html = renderWithI18n(React.createElement(ChatInput, { teacherMode: true, onSend() {}, onAbort() {}, isStreaming: false, draftKey, onCompact() {}, onToolPresetChange() {} }));
+    assert.match(html, /aria-label="移除合成练习引用"/);
+    assert.match(html, /aria-label="移除合成知识引用"/);
+    assert.match(html, /<textarea[^>]*>请使用我选的材料<\/textarea>/);
+    assert.doesNotMatch(html, /chat-composer-context"/);
+    assert.doesNotMatch(html, /aria-label="Phone control"/);
+    assert.match(html, /aria-label="More controls"/);
+    assert.match(html, /display:none/);
+  } finally { clearDraft(draftKey); }
+});
+
+test("Escape closes composer menus and returns focus to their surviving opener", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { runInNewContext } = await import("node:vm");
+  const source = await readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+  const start = source.indexOf('const handler = (event: globalThis.KeyboardEvent) => {');
+  const code = source.slice(start, source.indexOf('document.addEventListener("keydown", handler);', start))
+    .replace('event: globalThis.KeyboardEvent', 'event').replaceAll('querySelector<HTMLButtonElement>', 'querySelector');
+  for (const name of ["queue", "attachment", "controls"]) {
+    const frames = [], state = [], focused = [];
+    const opener = key => ({ current: { querySelector: () => ({ focus: () => focused.push(key) }) } });
+    const handler = runInNewContext(`${code}; handler`, {
+      queueMenuOpen: name === "queue", attachmentMenuOpen: name === "attachment", controlsMenuOpen: name === "controls",
+      setQueueMenuOpen: value => state.push(["queue", value]), setAttachmentMenuOpen: value => state.push(["attachment", value]),
+      setControlsMenuOpen: value => state.push(["controls", value]), setToolDropdownOpen() {}, setThinkingDropdownOpen() {},
+      queueMenuRef: opener("queue"), attachmentMenuRef: opener("attachment"), controlsMenuRef: opener("controls"),
+      requestAnimationFrame: callback => frames.push(callback),
+    });
+    handler({ key: "Escape", preventDefault() {} });
+    assert.deepEqual(state, [[name, false]]);
+    frames.forEach(callback => callback());
+    assert.deepEqual(focused, [name]);
   }
 });
 
@@ -122,7 +164,7 @@ test("recalled messages stay separate from an unsent draft until the teacher cho
     assert.match(html, /追加到当前草稿/);
     assert.match(html, /复制待恢复内容/);
     assert.match(html, /旧要求/);
-    assert.match(html, /当前事项/);
+    assert.match(html, /class="chat-composer-context"/);
     assert.doesNotMatch(html, /EduPi 页面参考 v1/);
   } finally {
     clearDraft(draftKey);

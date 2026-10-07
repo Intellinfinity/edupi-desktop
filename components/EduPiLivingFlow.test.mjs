@@ -11,7 +11,7 @@ const [board, today, drawer, panel, css] = await Promise.all([
 ]);
 
 test("Today, workspace cards, and the shared drawer consume Core work cases", () => {
-  assert.match(today, /todayActiveTasks\(data\)/);
+  assert.match(today, /todayActiveTasks\(data, policy\)/);
   assert.match(today, /taskById\.get\(candidate\.taskId\)/);
   assert.match(board, /workCaseForTask\(data, task\.id\)/);
   assert.match(drawer, /workCase: EducationWorkCase \| null/);

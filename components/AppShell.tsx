@@ -26,6 +26,8 @@ import { ChatWindow } from "./ChatWindow";
 import { getDraft, resetNewSessionDraft, setDraft } from "@/lib/draft-store";
 import { TabBar, type Tab } from "./TabBar";
 import { SafeModeBanner } from "./SafeModeBanner";
+import { EduPiForegroundProvider } from "./EduPiForeground";
+import { FOREGROUND_SETTINGS_CHANGED, readForegroundSettings, restoreForegroundSettings, writeForegroundSettings } from "@/lib/edupi-foreground-settings";
 
 // Heavy, rarely-used surfaces are code-split out of the main bundle. The
 // config modals may never be opened at all; FileViewer drags in markdown +
@@ -122,6 +124,26 @@ export function AppShell() {
   const [skillsConfigOpen, setSkillsConfigOpen] = useState(false);
   const [pluginsConfigOpen, setPluginsConfigOpen] = useState(false);
   const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [foregroundSettings, setForegroundSettings] = useState(readForegroundSettings);
+  useEffect(() => {
+    const refresh = () => setForegroundSettings(readForegroundSettings());
+    window.addEventListener(FOREGROUND_SETTINGS_CHANGED, refresh);
+    window.addEventListener("storage", refresh);
+    void restoreForegroundSettings().catch(() => {});
+    return () => { window.removeEventListener(FOREGROUND_SETTINGS_CHANGED, refresh); window.removeEventListener("storage", refresh); };
+  }, []);
+  const pinTaskInForeground = useCallback((taskId: string, pinned: boolean) => {
+    const current = readForegroundSettings();
+    void writeForegroundSettings({ ...current, pinnedTaskIds: pinned ? [...current.pinnedTaskIds, taskId] : current.pinnedTaskIds.filter((id) => id !== taskId) }).catch(() => {
+      window.dispatchEvent(new CustomEvent("edupi-foreground-save-failed"));
+    });
+  }, []);
+  const dismissStaleTaskPrompts = useCallback((taskIds: string[]) => {
+    const current = readForegroundSettings();
+    void writeForegroundSettings({ ...current, dismissedStaleTaskIds: [...current.dismissedStaleTaskIds, ...taskIds] }).catch(() => {
+      window.dispatchEvent(new CustomEvent("edupi-foreground-save-failed"));
+    });
+  }, []);
   const [appSettingsSection, setAppSettingsSection] = useState<"mobile" | null>(null);
   const [firstRunGuideOpen, setFirstRunGuideOpen] = useState(false);
   useEffect(() => {
@@ -1356,6 +1378,13 @@ export function AppShell() {
         onOpenEduPiAdmin={openEducationModule}
         onOpenContext={() => openEducationModule("context")}
         presentation={presentation}
+        resourceActions={presentation === "embedded-chat" ? [
+          { id: "connectors", label: "连接器", onClick: () => openEduPiAdmin("connections") },
+          { id: "plugins", label: "插件", onClick: () => setPluginsConfigOpen(true) },
+          { id: "skills", label: "Skills", onClick: () => setSkillsConfigOpen(true) },
+          { id: "knowledge", label: "知识库", onClick: () => openEducationView("memory") },
+          { id: "automation", label: "自动化", onClick: () => openEduPiAdmin("automation") },
+        ] : undefined}
       />
   );
 
@@ -1426,7 +1455,7 @@ export function AppShell() {
       onOpenFile={handleOpenLinkedFile}
       onProjectFilesImported={handleProjectFilesImported}
       emptyTitle="新建对话"
-      emptySubtitle="从教学任务、材料或课堂问题开始。"
+      emptySubtitle=""
     />
     </>
   );
@@ -1434,7 +1463,7 @@ export function AppShell() {
   const edupiReminderPanel = <EduPiReminderInbox standalone onAction={handleEduPiAppAction} onContinue={continueReminder} onClose={closeReminderPanel} />;
 
   return (
-    <>
+    <EduPiForegroundProvider {...foregroundSettings} onPinTask={pinTaskInForeground} onDismissStaleTasks={dismissStaleTaskPrompts}>
     <style>{`
       @keyframes session-info-pop {
         from { opacity: 0; transform: translateY(-4px) scale(0.99); }
@@ -2299,6 +2328,6 @@ export function AppShell() {
       />
     )}
     <UpdateReminder onOpenSettings={() => setAppSettingsOpen(true)} />
-    </>
+    </EduPiForegroundProvider>
   );
 }

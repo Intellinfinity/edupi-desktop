@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { boundedPrivateData, privateDataKeys, validatePrivateModelConfiguration, MAX_PRIVATE_MODEL_CONFIG_BYTES,
+  G1_MODEL_MAX_CALLS, G1_MODEL_TIMEOUT_MS } from "./core-runtime-model-config.mjs";
 
 const STARTUP_ERROR_CODES = Object.freeze({
   database_unavailable: "runtime_database_unavailable",
@@ -25,33 +27,57 @@ export function classifyCoreRuntimeStartupError(error) {
   return STARTUP_ERROR_CODES[code] || (code.startsWith("writer_admission_") ? "runtime_writer_unavailable" : "runtime_unavailable");
 }
 
-export function createParentModelExecutor(channel = process) {
+export function createParentModelExecutor(channel = process, { configurationTimeoutMs = 6000 } = {}) {
   const pending = new Map();
   let closed = false;
   const error = () => Object.assign(new Error("Model host unavailable."), { code: "model_unavailable" });
   const message = value => {
-    if (!value || !["model-result", "model-error"].includes(value.type)) return;
+    if (!value || !["model-result", "model-error", "model-config-result", "model-config-error"].includes(value.type)) return;
     const item = pending.get(value.id);
     if (!item) return;
+    if ((item.kind === "configuration") !== value.type.startsWith("model-config-")) return;
     pending.delete(value.id); item.cleanup();
-    if (value.type === "model-result") item.resolve(value.result); else item.reject(error());
+    try {
+      if (value.type === "model-config-result") {
+        if (!privateDataKeys(value, ["type", "id", "configuration"]) || !boundedPrivateData(value, MAX_PRIVATE_MODEL_CONFIG_BYTES + 256)) throw error();
+        item.resolve(validatePrivateModelConfiguration(value.configuration));
+      } else if (value.type === "model-result" && boundedPrivateData(value.result, 2 * 1024 * 1024 + 4096)) item.resolve(value.result);
+      else item.reject(error());
+    } catch { item.reject(error()); }
   };
   const close = () => {
     closed = true; channel.off("message", message);
-    for (const [id, item] of pending) { if (channel.connected) channel.send({ type: "model-cancel", id }, () => {}); item.cleanup(); item.reject(error()); }
+    for (const [id, item] of pending) { if (channel.connected) channel.send({ type: item.kind === "configuration" ? "model-config-cancel" : "model-cancel", id }, () => {}); item.cleanup(); item.reject(error()); }
     pending.clear();
   };
   channel.on("message", message);
   channel.once("disconnect", close);
   return {
+    configuration({ signal }) {
+      if (closed || !channel.connected || signal.aborted || pending.size >= 2) return Promise.reject(error());
+      const id = randomUUID();
+      return new Promise((resolve, reject) => {
+        const cancel = () => {
+          if (!pending.has(id)) return;
+          if (channel.connected) channel.send({ type: "model-config-cancel", id }, () => {});
+          pending.delete(id); cleanup(); reject(error());
+        };
+        const timer = setTimeout(cancel, Math.max(1, Math.min(6000, configurationTimeoutMs)));
+        const cleanup = () => { clearTimeout(timer); signal.removeEventListener("abort", cancel); };
+        pending.set(id, { kind: "configuration", resolve, reject, cleanup });
+        signal.addEventListener("abort", cancel, { once: true });
+        channel.send({ type: "model-config-request", id }, sendError => { if (sendError) { pending.delete(id); cleanup(); reject(error()); } });
+        if (signal.aborted) cancel();
+      });
+    },
     run(request, { signal }) {
-      if (closed || !channel.connected || signal.aborted) return Promise.reject(error());
+      if (closed || !channel.connected || signal.aborted || pending.size >= 2 || !boundedPrivateData(request, 100_000)) return Promise.reject(error());
       const id = randomUUID();
       return new Promise((resolve, reject) => {
         const cancel = () => { if (channel.connected) channel.send({ type: "model-cancel", id }, () => {}); };
         const timer = setTimeout(() => { cancel(); pending.delete(id); cleanup(); reject(error()); }, Math.max(1, Math.min(305000, Date.parse(request.deadline_at) - Date.now() + 5000)));
         const cleanup = () => { clearTimeout(timer); signal.removeEventListener("abort", cancel); };
-        pending.set(id, { resolve, reject, cleanup });
+        pending.set(id, { kind: "run", resolve, reject, cleanup });
         signal.addEventListener("abort", cancel, { once: true });
         channel.send({ type: "model-run", id, request }, sendError => { if (sendError) { pending.delete(id); cleanup(); reject(error()); } });
         if (signal.aborted) cancel();
@@ -81,6 +107,20 @@ export async function startCoreRuntimeHost({ coreRoot, options }, channel = proc
   try {
     const { createCoreRuntimeDaemon } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_daemon.mjs")).href);
     const { g1Scope, g2Scope, ...daemonOptions } = options;
+    let g1Runner;
+    if (g1Scope) {
+      try {
+        const configuration = await hostExecutor.configuration({ signal: new AbortController().signal });
+        const { createIsolatedG1ModelRunner } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_isolated_model.mjs")).href);
+        // This exact factory/function belongs to the actual Core process's brand
+        // registry. Core owns Durable selection, claims and persistent reserves.
+        g1Runner = createIsolatedG1ModelRunner({ ...configuration, maxCalls: G1_MODEL_MAX_CALLS, timeoutMs: G1_MODEL_TIMEOUT_MS });
+      } catch {
+        // Missing/unsupported configuration leaves generation inactive, while
+        // Core read-only health and owner revoke/cancel remain available.
+      }
+      if (!channel.connected) throw Object.assign(new Error("Model host unavailable."), { code: "model_unavailable" });
+    }
     let g2Live;
     if (g2Scope) {
       const { createStudentFollowUpModelAdapter } = await import(pathToFileURL(path.join(coreRoot, "scripts/student_followup_model_adapter.mjs")).href);
@@ -92,9 +132,9 @@ export async function startCoreRuntimeHost({ coreRoot, options }, channel = proc
     }
     const daemon = await createCoreRuntimeDaemon({ ...daemonOptions,
       ...(g2Live ? { g2Live } : {}),
-      ...(g1Scope ? { g1Live: { hostExecutor: { run: hostExecutor.run }, leaseMs: 300000,
+      ...(g1Runner ? { g1Live: { modelRunner: g1Runner, leaseMs: 300000,
         scope: { classId: g1Scope.classId, subject: g1Scope.subject }, grantId: g1Scope.grantId } } : {}) });
-    return { daemon, async close() { hostExecutor?.close(); await daemon.close(); } };
+    return { daemon, async close() { hostExecutor?.close(); try { await daemon.close(); } finally { await g1Runner?.waitForIdle(); } } };
   } catch (error) { hostExecutor?.close(); throw error; }
 }
 

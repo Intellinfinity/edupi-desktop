@@ -2,6 +2,7 @@ import type { EducationWorkCandidate, TeacherTask } from "./edupi-education-cont
 import type { TaskSessionBinding } from "./edupi-task-sessions";
 import { taskContentReady, taskKey } from "./edupi-workbench.ts";
 import { matchesTaskQuery } from "./edupi-task-category.ts";
+import { compareCompletionTimes, compareForegroundDates, isTaskForeground, taskCompletionTime, taskReferenceDate, type ForegroundContext, type ForegroundPolicy } from "./edupi-foreground.ts";
 
 export type TaskBoardLaneId = "todo" | "progress" | "review" | "done";
 
@@ -63,7 +64,7 @@ function openTaskOrder(left: TeacherTask, right: TeacherTask): number {
 }
 
 function doneTaskOrder(left: TeacherTask, right: TeacherTask): number {
-  return String(right.reviewedAt || "").localeCompare(String(left.reviewedAt || "")) || taskKey(left).localeCompare(taskKey(right));
+  return compareCompletionTimes(taskCompletionTime(left), taskCompletionTime(right)) || taskKey(left).localeCompare(taskKey(right));
 }
 
 export function projectTaskBoard(
@@ -71,13 +72,16 @@ export function projectTaskBoard(
   taskSessions: Record<string, TaskSessionBinding>,
   workCandidates: Array<Pick<EducationWorkCandidate, "taskId" | "status">>,
   query: string,
+  policy?: ForegroundPolicy & ForegroundContext,
 ): TaskBoardColumn[] {
-  const visible = tasks.filter((task) => matchesTaskQuery(task, query));
+  const context = { ...policy, taskSessions, workCandidates: workCandidates as EducationWorkCandidate[] };
+  const visible = tasks.filter((task) => matchesTaskQuery(task, query) && (!policy || isTaskForeground(task, policy, context)));
   const candidateByTask = new Map(workCandidates.map((candidate) => [candidate.taskId, candidate]));
   return columns.map((column) => ({
     ...column,
     tasks: visible
       .filter((task) => taskBoardLane(task, task.id ? taskSessions[task.id] : null, task.id ? candidateByTask.get(task.id) : null) === column.id)
-      .sort(column.id === "done" ? doneTaskOrder : openTaskOrder),
+      .sort(column.id === "done" ? (left, right) => compareCompletionTimes(taskCompletionTime(left, context), taskCompletionTime(right, context)) || doneTaskOrder(left, right)
+        : policy ? (left, right) => compareForegroundDates(taskReferenceDate(left, context), taskReferenceDate(right, context), policy.today) || taskKey(left).localeCompare(taskKey(right)) : openTaskOrder),
   }));
 }

@@ -30,6 +30,7 @@ import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import type { ComputerUseBridgeResult, ComputerUseInput } from "@/lib/edupi-computer-use";
 import type { KernelRunAction } from "@/lib/edupi-kernel-display";
 import { parseTeacherMessage, type EduPiComposerContext } from "@/lib/edupi-composer-context";
+import { calendarResultSummary } from "@/lib/edupi-calendar-result";
 
 interface Props {
   session: SessionInfo | null;
@@ -818,6 +819,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
       }
 
       if (finalAnswerMessage) {
+        const calendarResult = teacherMode ? calendarResultSummary(messages.slice(userIdx + 1, endIdx)) : null;
+        if (calendarResult) rendered.push(<div key={`calendar-result-${userIdx}`} role={calendarResult.uncertain ? "alert" : "status"} style={{ marginBottom: 8, fontSize: 12, color: calendarResult.uncertain ? "var(--warning, var(--text-muted))" : "var(--text-muted)" }}>{calendarResult.text}</div>);
         rendered.push(renderMessage(finalAssistantIdx, { messageOverride: finalAnswerMessage }));
       }
       for (let renderIdx = finalAssistantIdx + 1; renderIdx < endIdx; renderIdx++) {
@@ -840,7 +843,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     messages, entryIds, streamActive, sessionBusy, isNew, forkingEntryId,
     modelNames, messageCwd, onOpenFile, handleEditContent,
     stableHandleFork, stableHandleNavigate, sessionIdForViews,
-    visibleCount, t, lastUserMsgRef, sessionIdRef,
+    visibleCount, t, lastUserMsgRef, sessionIdRef, teacherMode,
   ]);
 
   const availableThinkingLevels = displayModelValue
@@ -854,6 +857,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
   const chatInputElement = (
     <ChatInput
       ref={chatInputRef}
+      teacherMode={teacherMode}
       onSend={handleSend}
       onAbort={handleAbort}
       onSteer={agentRunning ? handleSteer : undefined}

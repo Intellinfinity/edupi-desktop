@@ -32,7 +32,9 @@ test("global computer use keeps native execution behind opt-in, approval, snapsh
   assert.match(native, /computer-use-audit\.jsonl/);
   assert.match(native, /That desktop snapshot is stale/);
   assert.match(native, /request_expired\(expires_at_ms\)/);
-  assert.match(settings, /默认关闭。开启后，每次读取或操作仍需你确认。/);
+  assert.match(native, /enabled: AtomicBool::new\(false\)/);
+  assert.match(settings, /<summary>权限用途<\/summary>/);
+  assert.match(settings, /每次操作仍需你确认/);
   assert.match(settings, /emergencyStopComputerUseNative/);
   assert.match(settings, /停止控制/);
 });

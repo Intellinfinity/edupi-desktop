@@ -22,11 +22,19 @@ import { groupWorkCandidates, workCandidateReasonLabel, type WorkCandidateGroups
 import { todayActiveTasks } from "@/lib/edupi-work-case";
 import { canRetryFeedbackEligibility, prepareTeacherFeedbackCapture, recordTeacherFeedback, TeacherFeedbackError, type TeacherFeedbackCapture, type TeacherFeedbackDecision, type TeacherFeedbackUsefulness } from "@/lib/edupi-teacher-feedback";
 import { isTauriDesktop } from "@/lib/desktop-updater";
+import { isCandidateForeground, isForegroundDate, isTaskForeground, shanghaiDate } from "@/lib/edupi-foreground";
+import { EduPiListPreview, EduPiPagedRows, useEduPiForegroundPolicy } from "./EduPiForeground";
+import { taskDisplayTitle } from "@/lib/edupi-workbench";
+import { taskBoardLane } from "@/lib/edupi-task-board";
+import type { CalendarItemSelection } from "@/lib/edupi-calendar-model";
 
 type Props = {
   data: EducationContract;
   onEducation: (data: EducationContract) => void;
   onTaskDetail: (task: TeacherTask) => void;
+  selectedObjectId?: string | null;
+  onObject?: (id: string) => void;
+  onCalendarSelection?: (selection: CalendarItemSelection) => void;
 };
 
 type EditorMode = "modify" | "snooze" | "suppress";
@@ -170,13 +178,6 @@ const GROUP_LABELS: Record<keyof WorkCandidateGroups, string> = {
   done: "已记录",
 };
 
-const GROUP_HINTS: Record<keyof WorkCandidateGroups, string> = {
-  now: "需要你现在做决定",
-  later: "已暂缓或安排了日期",
-  done: "决定已写入，可修改",
-};
-const DEFAULT_VISIBLE_CANDIDATES = 4;
-
 const SUPPRESSION_SCOPE_LABELS = {
   this_candidate: "只停止这条",
   matching_reason: "停止同类原因",
@@ -210,8 +211,7 @@ function isDateOnly(value: string): boolean {
 }
 
 function localIsoDate(date = new Date()): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return shanghaiDate(date)!;
 }
 
 function tomorrow(): string {
@@ -261,9 +261,24 @@ function capabilityCopy(capability: WorkCandidateReviewCapability): string | nul
   return capability.enabled ? null : "当前仅可查看，待办审核暂不可用。";
 }
 
-export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
-  const groups = groupWorkCandidates(data.workCandidates, localIsoDate());
-  const activeTasks = useMemo(() => todayActiveTasks(data), [data]);
+export function EduPiTodayWork({ data, onEducation, onTaskDetail, selectedObjectId, onObject, onCalendarSelection }: Props) {
+  const policy = useEduPiForegroundPolicy();
+  const groups = groupWorkCandidates(data.workCandidates, policy.today, { ...policy, ...data });
+  const history = data.workCandidates.filter(candidate => !isCandidateForeground(candidate, policy, data));
+  const candidateByTask = new Map(data.workCandidates.map(candidate => [candidate.taskId, candidate]));
+  const historyTasks = data.tasks.filter(task => !isTaskForeground(task, policy, data) && (!task.id || !candidateByTask.has(task.id)));
+  const staleHolidayTasks = data.tasks.filter(task => {
+    const source = data.calendar.find(event => event.id && event.id === task.sourceEventId);
+    const holiday = /festival|holiday/.test(task.trigger || "") || /festival|holiday/.test(String(task.evidence.source_event_type || source?.type || ""));
+    return task.id && holiday && !policy.dismissedStaleTaskIds?.includes(task.id)
+      && taskBoardLane(task, data.taskSessions[task.id], candidateByTask.get(task.id)) !== "done"
+      && !isTaskForeground(task, policy, data);
+  });
+  const dismissStaleWork = () => policy.onDismissStaleTasks?.(staleHolidayTasks.map(task => task.id!));
+  const [localList, setLocalList] = useState<string | null>(null);
+  const listGroup = (selectedObjectId || localList || "").replace(/^today:list:/, "");
+  const openList = (group: string) => onObject ? onObject(`today:list:${group}`) : setLocalList(`today:list:${group}`);
+  const activeTasks = useMemo(() => todayActiveTasks(data, policy), [data, policy]);
   const taskById = useMemo(() => new Map(data.tasks.filter((task) => task.id).map((task) => [task.id!, task])), [data.tasks]);
   const capability = data.capabilities.workCandidateReview;
   const busy = useSyncExternalStore(subscribeTodayWorkMutation, getTodayWorkMutationSnapshot, getTodayWorkMutationSnapshot);
@@ -282,7 +297,15 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
   const [retryReview, setRetryReview] = useState<ReviewRetry | null>(null);
   const [submission, setSubmission] = useState<Submission>(null);
   const editorCurrent = isTodayWorkEditorCurrent(editor, data.workCandidates, capability.enabled);
-  const l4Summary = useMemo(() => summarizeL4Preparation(data.l4Preparation ?? null), [data.l4Preparation]);
+  const l4Summary = useMemo(() => {
+    if (!data.l4Preparation) return summarizeL4Preparation(null);
+    const opportunities = data.l4Preparation.opportunities.filter(opportunity => {
+      const work = data.workCases.find(item => item.id === opportunity.workCaseId);
+      const task = work ? data.tasks.find(item => item.id === work.taskId) : null;
+      return task ? isTaskForeground(task, policy, data) : isForegroundDate(shanghaiDate(opportunity.validUntil), policy);
+    });
+    return summarizeL4Preparation({ ...data.l4Preparation, opportunities });
+  }, [data, policy]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -552,37 +575,58 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
 
   const renderGroup = (group: keyof WorkCandidateGroups) => {
     const candidates = groups[group];
-    const visible = candidates.slice(0, DEFAULT_VISIBLE_CANDIDATES);
-    const remaining = candidates.slice(DEFAULT_VISIBLE_CANDIDATES);
+    if (candidates.length === 0) return null;
     return <section className={`edupi-today-work__group is-${group}`} aria-labelledby={`edupi-today-work-${group}`} key={group}>
-      <header><div><h3 id={`edupi-today-work-${group}`}>{GROUP_LABELS[group]}</h3><p>{GROUP_HINTS[group]}</p></div><span>{candidates.length} 项</span></header>
-      <div className="edupi-today-work__items">{visible.map((candidate) => renderCandidate(candidate, true))}</div>
-      {remaining.length > 0 ? <details className="edupi-today-work__more"><summary>查看其余 {remaining.length} 项</summary><div>{remaining.map((candidate) => renderCandidate(candidate, true))}</div></details> : null}
-      {candidates.length === 0 ? <p className="edupi-today-work__empty">这里暂时没有事项</p> : null}
+      <header><div><h3 id={`edupi-today-work-${group}`}>{GROUP_LABELS[group]}</h3></div><span>{candidates.length} 项</span></header>
+      <div className="edupi-today-work__items"><EduPiListPreview rows={candidates} renderRow={candidate => renderCandidate(candidate, true)} onShowAll={() => openList(group)} /></div>
     </section>;
   };
 
-  const renderL4Group = (group: (typeof L4_GROUP_LABELS)[number], items: L4PreparationSummaryItem[]) => (
+  const renderL4Group = (group: (typeof L4_GROUP_LABELS)[number], items: L4PreparationSummaryItem[]) => items.length === 0 ? null : (
     <section className={`edupi-today-l4__group is-${group.key}`} aria-label={group.title} key={group.key}>
       <header><h4>{group.title}</h4><span>{items.length} 项</span></header>
       <div className="edupi-today-l4__items">
-        {items.map(item => (
+        <EduPiListPreview rows={items} onShowAll={() => openList(`l4-${group.key}`)} renderRow={item => (
           <article className="edupi-today-l4__item" key={item.workCaseId}>
             <strong>{item.statusLabel}</strong>
             <p>{item.title}</p>
           </article>
-        ))}
-        {items.length === 0 ? <p className="edupi-today-l4__empty">暂无事项</p> : null}
+        )} />
       </div>
     </section>
   );
 
   const unavailableCopy = capabilityCopy(capability);
+  const renderActiveTask = ({ task, title, dueDate, state, stateLabel }: (typeof activeTasks)[number]) => <button type="button" key={task.id} onClick={() => onTaskDetail(task)}><i className={`edupi-flow-state is-${state}`} aria-hidden="true" /><span><strong>{title}</strong><small>{stateLabel}{dueDate ? ` · ${dueDate}` : ""}</small></span><em aria-hidden="true">›</em></button>;
+  const renderHistorical = (candidate: EducationWorkCandidate) => <div key={candidate.candidateId}>
+    {renderCandidate(candidate, false)}
+    <div className="edupi-foreground-controls">{policy.onPinTask ? <button type="button" onClick={() => policy.onPinTask!(candidate.taskId, true)}>保留显示</button> : null}{capability.enabled ? <button type="button" disabled={busy} onClick={() => openEditor(candidate, "snooze")}>改期</button> : null}</div>
+  </div>;
+  const renderHistoricalTask = (task: TeacherTask) => {
+    const source = data.calendar.find(event => event.id && event.id === task.sourceEventId);
+    return <div className="edupi-task-history-row" key={task.id || task.title}>
+      <button type="button" onClick={() => onTaskDetail(task)}><strong>{taskDisplayTitle(task)}</strong><small>{task.sourceEventDate || task.dueDate || "日期待确认"}</small></button>
+      <div className="edupi-foreground-controls">{task.id && policy.onPinTask ? <button type="button" onClick={() => policy.onPinTask!(task.id!, true)}>保留显示</button> : null}
+        {source?.id && onCalendarSelection ? <button type="button" disabled={!data.capabilities.calendar.enabled} title={!data.capabilities.calendar.enabled ? data.capabilities.calendar.reason : undefined} onClick={() => onCalendarSelection({ kind: "calendar", sourceId: source.id, date: source.date, title: source.name, detail: source.notes, sourceLabel: "校历", statusLabel: source.preparationStatus === "read_only" ? "已确认" : "待确认", editRequested: true })}>改期</button> : null}
+      </div>
+    </div>;
+  };
+  const isCandidateList = listGroup === "now" || listGroup === "later" || listGroup === "done";
+  const l4List = L4_GROUP_LABELS.find(group => listGroup === `l4-${group.key}`);
+  if (isCandidateList || listGroup === "history" || listGroup === "active" || l4List) return <section className="edupi-today-work">
+    <header className="edupi-module-heading"><div><button type="button" className="edupi-back-link" onClick={() => onObject ? onObject("today:home") : setLocalList(null)}>← 今天</button><h1>{isCandidateList ? GROUP_LABELS[listGroup] : listGroup === "history" ? "工作历史" : listGroup === "active" ? "正在进行" : l4List?.title}</h1></div></header>
+    {feedback ? <p role={feedback.kind === "error" ? "alert" : "status"}>{feedback.text}</p> : null}
+    {isCandidateList ? <EduPiPagedRows rows={groups[listGroup]} memoryKey={`today:${listGroup}`} renderRow={candidate => renderCandidate(candidate, true)} />
+      : listGroup === "history" ? <EduPiPagedRows rows={[...history.map(candidate => ({ candidate, task: null })), ...historyTasks.map(task => ({ candidate: null, task }))]} memoryKey="today:history" renderRow={row => row.candidate ? renderHistorical(row.candidate) : renderHistoricalTask(row.task!)} />
+        : listGroup === "active" ? <EduPiPagedRows rows={activeTasks} memoryKey="today:active" renderRow={renderActiveTask} />
+          : l4List ? <EduPiPagedRows rows={l4Summary[l4List.key]} memoryKey={`today:${listGroup}`} renderRow={item => <article key={item.workCaseId}><strong>{item.title}</strong><p>{item.statusLabel}</p></article>} /> : null}
+  </section>;
   return <section className="edupi-today-work" aria-labelledby="edupi-today-work-title" aria-busy={busy}>
-    <header className="edupi-today-work__header"><div><span>教师工作</span><h2 id="edupi-today-work-title">今天要判断</h2></div><span>{data.workCandidates.length} 项 · 教师内部</span></header>
-    {activeTasks.length > 0 ? <div className="edupi-today-flow" aria-label="正在进行的任务"><header><span>正在进行</span><strong>{activeTasks.length} 项</strong></header><div>{activeTasks.slice(0, 4).map(({ task, title, dueDate, state, stateLabel }) => <button type="button" key={task.id} onClick={() => onTaskDetail(task)}><i className={`edupi-flow-state is-${state}`} aria-hidden="true" /><span><strong>{title}</strong><small>{stateLabel}{dueDate ? ` · ${dueDate}` : ""}</small></span><em aria-hidden="true">›</em></button>)}</div></div> : null}
+    <header className="edupi-today-work__header"><div><h2 id="edupi-today-work-title">工作判断</h2></div><button type="button" onClick={() => openList("history")}>历史 <span>{history.length + historyTasks.length}</span></button></header>
+    {staleHolidayTasks.length > 0 ? <div className="edupi-stale-work-question" role="status"><span>有 {staleHolidayTasks.length} 项旧节日工作还需要吗？</span><div><button type="button" onClick={() => { dismissStaleWork(); openList("history"); }}>查看</button><button type="button" onClick={dismissStaleWork}>先收起</button></div></div> : null}
+    {activeTasks.length > 0 ? <div className="edupi-today-flow" aria-label="正在进行的任务"><header><span>正在进行</span><strong>{activeTasks.length} 项</strong></header><div><EduPiListPreview rows={activeTasks} renderRow={renderActiveTask} onShowAll={() => openList("active")} /></div></div> : null}
     {unavailableCopy ? <p className="edupi-today-work__notice">{unavailableCopy}</p> : null}
-    {data.l4Preparation ? (
+    {data.l4Preparation && l4Summary.ready.length + l4Summary.running.length + l4Summary.attention.length > 0 ? (
       <section className="edupi-today-l4" aria-labelledby="edupi-today-l4-title">
         <header><div><h3 id="edupi-today-l4-title">自动准备</h3></div><span>{data.l4Preparation.goals.length} 个目标</span></header>
         <div className="edupi-today-l4__groups">
@@ -607,5 +651,6 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail }: Props) {
       /> : null}
     </div> : null}
     <div className="edupi-today-work__groups">{(["now", "later", "done"] as const).map(renderGroup)}</div>
+    {groups.now.length + groups.later.length + groups.done.length === 0 && activeTasks.length === 0 && l4Summary.ready.length + l4Summary.running.length + l4Summary.attention.length === 0 ? <p className="edupi-today-work__empty">暂无需判断的工作</p> : null}
   </section>;
 }

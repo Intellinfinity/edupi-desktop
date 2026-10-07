@@ -4,13 +4,18 @@ import { useEffect, useState } from "react";
 import type { Reminder } from "@/lib/edupi-reminder-store";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import { useSearchParams } from "next/navigation";
+import { compareForegroundReminders, isReminderForeground, paginateForeground, reminderReferenceDate, type ForegroundContext, type ForegroundPolicy } from "@/lib/edupi-foreground";
+import type { EducationContract } from "@/lib/edupi-education-contract";
+import { readEduPiWorkspace } from "@/lib/edupi-education-client";
+import { useEduPiForegroundPolicy } from "./EduPiForeground";
 
-type ReminderFilter = "pending" | "snoozed" | "handled";
+type ReminderFilter = "pending" | "snoozed" | "handled" | "history";
 
 const FILTERS: Array<{ value: ReminderFilter; label: string }> = [
   { value: "pending", label: "待处理" },
   { value: "snoozed", label: "稍后提醒" },
   { value: "handled", label: "已移除" },
+  { value: "history", label: "历史" },
 ];
 
 const KIND_LABELS: Record<Reminder["kind"], string> = {
@@ -28,6 +33,7 @@ function formatReminderDate(value: string) {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Shanghai",
   }).format(date);
 }
 
@@ -42,7 +48,7 @@ function reminderMessage(item: Reminder, filter: ReminderFilter) {
   if (item.kind === "ready") return "产物已准备好，可以直接查看或继续聊。";
   if (item.kind === "failed") return "准备过程未完成，打开事项查看详情。";
   if (item.kind === "due") return "事项已到期，需要决定下一步。";
-  return "今天的简报已更新。";
+  return "简报已更新。";
 }
 
 function isPending(item: Reminder) {
@@ -53,9 +59,12 @@ function isSnoozed(item: Reminder) {
   return !item.withdrawn && !item.handled && Boolean(item.snoozedUntil);
 }
 
-function filterItems(items: Reminder[], filter: ReminderFilter) {
-  const matches = items.filter((item) => filter === "pending" ? isPending(item) : filter === "snoozed" ? isSnoozed(item) : item.handled || item.withdrawn);
-  return [...matches].reverse();
+export function filterItems(items: Reminder[], filter: ReminderFilter, policy?: ForegroundPolicy, context?: ForegroundContext & Partial<Pick<EducationContract, "continuity">>) {
+  const matches = items.filter((item) => filter === "history" ? true : filter === "handled" ? item.handled || item.withdrawn
+    : (filter === "pending" ? isPending(item) : isSnoozed(item)) && (!policy || isReminderForeground(item, policy, context)));
+  return matches.sort((left, right) => policy && (filter === "pending" || filter === "snoozed")
+    ? compareForegroundReminders(left, right, policy, context, filter === "snoozed")
+    : String(right.createdAt || "").localeCompare(String(left.createdAt || "")) || left.id.localeCompare(right.id));
 }
 
 export function EduPiReminderInbox({
@@ -69,15 +78,17 @@ export function EduPiReminderInbox({
   standalone?: boolean;
   onClose?: () => void;
 }) {
+  const policy = useEduPiForegroundPolicy();
   const params = useSearchParams();
   const remindersRequested = params.get("reminders") === "1";
   const [open, setOpen] = useState(standalone || remindersRequested);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Reminder[]>([]);
+  const [workspace, setWorkspace] = useState<EducationContract | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState<ReminderFilter>("pending");
-  const [page, setPage] = useState(0);
+  const [pages, setPages] = useState<Record<ReminderFilter, number>>({ pending: 0, snoozed: 0, handled: 0, history: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -91,11 +102,15 @@ export function EduPiReminderInbox({
     const controller = new AbortController();
     const load = async () => {
       try {
-        const response = await fetch("/api/edupi/reminders", { signal: controller.signal });
+        const [response, bundle] = await Promise.all([
+          fetch("/api/edupi/reminders", { signal: controller.signal }),
+          readEduPiWorkspace({ signal: controller.signal }).catch(() => null),
+        ]);
         if (!response.ok) throw new Error();
         const result = await response.json() as { items?: Reminder[] };
         if (!controller.signal.aborted) {
           setItems(Array.isArray(result.items) ? result.items : []);
+          setWorkspace(bundle?.data ?? null);
           setError("");
           setLoading(false);
         }
@@ -111,19 +126,22 @@ export function EduPiReminderInbox({
     return () => { controller.abort(); clearInterval(timer); };
   }, [open]);
 
-  const pending = items.filter(isPending);
+  const pending = filterItems(items, "pending", policy, workspace || {});
   const counts: Record<ReminderFilter, number> = {
     pending: pending.length,
-    snoozed: items.filter(isSnoozed).length,
+    snoozed: filterItems(items, "snoozed", policy, workspace || {}).length,
     handled: items.filter((item) => item.handled || item.withdrawn).length,
+    history: items.length,
   };
-  const filtered = filterItems(items, filter);
+  const filtered = filterItems(items, filter, policy, workspace || {});
   const loadingEmpty = loading && items.length === 0;
   const failedEmpty = Boolean(error) && items.length === 0;
   const unknownEmpty = loadingEmpty || failedEmpty;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / 8));
-  const currentPage = Math.min(page, pageCount - 1);
-  const pageItems = filtered.slice(currentPage * 8, currentPage * 8 + 8);
+  const projection = paginateForeground(filtered, pages[filter]);
+  const pageCount = projection.pages;
+  const currentPage = projection.page;
+  const pageItems = projection.rows;
+  const setPage = (page: number) => setPages(current => ({ ...current, [filter]: page }));
   const selected = pageItems.find((item) => item.id === selectedId) || pageItems[0] || null;
 
   const change = async (id: string, type: "read" | "dismiss" | "snooze") => {
@@ -179,7 +197,7 @@ export function EduPiReminderInbox({
   };
 
   const filterLabel = FILTERS.find((option) => option.value === filter)?.label || "提醒";
-  const emptyLabel = filter === "handled" ? "暂无已移除提醒" : filter === "snoozed" ? "暂无稍后提醒" : "暂无待处理提醒";
+  const emptyLabel = filter === "history" ? "暂无提醒历史" : filter === "handled" ? "暂无已移除提醒" : filter === "snoozed" ? "暂无稍后提醒" : "暂无待处理提醒";
 
   return (
     <section
@@ -211,7 +229,7 @@ export function EduPiReminderInbox({
                   type="button"
                   aria-pressed={filter === option.value}
                   className={filter === option.value ? "is-active" : ""}
-                  onClick={() => { setFilter(option.value); setPage(0); setSelectedId(null); }}
+                  onClick={() => { setFilter(option.value); setSelectedId(null); }}
                 >
                   <span>{option.label}</span>
                   {!unknownEmpty ? <b>{counts[option.value]}</b> : null}
@@ -275,6 +293,7 @@ export function EduPiReminderInbox({
                   <dl className="edupi-reminder-inbox__meta">
                     <div><dt>状态</dt><dd>{filterLabel}</dd></div>
                     <div><dt>来源</dt><dd>{reminderSource(selected)}</dd></div>
+                    <div><dt>事项日期</dt><dd>{reminderReferenceDate(selected, workspace || {}) || "日期待确认"}</dd></div>
                   </dl>
                   <div className="edupi-reminder-inbox__actions">
                     <button type="button" className="is-primary" disabled={busy} onClick={() => void continueItem(selected)}>继续聊</button>

@@ -5,7 +5,9 @@ import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, Slas
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
 import { clearDraft, flushDraftNow, getDraft, markQueueRecoveryUncertain, setDraft, subscribeDraftPersistence, type ChatDraft, type ChatDraftImage, type FailedDraftMessage } from "@/lib/draft-store";
-import { composeComposerMessage, contextHandoffMode, parseTeacherMessage, prepareQueueRecall, readableQueueBackup, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
+import { appendComposerResource, removeComposerResource, composerReferenceText, composeComposerMessage, contextHandoffMode, parseTeacherMessage, prepareQueueRecall, readableQueueBackup, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
+import { CHAT_RESOURCE_KINDS, type ChatResourceKind } from "@/lib/edupi-chat-resources";
+import { EduPiResourcePicker } from "./EduPiResourcePicker";
 import {
   MAX_ATTACHED_IMAGE_BYTES,
   MAX_ATTACHED_IMAGES,
@@ -41,6 +43,7 @@ interface ModelOption {
 }
 
 interface Props {
+  teacherMode?: boolean;
   onSend: (message: string, images?: AttachedImage[]) => void;
   onAbort: () => void;
   onSteer?: (message: string, images?: AttachedImage[]) => void | Promise<void>;
@@ -106,7 +109,7 @@ export interface ChatInputHandle {
   refreshQueueRecoveryStatus: (draftKey: string) => void;
   markQueueRecoveryUncertain: (sessionId: string, recoveryId: string) => boolean;
   refreshPendingFailedMessages: (draftKey: string) => void;
-  replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => void;
+  replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => boolean;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
   focus: () => void;
@@ -401,9 +404,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   cwd,
   autoFocus = false,
   extensionStatuses = [],
+  teacherMode = false,
 }: Props, ref) {
   const { t, locale } = useI18n();
   const isMobile = useIsMobile();
+  const compactControls = isMobile || teacherMode;
+  const [resourcePickerKind, setResourcePickerKind] = useState<ChatResourceKind | null>(null);
   const [value, setValue] = useState(() => (draftKey ? getDraft(draftKey)?.value ?? "" : ""));
   const [context, setContext] = useState<EduPiComposerContext | null>(() => (draftKey ? getDraft(draftKey)?.context ?? null : null));
   const [offeredContext, setOfferedContext] = useState<EduPiComposerContext | null>(() => (draftKey ? getDraft(draftKey)?.offeredContext ?? null : null));
@@ -486,6 +492,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const attachedImagesRef = useRef(attachedImages);
   const pendingImageCountRef = useRef(0);
   const queueSubmittingRef = useRef(false);
+  const closeResourcePicker = useCallback((focusInput = false) => {
+    setResourcePickerKind(null);
+    requestAnimationFrame(() => {
+      if (focusInput) textareaRef.current?.focus();
+      else attachmentMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    });
+  }, []);
   valueRef.current = value;
   contextRef.current = context;
   offeredContextRef.current = offeredContext;
@@ -686,7 +699,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     replaceMessage(message: UserMessage, allowPendingRecovery = false) {
       const ta = textareaRef.current;
       const current = ta ? ta.value : value;
-      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current, Boolean(contextRef.current || offeredContextRef.current || pendingTeacherTextRef.current || (!allowPendingRecovery && (pendingFailedMessagesRef.current.length || pendingQueueMessagesRef.current.length))))) return;
+      if (!canRestoreUserMessage(current, attachedImagesRef.current.length, pendingImageCountRef.current, Boolean(contextRef.current || offeredContextRef.current || pendingTeacherTextRef.current || (!allowPendingRecovery && (pendingFailedMessagesRef.current.length || pendingQueueMessagesRef.current.length))))) return false;
 
       const restored = getUserMessageText(message);
       const contextual = parseTeacherMessage(restored);
@@ -705,6 +718,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         ta.style.height = "auto";
         ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
       });
+      return true;
     },
     prependText(text: string) {
       if (!text.trim()) return;
@@ -909,6 +923,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   useEffect(() => {
     const previousDraftKey = draftKeyRef.current;
     if (previousDraftKey === draftKey) return;
+    setResourcePickerKind(null);
 
     if (previousDraftKey) {
       setDraft(previousDraftKey, {
@@ -1672,19 +1687,28 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       if (queueMenuOpen) {
         event.preventDefault();
         setQueueMenuOpen(false);
+        requestAnimationFrame(() => queueMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus());
       }
       if (attachmentMenuOpen) {
         event.preventDefault();
         setAttachmentMenuOpen(false);
+        requestAnimationFrame(() => attachmentMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus());
+      }
+      if (controlsMenuOpen) {
+        event.preventDefault();
+        setControlsMenuOpen(false);
+        setToolDropdownOpen(false);
+        setThinkingDropdownOpen(false);
+        requestAnimationFrame(() => controlsMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus());
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [attachmentMenuOpen, queueMenuOpen]);
+  }, [attachmentMenuOpen, queueMenuOpen, controlsMenuOpen]);
 
   useEffect(() => {
-    if (!isMobile) setControlsMenuOpen(false);
-  }, [isMobile]);
+    if (!compactControls) setControlsMenuOpen(false);
+  }, [compactControls]);
 
   useEffect(() => {
     setQueueMenuOpen(false);
@@ -2223,7 +2247,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             <details><summary>查看消息</summary><ol>{pendingFailedMessages.map((message, index) => <li key={index}>{message.sourceLabel ? `${message.sourceLabel} · ` : ""}{message.value}{message.context ? ` · ${message.context.title}` : ""}{message.images.length ? ` · ${message.images.length} 张图片` : ""}</li>)}</ol></details>
             <div>
               <button type="button" disabled={Boolean(pendingTeacherText || offeredContext)} onClick={restorePendingFailedMessage}>改用未发送内容</button>
-              <button type="button" onClick={() => { const text = pendingFailedMessages.map((message, index) => `消息 ${index + 1}\n${message.context ? `事项：${message.context.title}\n参考：${message.context.reference}\n` : ""}老师要求：${message.value}${message.images.length ? `\n图片：${message.images.length} 张，需在应用内恢复` : ""}`).join("\n\n"); void import("@/lib/clipboard").then(({ copyText }) => copyText(text)).then(() => setFailedCopyStatus("已复制文字与参考"), () => setFailedCopyStatus("复制失败")); }}>复制文字与参考</button>
+              <button type="button" onClick={() => { const text = pendingFailedMessages.map((message, index) => `消息 ${index + 1}\n${message.context ? `事项：${message.context.title}\n参考：${composerReferenceText(message.context)}\n` : ""}老师要求：${message.value}${message.images.length ? `\n图片：${message.images.length} 张，需在应用内恢复` : ""}`).join("\n\n"); void import("@/lib/clipboard").then(({ copyText }) => copyText(text)).then(() => setFailedCopyStatus("已复制文字与参考"), () => setFailedCopyStatus("复制失败")); }}>复制文字与参考</button>
             </div>
             {failedCopyStatus ? <span role="status">{failedCopyStatus}</span> : null}
           </div> : null}
@@ -2255,12 +2279,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             <button type="button" onClick={() => { setContext(offeredContext); setOfferedContext(null); textareaRef.current?.focus(); }}>带入{offeredContext.title}</button>
             <button type="button" onClick={() => setOfferedContext(null)}>不带入</button>
           </div> : null}
-          {context ? <div className="chat-composer-context">
-            <span>当前事项</span>
+          {context?.reference ? <div className="chat-composer-context">
             <strong title={context.title}>{context.title}</strong>
             <details><summary>查看参考</summary><pre>{context.reference}</pre></details>
-            <button type="button" aria-label={`移除${context.title}参考`} title="移除参考" onClick={() => setContext(null)}>×</button>
+            <button type="button" aria-label={`移除${context.title}参考`} title="移除参考" onClick={() => setContext(context.resources?.length ? { title: "引用", reference: "", resources: context.resources } : null)}>×</button>
           </div> : null}
+          {context?.resources?.length ? <div className="chat-composer-references">{context.resources.map(resource => <div key={resource.id} className="chat-composer-reference">
+            <details><summary>{resource.title}</summary><pre>{resource.reference}</pre></details>
+            <button type="button" aria-label={`移除${resource.title}引用`} onClick={() => setContext(current => current ? removeComposerResource(current, resource.id) : null)}>×</button>
+          </div>)}</div> : null}
           <div
             className="chat-composer-editor"
             style={{
@@ -2469,10 +2496,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                       <span>{t("chat.addFile")}</span>
                     </button>
                   ) : null}
+                  {teacherMode ? CHAT_RESOURCE_KINDS.map(item => <button type="button" key={item.id} role="menuitem" onClick={() => { setAttachmentMenuOpen(false); setResourcePickerKind(item.id); }} style={{ display: "block", width: "100%", padding: "8px 9px", border: 0, borderRadius: 6, background: "none", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 12 }}>{item.label}</button>) : null}
                 </div>
               ) : null}
             </div>
-            <button
+            {!teacherMode ? <button
               type="button"
               className="native-toolbar-button"
               onClick={() => {
@@ -2484,7 +2512,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               style={{ display: "grid", placeItems: "center", width: 32, height: 32, padding: 0, background: "none", border: "none", borderRadius: 9, color: "var(--text-muted)", cursor: "pointer" }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><line x1="10" y1="18" x2="14" y2="18" /></svg>
-            </button>
+            </button> : null}
             {!isStreaming && onPermissionModeChange && (
               <div ref={permissionDropdownRef} style={{ position: "relative" }}>
                 <button
@@ -2682,7 +2710,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   })()}
                 </div>
             )}
-            <ExtensionStatusBar statuses={extensionStatuses} />
+            {!teacherMode ? <ExtensionStatusBar statuses={extensionStatuses} /> : null}
           </div>
 
           {/* spacer */}
@@ -2697,7 +2725,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             position: "relative",
             marginLeft: isMobile ? 0 : "auto",
           }}>
-            {isMobile && (
+            {compactControls && (
               <button
                 type="button"
                  title={controlsMenuOpen ? undefined : t("chat.moreControls")}
@@ -2739,17 +2767,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   e.currentTarget.style.color = "var(--text-muted)";
                 }}
               >
-                {t("chat.moreControls")}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg>
               </button>
             )}
             <div style={{
-              display: isMobile ? (controlsMenuOpen ? "flex" : "none") : "flex",
+              display: compactControls ? (controlsMenuOpen ? "flex" : "none") : "flex",
               alignItems: "center",
-              gap: isMobile ? 1 : 2,
-              ...(isMobile ? {
+              gap: compactControls ? 1 : 2,
+              ...(compactControls ? {
                 position: "absolute",
                 right: 0,
-                bottom: 0,
+                bottom: "calc(100% + 6px)",
                 zIndex: 60,
                 padding: 1,
                 width: "max-content",
@@ -3067,7 +3095,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 )}
               </button>
             )}
-            {isMobile && controlsMenuOpen && (
+            {teacherMode && extensionStatuses.length ? <details><summary style={{ fontSize: 12, padding: "6px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>运行详情</summary><ExtensionStatusBar statuses={extensionStatuses} /></details> : null}
+            {compactControls && controlsMenuOpen && (
               <button
                 type="button"
                  title={t("chat.collapseControls")}
@@ -3114,6 +3143,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         </div>
       </div>
     </div>
+    {resourcePickerKind ? <EduPiResourcePicker kind={resourcePickerKind} cwd={cwd} onKind={setResourcePickerKind} onClose={() => closeResourcePicker()} onSelect={resource => {
+      try {
+        const next = appendComposerResource(contextRef.current, resource);
+        setContext(next);
+        closeResourcePicker(true);
+      } catch (failure) {
+        setAttachError(failure instanceof Error ? failure.message : "引用添加失败");
+        closeResourcePicker();
+      }
+    }} /> : null}
     </div>
   );
 });

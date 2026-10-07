@@ -1,6 +1,12 @@
 # Pi 1 与暂缓草稿风险验收
 
-最新源码状态：P0–P2前台修复和Core #223–#230配对已实现；Core精确`0c2c72a18a06ec35a3e7e7568ce4e6b932532df4`，Pi/PiDurable1.0.2。消息、日程写入、历史分页、资源引用和大图来源有本机隔离生产源码页面证据，默认数学Durable有真实私有桌面宿主证据。Core假期后台修复仍在独立PR前验证，不计已消费；家庭人物/G5身份和真实阶段/子任务合同缺口保留。公开Release/feed仍`.56`，其Core仍`a84590c`，新源码未打包或安装；真实睡眠、真人质量、六领域Live及其他平台安装继续后置。
+最新源码状态：P0–P2前台修复已由Desktop #315合入；随后配对到Core main #231 `93a1aea005eb630b66faa5f8e97dc20c09b45d58`，Pi/PiDurable1.0.2。消息、日程写入、历史分页、资源引用和大图来源有本机隔离生产源码页面证据，默认数学Durable有真实私有桌面宿主证据。Core假期后台修复仍在独立PR验证，不计已消费；家庭人物/G5身份和真实阶段/子任务合同缺口保留。公开Release/feed仍`.56`，其Core仍`a84590c`，新源码未打包或安装；真实睡眠、真人质量、六领域Live及其他平台安装继续后置。
+
+## 2026-10-07 Core #231 跟进
+
+- 取代“当前pin为#230”的对应状态：只读main快照已快进到`93a1aea`，更新compat pin、严格TypeScript身份和配对断言，保留原Desktop分支与改动。#231新增本地PDF可见文字诊断研究工具，未注册公开Runtime命令、未进入生产组件，资产许可与生产采用门没有解除。
+- Runtime schema `ba67351c…`、Core component `2e1f46df…`、Desktop component `852b9b1d…`均与#230相同；Bridge v1.1、课次v1.2、12命令和SDK1.0.2不变。按实际闭包核对后运行带精确Core根的全量：2130pass、9skipped、0fail；`tsc --noEmit`通过。日志为`npm-test-core231-final.log`和`typecheck-core231-final.log`。
+- 下方0c2页面和私有host证据仍保留原身份，不改名成93a安装证据；新研究工具不当作上传自动提案或任意PDF验证能力。Core假期补丁另以独立maker-checker PR交接，没有在Desktop pin中消费未合入分支。
 
 ## 2026-10-07 P0–P2 与 Core #230
 
@@ -21,6 +27,7 @@
 - 最终配对全量`EDUPI_CORE_ROOT=<固定main根> npm test`：2130pass、9skipped、0fail；无Core根运行的P0–P2门为2104pass/27skipped/0fail。类型/lint、npm高危审计、locked metadata、Cargo44和针对性host检查分别记录；跳过项不计通过。原失败日志保留，包括dev冷编译/SSE5秒、立即刷新失稿、manifest文件SHA误作payload identity。生产源码编译成功，未在运行dev目录执行next build。
 - 原始证据：`p0-browser-evidence.json`、`p1-browser-evidence.json`、`p2-800-source.jpg`、`p2-800-family.jpg`、`p2-1440-loaded-22.jpg`、`p2-1440-stale-revision.jpg`、`core230-pairing.log`、`core229-calendar-e2.log`和各最终检查log。0c2新增来源会话为`01a11577-ded8-76e2-b887-034eec343498`，日程会话为`01a11575-57dc-76e2-b887-034db438dc66`；均为隔离合成消息，不转录真实学生截图。
 - 首次源码检查点`78d8ee9f8daf06bc6329fd6986ab8997131eea25`已推送至[Desktop #315](https://github.com/Intellinfinity/edupi-desktop/pull/315)。该精确源码的[CI37595448625](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37595448625) `audit/rust-audit`双绿；后续仅删日程详情眉题与`class/routine`技术标签，26针对性检查、重新生产源码编译及真实页标题/来源状态复核通过，新的提交CI另外绑定。
+- 最终提交`81b7bcebcf58d37e3774801dae785802d452de89`的[CI37609659017](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37609659017) `audit/rust-audit`均通过；PR #315于UTC2026-10-07T12:31:25Z合入main，合并提交`6dffa0c1b09e6ef7e476d413738e96bf942a7e3d`。该结果只证明本轮源码交付，不改变公开`.56`或安装验收状态。
 - `core230-browser-evidence.json`补存权威日程/来源闭环。实际改期10/8→10/11返回held而非保存成功，Core保留原10/8和新冲突候选；web冲突接口403且核对入口native-only，完整确认仍须安装版授权。没有用直接账本改写清掉测试冲突，也没有放宽该门。最终标题无眉题截图为`calendar-copy-final.png`，仅合成日程，不当作改期确认通过。
 - 保留边界：Core假期后台、已核实家庭人物关系、真实阶段/并行子任务合同尚未交付；不能用前端隐藏、教师称谓或四个展示步骤推定已完成。普通Pi自动记忆缺真实Core opaque host scope时held，不从投影/姓名/标签构造权限或复制authority store。新DOCX/ICS/PDF操作进入固定Core闭包但完整上传消费者与PDF可见性另验。安装、跨平台、真实通知/睡眠/模型教学质量/真人价值仍按缺证记录；本轮不发布Release/feed。
 

@@ -405,6 +405,12 @@ export type ReminderNotificationTarget = { reminderId: string; taskId: string; k
 export type ReminderNotificationClaim = { id: string; attemptedAt: string };
 export type NativeReminderNotification = { title: string; body: string; target: ReminderNotificationTarget | null; claims: ReminderNotificationClaim[] };
 const DEFERRED_REMINDER_NOTIFICATION_ERRORS = new Set(["notification_permission_denied", "notification_permission_timeout", "notification_permission_unavailable", "notification_busy"]);
+const CANCELLED_REMINDER_NOTIFICATION_ERRORS = new Set(["notification_stale", "notification_validation_unavailable"]);
+
+export function isCancelledReminderNotificationError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error
+    && typeof error.code === "string" && CANCELLED_REMINDER_NOTIFICATION_ERRORS.has(error.code));
+}
 
 export function isDeferredReminderNotificationError(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error
@@ -433,9 +439,27 @@ export function createReminderOpenDrainer(takePending: () => Promise<Array<Remin
   };
 }
 
-export async function sendReminderNotificationNative(request: NativeReminderNotification): Promise<void> {
+function isNotificationDiagnostic(request: NativeReminderNotification): boolean {
+  return request.title === "EduPi" && request.body === "点击后打开提醒" && request.target === null && request.claims.length === 1
+    && request.claims[0].id === "notification-test" && /^\d{4}-\d{2}-\d{2}T/.test(request.claims[0].attemptedAt);
+}
+
+/** A read-only, native-token guarded proof; no caller policy or credentials in the body. */
+export async function validateReminderNotificationClaims(claims: ReminderNotificationClaim[]): Promise<boolean> {
+  if (!isTauriDesktop() || !claims.length || claims.length > 16) return false;
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, "0")).join("");
+  try {
+    const response = await fetchDesktopApi("/api/edupi/reminders/notification-proof", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: 1, nonce, claims }), signal: AbortSignal.timeout(1500), redirect: "error" });
+    return response.status === 204 && response.headers.get("x-pi-reminder-proof-nonce") === nonce;
+  } catch { return false; }
+}
+
+export async function sendReminderNotificationNative(request: NativeReminderNotification, isCurrent?: () => boolean | Promise<boolean>): Promise<void> {
   if (!isTauriDesktop()) throw new Error("请在桌面应用中使用通知");
   const { invoke } = await import("@tauri-apps/api/core");
+  if (!isNotificationDiagnostic(request) && !await validateReminderNotificationClaims(request.claims)
+    || isCurrent && !await isCurrent()) throw nativeReminderError("notification_stale", "提醒已变化");
   try {
     await invoke("send_reminder_notification", { request });
   } catch (error) {
@@ -445,6 +469,7 @@ export async function sendReminderNotificationNative(request: NativeReminderNoti
     if (code === "notification_permission_unavailable") throw nativeReminderError(code, "暂时无法请求通知授权，请重试");
     if (code === "notification_failed") throw nativeReminderError(code, "通知发送失败，请检查系统通知设置");
     if (code === "notification_busy") throw nativeReminderError(code, "通知发送繁忙，请稍后重试");
+    if (CANCELLED_REMINDER_NOTIFICATION_ERRORS.has(code)) throw nativeReminderError(code, "提醒已变化");
     throw error;
   }
 }

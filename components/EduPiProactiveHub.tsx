@@ -33,7 +33,7 @@ function ArrowIcon() {
 }
 
 function runInput(run: EduPiKernelRun): KernelRunDisplayInput {
-  return { trigger_id: run.triggerId, fire_key: run.fireKey ?? undefined, status: run.status, result_summary: run.resultSummary, error_code: run.errorCode, error_message: run.errorMessage };
+  return { trigger_id: run.triggerId, fire_key: run.fireKey ?? undefined, status: run.status, result_summary: run.resultSummary, error_code: run.errorCode, error_message: run.errorMessage, attempt_count: run.attemptCount };
 }
 
 export function isProactiveReminderForeground(item: Reminder, policy: ForegroundPolicy, context: ForegroundContext & Partial<Pick<EducationContract, "continuity">> = {}): boolean {

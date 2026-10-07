@@ -7,7 +7,7 @@ import type { ReminderEvent } from "./edupi-reminder-events";
 export type ReminderAttentionRoute = "core_linked" | "g1_local" | "teacher_local" | "legacy_local";
 export type ReminderAttentionOutcome = { id: string; reminderId: string; taskId: string; type: "notification_delivered" | "notification_failed" | "notification_opened"; attemptedAt?: string; occurredAt: string; route: "core_linked" | "unknown"; instanceId?: string };
 export type ReminderAttentionRouteMark = { reminderId: string; attemptedAt: string; route: ReminderAttentionRoute; instanceId?: string };
-export type Reminder = { id: string; taskId: string; title: string; kind: "ready" | "failed" | "due" | "brief"; identity: string; createdAt: string; read: boolean; handled: boolean; snoozedUntil: string | null; nativeSource?: "teacher_created" | "core_g1"; notificationAttemptedAt?: string; notificationDeliveredAt?: string; notificationOpenedAt?: string; notificationFailureAt?: string; notificationFailureCount?: number; notificationRetryAt?: string; attentionRoute?: ReminderAttentionRoute; attentionCarrierInstanceId?: string; withdrawn?: boolean };
+export type Reminder = { id: string; taskId: string; title: string; kind: "ready" | "failed" | "due" | "brief"; identity: string; createdAt: string; read: boolean; handled: boolean; snoozedUntil: string | null; nativeSource?: "teacher_created" | "core_g1"; notificationAttemptedAt?: string; notificationSourceFingerprint?: string; notificationDeliveredAt?: string; notificationOpenedAt?: string; notificationFailureAt?: string; notificationFailureCount?: number; notificationRetryAt?: string; attentionRoute?: ReminderAttentionRoute; attentionCarrierInstanceId?: string; withdrawn?: boolean };
 export type ReminderActivityType = "candidate_created" | "candidate_withdrawn" | "notification_claimed" | "notification_delivered" | "notification_released" | "notification_deferred" | "notification_failed" | "notification_opened" | "read" | "handled" | "snoozed";
 export type ReminderActivity = { type: ReminderActivityType; reminderId: string; taskId: string; at: string; latencyMs?: number };
 export type ReminderMetrics = {
@@ -31,6 +31,7 @@ type Store = { version: 1; items: Reminder[]; notifications?: Reminder[]; activi
   attentionOutbox?: ReminderAttentionOutcome[]; attentionOverflow?: Record<string, ReminderAttentionOutcome[]>; attentionScanOffset?: number };
 type ReminderAction = { id: string; type: "read" | "dismiss" | "handled" | "snooze" | "claim_notifications" | "release_notification" | "notification_deferred" | "notification_delivered" | "notification_failed" | "notification_opened" | "mark_attention_routes" | "bind_attention_carrier" | "ack_attention_outcome" | "set_attention_scan_offset"; attemptedAt?: string; taskId?: string; routes?: ReminderAttentionRouteMark[]; outcomeId?: string; instanceId?: string; scanOffset?: number };
 type ReminderStoreResult = Store & { metrics: ReminderMetrics; notificationTransitionApplied: boolean };
+type ReminderStoreOptions = { selectNotifications?: (items: readonly Reminder[]) => Promise<readonly Reminder[]>; sourceFingerprint?: (item: Reminder) => string };
 const MAX_ACTIVITY = 2000;
 const MAX_ATTENTION_OUTBOX = 256;
 // A reminder can fail three native attempts, then be opened; five slots leave
@@ -104,7 +105,7 @@ function metrics(state: Store): ReminderMetrics {
   };
 }
 
-export async function updateReminderStore(file: string, snapshot: Record<string, ReminderEvent>, action?: ReminderAction, now = Date.now()): Promise<ReminderStoreResult> {
+export async function updateReminderStore(file: string, snapshot: Record<string, ReminderEvent>, action?: ReminderAction, now = Date.now(), options: ReminderStoreOptions = {}): Promise<ReminderStoreResult> {
   await mkdir(dirname(file), { recursive: true });
   const release = await lockfile.lock(dirname(file), { lockfilePath: `${file}.lock`, retries: 5 });
   const temporary = `${file}.${randomUUID()}.tmp`;
@@ -189,6 +190,7 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
         if (action.type === "release_notification" && action.attemptedAt === item.notificationAttemptedAt
           && !item.notificationDeliveredAt && !item.notificationOpenedAt) {
           delete item.notificationAttemptedAt;
+          delete item.notificationSourceFingerprint;
           addActivity(state, { type: "notification_released", reminderId: item.id, taskId: item.taskId, at });
         }
         if (action.type === "notification_deferred" && action.attemptedAt === item.notificationAttemptedAt && item.notificationAttemptedAt
@@ -231,9 +233,16 @@ export async function updateReminderStore(file: string, snapshot: Record<string,
       }
     }
     for (const item of state.items) if (item.snoozedUntil && Date.parse(item.snoozedUntil) <= now) { item.snoozedUntil = null; if (!item.handled) { item.read = false; delete item.notificationAttemptedAt; } }
-    const notifications = action?.type === "claim_notifications" ? state.items.filter(item => !item.withdrawn && !item.handled && !item.read && !item.snoozedUntil && !item.notificationAttemptedAt && (item.notificationFailureCount ?? 0) < MAX_NOTIFICATION_FAILURES && (!item.notificationRetryAt || Date.parse(item.notificationRetryAt) <= now)).slice(0, MAX_NATIVE_CLAIMS_PER_POLL) : [];
+    const eligible = action?.type === "claim_notifications" ? state.items.filter(item => !item.withdrawn && !item.handled && !item.read && !item.snoozedUntil && !item.notificationAttemptedAt && (item.notificationFailureCount ?? 0) < MAX_NOTIFICATION_FAILURES && (!item.notificationRetryAt || Date.parse(item.notificationRetryAt) <= now)) : [];
+    // The server selector runs under this lock, after source reconciliation.
+    // Expiry affects touch eligibility, never the raw reminder/history state.
+    const selected = eligible.length && options.selectNotifications ? await options.selectNotifications(eligible) : eligible;
+    const selectedIds = new Set(selected.map(item => item.id));
+    const notifications = eligible.filter(item => selectedIds.has(item.id)).slice(0, MAX_NATIVE_CLAIMS_PER_POLL);
     for (const item of notifications) {
       item.notificationAttemptedAt = new Date(now).toISOString();
+      if (options.sourceFingerprint) item.notificationSourceFingerprint = options.sourceFingerprint(item);
+      else delete item.notificationSourceFingerprint;
       delete item.notificationDeliveredAt;
       addActivity(state, { type: "notification_claimed", reminderId: item.id, taskId: item.taskId, at: item.notificationAttemptedAt });
     }

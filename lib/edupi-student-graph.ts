@@ -25,6 +25,12 @@ export type StudentGraphEdge = {
   from: string;
   to: string;
   recordId: string;
+  tone?: "supportive" | "tense" | "unknown";
+};
+
+export type StudentGraphModel = {
+  nodes: StudentGraphNode[]; edges: StudentGraphEdge[]; records: Array<{ id: string; summary: string }>;
+  omittedRecordCount: number; participantLimitReached: boolean;
 };
 
 function participants(record: StudentEvent): Array<{ id: string; label: string }> {

@@ -320,11 +320,12 @@ export function taskAgentSteps(task: TeacherTask): AgentStep[] {
         ? "active"
         : "queued";
   const reviewed = task.status !== "planned" || task.boardStage === "done";
+  // Checklist states describe projected records, not model execution phases.
   return [
-    { id: "read", title: "读取原始材料", detail: "来源记录已绑定", material: source, state: evidenceReady ? "done" : "active" },
-    { id: "evidence", title: "整理证据", detail: evidenceReady ? "引用与边界已记录" : "等待来源核对", material: source, state: evidenceReady ? "done" : "queued" },
-    { id: "artifact", title: "形成教学候选", detail: generationFailed ? "准备失败，可继续让 EduPi 做" : artifactReady ? `${task.deliverables.length} 项候选产物` : artifactInProgress ? "EduPi 正在准备候选" : "尚未形成候选", material: source, state: artifactState },
-    { id: "review", title: reviewed ? "教师审核" : "等待教师审核", detail: reviewed ? taskStatusLabel(task) : "需要教师判断", material: "教师审核", state: reviewed ? "done" : artifactReady ? "active" : "queued" },
+    { id: "read", title: "来源记录", detail: evidenceReady ? "来源已绑定" : "待补充来源", material: source, state: evidenceReady ? "done" : "active" },
+    { id: "evidence", title: "任务依据", detail: evidenceReady ? "依据字段已记录" : "待补充依据", material: source, state: evidenceReady ? "done" : "queued" },
+    { id: "artifact", title: "候选产物", detail: generationFailed ? "准备失败，可继续让 EduPi 做" : artifactReady ? "候选状态已记录" : contentStatus === "正在准备" ? "正在准备候选" : "尚未形成候选", material: source, state: artifactState },
+    { id: "review", title: "教师审核", detail: reviewed ? taskStatusLabel(task) : "需要教师判断", material: "教师审核", state: reviewed ? "done" : artifactReady ? "active" : "queued" },
   ];
 }
 

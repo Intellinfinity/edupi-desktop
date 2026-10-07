@@ -22,7 +22,40 @@ use std::{
         Mutex, OnceLock,
     },
 };
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager, Url};
+
+struct ValidationServer {
+    port: u16,
+    instance_id: String,
+}
+
+pub(crate) fn bind_validation_server(
+    app: &AppHandle,
+    url: &Url,
+    instance_id: &str,
+) -> Result<(), String> {
+    if url.scheme() != "http"
+        || url.host_str() != Some("127.0.0.1")
+        || url.port().is_none_or(|port| port == 0)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || instance_id.len() != 64
+        || !instance_id
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("notification_validation_unavailable".into());
+    }
+    if !app.manage(ValidationServer {
+        port: url.port().unwrap(),
+        instance_id: instance_id.to_string(),
+    }) {
+        return Err("notification_validation_unavailable".into());
+    }
+    Ok(())
+}
 
 const MAX_PENDING_NOTIFICATION_TARGETS: usize = 128;
 static NOTIFICATION_TARGETS: OnceLock<Mutex<VecDeque<(String, Option<Target>)>>> = OnceLock::new();
@@ -359,6 +392,58 @@ fn valid(request: &ReminderNotification) -> bool {
         && request.target.as_ref().map_or(true, valid_target)
 }
 
+fn diagnostic(request: &ReminderNotification) -> bool {
+    request.title == "EduPi"
+        && request.body == "点击后打开提醒"
+        && request.target.is_none()
+        && request.claims.len() == 1
+        && request.claims[0].id == "notification-test"
+        && request.claims[0].attempted_at.contains('T')
+}
+
+fn current_notification_proof(
+    app: &AppHandle,
+    request: &ReminderNotification,
+) -> Result<(), String> {
+    if diagnostic(request) {
+        return Ok(());
+    }
+    if request.claims.len() > 16 {
+        return Err("notification_validation_unavailable".into());
+    }
+    let server = app
+        .try_state::<ValidationServer>()
+        .ok_or("notification_validation_unavailable")?;
+    let token = app
+        .try_state::<super::DesktopApiToken>()
+        .ok_or("notification_validation_unavailable")?;
+    let nonce = super::generate_random_hex().map_err(|_| "notification_validation_unavailable")?;
+    let body = serde_json::to_vec(
+        &serde_json::json!({ "version": 1, "nonce": nonce, "claims": request.claims }),
+    )
+    .map_err(|_| "notification_validation_unavailable")?;
+    match super::reminder_notification_gate::validate(
+        server.port,
+        &token.0,
+        &server.instance_id,
+        &nonce,
+        &body,
+    ) {
+        super::reminder_notification_gate::ProofResult::Current => Ok(()),
+        super::reminder_notification_gate::ProofResult::Changed => Err("notification_stale".into()),
+        super::reminder_notification_gate::ProofResult::Unavailable => {
+            Err("notification_validation_unavailable".into())
+        }
+    }
+}
+
+fn cancelled(error: &str) -> bool {
+    matches!(
+        error,
+        "notification_stale" | "notification_validation_unavailable"
+    )
+}
+
 fn activate(app: &AppHandle, target: &Option<Target>) {
     super::show_main_window(app);
     // The WebView may not have installed its listener yet when a notification
@@ -514,10 +599,13 @@ pub fn send_reminder_notification(
 
     #[cfg(target_os = "macos")]
     {
-        let result = deliver(&app, &request);
+        let result =
+            current_notification_proof(&app, &request).and_then(|_| deliver(&app, &request));
         drop(waiting);
         if let Err(error) = result {
-            let _ = app.emit("edupi://reminder-failed", &request.claims);
+            if !cancelled(&error) {
+                let _ = app.emit("edupi://reminder-failed", &request.claims);
+            }
             return Err(error);
         }
         return Ok(());
@@ -530,8 +618,9 @@ pub fn send_reminder_notification(
             .name("edupi-notification".into())
             .spawn(move || {
                 let _waiting = waiting;
-                let result = deliver(&app, &request);
-                if result.is_err() {
+                let result = current_notification_proof(&app, &request)
+                    .and_then(|_| deliver(&app, &request));
+                if result.as_ref().is_err_and(|error| !cancelled(error)) {
                     let _ = app.emit("edupi://reminder-failed", &request.claims);
                 }
                 let _ = sender.send(result);
@@ -544,22 +633,58 @@ pub fn send_reminder_notification(
 
     #[cfg(target_os = "linux")]
     {
+        let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::Builder::new()
             .name("edupi-notification".into())
             .spawn(move || {
                 let _waiting = waiting;
+                if let Err(error) = current_notification_proof(&app, &request) {
+                    let _ = sender.send(Err(error));
+                    return;
+                }
+                // A source veto is returned before acknowledgement. The existing
+                // action listener may then wait independently without blocking JS.
+                let _ = sender.send(Ok(()));
                 if deliver(&app, &request).is_err() {
                     let _ = app.emit("edupi://reminder-failed", &request.claims);
                 }
             })
             .map_err(|_| "notification_failed".to_string())?;
-        Ok(())
+        receiver
+            .recv_timeout(std::time::Duration::from_secs(3))
+            .map_err(|_| "notification_validation_unavailable".to_string())?
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_test_id_cannot_bypass_the_business_gate_with_arbitrary_content_or_a_task_target() {
+        let mut request = ReminderNotification {
+            title: "EduPi".into(),
+            body: "点击后打开提醒".into(),
+            target: None,
+            claims: vec![Claim {
+                id: "notification-test".into(),
+                attempted_at: "2026-10-08T00:00:00Z".into(),
+            }],
+        };
+        assert!(diagnostic(&request));
+        request.body = "旧事务不能借test ID触达".into();
+        assert!(!diagnostic(&request));
+        request.body = "点击后打开提醒".into();
+        request.target = Some(Target {
+            reminder_id: "notification-test".into(),
+            task_id: "old-task".into(),
+            kind: "due".into(),
+        });
+        assert!(!diagnostic(&request));
+        assert!(cancelled("notification_stale"));
+        assert!(cancelled("notification_validation_unavailable"));
+        assert!(!cancelled("notification_failed"));
+    }
 
     #[cfg(target_os = "macos")]
     #[test]

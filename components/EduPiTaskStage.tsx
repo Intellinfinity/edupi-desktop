@@ -11,6 +11,7 @@ import {
   type TaskStage,
 } from "@/lib/edupi-workbench";
 import { EduPiTaskPreparationAction } from "./EduPiTaskPreparationAction";
+import { EduPiPreparationExecution } from "./EduPiPreparationExecution";
 import type { GeneratedArtifact } from "@/lib/edupi-generated-artifacts";
 import { EduPiTaskFeedback } from "./EduPiTaskFeedback";
 import { todayWorkErrorMessage } from "@/lib/edupi-today-work";
@@ -62,7 +63,7 @@ function RunStage({ task, agentSession, busy, error, onOpenAgent, canPrepare, on
       : agentSession?.status === "missing"
         ? { title: "协作记录需要恢复", action: "恢复协作", tone: "missing" }
         : { title: "尚未建立协作会话", action: "开始协作", tone: "unbound" };
-  return <div className="edupi-stage-run"><div className={`edupi-agent-session is-${runtime.tone}`}><span className="edupi-agent-session__dot" aria-hidden="true" /><div><strong>{runtime.title}</strong></div><button type="button" disabled={busy} onClick={onOpenAgent}>{busy ? "正在准备" : runtime.action}</button></div>{canPrepare && task.id ? <EduPiTaskPreparationAction taskId={task.id} onReady={() => onStage("artifact")} /> : null}{error ? <div className="edupi-agent-session__error" role="alert">{error}</div> : null}<div className="edupi-stage-toolbar"><span>教学工作流</span></div><ol>{steps.map((step) => <li key={step.id} className={`is-${step.state}`}><span className="edupi-run-step__state">{step.state === "done" ? "✓" : step.state === "active" ? "●" : "○"}</span><div><strong>{step.title}</strong><p>{step.detail}</p><small>材料：{step.material}</small></div><em>{step.state === "done" ? "已完成" : step.state === "active" ? "当前步骤" : "待执行"}</em></li>)}</ol></div>;
+  return <div className="edupi-stage-run"><div className={`edupi-agent-session is-${runtime.tone}`}><span className="edupi-agent-session__dot" aria-hidden="true" /><div><strong>{runtime.title}</strong></div><button type="button" disabled={busy} onClick={onOpenAgent}>{busy ? "正在准备" : runtime.action}</button></div>{canPrepare && task.id ? <><EduPiTaskPreparationAction taskId={task.id} onReady={() => onStage("artifact")} /><EduPiPreparationExecution taskId={task.id} revision={task.revision} onUpdated={() => window.dispatchEvent(new Event("edupi-preparation-updated"))} /></> : null}{error ? <div className="edupi-agent-session__error" role="alert">{error}</div> : null}<div className="edupi-stage-toolbar"><span>准备清单</span></div><ol>{steps.map((step) => <li key={step.id} className={`is-${step.state}`}><span className="edupi-run-step__state">{step.state === "done" ? "✓" : step.state === "active" ? "●" : "○"}</span><div><strong>{step.title}</strong><p>{step.detail}</p><small>材料：{step.material}</small></div><em>{step.state === "done" ? "已记录" : step.state === "active" ? "待处理" : "待补充"}</em></li>)}</ol></div>;
 }
 
 function EvidenceStage({ task, workspace, onOpenFile }: { task: TeacherTask; workspace: string; onOpenFile: (path: string) => void }) {

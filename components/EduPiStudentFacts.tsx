@@ -27,7 +27,7 @@ export function EduPiStudentFacts({ factSpine, studentId, reviewer, onEducation 
   const entityId = factEntityIdForRosterStudent(factSpine, studentId);
   const view = factSpine.studentViews.find(item => item.studentId === entityId);
   const facts = new Map([...factSpine.acceptedFacts, ...factSpine.factCandidates].map(item => [item.id, item]));
-  const rows = [...(view?.acceptedFactIds || []), ...(view?.pendingFactIds || [])].flatMap(id => facts.get(id) || []).filter(fact => fact.entityId === entityId);
+  const rows = [...(view?.acceptedFactIds || []), ...(view?.pendingFactIds || [])].flatMap(id => facts.get(id) || []).filter(fact => fact.entityId === entityId && !fact.predicate.startsWith("family_interaction_v1."));
   const observations = new Map(factSpine.observations.map(item => [item.id, item]));
   return <details className="edupi-student-core-facts" open>
     <summary>学习事实 <span>{rows.length}</span></summary>

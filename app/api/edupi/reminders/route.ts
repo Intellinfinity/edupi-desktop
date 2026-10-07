@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
 import { readEducationWorkspaceBundle } from "@/lib/edupi-education-server";
-import { reminderEvents } from "@/lib/edupi-reminder-events";
+import { reminderEvents, selectForegroundReminders } from "@/lib/edupi-reminder-events";
+import { readServerForegroundPolicy } from "@/lib/edupi-foreground-server";
+import { reminderNotificationSourceFingerprint } from "@/lib/edupi-reminder-notification-proof";
 import { pendingReminderAttentionOutcomes, updateReminderStore } from "@/lib/edupi-reminder-store";
 import { revalidateG1LocalClaims, syncReminderAttention } from "@/lib/edupi-attention-delivery";
 import { nativeAttentionRoute, persistNativeAttentionRouteMarks, reconcileReminderAttentionOutboxWithin } from "@/lib/edupi-attention-outbox";
@@ -13,6 +15,7 @@ import { validReminderAction, type ReminderAction } from "@/lib/edupi-reminder-a
 export const dynamic = "force-dynamic";
 async function result(action?: ReminderAction) {
   let { data } = await readEducationWorkspaceBundle();
+  let foregroundPolicyStatus: "current" | "unavailable" = "current";
   const file = path.join(data.workspace, ".edupi", "desktop", "reminders.json");
   let events = reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents, data.workCases, data.generatedArtifacts);
   let state = await updateReminderStore(file, events, action?.type === "claim_notifications" ? undefined : action);
@@ -25,7 +28,10 @@ async function result(action?: ReminderAction) {
     if (refreshed.workspace !== data.workspace) throw new Error("提醒工作区已变化");
     data = refreshed;
     events = reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents, data.workCases, data.generatedArtifacts);
-    state = await updateReminderStore(file, events, action);
+    state = await updateReminderStore(file, events, action, Date.now(), { selectNotifications: async items => {
+      try { return selectForegroundReminders(items, data, await readServerForegroundPolicy()); }
+      catch { foregroundPolicyStatus = "unavailable"; return []; }
+    }, sourceFingerprint: item => reminderNotificationSourceFingerprint(item, data) });
   }
   const claimed = action?.type === "claim_notifications" ? state.notifications || [] : [];
   const blockedIds = new Set([...recovery.pendingIds, ...pendingReminderAttentionOutcomes(state).map((item) => item.reminderId)]);
@@ -70,7 +76,32 @@ async function result(action?: ReminderAction) {
   for (const item of claimed) {
     if (!allowed.has(item.id) && !markDeferredIds.has(item.id)) state = await updateReminderStore(file, events, { id: item.id, type: "notification_deferred", attemptedAt: item.notificationAttemptedAt });
   }
-  return NextResponse.json({ items: state.items, notifications, nativeNotificationIds: notifications.map((item) => item.id), metrics: state.metrics, attention, workspace: data.workspace, taskSessions: data.taskSessions });
+  if (notifications.length) {
+    const proposed = notifications;
+    // Core attention may finish after a preference/source change or midnight.
+    // Re-read at this last response boundary; never send an old async result.
+    try {
+      const current = (await readEducationWorkspaceBundle()).data;
+      if (current.workspace !== data.workspace) throw new Error("提醒工作区已变化");
+      const policy = await readServerForegroundPolicy();
+      const currentEvents = reminderEvents(current.tasks, current.workspace, new Date(), current.continuity.documents, current.workCases, current.generatedArtifacts);
+      const sourceEvents = Object.values(currentEvents);
+      notifications = selectForegroundReminders(proposed, current, policy).filter(item => item.notificationSourceFingerprint === reminderNotificationSourceFingerprint(item, current)
+        && sourceEvents.some(event => event.taskId === item.taskId && event.identity === item.identity && event.completion === item.kind));
+      data = current;
+      events = currentEvents;
+    } catch {
+      foregroundPolicyStatus = "unavailable";
+      notifications = [];
+    }
+    const currentIds = new Set(notifications.map(item => item.id));
+    for (const item of proposed) if (!currentIds.has(item.id)) {
+      // A display-policy veto is not failure, acknowledgement, or expiry of
+      // the underlying transaction. Release only this exact unsent attempt.
+      state = await updateReminderStore(file, events, { id: item.id, type: "release_notification", attemptedAt: item.notificationAttemptedAt });
+    }
+  }
+  return NextResponse.json({ items: state.items, notifications, nativeNotificationIds: notifications.map((item) => item.id), metrics: state.metrics, attention, ...(action?.type === "claim_notifications" ? { foregroundPolicyStatus } : {}), workspace: data.workspace, taskSessions: data.taskSessions });
 }
 export async function GET() {
   try { return await result(); } catch { return NextResponse.json({ error: "提醒暂不可用" }, { status: 503 }); }

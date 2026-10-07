@@ -7,7 +7,7 @@ export type KernelRunDisplayInput = {
   result_summary?: string | null;
   error_code?: string | null;
   error_message?: string | null;
-  attempt_count?: number;
+  attempt_count?: number | null;
 };
 
 export type KernelRunAction = {
@@ -30,7 +30,11 @@ export function kernelRunTitle(run: KernelRunDisplayInput, tasks: readonly { id:
 
 export function kernelRunDetail(run: KernelRunDisplayInput): string {
   if (run.error_code) return preparationIssueDetail(run.error_code) || "运行失败";
-  return run.result_summary || `第 ${run.attempt_count || 1} 次执行`;
+  if (run.result_summary) return run.result_summary;
+  const attempt = run.attempt_count;
+  return typeof attempt === "number" && Number.isSafeInteger(attempt) && attempt >= 0
+    ? attempt === 0 ? "尚未执行" : `第 ${attempt} 次执行`
+    : "执行次数未知";
 }
 
 export function kernelRunAction(run: KernelRunDisplayInput): KernelRunAction | null {

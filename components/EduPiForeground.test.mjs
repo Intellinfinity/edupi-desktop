@@ -159,6 +159,17 @@ test("review board applies transaction expiry without expiring stored teacher ob
   assert.match(full, /← 待我确认/);
 });
 
+test("review task preview uses the shared nearest-date ordering before limiting ten rows", () => {
+  const data = buildEducationContract({ tasks: [
+    { id: "future", title: "合成远期审核", trigger_date: "2026-10-07", due_date: "2026-12-01", status: "planned", content_status: "draft_ready", deliverables: ["合成草稿"], evidence: {} },
+    { id: "past", title: "合成三日前审核", due_date: "2026-10-04", status: "planned", content_status: "draft_ready", deliverables: ["合成草稿"], evidence: {} },
+    { id: "today", title: "合成今日审核", due_date: "2026-10-07", status: "planned", content_status: "draft_ready", deliverables: ["合成草稿"], evidence: {} },
+  ] });
+  const html = render(React.createElement(EduPiReviewBoard, { data, query: "", reviewer: "synthetic", onTask() {}, onReviewTarget() {}, ...callbacks }));
+  assert.ok(html.indexOf("合成今日审核") < html.indexOf("合成三日前审核"));
+  assert.ok(html.indexOf("合成三日前审核") < html.indexOf("合成远期审核"));
+});
+
 test("calendar source lists can browse all future facts and explicitly recover old facts", () => {
   const data = buildEducationContract({ calendar: Array.from({ length: 13 }, (_, index) => ({ id: `future-${index}`, name: `未来源事项 ${index}`, date: `2099-01-${String(index + 1).padStart(2, "0")}`, source: "teacher", confidence: "teacher_confirmed" })) });
   data.calendar.push({ ...data.calendar[0], id: "old-source", name: "可找回旧源事项", date: "2026-09-01", endDate: null });
@@ -170,4 +181,24 @@ test("calendar source lists can browse all future facts and explicitly recover o
   const history = render(React.createElement(EduPiCalendarWorkspace, { ...props, selectedObjectId: "calendar:history" }));
   assert.match(history, /可找回旧源事项/);
   assert.match(history, /校历历史/);
+});
+
+test("today upcoming and generic calendar lists include cross-month facts with complete ten-row pagination", () => {
+  const data = buildEducationContract({ calendar: Array.from({ length: 13 }, (_, index) => ({ id: `cross-month-${index}`, name: `合成跨月安排 ${index}`, date: `2099-02-${String(index + 1).padStart(2, "0")}`, source: "teacher", confidence: "teacher_confirmed" })) });
+  data.calendar.push({ ...data.calendar[0], id: "unknown", name: "合成日期未知", date: null, endDate: null });
+  data.calendar.push({ ...data.calendar[0], id: "old", name: "合成过期安排", date: "2026-09-01", endDate: null });
+  const props = { data, query: "", intakeBusy: false, selection: null, onSelect() {}, onImportCalendar() {}, onImportTimetable() {}, onDeleteEntity() {}, ...callbacks };
+  const upcoming = render(React.createElement(EduPiCalendarWorkspace, { ...props, selectedObjectId: "calendar:list:upcoming" }));
+  assert.match(upcoming, /14 项 · 1 \/ 2 页/);
+  assert.doesNotMatch(upcoming, /合成过期安排|日程视图|上一时段/);
+  const queried = render(React.createElement(EduPiCalendarWorkspace, { ...props, query: "合成日期未知", selectedObjectId: "calendar:list:upcoming" }));
+  assert.match(queried, /合成日期未知/);
+  assert.match(queried, /日期待确认/);
+  const crossMonthQuery = render(React.createElement(EduPiCalendarWorkspace, { ...props, query: "合成跨月安排 12", selectedObjectId: "calendar:list:upcoming" }));
+  assert.match(crossMonthQuery, /合成跨月安排 12/);
+  assert.doesNotMatch(crossMonthQuery, /没有匹配项/);
+  const complete = render(React.createElement(EduPiCalendarWorkspace, { ...props, selectedObjectId: "calendar:list" }));
+  assert.match(complete, /13 项 · 1 \/ 2 页/);
+  assert.match(complete, /合成跨月安排 0/);
+  assert.doesNotMatch(complete, /合成过期安排|上一时段/);
 });

@@ -21,6 +21,25 @@ export function readForegroundSettings() {
   return normalizeForegroundSettings({ graceDays: raw === null ? undefined : Number(raw), pinnedTaskIds: getPrefJson(APP_PREF_KEYS.edupiPinnedTaskIds), dismissedStaleTaskIds: getPrefJson(APP_PREF_KEYS.edupiDismissedStaleTaskIds) });
 }
 
+function notificationPolicy(settings: ReturnType<typeof normalizeForegroundSettings>): string {
+  return JSON.stringify({ graceDays: settings.graceDays, pinnedTaskIds: settings.pinnedTaskIds });
+}
+
+/** The server reads the native file, so a pending or failed save cannot authorize an OS reminder. */
+export async function foregroundNotificationPolicyMatchesNative(loader?: () => Promise<unknown>): Promise<boolean> {
+  if (!loader && !isTauriDesktop()) return true;
+  const before = notificationPolicy(readForegroundSettings());
+  const unavailable = Symbol("foreground-policy-unavailable");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const read = loader ?? (async () => (await import("./desktop-native")).getForegroundSettingsNative());
+    const saved = await Promise.race([read(), new Promise<typeof unavailable>(resolve => { timer = setTimeout(() => resolve(unavailable), 2_000); })]);
+    if (saved === unavailable) return false;
+    return before === notificationPolicy(readForegroundSettings()) && before === notificationPolicy(normalizeForegroundSettings(saved));
+  } catch { return false; }
+  finally { clearTimeout(timer); }
+}
+
 function applyForegroundSettings(settings: ReturnType<typeof normalizeForegroundSettings>): void {
   setPref(APP_PREF_KEYS.edupiForegroundGraceDays, String(settings.graceDays));
   setPrefJson(APP_PREF_KEYS.edupiPinnedTaskIds, settings.pinnedTaskIds);

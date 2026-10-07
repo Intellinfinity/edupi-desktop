@@ -11,6 +11,13 @@ import { readEduPiProactivityActivation, type EduPiProactivityActivation } from 
 import { canStartEduPiProactivity, canStartEduPiStudentFollowup, coreRuntimeCanaryEnvironment } from "./safe-mode";
 
 export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callOwnerControl(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
+export function eduPiBridgeRequestBudget(request: unknown): { processingMs: number; transportMs: number } {
+  const frame = request && typeof request === "object" && !Array.isArray(request) ? request as Record<string, unknown> : null;
+  const envelope = frame?.envelope && typeof frame.envelope === "object" ? frame.envelope as Record<string, unknown> : null;
+  const command = envelope?.command && typeof envelope.command === "object" ? envelope.command as Record<string, unknown> : null;
+  const intake = frame?.operation === "command" && command?.command_type === "intake_material";
+  return intake ? { processingMs: 26_000, transportMs: 27_000 } : { processingMs: 15_000, transportMs: 15_000 };
+}
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
 const shared = globalThis as typeof globalThis & {
   __edupiRuntimeSupervisors?: Map<string, Entry>;
@@ -147,6 +154,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   entry.kill = () => { child.kill("SIGKILL"); };
   const modelHost = attachRuntimeModelHost(child, createRuntimeModelHost({ coreRoot: runtime.root, projectRoot: dataRoot.root }));
   let exited = false, stopping = false;
+  let hasMaterialCompletion = false;
   const requests = new Set<AbortController>();
   const exit = new Promise<void>(resolve => child.once("close", () => { exited = true; for (const controller of requests) controller.abort(); if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); resolve(); }));
   let closing: Promise<void> | undefined;
@@ -155,7 +163,10 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
     stopping = true;
     for (const controller of requests) controller.abort();
     closing = (async () => {
-      const timer = setTimeout(() => child.kill("SIGKILL"), 5000);
+      // A caller timeout/cancel does not reap Core's FIFO-delayed extraction.
+      // Core closes its admission and owns actual completion; allow the full
+      // bounded completion window from shutdown, not the caller's start.
+      const timer = setTimeout(() => child.kill("SIGKILL"), hasMaterialCompletion ? 27_000 : 5000);
       try {
         if (!exited) { if (child.connected) child.send({ type: "runtime-stop" }, () => {}); else child.kill("SIGTERM"); }
         await Promise.all([exit, modelHost.close()]);
@@ -196,7 +207,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
       } }, error => { if (error) failed(); });
     });
   } catch (error) { await close(); throw unavailable(startupFailureCode(error)); }
-  const callRuntime = async (operation: string, payload: unknown, signal?: AbortSignal, ownerControl = false) => {
+  const callRuntime = async (operation: string, payload: unknown, signal?: AbortSignal, ownerControl = false, timeoutMs = 15_000) => {
     if (ownerControl && !ownerControlToken) throw unavailable("owner_control_credential_unavailable");
     if (exited || stopping) throw unavailable();
     const request = { protocol: protocol.CORE_RUNTIME_PROTOCOL, protocol_version: protocol.CORE_RUNTIME_PROTOCOL_VERSION, schema_hash: protocol.CORE_RUNTIME_SCHEMA_HASH, request_id: randomUUID(), operation, payload };
@@ -206,7 +217,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
     const controller = new AbortController(); requests.add(controller);
     const cancel = () => controller.abort(); signal?.addEventListener("abort", cancel, { once: true });
     if (signal?.aborted) controller.abort();
-    const timer = setTimeout(cancel, 30000);
+    const timer = setTimeout(cancel, timeoutMs);
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
       if (ownerControlToken && ownerControl) headers["x-edupi-owner-control"] = ownerControlToken;
@@ -225,7 +236,9 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
     async callBridge(this: EduPiRuntimeHandle, request: unknown, signal?: AbortSignal) {
       const kind = protocol.classifyCoreRuntimeBridgeRequest(request);
       if (kind !== "read" && kind !== "call") throw Object.assign(new Error("Invalid runtime bridge request."), { code: "invalid_request" });
-      return callRuntime(kind === "read" ? "bridge_read" : "bridge_call", { bridge_frame: JSON.stringify(request) }, signal, false);
+      const budget = eduPiBridgeRequestBudget(request);
+      if (budget.processingMs === 26_000 && !signal?.aborted) hasMaterialCompletion = true;
+      return callRuntime(kind === "read" ? "bridge_read" : "bridge_call", { bridge_frame: JSON.stringify(request) }, signal, false, budget.transportMs);
     },
     call: (operation, payload, signal) => callRuntime(operation, payload, signal, false),
     callOwnerControl: (operation, payload, signal) => callRuntime(operation, payload, signal, true),

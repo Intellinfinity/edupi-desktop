@@ -1,12 +1,25 @@
 # Pi 1 与暂缓草稿风险验收
 
-最新源码状态：P0–P2前台修复已由Desktop #315合入；随后配对到Core main #231 `93a1aea005eb630b66faa5f8e97dc20c09b45d58`，Pi/PiDurable1.0.2。消息、日程写入、历史分页、资源引用和大图来源有本机隔离生产源码页面证据，默认数学Durable有真实私有桌面宿主证据。Core假期后台修复仍在独立PR验证，不计已消费；家庭人物/G5身份和真实阶段/子任务合同缺口保留。公开Release/feed仍`.56`，其Core仍`a84590c`，新源码未打包或安装；真实睡眠、真人质量、六领域Live及其他平台安装继续后置。
+最新源码状态：P0–P2前台修复已由Desktop #315合入；#316交付Core #231后，继续消费main #232 `9ad355687ca607180c0edc3f88bf7924914d262b`的新Runtime schema与上传提案，Pi/PiDurable1.0.2。Core假期后台#233已过最新组合CI，仍待人工审阅合入，不计已消费；家庭人物/G5身份和真实阶段/子任务合同缺口保留。公开Release/feed仍`.56`，其Core仍`a84590c`，本轮源码未打包或安装；真实睡眠、真人质量、六领域Live及其他平台安装继续后置。
+
+## 2026-10-08 Core #232 提案消费
+
+- 原分支不变，精确pin/schema/双component一起更新：main `9ad3556`、schema `cab40698…`、Core component `c35d8497…`、Desktop component `31c483ce…`；23项合同/根/闭包检查通过，9项跳过不计通过。最终全量2153pass、9skipped、0fail，lint通过，audit无high/critical、余6low/3moderate。首次tsc与生成类型的源码build并行导致TS6053，build完成后重查通过，未改tsconfig掩盖错误。
+- 新`material_schedule_proposal`独立保留，Bridge receipt不修改。仅intake处理26秒/HTTP27秒，其他调用15秒、不重发；发生intake的host关闭从close时刻给完整回收窗口。真实FIFO/reader负例关闭竞态、迟到采用跨代、same-source transient receipt被新metadata读回误拒三项均已独立红→绿复核，原回执与文件保留，17个拒绝负例未放宽。
+- 新材料默认只接入文件；展开或重进从当前snapshot/source hash/metadata revision调用Core read，确认采用前服务器重新读并校验fingerprint/CAS。初次提案、解析ready和文件accepted不作为采用、Fact、Goal或任务完成；PDF不因本地研究工具而放行。旧显式来源更新入口保留。
+- 实际CUA在唯一合成生产源码页上传ICS、取消、重新确认接入、打开详情、硬刷新找回和展开授权失败，文件321字节/SHA回读一致，canonical mutation accepted，新增日程0。非Tauri时header提供者本地拒绝，不假称浏览器发出了授权HTTP；另无token HTTP探针返回403。初始泛化“请重试”已修，最终页明确“请在桌面应用中核对安排”，采用按钮禁用。截图`core232-material-native-boundary-final.png`与`core232-material-ui-evidence.json`保留。
+- 精确9ad实际隔离宿主另证上传直接提案、当前来源重读、同源replay/metadata更新超越、真正重启后物理改源拒绝及原回执保留。此证据不代替原生授权UI。初次提案展示与确认采用、DOCX/PDF安装UI、真正TCC/升级继续按用户约定后置；没有伪造native token或启用Live/外发。
+- Core #233在等待审阅时因main #232更新而清单冲突，正常合入并重算为`98919418d2379c1164bcd0bed4ccc3fb3f1a40e2`，其[CI37629587781](https://github.com/Intellinfinity/edupi/actions/runs/37629587781)完整Test/协议/组件/type/audit和只读native inspector均通过。旧60e9010/CI37624711385保留原身份，不替代新组合；durable stress为SKIPPED。按Core人审门仍未合#233，Desktop pin没有消费它。
 
 ## 2026-10-07 Core #231 跟进
 
 - 取代“当前pin为#230”的对应状态：只读main快照已快进到`93a1aea`，更新compat pin、严格TypeScript身份和配对断言，保留原Desktop分支与改动。#231新增本地PDF可见文字诊断研究工具，未注册公开Runtime命令、未进入生产组件，资产许可与生产采用门没有解除。
 - Runtime schema `ba67351c…`、Core component `2e1f46df…`、Desktop component `852b9b1d…`均与#230相同；Bridge v1.1、课次v1.2、12命令和SDK1.0.2不变。按实际闭包核对后运行带精确Core根的全量：2130pass、9skipped、0fail；`tsc --noEmit`通过。日志为`npm-test-core231-final.log`和`typecheck-core231-final.log`。
 - 下方0c2页面和私有host证据仍保留原身份，不改名成93a安装证据；新研究工具不当作上传自动提案或任意PDF验证能力。Core假期补丁另以独立maker-checker PR交接，没有在Desktop pin中消费未合入分支。
+- 配对提交`cbc5c088485a6ef018863b446379c599e71670ba`的[CI37623902199](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37623902199) `audit/rust-audit`均通过；[Desktop #316](https://github.com/Intellinfinity/edupi-desktop/pull/316)于UTC2026-10-07T12:55:58Z合入main `a2c9af91a00fcb784962cce3c40edc333015d799`。此后pin仍仅消费已合main，安装包与feed未改。
+- Core假期修复[独立PR #233](https://github.com/Intellinfinity/edupi/pull/233)已提交，基线#230后正常合入#231，当前源码`60e90103673b18d81257558b24e52f577ce806e5`。普通课跳过已知假期和未映射调休日；旧候选/决定/四份文件保留；坏校历/旧plan失败关闭；删除记录优先于历史补课例外。来源、排队领取、发布前、due/timer/retry/restart和200候选恢复已有隔离Runtime证据，未把前端隐藏计作后台解决。
+- Core原全量先在日期夹具失败，前段pretest通过仍有效；按原主链继续测试并修正四个日期视图与一个缺日期来源的旧正例，所有原断言保留，SDK worker仍使用真实租约时钟。最终远端Core CI另记，尚未通过的状态不计通过。Core仓库没有`lint`脚本，实际运行返回Missing script，类型检查不改名成lint。
+- 本轮生产源码验收服务已正常退出，合成材料、会话和失败日志保留；未退出、更新或启动实际EduPi安装。GitHub任务附件超过100导致PR关联工具失败，PR仍存在，未清理原附件。
 
 ## 2026-10-07 P0–P2 与 Core #230
 

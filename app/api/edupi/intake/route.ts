@@ -3,7 +3,6 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import {
   EducationIntakeError,
   issueEducationIntake,
-  type EducationIntakeCommand,
 } from "@/lib/edupi-education-intake";
 import { listStagedMaterials, settleStagedMaterial, type MaterialStagingDescriptor } from "@/lib/edupi-material-staging";
 import { intakeRecognizedMaterial } from "@/lib/edupi-material-intake-flow";
@@ -125,6 +124,16 @@ export async function POST(request: Request) {
     if (!body || typeof body.kind !== "string") throw new EducationIntakeError("invalid_envelope", "教育导入请求无效。");
     if (body.kind === "material") {
       const material = materialInput(body);
+      if (material.calendarSourceId === null && material.documentSourceId === null) {
+        // Receiving new file bytes is separate from adopting their arrangements.
+        // Core supplies the optional current read-only proposal after intake.
+        const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => intakeRecognizedMaterial({ ...material, recognize: false }));
+        const receipt = result.receipts[0] ?? null;
+        if (receipt && ["accepted", "modified"].includes(String(receipt.status))) settleStagedMaterial(material.descriptor.staging_id, "accepted_receipt");
+        return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition,
+          scheduleNeedsReview: result.scheduleNeedsReview, materialReceivedOnly: true,
+          ...(result.materialScheduleProposal ? { materialScheduleProposal: result.materialScheduleProposal } : {}), staged: listStagedMaterials() });
+      }
       if (material.descriptor.kind === "calendar") {
         const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => syncCalendarFile({
           descriptor: material.descriptor,

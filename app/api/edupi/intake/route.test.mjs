@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createJiti } from "jiti";
+import { createRequire } from "node:module";
+import ts from "typescript";
 
 const { POST } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./route.ts");
 const { parseTimetableIntakeCommand } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/edupi-timetable-intake.ts");
@@ -169,4 +171,71 @@ test("routes PDF and DOCX schedule revisions through a distinct bounded source c
   assert.match(source, /\(\?:document\|calendar\)-source-\[a-f0-9\]\{32\}/);
   assert.match(source, /desktop-file-schedule-\[a-f0-9\]\{24\}/);
   assert.doesNotMatch(source, /deleteDocument|removedDocumentEvent/);
+});
+
+async function materialRouteFixture(kind, proposal, oldSource = false) {
+  const require = createRequire(import.meta.url);
+  const source = await readFile(new URL("./route.ts", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const filename = kind === "calendar" ? "schedule.ics" : kind === "pdf" ? "schedule.pdf" : "schedule.docx";
+  const descriptor = { staging_id: `stg_${"1".repeat(32)}`, original_name: filename,
+    staging_path: `/synthetic/${filename}`, kind,
+    source_hash: `sha256:${"a".repeat(64)}`, expected_size_bytes: 128, source_scope: "desktop_staging" };
+  const receipt = { command_type: "intake_material", status: "accepted", applied_ids: [proposal.material_id] };
+  const calls = [];
+  class EducationIntakeError extends Error { constructor(code, message) { super(message); this.code = code; } }
+  const dependencies = {
+    "@/lib/edupi-education-intake": { EducationIntakeError, issueEducationIntake: async () => { throw new Error("unexpected direct dispatch"); } },
+    "@/lib/edupi-material-staging": { listStagedMaterials: () => [descriptor], settleStagedMaterial: (...args) => calls.push(["settle", ...args]) },
+    "@/lib/edupi-material-intake-flow": { intakeRecognizedMaterial: async input => {
+      calls.push(["intake", input]); assert.equal(input.recognize, false);
+      return { receipts: [receipt], data: {}, materialScheduleProposal: proposal, recognition: { eventCount: 0, slotCount: 0 }, scheduleNeedsReview: false };
+    } },
+    "@/lib/edupi-material-recognition": { MaterialRecognitionError: class extends Error {} },
+    "@/lib/edupi-material-recognition-lock": { MaterialRecognitionAdmissionError: class extends Error {}, withMaterialRecognitionLock: async (_id, work) => work() },
+    "@/lib/request-security": await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/request-security.ts"),
+    "@/lib/bounded-form-data": await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/bounded-form-data.ts"),
+    "@/lib/edupi-timetable-intake": { parseTimetableIntakeCommand },
+    "@/lib/edupi-calendar-intake-request": { parseCalendarIntakeCommand },
+    "@/lib/edupi-calendar-sources": { CalendarSourceError: class extends Error {} },
+    "@/lib/edupi-calendar-file-sync": { syncCalendarFile: async () => {
+      assert.equal(oldSource, true, "new intake must not call the old automatic calendar import");
+      calls.push(["explicit-calendar-update"]); return { receipts: [receipt], committed: true, recognition: { eventCount: 1, slotCount: 0 }, scheduleNeedsReview: false, sourceId: "old-calendar", removedEventIds: [] };
+    } },
+    "@/lib/edupi-document-schedule-sync": { syncDocumentScheduleFile: async () => {
+      assert.equal(oldSource, true, "new intake must not call the old automatic document import");
+      calls.push(["explicit-document-update"]); return { receipts: [receipt], committed: true, recognition: { eventCount: 1, slotCount: 0 }, scheduleNeedsReview: false, sourceId: "old-document" };
+    } },
+  };
+  const routeModule = { exports: {} };
+  new Function("require", "module", "exports", compiled)(name => dependencies[name] || require(name), routeModule, routeModule.exports);
+  return { post: routeModule.exports.POST, descriptor, receipt, calls };
+}
+
+test("initial ICS, DOCX and PDF intake retain the file receipt and separate proposal without automatic import", async () => {
+  for (const kind of ["calendar", "word", "pdf"]) for (const status of ["proposed", "held", "unavailable"]) {
+    const proposal = { status, material_id: "synthetic-material", read_result: status === "unavailable" ? null : { status: status === "proposed" ? "ready" : "unresolved" },
+      reason_code: status === "proposed" ? null : "material_schedule_unresolved", read_only: true, automatic_import: false, external_send: false };
+    const { post, descriptor, receipt, calls } = await materialRouteFixture(kind, proposal);
+    const response = await post(request({ kind: "material", stagingId: descriptor.staging_id, materialKind: "other", recognize: true }));
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.deepEqual(result.receipt, receipt);
+    assert.deepEqual(result.materialScheduleProposal, proposal);
+    assert.equal(result.materialReceivedOnly, true);
+    assert.deepEqual(calls.map(item => item[0]), ["intake", "settle"]);
+    assert.deepEqual(result.recognition, { eventCount: 0, slotCount: 0 });
+  }
+});
+
+test("explicit old calendar and document source updates retain the original sync path", async () => {
+  for (const kind of ["calendar", "word"]) {
+    const { post, descriptor, calls } = await materialRouteFixture(kind, { material_id: "synthetic-material" }, true);
+    const fields = kind === "calendar" ? { calendarSourceId: `calendar-source-${"2".repeat(32)}`, calendarSourceFingerprint: `sha256:${"3".repeat(64)}` }
+      : { documentSourceId: `document-source-${"2".repeat(32)}`, documentSourceFingerprint: `sha256:${"3".repeat(64)}` };
+    const response = await post(request({ kind: "material", stagingId: descriptor.staging_id, materialKind: "other", recognize: true, ...fields }));
+    assert.equal(response.status, 200);
+    assert.equal(calls[0][0], kind === "calendar" ? "explicit-calendar-update" : "explicit-document-update");
+    assert.equal((await response.json()).materialReceivedOnly, undefined);
+  }
 });

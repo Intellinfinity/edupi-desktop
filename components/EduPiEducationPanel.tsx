@@ -66,6 +66,7 @@ import { useModalDismiss } from "@/hooks/useModalDismiss";
 import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 import { hasEveryTrackedTask, refreshUntilTaskVisible } from "@/lib/edupi-task-refresh";
 import { isTerminalPreparationRead, workspaceHasReadyPreparation } from "@/lib/edupi-preparation-status";
+import type { EduPiMaterialScheduleProposal } from "@/lib/edupi-core-process-client";
 
 function RetryWorkspaceIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></svg>;
@@ -112,6 +113,8 @@ type EducationIntakeApiResult = {
   calendarCommitted?: boolean;
   documentCommitted?: boolean;
   removedEventCount?: number;
+  materialReceivedOnly?: boolean;
+  materialScheduleProposal?: EduPiMaterialScheduleProposal;
 };
 
 type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null; retryable?: boolean };
@@ -386,6 +389,11 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     });
     const eventCount = result.recognition?.eventCount || 0;
     const slotCount = result.recognition?.slotCount || 0;
+    if (result.materialReceivedOnly) {
+      const accepted = result.receipt?.status === "accepted" || result.receipt?.status === "modified";
+      setMaterialStagingMessage({ tone: accepted ? "success" : "error", text: `${item.original_name} ${accepted ? "已接入" : "待核对"}` });
+      return result;
+    }
     if (item.kind === "calendar") {
       if (!result.calendarCommitted) {
         setMaterialStagingMessage({ tone: "error", sticky: true, text: `${item.original_name} 的部分变更待核对，请以当前日历显示为准。` });

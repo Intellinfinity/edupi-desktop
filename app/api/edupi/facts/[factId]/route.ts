@@ -17,6 +17,7 @@ function mapError(error: FactLifecycleError) {
   if (error.code === "invalid_fact_request") return errorResponse(error.code, 400, error.message);
   if (error.code === "fact_not_found") return errorResponse(error.code, 404, error.message);
   if (error.code === "stale_fact" || error.code === "fact_conflict" || error.code === "invalid_review") return errorResponse(error.code, 409, error.message);
+  if (["unknown_student_binding", "family_source_unavailable", "invalid_family_reviewer", "invalid_family_identity", "invalid_family_record"].includes(error.code)) return errorResponse(error.code, 409, error.message);
   if (error.code === "invalid_response") return errorResponse(error.code, 502, error.message);
   return errorResponse(error.code, 503, error.message);
 }

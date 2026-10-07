@@ -7,6 +7,7 @@ export type EduPiKernelRun = {
   resultSummary: string | null;
   errorCode: string | null;
   errorMessage: string | null;
+  attemptCount: number | null;
 };
 
 export type EduPiKernelState = {
@@ -27,7 +28,7 @@ export function normalizeKernelState(value: unknown): EduPiKernelState {
   const runs = projection.runs.flatMap((value) => {
     const item = record(value);
     if (!item || typeof item.run_id !== "string" || typeof item.trigger_id !== "string" || typeof item.updated_at !== "string" || typeof item.status !== "string" || !RUN_STATES.has(item.status)) return [];
-    return [{ runId: item.run_id, triggerId: item.trigger_id, fireKey: typeof item.fire_key === "string" ? item.fire_key : null, status: item.status as EduPiKernelRun["status"], updatedAt: item.updated_at, resultSummary: typeof item.result_summary === "string" ? item.result_summary : null, errorCode: typeof item.error_code === "string" ? item.error_code : null, errorMessage: typeof item.error_message === "string" ? item.error_message : null }];
+    return [{ runId: item.run_id, triggerId: item.trigger_id, fireKey: typeof item.fire_key === "string" ? item.fire_key : null, status: item.status as EduPiKernelRun["status"], updatedAt: item.updated_at, resultSummary: typeof item.result_summary === "string" ? item.result_summary : null, errorCode: typeof item.error_code === "string" ? item.error_code : null, errorMessage: typeof item.error_message === "string" ? item.error_message : null, attemptCount: typeof item.attempt_count === "number" && Number.isSafeInteger(item.attempt_count) && item.attempt_count >= 0 ? item.attempt_count : null }];
   });
   const summary = record(projection.summary);
   const running = typeof summary?.running === "number" && Number.isInteger(summary.running) && summary.running >= 0 ? summary.running : runs.filter((run) => run.status === "running" || run.status === "awaiting_delivery").length;

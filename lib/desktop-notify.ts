@@ -1,6 +1,6 @@
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { APP_PREF_KEYS, getPrefBool } from "@/lib/app-prefs";
-import { isDeferredReminderNotificationError, sendReminderNotificationNative, type NativeReminderNotification } from "@/lib/desktop-native";
+import { isCancelledReminderNotificationError, isDeferredReminderNotificationError, sendReminderNotificationNative, type NativeReminderNotification } from "@/lib/desktop-native";
 
 export function desktopNotificationsEnabled(): boolean {
   return getPrefBool(APP_PREF_KEYS.notifyOnComplete, true);
@@ -24,7 +24,8 @@ export async function notifyDesktop(options: {
   title: string;
   body: string;
   reminder?: Pick<NativeReminderNotification, "target" | "claims">;
-}): Promise<"attempted" | "skipped" | "failed"> {
+  isCurrent?: () => boolean;
+}): Promise<"attempted" | "skipped" | "failed" | "cancelled"> {
   if (!isTauriDesktop() || !desktopNotificationsEnabled()) return "skipped";
 
   try {
@@ -43,13 +44,17 @@ export async function notifyDesktop(options: {
   }
 
   try {
-    if (options.reminder) await sendReminderNotificationNative({ title: options.title, body: options.body, ...options.reminder });
+    if (options.reminder) {
+      if (options.isCurrent && !options.isCurrent()) return "cancelled";
+      await sendReminderNotificationNative({ title: options.title, body: options.body, ...options.reminder }, options.isCurrent);
+    }
     else {
       const { sendNotification } = await import("@tauri-apps/plugin-notification");
       sendNotification({ title: options.title, body: options.body });
     }
     return "attempted";
   } catch (error) {
+    if (isCancelledReminderNotificationError(error)) return "cancelled";
     console.error("Desktop notification failed:", error);
     if (isDeferredReminderNotificationError(error)) return "skipped";
     return "failed";

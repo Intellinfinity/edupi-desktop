@@ -44,6 +44,7 @@ test("loading and read failure are distinguished from an empty graph", () => {
   assert.doesNotMatch(loading, /暂无关联记录/);
   const failed = renderToStaticMarkup(React.createElement(EduPiStudentGraph, { ...props, alert: React.createElement("p", { role: "alert" }, "合成读取失败") }));
   assert.match(failed, /role="alert"/);
-  assert.match(failed, /记录读取失败/);
+  assert.equal((failed.match(/合成读取失败/g) || []).length, 1);
+  assert.doesNotMatch(failed, /记录读取失败|图谱画布|展开图谱/);
   assert.doesNotMatch(failed, /暂无关联记录/);
 });

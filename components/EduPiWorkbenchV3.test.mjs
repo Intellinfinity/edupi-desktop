@@ -121,7 +121,8 @@ test("growth and materials use explicit databases and right-side material detail
   assert.match(materials, /onObject\(materialObjectId\(category\)\)/);
   assert.match(materials, /onClick=\{closeSelected\}/);
   assert.match(await read("./EduPiWorkspaceViews.tsx"), /selectedObjectId=\{props\.selectedObjectId\} onObject=\{props\.onObject\}/);
-  assert.match(materials, /<span>材料<\/span><h1>\{categoryLabel\}<\/h1>/);
+  assert.match(materials, /<div><h1>\{categoryLabel\}<\/h1>/);
+  assert.doesNotMatch(materials, /<span>材料<\/span><h1>/);
   assert.doesNotMatch(materials, /<span>材料 \/ \{MATERIAL_CATEGORIES/);
   assert.doesNotMatch(materials, /<h1>材料<\/h1>/);
 });

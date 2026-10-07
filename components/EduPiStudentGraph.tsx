@@ -4,26 +4,29 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type P
 import { createPortal } from "react-dom";
 
 import type { StudentEvent } from "@/lib/edupi-student-events";
-import { buildStudentGraph, clampStudentGraphZoom, studentGraphFitZoom, STUDENT_GRAPH_MAX_ZOOM, STUDENT_GRAPH_MIN_ZOOM } from "@/lib/edupi-student-graph";
+import { buildStudentGraph, clampStudentGraphZoom, studentGraphFitZoom, STUDENT_GRAPH_MAX_ZOOM, STUDENT_GRAPH_MIN_ZOOM, type StudentGraphModel } from "@/lib/edupi-student-graph";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 
-type GraphKind = "learning" | "interaction";
+type GraphKind = "learning" | "interaction" | "family";
 type Position = { x: number; y: number };
 
 const COLUMNS = ["student", "record", "topic"] as const;
 
 function graphLegend(kind: GraphKind): [string, string, string] {
+  if (kind === "family") return ["学生", "家校记录", "联系人"];
   return kind === "learning" ? ["学生", "学习记录", "知识点"] : ["学生", "互动事件", "活动主题"];
 }
 
 function nodeKindLabel(kind: typeof COLUMNS[number], graphKind: GraphKind): string {
   if (kind === "student") return "学生";
+  if (graphKind === "family") return kind === "record" ? "家校记录" : "联系人";
   if (kind === "record") return graphKind === "learning" ? "学习记录" : "互动事件";
   return graphKind === "learning" ? "知识点" : "活动主题";
 }
 
-export function EduPiStudentGraph({ records, total, kind, selectedId, onSelect, student, scope, details, loading = false, footer, alert }: { records: StudentEvent[]; total: number; kind: GraphKind; selectedId: string | null; onSelect: (id: string | null) => void; student?: string | null; scope?: string; details?: ReactNode; loading?: boolean; footer?: ReactNode; alert?: ReactNode }) {
-  const graph = useMemo(() => buildStudentGraph(records), [records]);
+export function EduPiStudentGraph({ records = [], projection, total, kind, selectedId, onSelect, student, scope, details, loading = false, footer, alert }: { records?: StudentEvent[]; projection?: StudentGraphModel; total: number; kind: GraphKind; selectedId: string | null; onSelect: (id: string | null) => void; student?: string | null; scope?: string; details?: ReactNode; loading?: boolean; footer?: ReactNode; alert?: ReactNode }) {
+  const graph = useMemo(() => projection || buildStudentGraph(records), [projection, records]);
+  const graphTitle = kind === "family" ? "家校人物图" : kind === "learning" ? "学习图谱" : "互动图谱";
   const keyboardHelpId = useId();
   const [focus, setFocus] = useState<string | null>(null);
   useEffect(() => setFocus(null), [kind, scope, student]);
@@ -134,6 +137,10 @@ export function EduPiStudentGraph({ records, total, kind, selectedId, onSelect, 
   };
   const legend = graphLegend(kind);
 
+  if (alert && !loading && graph.records.length === 0) {
+    return <div className="edupi-student-graph">{alert}</div>;
+  }
+
   const content = <>
     <div className="edupi-graph-controls" role="group" aria-label="图谱视图">
       <button type="button" className="native-button" aria-label="缩小图谱" disabled={zoom <= STUDENT_GRAPH_MIN_ZOOM} onClick={() => changeZoom(zoom - 0.25)}>−</button>
@@ -156,7 +163,7 @@ export function EduPiStudentGraph({ records, total, kind, selectedId, onSelect, 
             const curve = `M${from.x + nodeWidth},${from.y + 21} C${from.x + nodeWidth + columnGap / 2},${from.y + 21} ${to.x - columnGap / 2},${to.y + 21} ${to.x},${to.y + 21}`;
             const active = activeRecords.has(edge.recordId);
             const dimmed = activeRecords.size > 0 && !active;
-            return <g key={`${edge.from}:${edge.to}:${edge.recordId}`} role="button" tabIndex={0} aria-label={`查看关联记录：${graph.records.find((record) => record.id === edge.recordId)?.summary}`} onClick={() => selectRecord(edge.recordId)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectRecord(edge.recordId); } }} className={`${active ? "is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}><circle cx={(from.x + nodeWidth + to.x) / 2} cy={(from.y + to.y) / 2 + 21} r={7} fill="transparent" /><path d={curve} className="edupi-student-graph__hit" /><path d={curve} className="edupi-student-graph__edge" /></g>;
+            return <g key={`${edge.from}:${edge.to}:${edge.recordId}`} role="button" tabIndex={0} aria-label={`查看关联记录：${graph.records.find((record) => record.id === edge.recordId)?.summary}`} onClick={() => selectRecord(edge.recordId)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectRecord(edge.recordId); } }} className={`${active ? "is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}><circle cx={(from.x + nodeWidth + to.x) / 2} cy={(from.y + to.y) / 2 + 21} r={7} fill="transparent" /><path d={curve} className="edupi-student-graph__hit" /><path d={curve} className="edupi-student-graph__edge" style={edge.tone ? { stroke: edge.tone === "supportive" ? "var(--green, #15815a)" : edge.tone === "tense" ? "var(--orange, #b57620)" : "var(--text-dim)" } : undefined} /></g>;
           })}</svg>
           {graph.nodes.map((node) => {
             const position = positions.get(node.id);
@@ -177,8 +184,8 @@ export function EduPiStudentGraph({ records, total, kind, selectedId, onSelect, 
     <button type="button" className="native-button edupi-student-graph__expand" onClick={() => { setPortalHost(viewportRef.current?.closest(".edupi-teacher-shell") || document.body); setFitting(true); setExpanded(true); }}>展开图谱</button>
     {!expanded ? content : null}
     {expanded ? createPortal(<div className="edupi-student-graph-backdrop">
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${student ? `${student} · ` : ""}${kind === "learning" ? "学习图谱" : "互动图谱"}`} className="edupi-student-graph-dialog edupi-student-events">
-        <header className="edupi-student-graph-dialog__header"><h2>{kind === "learning" ? "学习图谱" : "互动图谱"}</h2>{student ? <span>{student}</span> : null}{scope ? <span>{scope}</span> : null}<button type="button" className="native-button" onClick={() => setExpanded(false)} data-autofocus aria-label="关闭图谱">关闭</button></header>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${student ? `${student} · ` : ""}${graphTitle}`} className="edupi-student-graph-dialog edupi-student-events">
+        <header className="edupi-student-graph-dialog__header"><h2>{graphTitle}</h2>{student ? <span>{student}</span> : null}{scope ? <span>{scope}</span> : null}<button type="button" className="native-button" onClick={() => setExpanded(false)} data-autofocus aria-label="关闭图谱">关闭</button></header>
         <div className="edupi-student-graph-dialog__body"><div className="edupi-student-graph">{content}</div><aside className="edupi-student-graph-dialog__details" aria-label="记录来源"><h3>记录来源</h3>{details || <p>选择记录查看来源</p>}</aside></div>
       </div>
     </div>, portalHost || document.body) : null}

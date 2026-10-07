@@ -2,9 +2,58 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createJiti } from "jiti";
+import { createRequire } from "node:module";
+import ts from "typescript";
 
 const source = await readFile(new URL("./useEduPiReminderNotifications.ts", import.meta.url), "utf8");
 const { authorizedReminderNotifications, reminderOutcomeAction, reminderOutcomeType, reminderContinuationTaskId } = await createJiti(import.meta.url, { tsconfigPaths: true }).import("./useEduPiReminderNotifications.ts");
+const require = createRequire(import.meta.url);
+const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+function waitingHookFixture() {
+  let cleanup, finishWait, startedWait;
+  const started = new Promise(resolve => { startedWait = resolve; });
+  const state = { day: "2026-10-08", graceDays: 7, pins: [] };
+  const outcomes = [];
+  let sends = 0;
+  const claim = { id: "synthetic-reminder", attemptedAt: "2026-10-08T00:00:00.000Z" };
+  const dependencies = {
+    react: { useEffect: work => { cleanup = work(); } },
+    "@/lib/desktop-updater": { isTauriDesktop: () => true },
+    "@/lib/desktop-native": { listenReminderNotificationsNative: async () => () => {} },
+    "@/lib/edupi-foreground-settings": { readForegroundSettings: () => ({ graceDays: state.graceDays, pinnedTaskIds: state.pins }) },
+    "@/lib/edupi-foreground": { shanghaiDate: () => state.day },
+    "@/lib/desktop-notify": { desktopNotificationsEnabled: () => true, notifyDesktop: async options => {
+      startedWait(); await new Promise(resolve => { finishWait = resolve; });
+      if (!options.isCurrent()) return "cancelled";
+      sends += 1; return "attempted";
+    } },
+  };
+  const fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    if (body.type === "claim_notifications") return Response.json({ notifications: [{ id: claim.id, taskId: "synthetic-task", kind: "ready", title: "合成事项", notificationAttemptedAt: claim.attemptedAt }], nativeNotificationIds: [claim.id] });
+    outcomes.push(body);
+    return Response.json({});
+  };
+  const hookModule = { exports: {} };
+  new Function("require", "module", "exports", "fetch", "document", "setTimeout", "clearTimeout", compiled)(
+    name => dependencies[name] || require(name), hookModule, hookModule.exports, fetch, { hasFocus: () => false }, () => 1, () => {});
+  hookModule.exports.useEduPiReminderNotifications(() => {});
+  return { state, claim, outcomes, started, cleanup: () => cleanup(), finish: () => finishWait(), sends: () => sends };
+}
+
+test("late preference, pin, day and unmount vetoes release the exact attempt without sending or acknowledging the task", async () => {
+  for (const change of [fixture => { fixture.state.graceDays = 3; }, fixture => { fixture.state.pins = ["changed-pinned-task"]; },
+    fixture => { fixture.state.day = "2026-10-09"; }, fixture => fixture.cleanup()]) {
+    const fixture = waitingHookFixture();
+    await fixture.started;
+    change(fixture);
+    fixture.finish();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(fixture.sends(), 0);
+    assert.deepEqual(fixture.outcomes, [{ ...fixture.claim, type: "release_notification" }]);
+    fixture.cleanup();
+  }
+});
 
 test("one notification opens only its exact task continuation", () => {
   assert.equal(reminderContinuationTaskId({ reminderId: "r1", taskId: "task-one", kind: "ready" }), "task-one");
@@ -23,6 +72,9 @@ test("skipped system permission defers a reminder without spending its native fa
   assert.equal(reminderOutcomeType("attempted"), "notification_delivered");
   assert.equal(reminderOutcomeType("failed"), "notification_failed");
   assert.equal(reminderOutcomeType("skipped"), "notification_deferred");
+  assert.equal(reminderOutcomeType("cancelled"), "release_notification");
+  assert.deepEqual(reminderOutcomeAction({ id: "synthetic", attemptedAt: "2026-10-08T00:00:00Z" }, "release_notification"),
+    { id: "synthetic", attemptedAt: "2026-10-08T00:00:00Z", type: "release_notification" });
 });
 
 test("notification lifecycle records delivery, failure, and opened targets", () => {

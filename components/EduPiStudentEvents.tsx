@@ -9,6 +9,7 @@ import { EDUPI_STUDENT_RECORDS_UPDATED_EVENT } from "@/lib/edupi-ui-events";
 import { EduPiStudentGraph } from "./EduPiStudentGraph";
 
 type StudentEventKind = StudentEvent["kind"];
+type RecordKind = StudentEventKind | "family";
 type StudentEventView = "list" | "graph";
 
 type Props = {
@@ -41,7 +42,7 @@ async function readEvents(query: URLSearchParams, signal: AbortSignal): Promise<
 }
 
 export function EduPiStudentEvents({ student, studentId, studentClass, semesterRange = null, onAgent, query: search = "", familyRecords }: Props) {
-  const [kind, setKind] = useState<StudentEventKind>("learning");
+  const [kind, setKind] = useState<RecordKind>("learning");
   const [page, setPage] = useState(0);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -80,6 +81,7 @@ export function EduPiStudentEvents({ student, studentId, studentClass, semesterR
     setError(null);
     setRecords([]);
     setTotal(0);
+    if (kind === "family") { setLoading(false); return () => controller.abort(); }
     const offset = view === "graph" ? 0 : page * STUDENT_GRAPH_PAGE_SIZE;
     const params = eventQuery({ kind, offset, search, student, studentId, from, to });
     void readEvents(params, controller.signal).then((result) => {
@@ -100,7 +102,7 @@ export function EduPiStudentEvents({ student, studentId, studentClass, semesterR
   }, [from, kind, page, refresh, search, student, studentId, to, view]);
 
   const loadMore = async () => {
-    if (view !== "graph" || loading || loadingMore || records.length >= total || records.length >= STUDENT_GRAPH_RECORD_LIMIT) return;
+    if (kind === "family" || view !== "graph" || loading || loadingMore || records.length >= total || records.length >= STUDENT_GRAPH_RECORD_LIMIT) return;
     loadMoreRef.current?.abort();
     const controller = new AbortController();
     loadMoreRef.current = controller;
@@ -189,10 +191,13 @@ export function EduPiStudentEvents({ student, studentId, studentClass, semesterR
   const selectedDetails = records.filter((record) => record.id === selectedRecord).map(renderRecord);
   const graphFooter = graphCanLoadMore || total > STUDENT_GRAPH_RECORD_LIMIT ? <footer>{graphCanLoadMore ? <button type="button" disabled={loadingMore || loading} onClick={() => void loadMore()}>{loadingMore ? "加载中…" : "加载更多"}</button> : <span>图谱上限 {STUDENT_GRAPH_RECORD_LIMIT} 条</span>}</footer> : null;
   const recordAlert = error ? <p role="alert">{error}<button type="button" onClick={() => setRefresh((value) => value + 1)}>重试</button></p> : null;
-  const graphDetails = loading ? <p role="status">读取中…</p> : <>{selectedDetails.length ? selectedDetails : <p>选择记录查看来源</p>}{kind === "interaction" ? familyRecords : null}</>;
+  const graphDetails = loading ? <p role="status">读取中…</p> : <>{selectedDetails.length ? selectedDetails : <p>选择记录查看来源</p>}</>;
+  const title = kind === "family" ? "家校记录" : kind === "learning" ? "学习记录" : "同伴互动";
+  const header = <header><div role="group" aria-label="记录类型">{[["learning", "学习记录"], ["interaction", "同伴互动"], ...(familyRecords ? [["family", "家校人物"]] : [])].map(([value, label]) => <button key={value} type="button" aria-pressed={kind === value} onClick={() => { setKind(value as RecordKind); setPage(0); setEditing(null); }}>{label}</button>)}</div><button type="button" onClick={() => onAgent([`${student || "学生"} · ${title}`, studentId ? `学生 ID：${studentId}` : null, studentClass ? `班级：${studentClass}` : null].filter(Boolean).join("\n"), "replace")}>对话记录</button></header>;
+  if (kind === "family") return <section className="edupi-student-events" aria-label="学生家校人物">{header}{familyRecords}</section>;
 
   return <section className="edupi-student-events" aria-label="学生学习与互动记录">
-    <header><div role="group" aria-label="记录类型">{[["learning", "学习记录"], ["interaction", "同伴互动"]].map(([value, label]) => <button key={value} type="button" aria-pressed={kind === value} onClick={() => { setKind(value as StudentEventKind); setPage(0); setEditing(null); }}>{label}</button>)}</div><button type="button" onClick={() => onAgent([`${student || "学生"} · ${kind === "learning" ? "学习记录" : "同伴互动"}`, studentId ? `学生 ID：${studentId}` : null, studentClass ? `班级：${studentClass}` : null].filter(Boolean).join("\n"), "replace")}>对话记录</button></header>
+    {header}
     {view === "list" ? recordAlert : null}
     <div className="edupi-student-event-filters"><div role="group" aria-label="时间范围">{semesterRange ? <button type="button" aria-pressed={semesterActive} onClick={useSemester}>本学期</button> : null}<button type="button" aria-pressed={!from && !to} onClick={clearDates}>全部时间</button></div><label>从 <input type="date" value={from} onChange={(event) => setDateFrom(event.target.value)} /></label><label>到 <input type="date" value={to} min={from || undefined} onChange={(event) => setDateTo(event.target.value)} /></label></div>
     <div className="edupi-student-graph-toggle" role="group" aria-label="记录视图">{[["list", "列表"], ["graph", "网络图"]].map(([value, label]) => <button key={value} type="button" aria-pressed={view === value} onClick={() => { setView(value as StudentEventView); setPage(0); setSelectedRecord(null); setEditing(null); }}>{label}</button>)}</div>

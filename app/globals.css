@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../components/EduPiFamilyRecords.css";
 
 @theme {
   --color-bg: var(--bg);

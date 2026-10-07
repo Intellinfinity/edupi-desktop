@@ -271,7 +271,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   };
 
   return <main className="edupi-module-workspace edupi-database-workspace">
-    <header className="edupi-module-heading"><div><span>材料</span><h1>{categoryLabel}</h1><p>{materialSource.present ? "数据已连接" : "材料索引尚未接入"} · {rows.length} 份材料 · {stagedMaterials.length} 份待接入</p></div><button type="button" disabled={stagingBusy} onClick={onUpload}>{stagingBusy ? "处理中…" : "上传材料"}</button></header>
+    <header className="edupi-module-heading" style={{ minHeight: 0 }}><div><h1>{categoryLabel}</h1><p>{materialSource.present ? "数据已连接" : "材料索引尚未接入"} · {rows.length} 份材料 · {stagedMaterials.length} 份待接入</p></div><button type="button" disabled={stagingBusy} onClick={onUpload}>{stagingBusy ? "处理中…" : "上传材料"}</button></header>
     {stagedMaterials.length > 0 ? <details className="edupi-material-inbox" open>
       <summary>待接入材料 <span>{stagedMaterials.length}</span></summary>
       <div>{stagedMaterials.map((item) => {

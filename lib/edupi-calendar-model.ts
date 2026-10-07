@@ -416,6 +416,7 @@ export function getCalendarEntries(
   range: CalendarViewRange,
   query = "",
   policy?: ForegroundPolicy & ForegroundContext,
+  completeTransactions = false,
 ): { entries: CalendarEntry[]; pending: CalendarPendingEntry[] } {
   const entries: CalendarEntry[] = [];
   const pending: CalendarPendingEntry[] = [];
@@ -434,7 +435,9 @@ export function getCalendarEntries(
     }
     const endField = dateField(event as unknown as RecordValue, ["endDate", "end_date"]);
     const end = endField.date && endField.date >= startField.date ? endField.date : startField.date;
-    const clipped = intersectingRange(startField.date, end, range);
+    // Full lists contain one row per finite source fact; do not expand a long
+    // event into years of duplicate rows or cap it to the visible month.
+    const clipped = completeTransactions ? { start: startField.date, end: startField.date } : intersectingRange(startField.date, end, range);
     if (!clipped || !matchesQuery(event.name, event.notes, source.sourceLabel, query)) return;
     for (const date of expandInclusiveDateRange(clipped.start, clipped.end)) {
       entries.push(makeEntry({
@@ -469,7 +472,7 @@ export function getCalendarEntries(
       addPending({ ...makePending({ id: taskId, sourceId: task.id || task.sourceEventId, kind: "task", title: taskDisplayTitle(task), detail, source: task.sourceEventName, ...source, rawDate: dateInfo.rawDate }), status: taskStatus(task) === "failed" ? "failed" : "pending", statusLabel: taskStatusLabel(task) });
       return;
     }
-    if ((!dateIsBetween(dateInfo.date, range.start, range.end) && !(policy && isTaskRunning(task, policy))) || !matchesQuery(task.title, detail, source.sourceLabel, query)) return;
+    if ((!completeTransactions && !dateIsBetween(dateInfo.date, range.start, range.end) && !(policy && isTaskRunning(task, policy))) || !matchesQuery(task.title, detail, source.sourceLabel, query)) return;
     const entry = makeEntry({
       id: `${taskId}:${dateInfo.date}`,
       sourceId: task.id || task.sourceEventId,
@@ -491,6 +494,7 @@ export function getCalendarEntries(
     entries.push({ ...entry, statusLabel: taskStatusLabel(task) });
   });
 
+  // Weekly recurrence still needs an explicit range, unlike finite facts and tasks.
   data.timetable.forEach((value, index) => {
     const slot = record(value);
     const day = timetableDay(firstValue(slot, ["day_of_week", "dayOfWeek", "weekday", "day"]));
@@ -538,12 +542,12 @@ export function getCalendarEntries(
 
 export function createCalendarProjection(
   data: Pick<EducationContract, "calendar" | "tasks" | "timetable">,
-  options: { view?: CalendarViewMode; anchorDate?: string; query?: string; foregroundPolicy?: ForegroundPolicy & ForegroundContext } = {},
+  options: { view?: CalendarViewMode; anchorDate?: string; query?: string; foregroundPolicy?: ForegroundPolicy & ForegroundContext; completeTransactions?: boolean } = {},
 ): CalendarProjection {
   const view = options.view || "month";
   const anchorDate = parseUnknownDate(options.anchorDate) || localToday();
   const range = getCalendarViewRange(view, anchorDate);
-  const projected = getCalendarEntries(data, range, options.query || "", options.foregroundPolicy);
+  const projected = getCalendarEntries(data, range, options.query || "", options.foregroundPolicy, options.completeTransactions);
   const entriesByDate: Record<string, CalendarEntry[]> = {};
   for (const entry of projected.entries) (entriesByDate[entry.date] ||= []).push(entry);
   return {

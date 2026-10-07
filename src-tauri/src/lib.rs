@@ -40,6 +40,7 @@ use tauri::{
 mod computer_use;
 mod foreground_prefs;
 mod reminder_notification;
+mod reminder_notification_gate;
 #[cfg(windows)]
 mod windows_native_source_guard;
 
@@ -3037,6 +3038,7 @@ pub fn run() {
             let (url, server) = start_development_server(app.handle())?;
 
             app.manage(server);
+            reminder_notification::bind_validation_server(app.handle(), &url, &desktop_instance_id)?;
             app.manage(start_desktop_resume_monitor(app.handle().clone())?);
             #[cfg(target_os = "macos")]
             reminder_notification::install_notification_delegate(app.handle())?;

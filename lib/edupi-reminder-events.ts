@@ -1,8 +1,14 @@
 import type { TeacherTask, EducationContract, EducationDocument, EducationWorkCase } from "./edupi-education-contract";
 import { completionSnapshot } from "./edupi-completion-monitor";
+import { isReminderForeground, type ForegroundPolicy } from "./edupi-foreground";
+import type { Reminder } from "./edupi-reminder-store";
 
 export type ReminderEvent = { taskId: string; title: string; completion: "ready" | "failed" | "due" | "brief" | null; identity: string; nativeSource?: "teacher_created" | "core_g1" };
 const TEACHER_CREATED_TASK_ID = /^teacher-task-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+export function selectForegroundReminders(items: readonly Reminder[], data: EducationContract, policy: ForegroundPolicy): Reminder[] {
+  return items.filter(item => isReminderForeground(item, policy, data));
+}
 
 function currentCoreG1Completion(task: TeacherTask, workCases: EducationWorkCase[], availableArtifacts: Set<string>): boolean {
   if (!task.id || task.trigger !== "teaching_before_class" || !task.sourceEventId

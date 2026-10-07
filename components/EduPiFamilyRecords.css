@@ -1,0 +1,20 @@
+.edupi-family-panel { min-width: 0; }
+.edupi-family-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.edupi-family-toolbar button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-panel); color: var(--text); }
+.edupi-family-toolbar button[aria-pressed="true"] { background: var(--bg-selected); }
+.edupi-family-toolbar button:last-child { margin-left: auto; }
+.edupi-family-record { margin: 10px 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.edupi-family-record header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.edupi-family-record time, .edupi-family-identity { color: var(--text-muted); font-size: 12px; }
+.edupi-family-record p { overflow-wrap: anywhere; white-space: pre-wrap; margin: 8px 0; }
+.edupi-family-record details { margin-top: 8px; }
+.edupi-family-record dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 12px; }
+.edupi-family-record dd { margin: 0; overflow-wrap: anywhere; }
+.edupi-family-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.edupi-family-editor { display: grid; gap: 12px; padding: 12px 0; }
+.edupi-family-editor fieldset { display: grid; gap: 12px; padding: 0; margin: 0; border: 0; min-width: 0; }
+.edupi-family-editor label { display: grid; gap: 6px; font-size: 13px; }
+.edupi-family-editor input, .edupi-family-editor select, .edupi-family-editor textarea { min-width: 0; width: 100%; padding: 8px; color: var(--text); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; }
+.edupi-family-history { padding-left: 18px; font-size: 12px; }
+.edupi-family-history li { margin: 8px 0; }
+.edupi-family-error { color: var(--error, #b73535); }

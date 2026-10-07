@@ -56,6 +56,10 @@ function wireRequest(factId: string, input: FactMutationInput) {
 }
 
 function mappedError(code: string): FactLifecycleError {
+  if (code === "unknown_student_binding") return new FactLifecycleError(code, "学生来源已失效，记录未修改");
+  if (code === "family_source_unavailable") return new FactLifecycleError(code, "记录来源已更新，原记录已保留");
+  if (code === "invalid_family_reviewer") return new FactLifecycleError(code, "记录需要原教师审核");
+  if (code === "invalid_family_identity" || code === "invalid_family_record") return new FactLifecycleError(code, "家校记录身份或字段无效");
   if (code === "fact_not_found") return new FactLifecycleError(code, "事实不存在");
   if (code === "stale_fact") return new FactLifecycleError(code, "事实已更新，请刷新后重试");
   if (code === "fact_conflict" || code === "invalid_review") return new FactLifecycleError(code, "事实与当前记录冲突，请刷新后重新判断");

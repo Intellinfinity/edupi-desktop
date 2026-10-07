@@ -10,6 +10,7 @@
 - 实际CUA在唯一合成生产源码页上传ICS、取消、重新确认接入、打开详情、硬刷新找回和展开授权失败，文件321字节/SHA回读一致，canonical mutation accepted，新增日程0。非Tauri时header提供者本地拒绝，不假称浏览器发出了授权HTTP；另无token HTTP探针返回403。初始泛化“请重试”已修，最终页明确“请在桌面应用中核对安排”，采用按钮禁用。截图`core232-material-native-boundary-final.png`与`core232-material-ui-evidence.json`保留。
 - 精确9ad实际隔离宿主另证上传直接提案、当前来源重读、同源replay/metadata更新超越、真正重启后物理改源拒绝及原回执保留。此证据不代替原生授权UI。初次提案展示与确认采用、DOCX/PDF安装UI、真正TCC/升级继续按用户约定后置；没有伪造native token或启用Live/外发。
 - Core #233在等待审阅时因main #232更新而清单冲突，正常合入并重算为`98919418d2379c1164bcd0bed4ccc3fb3f1a40e2`，其[CI37629587781](https://github.com/Intellinfinity/edupi/actions/runs/37629587781)完整Test/协议/组件/type/audit和只读native inspector均通过。旧60e9010/CI37624711385保留原身份，不替代新组合；durable stress为SKIPPED。按Core人审门仍未合#233，Desktop pin没有消费它。
+- 本轮最终源码`23286e59b49d63bf584367e664c72bf39f1dab42`的[CI37656835517](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37656835517) `audit/rust-audit`通过；[Desktop #317](https://github.com/Intellinfinity/edupi-desktop/pull/317)于UTC2026-10-07T17:15:05Z合入main `4bd48223ee81107b744b0c94ce3eb78451d0b46b`。首次push及PR创建被GitHub500拒绝，核实远端仍旧提交后有限重试成功，没有重复PR或候选。合成服务和浏览器已正常关闭，数据与失败证据保留；公开`.56`与安装状态未改。
 
 ## 2026-10-07 Core #231 跟进
 

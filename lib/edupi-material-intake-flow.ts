@@ -1,4 +1,5 @@
 import { issueEducationIntake, type EducationIntakeCommand, type MaterialIntake } from "./edupi-education-intake";
+import type { EduPiMaterialScheduleProposal } from "./edupi-core-process-client";
 import { MaterialRecognitionError, recognizeStagedMaterial, type MaterialRecognitionResult } from "./edupi-material-recognition";
 import type { MaterialStagingDescriptor } from "./edupi-material-staging";
 import { markRecognizedTimetableNote } from "./edupi-recognition-markers";
@@ -17,7 +18,7 @@ type FlowInput = {
   recognize?: boolean;
 };
 
-type IssueResult = { receipt: RawRecord; data: unknown };
+type IssueResult = { receipt: RawRecord; data: unknown; materialScheduleProposal?: EduPiMaterialScheduleProposal };
 
 function distinctRecognized<T>(items: T[], idOf: (item: T) => string): T[] {
   const seen = new Map<string, string>();
@@ -45,6 +46,7 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   scheduleNeedsReview: boolean;
   calendarOccurrences: Array<{ sourceOccurrenceRef: string; eventId: string }>;
   cancelledOccurrenceRefs: string[];
+  materialScheduleProposal?: EduPiMaterialScheduleProposal;
 }> {
   const recognize = dependencies.recognize || ((descriptor: MaterialStagingDescriptor) => {
     let index = 0;
@@ -103,7 +105,7 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
       source_hash: input.descriptor.source_hash,
       expected_size_bytes: input.descriptor.expected_size_bytes,
       kind: input.materialKind,
-      title: input.descriptor.kind === "calendar" ? `ICS 日历来源 ${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 8)}`
+      title: input.descriptor.kind === "calendar" && input.recognize !== false ? `ICS 日历来源 ${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 8)}`
         : input.title?.trim() || input.descriptor.original_name,
       subject: input.subject,
       class_id: input.classId,
@@ -119,10 +121,12 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
 
   const receipts: RawRecord[] = [];
   let data: unknown = null;
+  let materialScheduleProposal: EduPiMaterialScheduleProposal | undefined;
   for (const command of commands) {
     const result = await issue(command);
     receipts.push(result.receipt);
     data = result.data;
+    if (command.command_type === "intake_material") materialScheduleProposal = result.materialScheduleProposal;
   }
   return {
     receipts,
@@ -135,5 +139,6 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
       ? [{ sourceOccurrenceRef: event.source_occurrence_ref, eventId: event.event_id }]
       : []),
     cancelledOccurrenceRefs: [...(recognized.cancelled_occurrence_refs || [])],
+    ...(materialScheduleProposal ? { materialScheduleProposal } : {}),
   };
 }

@@ -17,6 +17,9 @@ import { resolveScheduleSourceSelection, type ScheduleSourceOption } from "@/lib
 import type { DocumentPairingItem, DocumentPairingPreview, DocumentPairingSubmission } from "@/lib/edupi-document-pairing-contract";
 import { documentPairingSubmission } from "@/lib/edupi-document-pairing-selection";
 import { hasUnboundSameNameClass, materialClassOptions } from "@/lib/edupi-material-class-options";
+import { materialScheduleUploadProposal } from "@/lib/edupi-material-schedule";
+import type { EduPiMaterialScheduleProposal as UploadScheduleProposal } from "@/lib/edupi-core-process-client";
+import { EduPiMaterialScheduleProposal } from "./EduPiMaterialScheduleProposal";
 
 const PAGE_SIZE = 8;
 
@@ -64,6 +67,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   const [pairingChoices, setPairingChoices] = useState<Record<string, string>>({});
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pairingError, setPairingError] = useState("");
+  const [receivedProposals, setReceivedProposals] = useState<Record<string, { title: string; proposal: UploadScheduleProposal }>>({});
   const classOptions = useMemo(() => materialClassOptions(data.timetable, context?.classes || []), [context?.classes, data.timetable]);
   const classes = useMemo(() => classOptions.map(option => option.value), [classOptions]);
   const unboundSameNameClass = useMemo(() => hasUnboundSameNameClass(data.timetable), [data.timetable]);
@@ -171,8 +175,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   };
   const canDeleteSelected = selected?.deleteKind === "generated" || Boolean(selected?.deleteKind && data.capabilities.entityDelete.enabled && data.capabilities.entityDelete.targetKinds.includes(selected.deleteKind) && (selected.deleteKind !== "task" || selected.task?.id));
   const selectedHistory = selected?.deleteKind === "material" ? intakeOperationHistory(data, "intake_material", selected.id) : [];
-  const sourceErrorRelevant = !intakeDraft || sourceUnavailable.calendar
-    || stagedMaterials.some((item) => item.staging_id === intakeDraft.stagingId && documentScheduleSource(item));
+  const sourceErrorRelevant = Boolean(intakeDraft?.scheduleSourceId);
   const scheduleSourceError = sourceErrors.calendar || (sourceErrorRelevant ? sourceErrors.timetable : "");
   const beginIntake = (item: MaterialStagingDescriptor) => {
     setOperationError("");
@@ -221,8 +224,8 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
     }
     setOperationError("");
     try {
-      if (item.kind === "calendar" && sourceUnavailable.calendar
-        || documentScheduleSource(item) && (sourceUnavailable.calendar || sourceUnavailable.timetable)) {
+      if (intakeDraft.scheduleSourceId && (item.kind === "calendar" && sourceUnavailable.calendar
+        || documentScheduleSource(item) && (sourceUnavailable.calendar || sourceUnavailable.timetable))) {
         setOperationError("来源读取失败，请重试。");
         void loadScheduleSources();
         return;
@@ -250,8 +253,14 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
           }
         }
       }
-      await onIntakeMaterial(item, { ...intakeDraft, title: intakeDraft.title.trim(), subject: intakeDraft.subject.trim(), classId: intakeDraft.classId.trim() },
+      const received = await onIntakeMaterial(item, { ...intakeDraft, title: intakeDraft.title.trim(), subject: intakeDraft.subject.trim(), classId: intakeDraft.classId.trim() },
         item.kind === "calendar" || documentScheduleSource(item) ? sourceSelection.source : null, pairing);
+      if (received && typeof received === "object" && "materialScheduleProposal" in received && received.materialScheduleProposal) {
+        try {
+          const proposal = materialScheduleUploadProposal(received.materialScheduleProposal);
+          setReceivedProposals(current => ({ ...current, [proposal.material_id]: { title: item.original_name, proposal } }));
+        } catch { setOperationError("安排提案未确认，请重新读取"); }
+      }
       setIntakeDraft(null);
       setPairingPreview(null);
       setPairingChoices({});
@@ -268,7 +277,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
       <div>{stagedMaterials.map((item) => {
         const calendar = item.kind === "calendar";
         const documentSchedule = documentScheduleSource(item);
-        const itemReady = calendar ? calendarIntakeReady : materialIntakeReady;
+        const itemReady = materialIntakeReady;
         const sourceOptions = calendar ? scheduleSources.filter((source) => source.sourceKind !== "timetable") : scheduleSources;
         return <div className="edupi-material-inbox__item" key={item.staging_id}>
           <div className="edupi-material-inbox__row">
@@ -277,17 +286,17 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
               if (intakeDraft?.stagingId === item.staging_id) {
                 setIntakeDraft(null); setPairingPreview(null); setPairingChoices({}); setPairingError("");
               } else beginIntake(item);
-            }}>{intakeDraft?.stagingId === item.staging_id ? "取消" : calendar ? "导入日历" : "接入 EduPi"}</button>
+            }}>{intakeDraft?.stagingId === item.staging_id ? "取消" : "接入 EduPi"}</button>
             <button type="button" disabled={stagingBusy} onClick={() => void onRemoveStagedMaterial(item)}>移除</button>
           </div>
           {intakeDraft?.stagingId === item.staging_id ? <form className="edupi-material-intake-form" onSubmit={(event) => void submitIntake(event, item)}>
             {calendar ? <>
-              <label>导入方式<select value={intakeDraft.scheduleSourceId} onChange={(event) => setIntakeDraft({ ...intakeDraft, scheduleSourceId: event.target.value })}>
-                <option value="">作为新日历</option>
+              <label>材料来源<select value={intakeDraft.scheduleSourceId} onChange={(event) => setIntakeDraft({ ...intakeDraft, scheduleSourceId: event.target.value })}>
+                <option value="">作为新材料</option>
                 {sourceOptions.map((source) => <option value={source.selectionKey || source.sourceId} key={source.selectionKey || source.sourceId}>更新{source.sourceKind === "calendar" ? "日历" : "材料"}：{source.label}</option>)}
               </select></label>
               {intakeDraft.scheduleSourceId ? <p>更新可能撤回该来源的旧安排，请确认来源。</p> : null}
-              <button type="submit" className="is-primary" disabled={stagingBusy || sourceUnavailable.calendar}>{intakeDraft.scheduleSourceId ? "确认更新" : "确认导入"}</button>
+              <button type="submit" className="is-primary" disabled={stagingBusy || Boolean(intakeDraft.scheduleSourceId && (sourceUnavailable.calendar || !calendarIntakeReady))}>{intakeDraft.scheduleSourceId ? "确认更新" : "确认接入"}</button>
             </> : <>
               <label>材料名称<input required maxLength={240} value={intakeDraft.title} onChange={(event) => setIntakeDraft({ ...intakeDraft, title: event.target.value })} /></label>
               <label>材料类型<select value={intakeDraft.materialKind} onChange={(event) => setIntakeDraft({ ...intakeDraft, materialKind: event.target.value as MaterialIntakeMetadata["materialKind"] })}><option value="worksheet">学案 / 练习</option><option value="lesson_note">教案 / 备课</option><option value="assessment">测验 / 作业</option><option value="classroom_record">课堂记录</option><option value="other">其他</option></select></label>
@@ -333,21 +342,25 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
                   </>}
                 </section> : null}</> : null}
               <button type="submit" className="is-primary" disabled={stagingBusy || pairingBusy
-                || documentSchedule && (sourceUnavailable.calendar || sourceUnavailable.timetable)}>确认接入</button>
+                || Boolean(intakeDraft.scheduleSourceId && documentSchedule && (sourceUnavailable.calendar || sourceUnavailable.timetable))}>确认接入</button>
             </>}
           </form> : null}
         </div>;
       })}</div>
       {!materialIntakeReady && stagedMaterials.some((item) => item.kind !== "calendar") ? <p className="edupi-material-capability-note" role="status">{data.capabilities.materialIntake.reason}</p> : null}
-      {!calendarIntakeReady && stagedMaterials.some((item) => item.kind === "calendar") ? <p className="edupi-material-capability-note" role="status">Core 尚未启用安全的日历更新。</p> : null}
+      {!calendarIntakeReady && intakeDraft?.scheduleSourceId && stagedMaterials.some((item) => item.kind === "calendar") ? <p className="edupi-material-capability-note" role="status">Core 尚未启用安全的日历更新。</p> : null}
     </details> : null}
     {stagingMessage ? <p className={`edupi-material-message${stagingMessage.tone === "error" ? " is-error" : ""}`} role={stagingMessage.tone === "error" ? "alert" : "status"}>{stagingMessage.text}</p> : null}
+    {Object.values(receivedProposals).map(({ title, proposal }) => <section className="edupi-material-message" key={proposal.material_id} aria-label={`${title}安排提案`}>
+      <strong>{title}</strong><EduPiMaterialScheduleProposal materialId={proposal.material_id} initialProposal={proposal}
+        onApplied={() => window.dispatchEvent(new Event("edupi-education-refresh"))}/>
+    </section>)}
     {generatedError ? <p className="edupi-material-message" role="status">对话生成文件索引暂不可用</p> : null}
     {operationError ? <p role="alert">{operationError}</p> : null}
     {scheduleSourceError && sourceErrorRelevant ? <p className="edupi-material-message is-error" role="alert">{scheduleSourceError} <button type="button" className="native-button" onClick={() => void loadScheduleSources()}>重试</button></p> : null}
     {archivedId ? <p role="status">已移出材料，原文件保留。<button className="native-button" onClick={async () => { const response = await fetch("/api/edupi/artifacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "restore", artifactId: archivedId }) }); if (response.ok) { setArchivedId(null); window.dispatchEvent(new Event("edupi-artifacts-updated")); } }}>撤销</button></p> : null}
     <section className="edupi-database"><div className="edupi-database__head edupi-material-db-grid"><span>材料</span><span>类型</span><span>学科 / 班级</span><span>来源</span><span>日期</span><span>状态</span></div>{visible.map((item) => <button type="button" className="edupi-database-button-row edupi-material-db-grid" key={item.id} onClick={() => openSelected(item)}><strong>{item.title}</strong><span>{item.type}</span><span>{item.subject}</span><span>{item.source}</span><time>{shortDate(item.date)}</time><span>{item.status}</span></button>)}{visible.length === 0 ? <div className="edupi-database__empty">{materialSource.present || stagedMaterials.length > 0 ? "数据已连接，当前分类暂无材料" : "材料索引尚未接入"}</div> : null}</section>
     <EduPiPagination label="材料分页" page={page} pages={pages} previousDisabled={page === 0} nextDisabled={page >= pages - 1} onPrevious={() => setPage((value) => value - 1)} onNext={() => setPage((value) => value + 1)}/>
-    {selected ? <aside ref={drawerRef} className="edupi-material-drawer" role="dialog" aria-modal="true" aria-label={`${selected.title}材料详情`}><header><div><span>{selected.type}</span><h2>{selected.title}</h2></div><EduPiIconButton type="button" icon="close" label="关闭材料详情" data-autofocus onClick={closeSelected}/></header><div className="edupi-material-drawer__body"><dl className="edupi-material-drawer__facts"><div><dt>状态</dt><dd>{selected.status}</dd></div><div><dt>来源</dt><dd>{selected.source}</dd></div><div><dt>学科 / 班级</dt><dd>{selected.subject}</dd></div><div><dt>日期</dt><dd>{shortDate(selected.date)}</dd></div><div><dt>说明</dt><dd>{selected.summary}</dd></div></dl><EduPiOperationHistory rows={selectedHistory} />{selected.material ? <EduPiMaterialMetadataEditor material={selected.material} classes={classes} onEducation={onEducation} onStartAgent={onStartAgent} /> : null}{selected.deleteKind === "material" ? <EduPiMaterialExcerpt key={selected.id} materialId={selected.id} onPreview={selected.filePath ? () => onOpenFile(selected.filePath!) : undefined} /> : null}</div><footer>{selected.filePath ? <EduPiIconButton type="button" icon="preview" label="预览材料" onClick={() => onOpenFile(selected.filePath!)}/> : null}{selected.filePath && isTauriDesktop() ? <><EduPiIconButton type="button" icon="open" label="打开文件" onClick={() => void openNative("open")}/><EduPiIconButton type="button" icon="reveal" label="显示所在文件夹" onClick={() => void openNative("reveal")}/></> : null}{selected.task ? <EduPiIconButton type="button" icon="task" label="打开关联任务" onClick={() => onTask(selected.task!)}/> : null}{canDeleteSelected ? <EduPiIconButton type="button" icon="delete" label={deleteBusy ? "正在删除材料" : "删除材料"} className="is-delete" busy={deleteBusy} disabled={deleteBusy} onClick={() => void deleteSelected()}/> : null}{!selected.material ? <EduPiIconButton type="button" icon="agent" label="补充或修订材料" className="is-primary" onClick={openMaterialAgent}/> : null}</footer></aside> : null}
+    {selected ? <aside ref={drawerRef} className="edupi-material-drawer" role="dialog" aria-modal="true" aria-label={`${selected.title}材料详情`}><header><div><span>{selected.type}</span><h2>{selected.title}</h2></div><EduPiIconButton type="button" icon="close" label="关闭材料详情" data-autofocus onClick={closeSelected}/></header><div className="edupi-material-drawer__body"><dl className="edupi-material-drawer__facts"><div><dt>状态</dt><dd>{selected.status}</dd></div><div><dt>来源</dt><dd>{selected.source}</dd></div><div><dt>学科 / 班级</dt><dd>{selected.subject}</dd></div><div><dt>日期</dt><dd>{shortDate(selected.date)}</dd></div><div><dt>说明</dt><dd>{selected.summary}</dd></div></dl><EduPiOperationHistory rows={selectedHistory} />{selected.material ? <EduPiMaterialMetadataEditor material={selected.material} classes={classes} onEducation={onEducation} onStartAgent={onStartAgent} /> : null}{selected.deleteKind === "material" ? <EduPiMaterialExcerpt key={selected.id} materialId={selected.id} onPreview={selected.filePath ? () => onOpenFile(selected.filePath!) : undefined} /> : null}{selected.material ? <EduPiMaterialScheduleProposal key={`schedule:${selected.id}`} materialId={selected.id} metadataRevision={selected.material.metadata_revision} onPreview={selected.filePath ? () => onOpenFile(selected.filePath!) : undefined} onApplied={() => window.dispatchEvent(new Event("edupi-education-refresh"))}/> : null}</div><footer>{selected.filePath ? <EduPiIconButton type="button" icon="preview" label="预览材料" onClick={() => onOpenFile(selected.filePath!)}/> : null}{selected.filePath && isTauriDesktop() ? <><EduPiIconButton type="button" icon="open" label="打开文件" onClick={() => void openNative("open")}/><EduPiIconButton type="button" icon="reveal" label="显示所在文件夹" onClick={() => void openNative("reveal")}/></> : null}{selected.task ? <EduPiIconButton type="button" icon="task" label="打开关联任务" onClick={() => onTask(selected.task!)}/> : null}{canDeleteSelected ? <EduPiIconButton type="button" icon="delete" label={deleteBusy ? "正在删除材料" : "删除材料"} className="is-delete" busy={deleteBusy} disabled={deleteBusy} onClick={() => void deleteSelected()}/> : null}{!selected.material ? <EduPiIconButton type="button" icon="agent" label="补充或修订材料" className="is-primary" onClick={openMaterialAgent}/> : null}</footer></aside> : null}
   </main>;
 }

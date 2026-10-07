@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { validateCoreEnvelopeSchema } from "./edupi-bridge-contract";
 import { activeBridgeIdentity, scheduleOccurrenceIdentity } from "./edupi-bridge-manifest";
-import { callEduPiCore, EduPiCoreProcessError, isCoreWriterDenialCode } from "./edupi-core-process-client";
+import { callEduPiCoreWithMetadata, EduPiCoreProcessError, isCoreWriterDenialCode, type EduPiCoreProcessResult, type EduPiMaterialScheduleProposal } from "./edupi-core-process-client";
 import { readEduPiEducationSnapshot, validateScheduleOccurrenceV12Envelope, type CoreEducationSnapshotPayload, type EduPiBridgeRoots } from "./edupi-core-snapshot";
 
 type IntakeSource = {
@@ -107,6 +107,42 @@ function snapshotContainsReceipt(snapshot: CoreEducationSnapshotPayload, expecte
   });
 }
 
+function snapshotConfirmsMaterialSourceReplay(snapshot: CoreEducationSnapshotPayload, receiptEnvelope: RawRecord, expected: RawRecord, command: EducationIntakeCommand): boolean {
+  if (command.command_type !== "intake_material" || command.source.source_kind !== "teacher_file"
+    || command.source.source_hash !== command.material.source_hash || expected.reason_code !== "already_applied"
+    || expected.receipt_phase !== "mutation" || !["accepted", "modified"].includes(String(expected.status))
+    || expected.before_snapshot_id !== expected.after_snapshot_id || expected.before_state_hash !== expected.after_state_hash
+    || !sameList(expected.applied_ids, [command.material.material_id]) || !sameList(expected.rejected_ids, [])) return false;
+  const target = record(expected.target);
+  if (target?.target_kind !== "material_intake" || target.command_type !== "intake_material" || typeof target.target_id !== "string") return false;
+  const provenance = Array.isArray(receiptEnvelope.provenance) ? receiptEnvelope.provenance.map(record).filter(source => source
+    && source.source_kind === "teacher_file" && source.source_id === command.source.source_id && source.source_hash === command.material.source_hash) : [];
+  if (provenance.length !== 1) return false;
+  const sameTarget = (value: unknown) => {
+    const candidate = record(value);
+    return candidate?.target_kind === "material_intake" && candidate.command_type === "intake_material" && candidate.target_id === target.target_id;
+  };
+  const receipts = Array.isArray(snapshot.receipts) ? snapshot.receipts.map(record).filter(receipt => receipt
+    && receipt.command_type === "intake_material" && receipt.receipt_phase === "mutation" && receipt.decision === null
+    && receipt.status === expected.status && receipt.external_send === false && sameTarget(receipt.target)
+    && sameList(receipt.applied_ids, [command.material.material_id]) && sameList(receipt.rejected_ids, [])) : [];
+  // Core intentionally does not persist a source replay's new receipt ID. The
+  // earlier canonical mutation and the current source target jointly prove
+  // this same file was received; the replay remains the returned observation.
+  if (receipts.length !== 1 || !receipts[0] || typeof receipts[0].receipt_id !== "string" || receipts[0].receipt_id === expected.receipt_id) return false;
+  const canonical = receipts[0];
+  const targets = Array.isArray(snapshot.review_targets) ? snapshot.review_targets.map(record).filter(candidate => candidate
+    && candidate.projection_kind === "material_intake" && sameTarget(candidate.target)) : [];
+  if (targets.length !== 1 || !targets[0]) return false;
+  const current = targets[0];
+  return current.status === canonical.status && current.intake_state === "accepted" && current.external_send === false
+    && sameList(current.source_ids, [command.source.source_id]) && current.source_hash === command.material.source_hash
+    && current.expected_size_bytes === command.material.expected_size_bytes
+    && Array.isArray(canonical.evidence_ids) && canonical.evidence_ids.length > 0
+    && sameList(current.evidence_ids, canonical.evidence_ids.map(String))
+    && typeof current.staging_id === "string" && canonical.evidence_ids.includes(current.staging_id);
+}
+
 function boundedId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
@@ -175,6 +211,7 @@ type SnapshotResult = {
 type IntakeDependencies = {
   readSnapshot?: () => Promise<SnapshotResult>;
   dispatch?: (envelope: RawRecord, roots: EduPiBridgeRoots) => Promise<unknown>;
+  dispatchWithMetadata?: (envelope: RawRecord, roots: EduPiBridgeRoots) => Promise<EduPiCoreProcessResult<unknown>>;
   refreshSnapshot?: (roots: EduPiBridgeRoots) => Promise<CoreEducationSnapshotPayload>;
 };
 
@@ -216,6 +253,7 @@ function validateReceiptResponse(value: unknown, envelope: RawRecord): { receipt
 export async function issueEducationIntake(command: EducationIntakeCommand, dependencies: IntakeDependencies = {}): Promise<{
   receipt: RawRecord;
   data: CoreEducationSnapshotPayload | null;
+  materialScheduleProposal?: EduPiMaterialScheduleProposal;
 }> {
   const identity = activeBridgeIdentity();
   if (!identity.contract.supported_commands.includes(command.command_type)) {
@@ -225,16 +263,21 @@ export async function issueEducationIntake(command: EducationIntakeCommand, depe
   const snapshotId = String(initial.payload.snapshot_id || "");
   if (!snapshotId) throw new EducationIntakeError("unavailable", "Core 教育快照不可用。");
   const envelope = buildEducationIntakeCommandEnvelope({ snapshotId, command });
-  const dispatch = dependencies.dispatch || ((nextEnvelope, roots) => callEduPiCore({
+  const dispatch: (nextEnvelope: RawRecord, roots: EduPiBridgeRoots) => Promise<Pick<EduPiCoreProcessResult<unknown>, "response" | "runtimeMetadata">> = dependencies.dispatchWithMetadata || (dependencies.dispatch ? async (nextEnvelope: RawRecord, roots: EduPiBridgeRoots) => ({
+    response: await dependencies.dispatch!(nextEnvelope, roots), runtimeMetadata: {},
+  }) : ((nextEnvelope, roots) => callEduPiCoreWithMetadata({
     operation: "command",
     requestId: String(nextEnvelope.request_id),
     runtime: roots.runtime,
     dataRoot: roots.dataRoot,
     envelope: nextEnvelope,
-  }));
+  })));
   let rawReceipt: unknown;
+  let materialScheduleProposal: EduPiMaterialScheduleProposal | undefined;
   try {
-    rawReceipt = await dispatch(envelope, initial.roots);
+    const outcome = await dispatch(envelope, initial.roots);
+    rawReceipt = outcome.response;
+    materialScheduleProposal = outcome.runtimeMetadata.materialScheduleProposal;
   } catch (error) {
     if (error instanceof EduPiCoreProcessError && isCoreWriterDenialCode(error.code)) throw new EducationIntakeError(error.code, "Core 写入未获准，本次导入未确认。");
     throw new EducationIntakeError("unavailable", "Core 教育导入暂不可用。");
@@ -256,8 +299,11 @@ export async function issueEducationIntake(command: EducationIntakeCommand, depe
   const refresh = dependencies.refreshSnapshot || (async (roots) => (await readEduPiEducationSnapshot({ roots })).payload);
   const data = await refresh(initial.roots);
   const exactAfterSnapshot = data.snapshot_id === receipt.after_snapshot_id && data.state_hash === receipt.after_state_hash;
-  if (!exactAfterSnapshot && !snapshotContainsReceipt(data, receipt)) {
+  if (!exactAfterSnapshot && !snapshotContainsReceipt(data, receipt) && !snapshotConfirmsMaterialSourceReplay(data, receiptEnvelope, receipt, command)) {
     throw new EducationIntakeError("invalid_envelope", "Core 导入后的快照与回执不一致。");
   }
-  return { receipt, data };
+  const boundProposal = command.command_type === "intake_material" && materialScheduleProposal
+    && materialScheduleProposal.read_only === true && materialScheduleProposal.automatic_import === false && materialScheduleProposal.external_send === false
+    && Array.isArray(receipt.applied_ids) && receipt.applied_ids.length === 1 && receipt.applied_ids[0] === materialScheduleProposal.material_id;
+  return { receipt, data, ...(boundProposal ? { materialScheduleProposal } : {}) };
 }

@@ -318,7 +318,10 @@ test("routes education uploads through Desktop staging without Core paths or aut
   assert.match(panel, /\.ics/);
   assert.match(panel, /calendarSourceFingerprint/);
   assert.match(panel, /documentSourceFingerprint/);
-  assert.match(materials, /作为新日历/);
+  assert.match(materials, /作为新材料/);
+  assert.match(materials, /materialScheduleUploadProposal/);
+  assert.match(materials, /EduPiMaterialScheduleProposal/);
+  assert.match(panel, /materialReceivedOnly/);
   assert.match(materials, /更新\{source\.sourceKind === "calendar" \? "日历" : "材料"\}：\{source\.label\}/);
   assert.match(materials, /日程或课表来源/);
   assert.match(materials, /source\.sourceKind === "timetable" \? "课表"/);

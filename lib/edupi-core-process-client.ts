@@ -1,14 +1,70 @@
 import { spawn } from "node:child_process";
 import { isAbsolute, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { Value } from "typebox/value";
+import type { TSchema } from "typebox";
 import type { ResolvedEduPiCore, ResolvedEduPiDataRoot } from "./edupi-core-root";
-import { getPendingEduPiRuntime } from "./edupi-runtime-supervisor";
+import { getPendingEduPiRuntime, eduPiBridgeRequestBudget } from "./edupi-runtime-supervisor";
+export { eduPiBridgeRequestBudget } from "./edupi-runtime-supervisor";
 import { coreRuntimeCanaryEnvironment } from "./safe-mode";
 
 const MAX_REQUEST_BYTES = 256 * 1024;
 const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 const MAX_STDERR_BYTES = 64 * 1024;
 const CORE_READ_TIMEOUT_MS = 15_000;
-const CORE_COMMAND_TIMEOUT_MS = 15_000;
+const MAX_MATERIAL_PROPOSAL_BYTES = 640 * 1024 + 4096;
+
+export type EduPiMaterialScheduleReadResult = {
+  version: 1; root_ref: string; owner_id: string;
+  source: { material_id: string; review_target_id: string | null; staging_id: string; source_hash: string; expected_size_bytes: number;
+    relative_path: string; intake_state: "accepted"; metadata_revision: number; metadata_head_hash: string;
+    metadata: { title: string; kind: string; subject: string | null; class_id: string | null };
+    review_target: { status: string; revision: number; teacher_review_state: string; teacher_review_revision: number } | null };
+  options: { default_time_zone: string | null; window_start: string | null; window_end: string | null; max_occurrences: 200 };
+  status: "ready" | "partial" | "unresolved";
+  events: Array<{ event_id: string; date: string; end_date: string | null; name: string;
+    type: "exam" | "activity" | "meeting" | "holiday" | "festival" | "teaching" | "custom"; confidence: "inferred"; notes: null;
+    source_occurrence_ref?: string; location: string | null; time_interval?: { start: string; end: string; time_zone: string } }>;
+  issues: Array<{ code: string; path: string; message: string; source_occurrence_ref?: string }>;
+  evidence: Array<{ path: string; property: string; value: string; event_ids: string[] }>;
+  parse_fingerprint: string; read_only: true; automatic_import: false; external_send: false;
+};
+export type EduPiMaterialScheduleProposal = { material_id: string; read_only: true; automatic_import: false; external_send: false } & (
+  | { status: "proposed"; read_result: EduPiMaterialScheduleReadResult & { status: "ready" }; reason_code: null }
+  | { status: "held"; read_result: EduPiMaterialScheduleReadResult; reason_code: "material_schedule_unresolved" }
+  | { status: "unavailable"; read_result: null; reason_code: "owner_control_disabled" | "owner_identity_mismatch" | "material_schedule_invalid"
+    | "material_schedule_unavailable" | "material_schedule_source_unavailable" | "material_schedule_stale" | "material_schedule_proposal_capacity" }
+);
+export type EduPiCoreProcessResult<T> = { response: T; bridgeFrame: string; runtimeMetadata: { materialScheduleProposal?: EduPiMaterialScheduleProposal } };
+
+function record(value: unknown): Record<string, unknown> | null { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
+
+async function runtimeMetadata(runtime: ResolvedEduPiCore, request: unknown, response: unknown, outer: unknown): Promise<EduPiCoreProcessResult<unknown>["runtimeMetadata"]> {
+  const proposal = record(outer)?.material_schedule_proposal;
+  if (proposal === undefined) return {};
+  const frame = record(request), envelope = record(frame?.envelope), command = record(envelope?.command);
+  const receiptEnvelope = record(record(response)?.receipt), receipt = record(receiptEnvelope?.payload);
+  const id = Array.isArray(receipt?.applied_ids) && receipt.applied_ids.length === 1 ? receipt.applied_ids[0] : undefined;
+  if (frame?.operation !== "command" || command?.command_type !== "intake_material" || record(response)?.ok !== true
+    || record(response)?.operation !== "command" || frame.request_id !== envelope?.request_id
+    || record(response)?.request_id !== frame.request_id || receipt?.command_type !== "intake_material"
+    || receipt.command_id !== envelope?.message_id || receipt.request_id !== envelope?.request_id
+    || receiptEnvelope?.request_id !== envelope?.request_id || receipt.receipt_phase !== "mutation"
+    || !["accepted", "modified"].includes(String(receipt.status)) || !Array.isArray(receipt.rejected_ids) || receipt.rejected_ids.length
+    || record(receipt.target)?.target_kind !== "material_intake" || typeof id !== "string" || !id || id.length > 160) return {};
+  const unavailable = (reason_code: "material_schedule_invalid" | "material_schedule_proposal_capacity"): EduPiCoreProcessResult<unknown>["runtimeMetadata"] => ({
+    materialScheduleProposal: { status: "unavailable", material_id: id, read_result: null, reason_code, read_only: true, automatic_import: false, external_send: false },
+  });
+  try {
+    if (Buffer.byteLength(JSON.stringify(proposal)) > MAX_MATERIAL_PROPOSAL_BYTES) return unavailable("material_schedule_proposal_capacity");
+    const protocol = await import(/* webpackIgnore: true */ pathToFileURL(resolve(runtime.root, "scripts/core_runtime_protocol.mjs")).href);
+    if (!protocol.MaterialScheduleProposalSchema || !Value.Check(protocol.MaterialScheduleProposalSchema as TSchema, proposal)
+      || record(proposal)?.material_id !== id) return unavailable("material_schedule_invalid");
+    const read = record(record(proposal)?.read_result), source = record(read?.source);
+    if (read && (source?.material_id !== id || source.source_hash !== record(command.material)?.source_hash)) return unavailable("material_schedule_invalid");
+    return { materialScheduleProposal: structuredClone(proposal) as EduPiMaterialScheduleProposal };
+  } catch { return unavailable("material_schedule_invalid"); }
+}
 const CORE_WRITER_DENIAL_CODES = new Set([
   "writer_admission_unavailable", "writer_admission_layout_mismatch", "writer_admission_invalid_root",
   "writer_admission_root_mismatch", "writer_admission_schema_mismatch", "writer_admission_path_invalid",
@@ -52,7 +108,11 @@ function allowedEnvironment(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiD
   };
 }
 
-export function runCoreProcess<T = unknown>({
+export function runCoreProcess<T = unknown>(options: Parameters<typeof runCoreProcessWithMetadata<T>>[0]): Promise<T> {
+  return runCoreProcessWithMetadata<T>(options).then(result => result.response);
+}
+
+export function runCoreProcessWithMetadata<T = unknown>({
   runtime,
   dataRoot,
   request,
@@ -64,7 +124,7 @@ export function runCoreProcess<T = unknown>({
   request: unknown;
   timeoutMs: number;
   signal?: AbortSignal;
-}): Promise<T> {
+}): Promise<EduPiCoreProcessResult<T>> {
   if (!dataRoot) return Promise.reject(new EduPiCoreProcessError("data_root", "Validated EduPi data root is required"));
   const input = JSON.stringify(request);
   if (Buffer.byteLength(input) > MAX_REQUEST_BYTES) return Promise.reject(new EduPiCoreProcessError("request_limit", "Core request exceeds limit"));
@@ -75,7 +135,7 @@ export function runCoreProcess<T = unknown>({
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     let abort: () => void;
-    const interrupted = new Promise<T>((_resolve, reject) => {
+    const interrupted = new Promise<EduPiCoreProcessResult<T>>((_resolve, reject) => {
       abort = () => { controller.abort(); reject(new EduPiCoreProcessError("aborted", "Core request aborted")); };
       signal?.addEventListener("abort", abort, { once: true });
       timer = setTimeout(() => { controller.abort(); reject(new EduPiCoreProcessError("timeout", "Core request timed out")); }, timeoutMs);
@@ -87,8 +147,12 @@ export function runCoreProcess<T = unknown>({
     if (!result.ok) throw new EduPiCoreProcessError("runtime_unavailable", "Core runtime rejected the request");
     const frame = (result.result as { bridge_frame?: unknown } | undefined)?.bridge_frame;
     if (typeof frame !== "string" || Buffer.byteLength(frame) > MAX_STDOUT_BYTES) throw new EduPiCoreProcessError("stdout_limit", "Invalid Core runtime frame");
-    try { return JSON.parse(frame) as T; }
+    let response: T;
+    try { response = JSON.parse(frame) as T; }
     catch { throw new EduPiCoreProcessError("invalid_json", "Invalid Core runtime response"); }
+    const metadata = await runtimeMetadata(runtime, request, response, result.result);
+    if (controller.signal.aborted) throw new EduPiCoreProcessError("aborted", "Core request aborted");
+    return { response, bridgeFrame: frame, runtimeMetadata: metadata };
     });
     return Promise.race([completed, interrupted]).finally(() => { clearTimeout(timer); signal?.removeEventListener("abort", abort); });
   }
@@ -151,14 +215,23 @@ export function runCoreProcess<T = unknown>({
         return reject(new EduPiCoreProcessError("nonzero_exit", `Core process exit ${code}: ${stderrText}`));
       }
       if (frames.length !== 1) return reject(new EduPiCoreProcessError("stdout_frames", "Core stdout must contain exactly one frame"));
-      try { resolve(JSON.parse(frames[0]) as T); }
+      try { resolve({ response: JSON.parse(frames[0]) as T, bridgeFrame: Buffer.concat(stdout).toString("utf8"), runtimeMetadata: {} }); }
       catch { reject(new EduPiCoreProcessError("stdout_json", "Core stdout is not valid JSON")); }
     });
     child.stdin.end(input);
   });
 }
 
-export async function callEduPiCore<T = unknown>({
+type EduPiCoreCallOptions = {
+  operation: "health" | "snapshot" | "command" | "kernel" | "memory-scopes" | "teaching-skills" | "connectors" | "agent-computer" | "platform" | "connector-setup";
+  requestId: string; runtime: ResolvedEduPiCore; dataRoot?: ResolvedEduPiDataRoot; envelope?: unknown;
+  scheduleOccurrenceVersion?: "1.2"; signal?: AbortSignal;
+};
+export async function callEduPiCore<T = unknown>(options: EduPiCoreCallOptions): Promise<T> {
+  return (await callEduPiCoreWithMetadata<T>(options)).response;
+}
+
+export async function callEduPiCoreWithMetadata<T = unknown>({
   operation,
   requestId,
   runtime,
@@ -166,15 +239,7 @@ export async function callEduPiCore<T = unknown>({
   envelope,
   scheduleOccurrenceVersion,
   signal,
-}: {
-  operation: "health" | "snapshot" | "command" | "kernel" | "memory-scopes" | "teaching-skills" | "connectors" | "agent-computer" | "platform" | "connector-setup";
-  requestId: string;
-  runtime: ResolvedEduPiCore;
-  dataRoot?: ResolvedEduPiDataRoot;
-  envelope?: unknown;
-  scheduleOccurrenceVersion?: "1.2";
-  signal?: AbortSignal;
-}): Promise<T> {
+}: EduPiCoreCallOptions): Promise<EduPiCoreProcessResult<T>> {
   if (scheduleOccurrenceVersion !== undefined && operation !== "snapshot") {
     throw new EduPiCoreProcessError("invalid_request", "Schedule occurrence projection is available only for snapshot reads");
   }
@@ -187,5 +252,5 @@ export async function callEduPiCore<T = unknown>({
     ...(scheduleOccurrenceVersion === undefined ? {} : { schedule_occurrence_version: scheduleOccurrenceVersion }),
     ...(envelope === undefined ? {} : { envelope }),
   };
-  return runCoreProcess<T>({ runtime, dataRoot, request, timeoutMs: operation === "command" ? CORE_COMMAND_TIMEOUT_MS : CORE_READ_TIMEOUT_MS, signal });
+  return runCoreProcessWithMetadata<T>({ runtime, dataRoot, request, timeoutMs: operation === "command" ? eduPiBridgeRequestBudget(request).transportMs : CORE_READ_TIMEOUT_MS, signal });
 }

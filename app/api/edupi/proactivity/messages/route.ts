@@ -6,33 +6,35 @@ import { captureAndApplyAmbientMessage, EduPiAmbientMessageError, predictEduPiOw
 import { confirmEduPiAmbientMessageBinding, markEduPiAmbientMessageOutcomeUnknown, markEduPiAmbientMessageOutcomeVerified,
   prepareEduPiAmbientMessageBinding, readUncertainEduPiAmbientMessages } from "@/lib/edupi-ambient-message-ledger";
 import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution } from "@/lib/edupi-ambient-message-recovery";
-import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
+import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
+import { isCapabilityGrantBindingIdentity, type EduPiCapabilityDomain } from "@/lib/edupi-proactivity-control";
 import { readEduPiProactivityActivation, type EduPiProactivityDomain } from "@/lib/edupi-proactivity-config";
 import { readProactivityOwnerContext } from "@/lib/edupi-proactivity-runtime";
-import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
+import { ensureEduPiRuntime, isEduPiG3ExactRuntimeSupported } from "@/lib/edupi-runtime-supervisor";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { withEduPiAmbientSessionLock } from "@/lib/edupi-ambient-session-lock";
-import { canStartEduPiCapabilityCanary, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
+import { canStartEduPiStudentFollowup } from "@/lib/safe-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 16 * 1024;
 const G3_DOMAINS: EduPiProactivityDomain[] = ["calendar_administration", "lesson_reflection", "parent_communication"];
 
-function isG3Domain(domain: EduPiProactivityDomain): boolean { return G3_DOMAINS.includes(domain); }
+function isG3Domain(domain: EduPiProactivityDomain): domain is EduPiCapabilityDomain { return G3_DOMAINS.includes(domain); }
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-function activeBindings(dataRoot: string) {
+function activeBindings(roots: EduPiBridgeRoots) {
   const domains: EduPiProactivityDomain[] = ["teaching_preparation",
     ...(canStartEduPiStudentFollowup() ? ["student_followup" as const] : []),
-    ...(canStartEduPiCapabilityCanary() ? G3_DOMAINS : [])];
-  return domains.map(domain => ({ domain, activation: readEduPiProactivityActivation({ dataRoot, domain }) }))
+    ...(isEduPiG3ExactRuntimeSupported(roots.runtime.coreCommit) ? G3_DOMAINS : [])];
+  return domains.map(domain => ({ domain, activation: readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain }) }))
     .filter(({ domain, activation }) => activation.enabled && (!isG3Domain(domain)
       || activation.source === "desktop_canary" && activation.configurationStatus === "ready"
-        && Boolean(activation.scope && activation.grantId)));
+        && Boolean(activation.scope && activation.grantId
+          && isCapabilityGrantBindingIdentity(domain, activation.scope, activation.grantId))));
 }
 
 export async function GET(request: Request) {
@@ -82,7 +84,7 @@ export async function GET(request: Request) {
       });
     }
     const roots = resolveEduPiBridgeRoots();
-    const bindings = activeBindings(roots.dataRoot.root).filter(({ activation }) => activation.grantId && activation.scope);
+    const bindings = activeBindings(roots).filter(({ activation }) => activation.grantId && activation.scope);
     if (bindings.length === 0) {
       return NextResponse.json({ status: "disabled", externalSend: false });
     }
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
   if (!isDesktopApiRequestAllowed(request)) return NextResponse.json({ status: "rejected", externalSend: false }, { status: 403 });
   try {
     const roots = resolveEduPiBridgeRoots();
-    const activations = activeBindings(roots.dataRoot.root);
+    const activations = activeBindings(roots);
     if (activations.length === 0) return NextResponse.json({ status: "disabled", externalSend: false }, { status: 202 });
     const bindings = activations.filter(({ activation }) => activation.grantId && activation.scope);
     if (bindings.length === 0) return NextResponse.json({ status: "unconfigured", externalSend: false }, { status: 409 });

@@ -96,17 +96,49 @@ function validScope(scope) {
     && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u.test(scope.grantId);
 }
 
+function validG3Bindings(bindings) {
+  const id = /^[A-Za-z0-9_][A-Za-z0-9_.:-]{0,127}$/u;
+  const domains = new Set(["calendar_administration", "lesson_reflection", "parent_communication"]);
+  if (!Array.isArray(bindings) || Object.getPrototypeOf(bindings) !== Array.prototype
+    || bindings.length < 1 || bindings.length > 128 || Reflect.ownKeys(bindings).length !== bindings.length + 1) return false;
+  const seen = new Set();
+  for (let index = 0; index < bindings.length; index++) {
+    const slot = Object.getOwnPropertyDescriptor(bindings, index);
+    const binding = slot?.value;
+    if (!slot?.enumerable || !Object.hasOwn(slot, "value") || !binding || typeof binding !== "object" || Array.isArray(binding)
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(binding))) return false;
+    const keys = Reflect.ownKeys(binding);
+    if (keys.some(key => typeof key !== "string" || !["domain", "grantId", "scope", "ownerId"].includes(key)
+      || !Object.hasOwn(Object.getOwnPropertyDescriptor(binding, key), "value"))
+      || !["domain", "grantId", "scope"].every(key => Object.hasOwn(binding, key))) return false;
+    const scope = binding.scope;
+    if (!scope || typeof scope !== "object" || Array.isArray(scope) || ![Object.prototype, null].includes(Object.getPrototypeOf(scope))
+      || Reflect.ownKeys(scope).length !== 2 || !["class_id", "subject"].every(key => Object.hasOwn(scope, key)
+        && Object.hasOwn(Object.getOwnPropertyDescriptor(scope, key), "value"))) return false;
+    if (!domains.has(binding.domain) || typeof binding.grantId !== "string" || !id.test(binding.grantId)
+      || typeof scope.class_id !== "string" || !id.test(scope.class_id)
+      || typeof scope.subject !== "string" || !scope.subject.trim() || scope.subject.length > 128
+      || Object.hasOwn(binding, "ownerId") && (typeof binding.ownerId !== "string" || !id.test(binding.ownerId))) return false;
+    const key = JSON.stringify([binding.domain, binding.grantId, scope.class_id, scope.subject]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
 export async function startCoreRuntimeHost({ coreRoot, options }, channel = process) {
   const hasModelScope = options?.g1Scope !== undefined || options?.g2Scope !== undefined;
-  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken", "g1Scope", "g2Scope"].includes(key))
+  const hasG3 = options?.g3AllowedBindings !== undefined;
+  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken", "g1Scope", "g2Scope", "g3AllowedBindings"].includes(key))
     || (options.ambientPlanning !== undefined && typeof options.ambientPlanning !== "boolean")
-    || hasModelScope && (options.ambientPlanning !== true || typeof options.ownerControlToken !== "string")
+    || (hasModelScope || hasG3) && (options.ambientPlanning !== true || typeof options.ownerControlToken !== "string")
     || options.g1Scope !== undefined && !validScope(options.g1Scope)
-    || options.g2Scope !== undefined && (!validScope(options.g2Scope) || options.g2Scope.subject !== "数学")) throw new Error("Invalid runtime bootstrap.");
+    || options.g2Scope !== undefined && (!validScope(options.g2Scope) || options.g2Scope.subject !== "数学")
+    || hasG3 && !validG3Bindings(options.g3AllowedBindings)) throw new Error("Invalid runtime bootstrap.");
   const hostExecutor = hasModelScope ? createParentModelExecutor(channel) : null;
   try {
     const { createCoreRuntimeDaemon } = await import(pathToFileURL(path.join(coreRoot, "scripts/core_runtime_daemon.mjs")).href);
-    const { g1Scope, g2Scope, ...daemonOptions } = options;
+    const { g1Scope, g2Scope, g3AllowedBindings, ...daemonOptions } = options;
     let g1Runner;
     if (g1Scope) {
       try {
@@ -132,6 +164,7 @@ export async function startCoreRuntimeHost({ coreRoot, options }, channel = proc
     }
     const daemon = await createCoreRuntimeDaemon({ ...daemonOptions,
       ...(g2Live ? { g2Live } : {}),
+      ...(g3AllowedBindings ? { g3Live: { allowedBindings: g3AllowedBindings } } : {}),
       ...(g1Runner ? { g1Live: { modelRunner: g1Runner, leaseMs: 300000,
         scope: { classId: g1Scope.classId, subject: g1Scope.subject }, grantId: g1Scope.grantId } } : {}) });
     return { daemon, async close() { hostExecutor?.close(); try { await daemon.close(); } finally { await g1Runner?.waitForIdle(); } } };

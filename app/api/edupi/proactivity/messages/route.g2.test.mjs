@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import test from "node:test";
 import ts from "typescript";
 
-function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,lostG1Reply=false,lostG2Reply=false,lostG3Reply=false}={}) {
+function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,lostG1Reply=false,lostG2Reply=false,lostG3Reply=false}={}) {
   const prepared=[],captured=[],confirmed=[],uncertain=[];
   let recoverG1=false,recoverG2=false;
   let premarked=0;
@@ -16,15 +16,19 @@ function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=
     "node:crypto":crypto,
     "@/lib/desktop-api-auth":{isDesktopApiRequestAllowed:()=>true},
     "@/lib/bounded-form-data":{parseJsonWithinLimit:async r=>{bodyReads++;return r.json();},RequestBodyTooLargeError:class extends Error{}},
-    "@/lib/edupi-core-snapshot":{resolveEduPiBridgeRoots:()=>({dataRoot:{root:"/synthetic-root"}})},
+    "@/lib/edupi-core-snapshot":{resolveEduPiBridgeRoots:()=>({runtime:{coreCommit:"synthetic-exact-pin"},dataRoot:{root:"/synthetic-root"}})},
     "@/lib/safe-mode":{canStartEduPiStudentFollowup:()=>isolated,canStartEduPiCapabilityCanary:()=>isolated},
     "@/lib/edupi-proactivity-config":{readEduPiProactivityActivation:({domain})=>({enabled:domain==="student_followup"?g2
       :domain==="calendar_administration"?g3:domain==="teaching_preparation"?g1:false,
-      source:"desktop_canary",configurationStatus:"ready",grantId:domain,scope:{classId:"class-1",subject:"数学"}})},
+      source:"desktop_canary",configurationStatus:"ready",grantId:domain==="calendar_administration"
+        ?g3Legacy?"desktop_canary_v2_wrong_domain":"cap-calendar-administration-exact":domain,
+      scope:{classId:"class-1",subject:"数学"}})},
     "@/lib/session-reader":{resolveSessionPath:async()=>"synthetic-session"},
     "@/lib/edupi-ambient-session-lock":{withEduPiAmbientSessionLock:async(_id,operation)=>operation()},
     "@/lib/edupi-proactivity-runtime":{readProactivityOwnerContext:async()=>({status:"active"})},
-    "@/lib/edupi-runtime-supervisor":{ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2Active?"active":"activation_pending",g3_processor:g3Active?"active":"activation_pending"}}})})},
+    "@/lib/edupi-runtime-supervisor":{isEduPiG3ExactRuntimeSupported:()=>isolated,
+      ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2Active?"active":"activation_pending",g3_processor:g3Active?"active":"activation_pending"}}})})},
+    "@/lib/edupi-proactivity-control":{isCapabilityGrantBindingIdentity:(_domain,_scope,grantId)=>grantId==="cap-calendar-administration-exact"},
     "@/lib/edupi-ambient-message-ledger":{
       prepareEduPiAmbientMessageBinding:value=>prepared.push(value),
       confirmEduPiAmbientMessageBinding:(sessionId,messageId,messageRef)=>confirmed.push({sessionId,messageId,messageRef}),
@@ -203,6 +207,13 @@ test("an isolated ready G3 domain reaches only Core-owned routing and clears its
   assert.equal((await(await inactive.route.GET(inactive.request())).json()).status,"disabled");
   assert.notEqual((await(await inactive.route.POST(inactive.request())).json()).status,"queued");
   assert.equal(inactive.captured.length,0);
+});
+
+test("an old G3 config sharing a G1-shaped grant is not an active natural-message binding",async()=>{
+  const f=fixture({g1:false,g2:false,g3:true,g3Legacy:true});
+  assert.equal((await(await f.route.GET(f.request())).json()).status,"disabled");
+  assert.equal((await(await f.route.POST(f.request())).json()).status,"disabled");
+  assert.equal(f.captured.length,0);
 });
 
 test("G3 lost apply reply keeps one durable unknown and blocks a new domain message",async()=>{

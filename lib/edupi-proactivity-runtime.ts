@@ -256,7 +256,8 @@ export async function readProactivityGrantDomainProof(
 
 function grantStatus(state: OwnerRead, grantId: string | null, now: number, domain: EduPiProactivityDomain) {
   const grant = state.grants.find((item) => item.id === grantId);
-  const budgets = domain === "teaching_preparation" ? state.g1ModelBudget : state.g2ModelBudget;
+  const budgets = domain === "teaching_preparation" ? state.g1ModelBudget
+    : domain === "student_followup" ? state.g2ModelBudget : null;
   const budget = budgets?.find(item => item.grantId === grantId);
   if (grant && !budget && (domain === "teaching_preparation" || budgets !== null)) invalid();
   return grant ? { status: (grant.status === "active" && Date.parse(grant.ends_at) <= now ? "expired" : grant.status) as EffectiveGrantStatus,

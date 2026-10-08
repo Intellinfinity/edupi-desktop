@@ -13,7 +13,8 @@ export type EduPiProactivityState = {
   scopes: Array<{ classId: string; className: string | null; subject: string; slotCount: number; materialCount: number; ready: boolean }>;
   grant: { status: "active" | "paused" | "revoked" | "expired"; grantVersion: number; endsAt: string;
     modelBudget: { usedCalls: number; maxCalls: number; remainingCalls: number; usageUnverified: boolean } | null } | null;
-  capabilities: { ambientPlanning: boolean; ownerIntent: boolean; attentionDelivery: boolean; teacherFeedback: boolean; studentFollowup?: boolean } | null;
+  capabilities: { ambientPlanning: boolean; ownerIntent: boolean; attentionDelivery: boolean; teacherFeedback: boolean;
+    studentFollowup?: boolean; sharedCapability?: boolean } | null;
   execution?: EduPiStudentFollowupExecution | null;
   limits: { durationDays: number; maxModelCalls: number; domain: EduPiProactivityDomain };
   externalSend: false;
@@ -38,6 +39,7 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
   const grant = state?.grant === null ? null : record(state?.grant);
   const modelBudget = record(grant?.modelBudget);
   const capabilities = state?.capabilities === null ? null : record(state?.capabilities);
+  const g3 = ["calendar_administration", "lesson_reflection", "parent_communication"].includes(String(limits?.domain));
   const initialScan = state?.initialScan === undefined ? null : record(state?.initialScan);
   if (state?.ok !== true || state.externalSend !== false || state.degraded !== undefined && typeof state.degraded !== "boolean"
     || state.requiresSafeMode !== undefined && typeof state.requiresSafeMode !== "boolean"
@@ -54,8 +56,7 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
     || !Number.isInteger(limits.durationDays) || Number(limits.durationDays) < 1 || Number(limits.durationDays) > 30
     || !Number.isInteger(limits.maxModelCalls) || Number(limits.maxModelCalls) < 0 || Number(limits.maxModelCalls) > 100
     || limits.domain === "student_followup" && (limits.durationDays !== 7 || limits.maxModelCalls !== 4)
-    || ["calendar_administration", "lesson_reflection", "parent_communication"].includes(String(limits.domain))
-      && (limits.maxModelCalls !== 0 || state.activationBlocked !== "activation_pending")) {
+    || g3 && (state.activationBlocked === "activation_pending" ? limits.maxModelCalls !== 0 : limits.maxModelCalls !== 4)) {
     throw new EduPiProactivityClientError("主动运行状态无效");
   }
   for (const raw of scopes) {
@@ -66,7 +67,7 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
       throw new EduPiProactivityClientError("主动运行范围无效");
     }
   }
-  const budgetLimit = limits.domain === "student_followup" ? 4 : limits.domain === "teaching_preparation" ? 12 : 0;
+  const budgetLimit = limits.domain === "teaching_preparation" ? 12 : 4;
   if (grant && (!Number.isInteger(grant.grantVersion) || !["active", "paused", "revoked", "expired"].includes(String(grant.status)) || typeof grant.endsAt !== "string"
     || !(limits.domain !== "teaching_preparation" && grant.modelBudget === null) && (
     !modelBudget || !Number.isSafeInteger(modelBudget.usedCalls) || Number(modelBudget.usedCalls) < 0 || Number(modelBudget.usedCalls) > 1536
@@ -105,7 +106,8 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
     }
   }
   if (capabilities && (![capabilities.ambientPlanning, capabilities.ownerIntent, capabilities.attentionDelivery, capabilities.teacherFeedback].every((item) => typeof item === "boolean")
-    || limits.domain === "student_followup" && typeof capabilities.studentFollowup !== "boolean")) {
+    || limits.domain === "student_followup" && typeof capabilities.studentFollowup !== "boolean"
+    || g3 && typeof capabilities.sharedCapability !== "boolean")) {
     throw new EduPiProactivityClientError("主动运行能力无效");
   }
   if (state?.initialScan !== undefined && (limits.domain === "student_followup" || !initialScan || !Number.isInteger(initialScan.queued)

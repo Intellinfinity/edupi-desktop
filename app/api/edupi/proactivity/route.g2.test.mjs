@@ -18,7 +18,7 @@ const PENDING_DOMAINS = ["calendar_administration", "lesson_reflection", "parent
 const scope = { classId: "class-7-1", subject: "数学" };
 const rootRef = `sha256:${"a".repeat(64)}`;
 
-function fixture({ isolated = true, g1Enabled = false, g2Processor = true, forceG2Active = false, failG2Grant = false, failPause = false, failDisabledWrite = false, ownerReadPatch = {} } = {}) {
+function fixture({ isolated = true, exactG3 = false, g1Enabled = false, g2Processor = true, forceG2Active = false, failG2Grant = false, failPause = false, failDisabledWrite = false, ownerReadPatch = {} } = {}) {
   // In-memory config and Core transport only. This never starts a daemon,
   // reads teacher data, calls a model, or proves an installation flow.
   const events = [];
@@ -41,11 +41,11 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
   const health = () => {
     const g1 = read(G1).enabled;
     const g2 = read(G2).enabled && g2Processor || forceG2Active;
-    const g3 = false; // Current Core pin has no exact grant+scope startup binding.
+    const g3 = exactG3 && PENDING_DOMAINS.some(domain => read(domain).enabled && read(domain).configurationStatus === "ready");
     return { ok: true, result: { data_root_fingerprint: rootRef, capabilities: {
       g1_processor: g1 ? "active" : "activation_pending", g2_processor: g2 ? "active" : "activation_pending",
       g3_processor: g3 ? "active" : "activation_pending",
-      internal_timer: "active", ambient_planning: g1 || g2 ? "active" : "activation_pending",
+      internal_timer: "active", ambient_planning: g1 || g2 || g3 ? "active" : "activation_pending",
       owner_authorization: "active", owner_conversation: "active", owner_intent: "active",
       attention_delivery: "active", teacher_feedback: "active",
     } } };
@@ -82,7 +82,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
     "@/lib/safe-mode": { canStartEduPiProactivity: () => true, canStartEduPiStudentFollowup: () => isolated,
       canStartEduPiCapabilityCanary: () => isolated },
     "@/lib/edupi-core-snapshot": {
-      resolveEduPiBridgeRoots: () => { events.push({ operation: "resolve" }); return { runtime: { coreCommit: "synthetic-old-pin" }, dataRoot: { root } }; },
+      resolveEduPiBridgeRoots: () => { events.push({ operation: "resolve" }); return { runtime: { coreCommit: exactG3 ? "synthetic-exact-pin" : "synthetic-old-pin" }, dataRoot: { root } }; },
       readEduPiEducationSnapshot: async () => { events.push({ operation: "snapshot" }); return { workspace }; },
     },
     "@/lib/edupi-generated-artifacts": { workspaceResourcesRequest: async () => { events.push({ operation: "materials" }); return { teacherMaterials }; } },
@@ -107,9 +107,11 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
     },
     "@/lib/edupi-runtime-supervisor": {
       G3_DOMAINS: PENDING_DOMAINS,
-      g3AllowedDomainsForActivations: (items, coreCommit) => {
+      isEduPiG3ExactRuntimeSupported: () => exactG3 && isolated,
+      g3AllowedBindingsForActivations: (items, coreCommit) => {
         events.push({ operation: "startup-allowset", domains: items.map(item => item.domain), coreCommit });
-        return [];
+        return exactG3 ? items.filter(item => item.activation.enabled && item.activation.configurationStatus === "ready")
+          .map(item => ({ domain: item.domain, grantId: item.activation.grantId, scope: item.activation.scope })) : [];
       },
       ensureEduPiRuntime: async () => { events.push({ operation: "ensure" }); return host; },
       restartEduPiRuntime: async () => { events.push({ operation: "restart" }); return host; },
@@ -172,6 +174,33 @@ test("G3 through G5 expose default-off state and reject live activation before C
     assert.equal(f.read(domain).enabled, false);
   }
   assert.equal(f.events.some(event => ["owner_control", "config", "prepare_due", "materials"].includes(event.operation)), false);
+});
+
+test("an exact Core pin activates distinct G3 through G5 grants without G1 model work", async () => {
+  const f = fixture({ exactG3: true });
+  const subjects = { calendar_administration: "administration", lesson_reflection: "数学", parent_communication: "数学" };
+  const ids = [];
+  for (const domain of PENDING_DOMAINS) {
+    const before = await (await f.get(`?domain=${domain}`)).json();
+    assert.equal(before.activationBlocked, null);
+    assert.equal(before.scopes.some(item => item.classId === scope.classId && item.subject === subjects[domain] && item.ready), true);
+    const response = await f.post({ enabled: true, classId: scope.classId, subject: subjects[domain],
+      expectedUpdatedAt: f.read(domain).updatedAt, domain });
+    assert.equal(response.status, 200, JSON.stringify({ body: await response.json(), events: f.events.slice(-15) }));
+    const grantId = f.read(domain).grantId;
+    ids.push(grantId);
+    assert.deepEqual(f.grants.get(grantId).spec.domains, [domain]);
+    assert.equal(f.grants.get(grantId).spec.budget.max_calls, 4);
+    assert.equal(f.health().result.capabilities.g3_processor, "active");
+  }
+  assert.equal(new Set(ids).size, 3);
+  assert.equal(f.events.some(item => item.operation === "prepare_due"), false);
+  const stop = await f.toggle(false, "lesson_reflection");
+  assert.equal(stop.status, 200);
+  assert.equal(f.grants.get(ids[1]).status, "paused");
+  assert.equal(f.grants.get(ids[0]).status, "active");
+  assert.equal(f.grants.get(ids[2]).status, "active");
+  assert.equal(f.health().result.capabilities.g3_processor, "active");
 });
 
 test("a stale G3 config never appears as an active live capability", async () => {

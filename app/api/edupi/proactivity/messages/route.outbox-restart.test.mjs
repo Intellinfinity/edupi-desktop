@@ -23,6 +23,15 @@ test("a cold client reload keeps native outbox pending after G1 applies and G2 b
   const stateDir = path.join(root, "state"), dataRoot = path.join(root, "data"), nativeFile = path.join(root, "native-outbox.json");
   fs.mkdirSync(stateDir, { mode: 0o700 }); fs.mkdirSync(dataRoot, { mode: 0o700 });
   const ledgerOptions = { stateDir, dataRoot };
+  const oldRef = `owner_message:${"e".repeat(64)}`;
+  const rootHash = crypto.createHash("sha256").update(fs.realpathSync(dataRoot), "utf8").digest("hex");
+  fs.writeFileSync(path.join(stateDir, "edupi-ambient-message-ledger.json"), JSON.stringify({ version: 1,
+    data_root_hash: `sha256:${rootHash}`, revision: 1,
+    entries: [{ session_id: "synthetic-session", message_id: "legacy-settled", message_ref: oldRef,
+      owner_id: "owner-1", grant_id: "grant-teaching_preparation", capture_grant_version: 1,
+      occurred_at: "2026-10-07T00:00:00.000Z", status: "settled", withdrawn_at: null }] }), { mode: 0o600 });
+  fs.writeFileSync(nativeFile, JSON.stringify([{ sessionId: "synthetic-session", messageId: "legacy-settled",
+    occurredAt: "2026-10-07T00:00:00.000Z" }]), { mode: 0o600 });
   const native = {
     readAmbientCaptureOutboxNative: async () => fs.existsSync(nativeFile) ? JSON.parse(fs.readFileSync(nativeFile, "utf8")) : [],
     rememberAmbientCaptureNative: async entry => {
@@ -51,7 +60,8 @@ test("a cold client reload keeps native outbox pending after G1 applies and G2 b
     "acknowledgeEduPiAmbientMessagePlan", "armEduPiAmbientMessagePlan", "cancelEduPiAmbientMessagePlan",
     "confirmEduPiAmbientMessageBinding", "finishEduPiAmbientPlanDomain", "markEduPiAmbientMessageOutcomeUnknown",
     "markEduPiAmbientMessageOutcomeVerified", "markEduPiAmbientPlanDomainUnavailable",
-    "prepareEduPiAmbientMessageBinding", "readCompletedEduPiAmbientMessages", "readEduPiAmbientMessagePlan",
+    "prepareEduPiAmbientMessageBinding", "readCompletedEduPiAmbientMessages", "readCancelledEduPiAmbientMessages",
+    "readLegacySettledEduPiAmbientMessages", "readEduPiAmbientMessagePlan",
     "readPendingEduPiAmbientMessages", "readUnsettledEduPiAmbientMessages", "startEduPiAmbientPlanDomain",
   ].map(name => [name, (...args) => ledger[name](...args.slice(0, -1), ledgerOptions)]));
   const modules = {
@@ -68,7 +78,7 @@ test("a cold client reload keeps native outbox pending after G1 applies and G2 b
     "@/lib/edupi-proactivity-runtime": { readProactivityOwnerContext: async () => ({ status: "active" }) },
     "@/lib/edupi-runtime-supervisor": { isEduPiG3ExactRuntimeSupported: () => false,
       ensureEduPiRuntime: async () => ({ call: async () => ({ ok: true, result: { data_root_fingerprint: `sha256:${"a".repeat(64)}`,
-        capabilities: { ambient_planning: "active", owner_intent: "active", g2_processor: "active" } } }) }) },
+        capabilities: { ambient_planning: "active", owner_intent: "active", g2_processor: "activation_pending" } } }) }) },
     "@/lib/session-reader": { resolveSessionPath: async () => "synthetic-session" },
     "@/lib/edupi-ambient-session-lock": { withEduPiAmbientSessionLock: async (_id, operation) => operation() },
     "@/lib/safe-mode": { canStartEduPiStudentFollowup: () => true },
@@ -108,9 +118,11 @@ test("a cold client reload keeps native outbox pending after G1 applies and G2 b
     text: "Synthetic teacher request" };
   const first = makeClient();
   assert.equal((await first.armEduPiAmbientMessage(input)).status, "armed");
+  assert.equal(ledger.readCompletedEduPiAmbientMessages(input.sessionId, ledgerOptions).length, 0,
+    "the old settled row is preserved without pretending it proves a whole message");
   assert.equal((await first.captureEduPiAmbientMessage(input)).status, "outcome_unknown");
   assert.equal(g1Applies, 1);
-  assert.equal(JSON.parse(fs.readFileSync(nativeFile, "utf8")).length, 1);
+  assert.equal(JSON.parse(fs.readFileSync(nativeFile, "utf8")).length, 2);
   assert.equal(ledger.readEduPiAmbientMessagePlan(input.sessionId, input.messageId, ledgerOptions).status, "pending");
   setOrigin(new Map());
   const reloaded = makeClient();
@@ -119,6 +131,14 @@ test("a cold client reload keeps native outbox pending after G1 applies and G2 b
   assert.equal(state.pending[0].messageId, input.messageId);
   assert.equal((await reloaded.captureEduPiAmbientMessage(input)).status, "outcome_unknown");
   assert.equal(g1Applies, 1, "a restarted client cannot reapply G1");
-  assert.equal(JSON.parse(fs.readFileSync(nativeFile, "utf8")).length, 1);
+  assert.equal(JSON.parse(fs.readFileSync(nativeFile, "utf8")).length, 2);
   assert.equal(fs.readFileSync(nativeFile, "utf8").includes(input.text), false);
+  const next = { ...input, messageId: "prompt-next", occurredAt: "2026-10-08T00:00:01.000Z",
+    text: "Another synthetic request" };
+  assert.equal((await reloaded.armEduPiAmbientMessage(next)).status, "armed");
+  assert.equal((await reloaded.captureEduPiAmbientMessage(next)).status, "outcome_unknown");
+  assert.equal(g1Applies, 2, "the new prompt may proceed while the older G2 remains visibly incomplete");
+  assert.equal(JSON.parse(fs.readFileSync(nativeFile, "utf8")).length, 3);
+  assert.equal(JSON.parse(fs.readFileSync(nativeFile, "utf8")).some(item => item.messageId === "legacy-settled"), true);
+  assert.equal(ledger.readEduPiAmbientMessagePlan(input.sessionId, input.messageId, ledgerOptions).status, "pending");
 });

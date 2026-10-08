@@ -39,13 +39,13 @@ type StoredEntry = {
 };
 
 export type EduPiAmbientMessagePlan = { sessionId: string; messageId: string; occurredAt: string;
-  status: "pending" | "complete"; acknowledged: boolean;
+  status: "pending" | "complete" | "cancelled"; acknowledged: boolean;
   domains: Array<{ domain: EduPiProactivityDomain; grantId: string; scopeHash: string;
     state: "unattempted" | "unknown" | "unavailable" | "terminal"; messageRef: string | null }> };
 type StoredPlanDomain = { domain: EduPiProactivityDomain; grant_id: string; scope_hash: string;
   state: EduPiAmbientMessagePlan["domains"][number]["state"]; message_ref: string | null };
 type StoredPlan = { session_id: string; message_id: string; occurred_at: string;
-  status: "pending" | "complete"; acknowledged: boolean; domains: StoredPlanDomain[] };
+  status: "pending" | "complete" | "cancelled"; acknowledged: boolean; domains: StoredPlanDomain[] };
 type StoredLedger = { version: 2; data_root_hash: string; revision: number; entries: StoredEntry[]; plans: StoredPlan[] };
 type LegacyLedger = Omit<StoredLedger, "version" | "plans"> & { version: 1 };
 
@@ -80,8 +80,8 @@ function validPlan(value: unknown): value is StoredPlan {
   if (Object.keys(plan).length !== 6 || !["session_id", "message_id", "occurred_at", "status", "acknowledged", "domains"]
     .every(key => Object.hasOwn(plan, key)) || !ID.test(String(plan.session_id || ""))
     || !ID.test(String(plan.message_id || "")) || !canonicalTime(plan.occurred_at)
-    || !["pending", "complete"].includes(String(plan.status)) || typeof plan.acknowledged !== "boolean"
-    || plan.acknowledged && plan.status !== "complete" || !Array.isArray(plan.domains)
+    || !["pending", "complete", "cancelled"].includes(String(plan.status)) || typeof plan.acknowledged !== "boolean"
+    || plan.acknowledged && !["complete", "cancelled"].includes(String(plan.status)) || !Array.isArray(plan.domains)
     || plan.domains.length < 1 || plan.domains.length > DOMAINS.length) return false;
   const seen = new Set<string>();
   for (const raw of plan.domains) {
@@ -96,7 +96,8 @@ function validPlan(value: unknown): value is StoredPlan {
       || item.state !== "terminal" && item.message_ref !== null) return false;
     seen.add(String(item.domain));
   }
-  return (plan.status === "complete") === plan.domains.every(item => item.state === "terminal");
+  return (plan.status === "complete") === plan.domains.every(item => item.state === "terminal")
+    && (plan.status !== "cancelled" || plan.domains.every(item => item.state === "unattempted"));
 }
 
 function validLedger(value: unknown): value is StoredLedger | LegacyLedger {
@@ -129,6 +130,7 @@ function validLedger(value: unknown): value is StoredLedger | LegacyLedger {
       const matching = (ledger.entries as StoredEntry[]).filter(entry => entry.session_id === plan.session_id
         && entry.message_id === plan.message_id);
       if (matching.some(entry => entry.occurred_at !== plan.occurred_at)) return false;
+      if (plan.status === "cancelled" && matching.length !== 0) return false;
       for (const domain of plan.domains) {
         if (domain.state !== "terminal") continue;
         const receipt = matching.find(entry => entry.message_ref === domain.message_ref);
@@ -194,7 +196,7 @@ function writeLedger(root: string, value: StoredLedger): void {
   while (candidate.entries.length > MAX_ENTRIES || candidate.plans.length > MAX_PLANS || content.length > MAX_BYTES) {
     // A native outbox ACK is the only evidence that a completed message no longer
     // needs a server receipt for cold-start reconciliation.
-    const retired = candidate.plans.find(plan => plan.status === "complete" && plan.acknowledged);
+    const retired = candidate.plans.find(plan => ["complete", "cancelled"].includes(plan.status) && plan.acknowledged);
     if (!retired) fail();
     candidate = { ...candidate, plans: candidate.plans.filter(plan => plan !== retired),
       entries: candidate.entries.filter(entry => entry.session_id !== retired.session_id || entry.message_id !== retired.message_id) };
@@ -274,17 +276,19 @@ export function readEduPiAmbientMessagePlan(sessionId: string, messageId: string
 }
 
 export function readPendingEduPiAmbientMessages(sessionId: string,
-  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string }> {
+  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string; nonBlocking: boolean }> {
   if (!ID.test(sessionId)) fail();
   const value = readLedger(options.stateDir ?? process.env.PI_DESKTOP_STATE_DIR, options.dataRoot).value;
   const pending = value.plans.filter(plan => plan.session_id === sessionId && plan.status === "pending")
-    .map(plan => ({ messageId: plan.message_id, occurredAt: plan.occurred_at }));
+    .map(plan => ({ messageId: plan.message_id, occurredAt: plan.occurred_at,
+      nonBlocking: plan.domains.some(item => item.state === "unavailable")
+        && plan.domains.every(item => item.state !== "unknown") }));
   const plannedIds = new Set(value.plans.filter(plan => plan.session_id === sessionId).map(plan => plan.message_id));
   const pendingIds = new Set(pending.map(item => item.messageId));
   for (const entry of value.entries.filter(item => item.session_id === sessionId
-    && !plannedIds.has(item.message_id) && !["withdrawn", "abandoned"].includes(item.status))) {
+    && !plannedIds.has(item.message_id) && ["pending", "captured", "outcome_unknown"].includes(item.status))) {
     if (!pendingIds.has(entry.message_id)) {
-      pending.push({ messageId: entry.message_id, occurredAt: entry.occurred_at });
+      pending.push({ messageId: entry.message_id, occurredAt: entry.occurred_at, nonBlocking: false });
       pendingIds.add(entry.message_id);
     }
   }
@@ -295,8 +299,25 @@ export function readCompletedEduPiAmbientMessages(sessionId: string,
   options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string }> {
   if (!ID.test(sessionId)) fail();
   return readLedger(options.stateDir ?? process.env.PI_DESKTOP_STATE_DIR, options.dataRoot).value.plans
-    .filter(plan => plan.session_id === sessionId && plan.status === "complete")
+    .filter(plan => plan.session_id === sessionId && plan.status === "complete" && !plan.acknowledged)
     .map(plan => ({ messageId: plan.message_id, occurredAt: plan.occurred_at }));
+}
+
+export function readCancelledEduPiAmbientMessages(sessionId: string,
+  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string }> {
+  if (!ID.test(sessionId)) fail();
+  return readLedger(options.stateDir ?? process.env.PI_DESKTOP_STATE_DIR, options.dataRoot).value.plans
+    .filter(plan => plan.session_id === sessionId && plan.status === "cancelled" && !plan.acknowledged)
+    .map(plan => ({ messageId: plan.message_id, occurredAt: plan.occurred_at }));
+}
+
+export function readLegacySettledEduPiAmbientMessages(sessionId: string,
+  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string }> {
+  if (!ID.test(sessionId)) fail();
+  const value = readLedger(options.stateDir ?? process.env.PI_DESKTOP_STATE_DIR, options.dataRoot).value;
+  const plannedIds = new Set(value.plans.filter(plan => plan.session_id === sessionId).map(plan => plan.message_id));
+  return value.entries.filter(entry => entry.session_id === sessionId && entry.status === "settled"
+    && !plannedIds.has(entry.message_id)).map(entry => ({ messageId: entry.message_id, occurredAt: entry.occurred_at }));
 }
 
 export function startEduPiAmbientPlanDomain(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
@@ -344,7 +365,7 @@ export function acknowledgeEduPiAmbientMessagePlan(sessionId: string, messageId:
   { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): void {
   const { root, value } = readLedger(stateDir, dataRoot);
   const plan = findPlan(value, sessionId, messageId);
-  if (!plan || plan.occurred_at !== occurredAt || plan.status !== "complete") fail();
+  if (!plan || plan.occurred_at !== occurredAt || !["complete", "cancelled"].includes(plan.status)) fail();
   if (plan.acknowledged) return;
   writeLedger(root, { ...value, revision: value.revision + 1,
     plans: value.plans.map(item => item === plan ? { ...item, acknowledged: true } : item) });
@@ -354,10 +375,13 @@ export function cancelEduPiAmbientMessagePlan(sessionId: string, messageId: stri
   { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): void {
   const { root, value } = readLedger(stateDir, dataRoot);
   const plan = findPlan(value, sessionId, messageId);
-  if (!plan || plan.occurred_at !== occurredAt || plan.status !== "pending"
+  if (!plan || plan.occurred_at !== occurredAt) fail();
+  if (plan.status === "cancelled") return;
+  if (plan.status !== "pending"
     || plan.domains.some(item => item.state !== "unattempted")
     || value.entries.some(item => item.session_id === sessionId && item.message_id === messageId)) fail();
-  writeLedger(root, { ...value, revision: value.revision + 1, plans: value.plans.filter(item => item !== plan) });
+  writeLedger(root, { ...value, revision: value.revision + 1,
+    plans: value.plans.map(item => item === plan ? { ...item, status: "cancelled" } : item) });
 }
 
 export function prepareEduPiAmbientMessageBinding(input: Omit<EduPiAmbientMessageBinding, "status" | "withdrawnAt">,

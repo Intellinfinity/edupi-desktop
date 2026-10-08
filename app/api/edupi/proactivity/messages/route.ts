@@ -7,7 +7,9 @@ import { acknowledgeEduPiAmbientMessagePlan, armEduPiAmbientMessagePlan, cancelE
   confirmEduPiAmbientMessageBinding, finishEduPiAmbientPlanDomain, markEduPiAmbientMessageOutcomeUnknown,
   markEduPiAmbientMessageOutcomeVerified, markEduPiAmbientPlanDomainUnavailable,
   prepareEduPiAmbientMessageBinding, readCompletedEduPiAmbientMessages, readEduPiAmbientMessagePlan,
-  readPendingEduPiAmbientMessages, readUnsettledEduPiAmbientMessages, startEduPiAmbientPlanDomain } from "@/lib/edupi-ambient-message-ledger";
+  readCancelledEduPiAmbientMessages, readPendingEduPiAmbientMessages,
+  readLegacySettledEduPiAmbientMessages,
+  readUnsettledEduPiAmbientMessages, startEduPiAmbientPlanDomain } from "@/lib/edupi-ambient-message-ledger";
 import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution } from "@/lib/edupi-ambient-message-recovery";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { isCapabilityGrantBindingIdentity, type EduPiCapabilityDomain } from "@/lib/edupi-proactivity-control";
@@ -88,17 +90,17 @@ export async function GET(request: Request) {
                 if (g2) {
                   const proof = await readExactEduPiG2Execution(host, rootRef, entry);
                   if (proof.status !== "applied") continue;
-                  markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
                     { dataRoot: roots.dataRoot.root });
+                  else markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
                   recovered.push({ messageId: entry.messageId, goalId: proof.goalId,
                     followUpId: proof.followUpId, executionId: proof.executionId });
                 } else {
                   const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, entry);
                   if (proof.status !== "applied") continue;
-                  markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
                     { dataRoot: roots.dataRoot.root });
+                  else markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
                   recovered.push({ messageId: entry.messageId, goalId: proof.goalId, workCaseId: proof.workCaseId });
                 }
               }
@@ -107,8 +109,10 @@ export async function GET(request: Request) {
           } catch { /* Missing exact Core proof leaves the durable outcome pending. */ }
         }
         const settled = readCompletedEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+        const cancelled = readCancelledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+        const legacySettled = readLegacySettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
         return NextResponse.json({ status: pending.length ? "outcome_unknown" : recovered.length ? "applied" : "clear",
-          recovered, pending, settled,
+          recovered, pending, settled, cancelled, legacySettled,
           externalSend: false });
       });
     }
@@ -162,7 +166,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ status: "cancelled", externalSend: false });
       }
       if (body.action === "arm") {
-        if (readPendingEduPiAmbientMessages(sessionId, ledgerOptions).some(item => item.messageId !== messageId)) {
+        if (readPendingEduPiAmbientMessages(sessionId, ledgerOptions)
+          .some(item => item.messageId !== messageId && !item.nonBlocking)) {
           return NextResponse.json({ status: "verification_pending", externalSend: false }, { status: 409 });
         }
         const activations = activeBindings(roots);
@@ -186,10 +191,12 @@ export async function POST(request: Request) {
       if (plan.occurredAt !== occurredAt) return NextResponse.json({ status: "identity_conflict", externalSend: false }, { status: 409 });
       if (plan.status === "complete") return NextResponse.json({ status: "captured", resolutionStatus: "settled",
         reason: null, messageComplete: true, messageId, occurredAt, externalSend: false });
+      if (plan.status === "cancelled") return NextResponse.json({ status: "outcome_unknown", resolutionStatus: "needs_verification",
+        reason: "plan_cancelled", messageComplete: false, externalSend: false }, { status: 409 });
       if (plan.domains.some(item => item.state !== "unattempted")) return NextResponse.json({ status: "outcome_unknown",
         resolutionStatus: "needs_verification", reason: "plan_incomplete", messageComplete: false, externalSend: false });
       const otherPending = readPendingEduPiAmbientMessages(sessionId, ledgerOptions)
-        .some(item => item.messageId !== messageId);
+        .some(item => item.messageId !== messageId && !item.nonBlocking);
       if (otherPending) return NextResponse.json({ status: "verification_pending", messageComplete: false,
         externalSend: false }, { status: 409 });
       const host = await ensureEduPiRuntime(roots);

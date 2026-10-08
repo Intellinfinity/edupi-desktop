@@ -56,7 +56,7 @@ commands.allow = ["set_ui_theme"]
 [[permission]]
 identifier = "allow-ambient-capture-outbox"
 description = "Allows the trusted main WebView to persist bounded message identity awaiting Core capture verification."
-commands.allow = ["get_ambient_capture_outbox", "remember_ambient_capture", "clear_ambient_capture"]
+commands.allow = ["get_ambient_capture_outbox", "remember_ambient_capture", "clear_ambient_capture", "mark_ambient_capture_cancel_requested"]
 
 [[permission]]
 identifier = "allow-foreground-settings"

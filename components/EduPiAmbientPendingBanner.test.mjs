@@ -18,3 +18,12 @@ test("a durable unknown outcome remains visible in the chat until exact verifica
     { count: 1, unconfirmedCount: 1, onVerify() {} }));
   assert.match(unconfirmed, /未证实已捕获/);
 });
+
+test("a partial multi-domain outcome is visibly incomplete with a review entry", () => {
+  const html = renderToStaticMarkup(React.createElement(EduPiAmbientPendingBanner,
+    { count: 1, partialCount: 1, onVerify() {}, onReview() {} }));
+  assert.match(html, /部分处理/);
+  assert.match(html, /未完成/);
+  assert.match(html, /查看/);
+  assert.doesNotMatch(html, /请勿重复发送/);
+});

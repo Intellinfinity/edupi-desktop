@@ -1,15 +1,18 @@
 import { APP_PREF_KEYS, getPref, trySetPrefJson } from "./app-prefs";
-import { clearAmbientCaptureNative, readAmbientCaptureOutboxNative, rememberAmbientCaptureNative } from "./desktop-native";
+import { clearAmbientCaptureNative, markAmbientCaptureCancelRequestedNative,
+  readAmbientCaptureOutboxNative, rememberAmbientCaptureNative } from "./desktop-native";
 
-type Entry = { sessionId: string; messageId: string; occurredAt: string };
+type Entry = { sessionId: string; messageId: string; occurredAt: string; cancelRequested?: boolean };
 type Store = { version: 1; entries: Entry[] };
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u;
 const MESSAGE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,127}$/u;
 const MAX_ENTRIES = 100;
 type NativeOutbox = { readAmbientCaptureOutboxNative: typeof readAmbientCaptureOutboxNative;
   rememberAmbientCaptureNative: typeof rememberAmbientCaptureNative;
-  clearAmbientCaptureNative: typeof clearAmbientCaptureNative };
-const nativeOutbox: NativeOutbox = { readAmbientCaptureOutboxNative, rememberAmbientCaptureNative, clearAmbientCaptureNative };
+  clearAmbientCaptureNative: typeof clearAmbientCaptureNative;
+  markAmbientCaptureCancelRequestedNative: typeof markAmbientCaptureCancelRequestedNative };
+const nativeOutbox: NativeOutbox = { readAmbientCaptureOutboxNative, rememberAmbientCaptureNative,
+  clearAmbientCaptureNative, markAmbientCaptureCancelRequestedNative };
 
 function validTime(value: unknown): value is string {
   if (typeof value !== "string") return false;
@@ -19,7 +22,10 @@ function validTime(value: unknown): value is string {
 function validEntry(value: unknown): value is Entry {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const item = value as Record<string, unknown>;
-  return Object.keys(item).length === 3 && ["sessionId", "messageId", "occurredAt"].every(key => Object.hasOwn(item, key))
+  return (Object.keys(item).length === 3 || Object.keys(item).length === 4)
+    && ["sessionId", "messageId", "occurredAt"].every(key => Object.hasOwn(item, key))
+    && Object.keys(item).every(key => ["sessionId", "messageId", "occurredAt", "cancelRequested"].includes(key))
+    && (item.cancelRequested === undefined || typeof item.cancelRequested === "boolean")
     && SESSION_ID.test(String(item.sessionId || "")) && MESSAGE_ID.test(String(item.messageId || ""))
     && validTime(item.occurredAt);
 }
@@ -33,6 +39,7 @@ function readStore(): Store {
   const store = value as Record<string, unknown>;
   if (Object.keys(store).length !== 2 || store.version !== 1 || !Array.isArray(store.entries)
     || store.entries.length > MAX_ENTRIES || !store.entries.every(validEntry)
+    || store.entries.some((entry: Entry) => entry.cancelRequested !== undefined)
     || new Set((store.entries as Entry[]).map(item => `${item.sessionId}\0${item.messageId}`)).size !== store.entries.length) {
     throw new Error("ambient_client_pending_invalid");
   }
@@ -45,7 +52,7 @@ export function readEduPiAmbientUnconfirmed(sessionId: string): Entry[] {
 }
 
 export function rememberEduPiAmbientUnconfirmed(input: Entry): boolean {
-  if (!validEntry(input)) return false;
+  if (!validEntry(input) || input.cancelRequested) return false;
   let current: Store;
   try { current = readStore(); } catch { return false; }
   const prior = current.entries.find(item => item.sessionId === input.sessionId && item.messageId === input.messageId);
@@ -63,11 +70,17 @@ export function clearEduPiAmbientUnconfirmed(sessionId: string, messageId: strin
 }
 
 export async function rememberEduPiAmbientUnconfirmedDurable(input: Entry, native: NativeOutbox = nativeOutbox): Promise<boolean> {
-  if (!validEntry(input)) return false;
+  if (!validEntry(input) || input.cancelRequested) return false;
   try { await native.rememberAmbientCaptureNative(input); }
   catch { return false; }
   rememberEduPiAmbientUnconfirmed(input);
   return true;
+}
+
+export async function markEduPiAmbientCancelRequestedDurable(input: Entry, native: NativeOutbox = nativeOutbox): Promise<boolean> {
+  if (!validEntry(input)) return false;
+  try { await native.markAmbientCaptureCancelRequestedNative(input.sessionId, input.messageId, input.occurredAt); return true; }
+  catch { return false; }
 }
 
 export async function readEduPiAmbientUnconfirmedDurable(sessionId: string, native: NativeOutbox = nativeOutbox): Promise<Entry[]> {

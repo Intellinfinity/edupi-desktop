@@ -1703,7 +1703,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (result.status === "armed") captureIntentRef.current = identity;
     };
     const scheduleAmbientCapture = (captureSessionId: string) => {
-      if (isSlashCommandPrompt || !trimmedMessage) return;
+      if (isSlashCommandPrompt || !trimmedMessage || captureIntentRef.current?.sessionId !== captureSessionId) return;
       const captureMessageId = `prompt-${clientRequestId}`;
       const captureOccurredAt = new Date(occurredAtMs).toISOString();
       const ownsVisibleSession = () => sessionIdRef.current === captureSessionId

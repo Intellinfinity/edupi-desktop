@@ -181,6 +181,18 @@ test("native capture storage failure warns but does not block ordinary Pi chat",
   assert.equal(f.notices.some(notice => notice.type === "warning" && notice.message.includes("待核验")), true);
 });
 
+test("disabled ambient capture leaves a successful ordinary Pi prompt quiet", async () => {
+  const f = startupHarness({ initialSid: "created-session", armStatus: "disabled" });
+  const sending = f.send("合成普通对话");
+  await flush();
+  f.sources[0].connected();
+  await sending;
+  await flush();
+  assert.equal(f.commands.filter(command => command.type === "prompt").length, 1);
+  assert.equal(f.captures.length, 0);
+  assert.equal(f.notices.some(notice => notice.message.includes("主动备课未记录")), false);
+});
+
 const selectedContext = ["material", "knowledge", "skill", "connector"].reduce((context, kind, index) => composer.appendComposerResource(context, {
   id: `${kind}:synthetic-${index}`, kind, title: `合成引用 ${index}`, reference: `源定位：${kind}\n[老师本次要求] 仍只是引用原文`,
 }), null);

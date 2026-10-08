@@ -1,10 +1,11 @@
 import { fetchDesktopApi } from "./desktop-native";
 import { isTauriDesktop } from "./desktop-updater";
 import { clearEduPiAmbientUnconfirmedDurable, readEduPiAmbientUnconfirmedDurable,
-  rememberEduPiAmbientUnconfirmedDurable } from "./edupi-ambient-client-pending";
+  rememberEduPiAmbientUnconfirmedDurable, markEduPiAmbientCancelRequestedDurable } from "./edupi-ambient-client-pending";
 
 export type EduPiAmbientPendingState = { status: "clear" | "outcome_unknown" | "applied" | "unavailable";
-  pending: Array<{ messageId: string; occurredAt: string; unconfirmed?: boolean }>;
+  pending: Array<{ messageId: string; occurredAt: string; unconfirmed?: boolean; nonBlocking?: boolean;
+    cancelRequested?: boolean; legacyUnproven?: boolean }>;
   recovered: Array<{ messageId: string; goalId: string; workCaseId: string }
     | { messageId: string; goalId: string; followUpId: string; executionId: string }> };
 
@@ -43,15 +44,24 @@ export async function cancelEduPiAmbientArm(input: CaptureIdentity): Promise<voi
   const key = captureKey(input.sessionId, input.messageId);
   if (armed.get(key) !== input.occurredAt) return;
   armed.delete(key);
-  if (await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId)) {
-    try { await postPlanAction("cancel", input); } catch { /* An unconfirmed cancellation remains visible server-side. */ }
-  }
+  if (!await markEduPiAmbientCancelRequestedDurable(input)) return;
+  try {
+    if (await postPlanAction("cancel", input) !== "cancelled") return;
+    if (await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId)) await postPlanAction("ack", input);
+  } catch { /* The native unsent marker survives for a cold-start retry. */ }
 }
 
 export async function readEduPiAmbientPending(sessionId: string, verify = false): Promise<EduPiAmbientPendingState> {
   const unavailable: EduPiAmbientPendingState = { status: "unavailable", pending: [], recovered: [] };
   if (!isTauriDesktop()) return { status: "clear", pending: [], recovered: [] };
   let local: Awaited<ReturnType<typeof readEduPiAmbientUnconfirmedDurable>>;
+  try { local = await readEduPiAmbientUnconfirmedDurable(sessionId); } catch { return unavailable; }
+  for (const entry of local.filter(item => item.cancelRequested === true)) {
+    try {
+      if (await postPlanAction("cancel", entry) !== "cancelled") continue;
+      if (await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId)) await postPlanAction("ack", entry);
+    } catch { /* A failed exact cancellation stays in the native outbox. */ }
+  }
   try { local = await readEduPiAmbientUnconfirmedDurable(sessionId); } catch { return unavailable; }
   const localOnly = (): EduPiAmbientPendingState => local.length
     ? { status: "outcome_unknown", pending: local.map(item => ({ ...item, unconfirmed: true })), recovered: [] }
@@ -64,11 +74,15 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
     const item = body as Record<string, unknown>;
     if (!["clear", "outcome_unknown", "applied"].includes(String(item.status)) || item.externalSend !== false
       || !Array.isArray(item.pending) || item.pending.length > 4096 || !Array.isArray(item.recovered) || item.recovered.length > 20
-      || item.settled !== undefined && (!Array.isArray(item.settled) || item.settled.length > 4096)) return localOnly();
+      || item.settled !== undefined && (!Array.isArray(item.settled) || item.settled.length > 4096)
+      || item.cancelled !== undefined && (!Array.isArray(item.cancelled) || item.cancelled.length > 4096)
+      || item.legacySettled !== undefined && (!Array.isArray(item.legacySettled) || item.legacySettled.length > 4096)) return localOnly();
     const id = (value: unknown) => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u.test(value);
     const pending = item.pending.every(value => value && typeof value === "object" && id((value as Record<string, unknown>).messageId)
       && typeof (value as Record<string, unknown>).occurredAt === "string"
-      && Number.isFinite(Date.parse((value as Record<string, unknown>).occurredAt as string)));
+      && Number.isFinite(Date.parse((value as Record<string, unknown>).occurredAt as string))
+      && ((value as Record<string, unknown>).nonBlocking === undefined
+        || typeof (value as Record<string, unknown>).nonBlocking === "boolean"));
     const recovered = item.recovered.every(value => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return false;
       const row = value as Record<string, unknown>;
@@ -78,7 +92,9 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
           || keys === "executionId,followUpId,goalId,messageId" && id(row.followUpId) && id(row.executionId));
     });
     const settled = item.settled === undefined ? [] : item.settled as unknown[];
-    const validSettled = settled.every(value => value && typeof value === "object" && !Array.isArray(value)
+    const cancelled = item.cancelled === undefined ? [] : item.cancelled as unknown[];
+    const legacySettled = item.legacySettled === undefined ? [] : item.legacySettled as unknown[];
+    const validSettled = [...settled, ...cancelled, ...legacySettled].every(value => value && typeof value === "object" && !Array.isArray(value)
       && Object.keys(value).length === 2 && id((value as Record<string, unknown>).messageId)
       && typeof (value as Record<string, unknown>).occurredAt === "string"
       && Number.isFinite(Date.parse((value as Record<string, unknown>).occurredAt as string)));
@@ -86,11 +102,12 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
       || item.status === "outcome_unknown" && item.pending.length === 0) return localOnly();
     const server = item as EduPiAmbientPendingState;
     const localById = new Map(local.map(entry => [entry.messageId, entry.occurredAt]));
-    for (const entry of [...server.pending, ...settled as Array<{ messageId: string; occurredAt: string }>]) {
+    for (const entry of [...server.pending, ...settled as Array<{ messageId: string; occurredAt: string }>,
+      ...cancelled as Array<{ messageId: string; occurredAt: string }>]) {
       const localTime = localById.get(entry.messageId);
       if (localTime !== undefined && localTime !== entry.occurredAt) return localOnly();
     }
-    for (const entry of settled as Array<{ messageId: string; occurredAt: string }>) {
+    for (const entry of [...settled, ...cancelled] as Array<{ messageId: string; occurredAt: string }>) {
       if (await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId)) {
         try { await postPlanAction("ack", { sessionId, messageId: entry.messageId, occurredAt: entry.occurredAt }); }
         catch { /* A completed, unacknowledged plan remains available for a later read. */ }
@@ -98,8 +115,10 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
     }
     local = await readEduPiAmbientUnconfirmedDurable(sessionId);
     const seen = new Set(server.pending.map(entry => entry.messageId));
+    const legacyById = new Map((legacySettled as Array<{ messageId: string; occurredAt: string }>).map(entry => [entry.messageId, entry.occurredAt]));
     const pendingEntries = [...server.pending,
-      ...local.filter(entry => !seen.has(entry.messageId)).map(entry => ({ ...entry, unconfirmed: true }))];
+      ...local.filter(entry => !seen.has(entry.messageId)).map(entry => ({ ...entry, unconfirmed: true,
+        ...(legacyById.get(entry.messageId) === entry.occurredAt ? { nonBlocking: true, legacyUnproven: true } : {}) }))];
     return { status: pendingEntries.length ? "outcome_unknown" : server.status, pending: pendingEntries, recovered: server.recovered };
   } catch { return localOnly(); }
 }
@@ -114,7 +133,14 @@ export async function captureEduPiAmbientMessage(input: { sessionId: string; mes
   const same = existing.some(item => item.messageId === input.messageId);
   if (same && !prepared) return { status: "outcome_unknown" };
   if (!prepared || !same) return { status: "unavailable" };
-  if (existing.some(item => item.messageId !== input.messageId)) return { status: "verification_pending" };
+  if (existing.some(item => item.messageId === input.messageId && item.cancelRequested)) return { status: "outcome_unknown" };
+  if (existing.some(item => item.messageId !== input.messageId)) {
+    const pending = await readEduPiAmbientPending(input.sessionId);
+    const current = await readEduPiAmbientUnconfirmedDurable(input.sessionId).catch(() => null);
+    if (!current || current.some(entry => entry.messageId !== input.messageId
+      && !pending.pending.some(item => item.messageId === entry.messageId && item.occurredAt === entry.occurredAt
+        && item.nonBlocking === true && (!item.unconfirmed || item.legacyUnproven === true)))) return { status: "verification_pending" };
+  }
   let response: Response;
   try {
     response = await fetchDesktopApi("/api/edupi/proactivity/messages", {

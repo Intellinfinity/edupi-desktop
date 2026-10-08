@@ -12,8 +12,9 @@ const actualLedger = await createJiti(import.meta.url, { tsconfigPaths: true }).
 
 function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,g1Applied=false,lostG1Reply=false,lostG2Reply=false,lostG3Reply=false}={}) {
   const prepared=[],captured=[],confirmed=[],uncertain=[],settled=[],plans=[];
-  let g2Enabled=g2,g3Enabled=g3;
+  let g2Enabled=g2,g3Enabled=g3,g2ProcessorActive=g2Active;
   let recoverG1=false,recoverG2=false;
+  let verifiedWrites=0;
   let premarked=0;
   let bodyReads=0;
   class AmbientError extends Error {constructor(code){super(code);this.code=code;this.stage="owner";}}
@@ -33,7 +34,7 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
     "@/lib/edupi-ambient-session-lock":{withEduPiAmbientSessionLock:async(_id,operation)=>operation()},
     "@/lib/edupi-proactivity-runtime":{readProactivityOwnerContext:async()=>({status:"active"})},
     "@/lib/edupi-runtime-supervisor":{isEduPiG3ExactRuntimeSupported:()=>isolated,
-      ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2Active?"active":"activation_pending",g3_processor:g3Active?"active":"activation_pending"}}})})},
+      ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2ProcessorActive?"active":"activation_pending",g3_processor:g3Active?"active":"activation_pending"}}})})},
     "@/lib/edupi-proactivity-control":{isCapabilityGrantBindingIdentity:(_domain,_scope,grantId)=>grantId==="cap-calendar-administration-exact"},
     "@/lib/edupi-ambient-message-ledger":{
       armEduPiAmbientMessagePlan:input=>{
@@ -43,11 +44,14 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
       readEduPiAmbientMessagePlan:(sessionId,messageId)=>plans.find(item=>item.sessionId===sessionId&&item.messageId===messageId)??null,
       readPendingEduPiAmbientMessages:sessionId=>[
         ...plans.filter(item=>item.sessionId===sessionId&&item.status==="pending")
-          .map(item=>({messageId:item.messageId,occurredAt:item.occurredAt})),
+          .map(item=>({messageId:item.messageId,occurredAt:item.occurredAt,
+            nonBlocking:item.domains.some(row=>row.state==="unavailable")&&item.domains.every(row=>row.state!=="unknown")})),
         ...uncertain.filter(item=>item.sessionId===sessionId&&!plans.some(plan=>plan.sessionId===sessionId&&plan.messageId===item.messageId))
-          .map(item=>({messageId:item.messageId,occurredAt:item.occurredAt}))],
+          .map(item=>({messageId:item.messageId,occurredAt:item.occurredAt,nonBlocking:false}))],
       readCompletedEduPiAmbientMessages:sessionId=>plans.filter(item=>item.sessionId===sessionId&&item.status==="complete")
         .map(item=>({messageId:item.messageId,occurredAt:item.occurredAt})),
+      readCancelledEduPiAmbientMessages:()=>[],
+      readLegacySettledEduPiAmbientMessages:()=>[],
       startEduPiAmbientPlanDomain:(sessionId,messageId,domain)=>{
         const item=plans.find(plan=>plan.sessionId===sessionId&&plan.messageId===messageId)?.domains.find(row=>row.domain===domain);
         assert.equal(item?.state,"unattempted");item.state="unknown";
@@ -85,6 +89,7 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
         assert.ok(matched);settled.push({...matched,status:"settled"});
       },
       markEduPiAmbientMessageOutcomeVerified:(sessionId,messageRef)=>{
+        verifiedWrites++;
         const index=uncertain.findIndex(item=>item.sessionId===sessionId&&item.messageRef===messageRef);
         assert.ok(index>=0);settled.push({...uncertain[index],status:"settled"});uncertain.splice(index,1);
       },
@@ -129,7 +134,9 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
     body:JSON.stringify({action:"arm",sessionId:"session-1",messageId:"message-1",occurredAt:"2026-10-04T00:00:00.000Z"})}));
   return {route:exports,request,arm,prepared,captured,confirmed,uncertain,plans,premarked:()=>premarked,
     setG2Enabled:value=>{g2Enabled=value;},setG3Enabled:value=>{g3Enabled=value;},
-    setRecoverG1:value=>{recoverG1=value;},setRecoverG2:value=>{recoverG2=value;},bodyReads:()=>bodyReads};
+    setG2ProcessorActive:value=>{g2ProcessorActive=value;},
+    setRecoverG1:value=>{recoverG1=value;},setRecoverG2:value=>{recoverG2=value;},bodyReads:()=>bodyReads,
+    verifiedWrites:()=>verifiedWrites};
 }
 
 test("one message keeps independent G1/G2 receipts under the same session withdrawal ledger",async()=>{
@@ -194,6 +201,23 @@ test("stopping an armed G2 grant leaves its domain pending and a newly enabled G
   assert.deepEqual(f.captured.map(item=>item.domain),["teaching_preparation"]);
   assert.equal(f.plans[0].domains.map(item=>item.state).join(","),"terminal,unavailable");
   assert.equal((await(await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1"))).json()).pending.length,1);
+});
+
+test("a definite pre-write G2 processor outage leaves G1 partial but does not permanently block a new message",async()=>{
+  const f=fixture({g1Applied:true,g2Active:false});
+  assert.equal((await(await f.arm()).json()).status,"armed");
+  const first=await f.route.POST(f.request());
+  const partial=await first.json();
+  assert.equal(partial.messageComplete,false);
+  assert.equal(partial.domainResults[0].status,"applied");
+  assert.equal(partial.domainResults[1].status,"unavailable");
+  f.setG2ProcessorActive(true);
+  const next=await f.route.POST(new Request("http://localhost/api/edupi/proactivity/messages",{method:"POST",
+    headers:{"content-type":"application/json"},body:JSON.stringify({action:"arm",sessionId:"session-1",
+      messageId:"message-2",occurredAt:"2026-10-04T00:00:01.000Z"})}));
+  assert.equal((await next.json()).status,"armed");
+  assert.equal(f.plans[0].status,"pending");
+  assert.equal(f.captured.filter(item=>item.domain==="teaching_preparation").length,1);
 });
 
 test("G2 cannot capture outside an isolated root or while its processor is off",async()=>{
@@ -273,6 +297,7 @@ test("a read-only exact Core binding clears one durable unknown outcome after re
   assert.equal(result.pending.length,0);
   assert.equal(JSON.stringify(result.recovered),JSON.stringify([{messageId:"message-1",goalId:"goal-1",workCaseId:"work-1"}]));
   assert.equal(f.captured.length,1,"read-only recovery must not repeat capture or route_apply");
+  assert.equal(f.verifiedWrites(),0,"planned proof must settle the entry and domain in one atomic ledger write");
 });
 
 test("an isolated ready G3 domain reaches only Core-owned routing and clears its write fence",async()=>{
@@ -341,7 +366,8 @@ test("the actual private ledger accepts all five domain captures for one Pi mess
     "@/lib/edupi-proactivity-control": { isCapabilityGrantBindingIdentity: () => true },
     "@/lib/edupi-ambient-message-ledger": Object.fromEntries([
       "armEduPiAmbientMessagePlan", "readEduPiAmbientMessagePlan", "readPendingEduPiAmbientMessages",
-      "readCompletedEduPiAmbientMessages", "startEduPiAmbientPlanDomain", "finishEduPiAmbientPlanDomain",
+      "readCompletedEduPiAmbientMessages", "readCancelledEduPiAmbientMessages", "readLegacySettledEduPiAmbientMessages",
+      "startEduPiAmbientPlanDomain", "finishEduPiAmbientPlanDomain",
       "markEduPiAmbientPlanDomainUnavailable", "acknowledgeEduPiAmbientMessagePlan", "cancelEduPiAmbientMessagePlan",
       "prepareEduPiAmbientMessageBinding", "confirmEduPiAmbientMessageBinding", "markEduPiAmbientMessageOutcomeUnknown",
       "markEduPiAmbientMessageOutcomeVerified", "readUnsettledEduPiAmbientMessages",

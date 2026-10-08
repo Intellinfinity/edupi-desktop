@@ -9,6 +9,7 @@
 - 证据：本机 `npm test` 2258 项中 2225 pass、33 skipped、0 fail；`tsc --noEmit`、`npm run lint`、`cargo metadata --locked`、Cargo lib 58/58、`npm audit --audit-level=high` 退出 0（6 低/3 中，0 高/严重）；`git diff --check`通过。定向红→绿包含并发单胜、批量全拒、source/policy 更改、旧回调、新旧状态和慢授权跨租约；独立只读复核无剩余 Critical/Required。这里的 Node/VM/本机 Rust 测试均非安装版通知证据。
 - 隔离页面：`~/edupi-desktop-p0p2-canary-YLBNFm` 的合成教师根、Core `b195512`、本机 30374/62021；实际打开提醒，把一条合成事务模拟成已过 5 分钟的未知结果，页面显示提示与“再提醒”，选中后原账本仍 `read=false`。点击后同一条 `notification_rearmed` 落盘、attempt 清除、历史和事项保留；硬刷新再进该条，不再显示未知提示。浏览器 tab、Next 与模型已正常退出，端口不监听。没有发送 OS 通知、使用真实学生资料或外部模型。
 - 未验与门：真实 macOS 签名安装/TCC/系统通知点击、冷/热 Core 的 1.5 秒发送门延迟、真实跨到期睡眠、真人教学内容和 Windows/Linux 安装均缺证；Windows 断电级 rename 持久性未获证明，Linux 大量长期不关闭通知的点击等待线程容量仍需实机观察。Core 假期 [#233](https://github.com/Intellinfinity/edupi/pull/233) 截至本次只读查询仍 OPEN、无人工 review；家庭/真实阶段独立源码也未合 main，Desktop 不提前消费或称 G5 已验证。
+- 交付状态：源码提交 `c05532174b28c6af44f49a2b185eb675b60ae02d` 经 [远端质量检查 37717605810](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37717605810) 的 audit/rust-audit 双绿，Ubuntu 重新安装依赖后全量测试、类型、lint 通过；[Desktop PR #322](https://github.com/Intellinfinity/edupi-desktop/pull/322) 于 UTC2026-10-08T02:28:28Z 合入 main `b88af212d413815f519c01ce93c0fc928aa336f9`。原工作树随后只做快进，不改公开安装包/feed。该检查不编译 Linux/Windows 原生壳，也不证明真实 OS 通知。
 
 ## 2026-10-08 Core #239–#240 追补
 

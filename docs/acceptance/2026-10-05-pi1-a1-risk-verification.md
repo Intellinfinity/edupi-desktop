@@ -5,7 +5,8 @@
 本节取代紧随其后的`cbc145f`作为当前pin身份，保留那一版的实际页面证据及初次暂存失败。Core main已合[#239](https://github.com/Intellinfinity/edupi/pull/239)与[#240](https://github.com/Intellinfinity/edupi/pull/240)，Desktop原分支未重建，当前未提交配对改为精确`b195512fb9a96ae04c35340ebdea78eddd816152`。Bridge schema`2749b120…`、Runtime schema`4749a9e9…`、fixture`807f27fd…`不变；Core组件更新为`ca757d41…`，Desktop组件更新为`e62be5dd…`。这两项Core变化保护规划决策日志：真正未变的决策不增行，既有前缀不重写；不改变本批DOCX材料交互合同。
 
 - 干净detached Core消费树已切到`b195512`并按其lock执行`npm ci`，本机0漏洞；Core新`test:planning-decision-dedup`4/4、`test:planning-read-view`9/9，Desktop精确Bridge/打包闭包15/15通过。此时签名安装与真实数据仍未触碰。
-- 原`cbc145f`的DOCX上传/确认/并发保稿、1440/800页面证据继续标其实际版本，不能换名为`b195512`的页面验收。标准`desktop:prepare`已按新pin暂存Core 2886文件；`test:staged-desktop-runtime`启动回读Core ready、G1/G2 activation_pending、externalSend=false，`test:staged-docx`通过。精确`b195512`下完整`npm test`为2225通过、12跳过、0失败；lint/tsc、locked Cargo metadata、`npm audit --audit-level=high`均通过，审计剩6低/3中、0高/严重；独立增量checker PASS。CI/PR仍需绑定即将提交的源码，不沿用`cbc`的运行结果计入新身份。
+- 原`cbc145f`的DOCX上传/确认/并发保稿、1440/800页面证据继续标其实际版本，不能换名为`b195512`的页面验收。标准`desktop:prepare`已按新pin暂存Core 2886文件；`test:staged-desktop-runtime`启动回读Core ready、G1/G2 activation_pending、externalSend=false，`test:staged-docx`通过。精确`b195512`下完整`npm test`为2225通过、12跳过、0失败；lint/tsc、locked Cargo metadata、`npm audit --audit-level=high`均通过，审计剩6低/3中、0高/严重；独立增量checker PASS。本段运行结果不沿用`cbc`身份，远端完成状态见下一条。
+- 最终源码两个提交`b9cfaae`、`c823df84`已由[Desktop PR #320](https://github.com/Intellinfinity/edupi-desktop/pull/320)交付；[CI37709332574](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37709332574)绑定精确`c823df84`，dependency audit与rust-audit均success。UTC2026-10-08T00:49:23Z合并为main `ec856c1ccd033df0e04681f8e3a6ba11caf848a2`；本地原分支已正常快进、无未提交代码。此合并不创建签名候选或改变公开`.56`。
 
 ## 2026-10-08 Core #234–#238 配对与 DOCX 来源
 

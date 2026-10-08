@@ -37,6 +37,13 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
       ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2ProcessorActive?"active":"activation_pending",g3_processor:g3Active?"active":"activation_pending"}}})})},
     "@/lib/edupi-proactivity-control":{isCapabilityGrantBindingIdentity:(_domain,_scope,grantId)=>grantId==="cap-calendar-administration-exact"},
     "@/lib/edupi-ambient-message-ledger":{
+      prepareEduPiAmbientPlanDomainBinding:value=>{
+        const item=plans.find(plan=>plan.sessionId===value.sessionId&&plan.messageId===value.messageId)
+          ?.domains.find(row=>row.domain===value.domain);
+        assert.equal(item?.state,"unattempted");
+        item.state="unknown";
+        prepared.push(value);
+      },
       armEduPiAmbientMessagePlan:input=>{
         const plan={...input,status:"pending",acknowledged:false,domains:input.domains.map(item=>({...item,state:"unattempted",messageRef:null}))};
         plans.push(plan);return plan;
@@ -52,10 +59,6 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
         .map(item=>({messageId:item.messageId,occurredAt:item.occurredAt})),
       readCancelledEduPiAmbientMessages:()=>[],
       readLegacySettledEduPiAmbientMessages:()=>[],
-      startEduPiAmbientPlanDomain:(sessionId,messageId,domain)=>{
-        const item=plans.find(plan=>plan.sessionId===sessionId&&plan.messageId===messageId)?.domains.find(row=>row.domain===domain);
-        assert.equal(item?.state,"unattempted");item.state="unknown";
-      },
       markEduPiAmbientPlanDomainUnavailable:(sessionId,messageId,domain)=>{
         const item=plans.find(plan=>plan.sessionId===sessionId&&plan.messageId===messageId)?.domains.find(row=>row.domain===domain);
         assert.equal(item?.state,"unattempted");item.state="unavailable";
@@ -72,7 +75,6 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
         return plan;
       },
       acknowledgeEduPiAmbientMessagePlan:()=>{},cancelEduPiAmbientMessagePlan:()=>{},
-      prepareEduPiAmbientMessageBinding:value=>prepared.push(value),
       confirmEduPiAmbientMessageBinding:(sessionId,messageId,messageRef)=>confirmed.push({sessionId,messageId,messageRef}),
       markEduPiAmbientMessageWithdrawn:()=>{},
       markEduPiAmbientMessageOutcomeUnknown:(sessionId,messageRef)=>{
@@ -300,6 +302,26 @@ test("a read-only exact Core binding clears one durable unknown outcome after re
   assert.equal(f.verifiedWrites(),0,"planned proof must settle the entry and domain in one atomic ledger write");
 });
 
+test("a prepared receipt left pending by a crash can settle from exact positive Core proof",async()=>{
+  const f=fixture({g2:false});
+  const occurredAt="2026-10-04T00:00:00.000Z";
+  const entry={sessionId:"session-1",messageId:"message-1",occurredAt,
+    messageRef:`owner_message:${"a".repeat(64)}`,ownerId:"owner-1",grantId:"teaching_preparation",
+    captureGrantVersion:1,status:"pending"};
+  f.plans.push({sessionId:"session-1",messageId:"message-1",occurredAt,status:"pending",acknowledged:false,
+    domains:[{domain:"teaching_preparation",grantId:"teaching_preparation",scopeHash:`sha256:${"c".repeat(64)}`,
+      state:"unknown",messageRef:null}]});
+  f.prepared.push(entry);
+  f.uncertain.push(entry);
+  f.setRecoverG1(true);
+  const response=await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1&verify=1"));
+  const body=await response.json();
+  assert.equal(body.status,"applied");
+  assert.equal(body.pending.length,0);
+  assert.equal(f.plans[0].status,"complete");
+  assert.equal(f.verifiedWrites(),0);
+});
+
 test("an isolated ready G3 domain reaches only Core-owned routing and clears its write fence",async()=>{
   const f=fixture({g1:false,g2:false,g3:true});
   assert.equal((await(await f.route.GET(f.request())).json()).status,"enabled");
@@ -367,9 +389,9 @@ test("the actual private ledger accepts all five domain captures for one Pi mess
     "@/lib/edupi-ambient-message-ledger": Object.fromEntries([
       "armEduPiAmbientMessagePlan", "readEduPiAmbientMessagePlan", "readPendingEduPiAmbientMessages",
       "readCompletedEduPiAmbientMessages", "readCancelledEduPiAmbientMessages", "readLegacySettledEduPiAmbientMessages",
-      "startEduPiAmbientPlanDomain", "finishEduPiAmbientPlanDomain",
+      "prepareEduPiAmbientPlanDomainBinding", "finishEduPiAmbientPlanDomain",
       "markEduPiAmbientPlanDomainUnavailable", "acknowledgeEduPiAmbientMessagePlan", "cancelEduPiAmbientMessagePlan",
-      "prepareEduPiAmbientMessageBinding", "confirmEduPiAmbientMessageBinding", "markEduPiAmbientMessageOutcomeUnknown",
+      "confirmEduPiAmbientMessageBinding", "markEduPiAmbientMessageOutcomeUnknown",
       "markEduPiAmbientMessageOutcomeVerified", "readUnsettledEduPiAmbientMessages",
     ].map(name => [name, (...args) => actualLedger[name](...args.slice(0, -1), { stateDir, dataRoot })])),
     "@/lib/edupi-ambient-message-recovery": { readExactEduPiAmbientGoalBinding: async () => ({ status: "outcome_unknown" }),

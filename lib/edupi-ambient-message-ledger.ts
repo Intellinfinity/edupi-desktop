@@ -216,7 +216,6 @@ function writeLedger(root: string, value: StoredLedger): void {
       if (!target.isFile() || target.isSymbolicLink() || target.nlink !== 1) fail();
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     fs.renameSync(temporary, file);
-    if (process.platform !== "win32") fs.chmodSync(file, 0o600);
     try {
       const directory = fs.openSync(root, fs.constants.O_RDONLY);
       try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
@@ -326,15 +325,27 @@ export function readLegacySettledEduPiAmbientMessages(sessionId: string,
     && !plannedIds.has(entry.message_id)).map(entry => ({ messageId: entry.message_id, occurredAt: entry.occurred_at }));
 }
 
-export function startEduPiAmbientPlanDomain(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
-  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): void {
+export function prepareEduPiAmbientPlanDomainBinding(
+  input: Omit<EduPiAmbientMessageBinding, "status" | "withdrawnAt"> & { domain: EduPiProactivityDomain },
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding {
+  const candidate: StoredEntry = { session_id: input.sessionId, message_id: input.messageId, message_ref: input.messageRef,
+    owner_id: input.ownerId, grant_id: input.grantId, capture_grant_version: input.captureGrantVersion,
+    occurred_at: input.occurredAt, status: "pending", withdrawn_at: null };
+  if (!validEntry(candidate)) fail();
   const { root, value } = readLedger(stateDir, dataRoot);
-  const plan = findPlan(value, sessionId, messageId);
-  const planned = plan?.domains.find(item => item.domain === domain);
-  if (!plan || plan.status !== "pending" || !planned || planned.state !== "unattempted") fail();
+  const plan = findPlan(value, input.sessionId, input.messageId);
+  const planned = plan?.domains.find(item => item.domain === input.domain);
+  if (!plan || plan.status !== "pending" || plan.occurred_at !== input.occurredAt
+    || !planned || planned.state !== "unattempted" || planned.grant_id !== input.grantId
+    || value.entries.some(entry => entry.message_ref === input.messageRef
+      || entry.session_id === input.sessionId && entry.message_id === input.messageId
+        && (entry.occurred_at !== input.occurredAt || entry.owner_id !== input.ownerId))) fail();
   const updated: StoredPlan = { ...plan, domains: plan.domains.map(item => item === planned ? { ...item, state: "unknown" } : item) };
   writeLedger(root, { ...value, revision: value.revision + 1,
-    plans: value.plans.map(item => item === plan ? updated : item) });
+    plans: value.plans.map(item => item === plan ? updated : item),
+    entries: [...value.entries, candidate].sort((left, right) => `${left.session_id}\0${left.message_id}\0${left.message_ref}`
+      .localeCompare(`${right.session_id}\0${right.message_id}\0${right.message_ref}`)) });
+  return publicEntry(candidate);
 }
 
 export function markEduPiAmbientPlanDomainUnavailable(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
@@ -357,7 +368,7 @@ export function finishEduPiAmbientPlanDomain(sessionId: string, messageId: strin
   const entry = value.entries.find(item => item.session_id === sessionId && item.message_id === messageId
     && item.message_ref === messageRef && item.grant_id === planned?.grant_id);
   if (!plan || plan.status !== "pending" || !planned || planned.state !== "unknown" || !entry
-    || !["captured", "outcome_unknown", "settled"].includes(entry.status)) fail();
+    || !["pending", "captured", "outcome_unknown", "settled"].includes(entry.status)) fail();
   const domains: StoredPlanDomain[] = plan.domains.map(item => item === planned
     ? { ...item, state: "terminal", message_ref: messageRef } : item);
   const updated: StoredPlan = { ...plan, status: domains.every(item => item.state === "terminal") ? "complete" : "pending", domains };

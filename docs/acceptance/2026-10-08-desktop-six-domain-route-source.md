@@ -108,6 +108,15 @@
 - 检查：针对性 Node 92/92；`npm test` 2,379 total / 2,345 passed / 34 skipped / 0 failed；`cargo test --manifest-path src-tauri/Cargo.toml --locked` 61/61；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`git diff --check` 均通过。测试仅使用临时合成根、VM 和本机子进程，未写真实教师资料、调用付费模型或外发。此前并行 Runtime manifest 测试的 4 项 RED 已由其独立 lane 修复；本次全套是新代码组合的通过结果。
 - 未验：真实 Tauri WebView 的 owner 失联、默认运行配置切换及预 arm 的 p95 延迟仍未在原生安装版测量；前述签名三平台、真人教学内容与价值门保持开放。已有单独性能 p95 项不因消息回归测试通过而关闭。
 
+## 2026-10-08 域准备原子性与拒绝清除意图追补
+
+- 代码身份：在 Desktop `5fe7dc179526dcf61eaa1be24d909cf5db871602` 上追加本地消息 lane 修复；Core pin、Core 清单、签名配置及公开 feed 均未改。本节取代上节“域 unknown 与准备回执分两次落盘”及“明确 409 清除失败无法冷重试”的源码状态。
+- RED：旧 `onPrepared` 先把计划域写 unknown，再单独写 messageRef 回执；两次账本替换之间的硬退出或第二次容量/IO 失败会留下无回执 unknown。明确 HTTP 409 `verification_pending`/`unconfigured` 虽已确认无 server plan，原生清除失败后旧 outbox 也缺独立的冷重试证据；网络不明不得套用明确拒绝的清除规则。
+- 修复：`prepareEduPiAmbientPlanDomainBinding` 在同一私有账本原子替换中写入域 unknown 和 pending 的精确 `message_ref`；onPrepared 回调完成前不进入 Core 首次写入。真实子进程在 rename 前、后分别 SIGKILL，冷读只出现“unattempted 且无回执”或“unknown 且有同一回执”；4,096 条不可回收行的容量拒写不产生伪 unknown。冷核验可凭 Core 精确正向证明把 prepared pending 回执与计划域一次结清；没有正向或受审负向证明，仍硬挡，不以时间或未查到冒充未写。
+- 原生拒绝标记：明确且校验通过的 409 回包先将 `rejectedClearRequested` 写入原生 outbox，再尝试清除；若清除失败，冷启动只对该精确标记重试本地清除，不发新的 Core 写入。它与 `cancelRequested` 互斥，旧三字段文件缺省均为 false；网络丢失、畸形回包与非白名单错误不写拒绝标记，继续保持 unknown。新命令仍受主窗口原有 outbox capability 约束。
+- 证据：相关 Node 99/99；`npm test` 2,386 total / 2,352 passed / 34 skipped / 0 failed；`cargo test --manifest-path src-tauri/Cargo.toml --locked` 62/62；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`git diff --check` 均通过。Rust 原位旧 schema 与拒绝标记冷重开、TS 客户端明确 409 清除失败冷重试、真账本容量拒写/子进程硬退出，以及真路由 VM 的写前/写后区分均有定向证据。
+- 保留边界：原子账本替换成功至首次 Core 调用之间若进程退出，仍可能留下 unknown+pending 回执；这条安全先写栅栏不能仅凭本地时间自动取消。Core 有精确正向证明时可只读结清；Core 根本未写的负例尚需受审负向证明或教师恢复入口，不称完全无感。真实 Tauri WebView、签名安装、正常发送 p95、真人教学质量与价值门继续未验。
+
 ## 2026-10-08 Core #252 最终隔离配对
 
 - 代码身份：独立 `codex/desktop-l4-combo-20261008` 预览工作树以 Desktop `2550e837` 为基线，在配对提交 `715481c5` 临时固定 Core Draft #252 的干净提交 `682ebbad9ade9494d9304b026207e659eb265d29`；Desktop consumer 清单 `sha256:673514d291e58e54720607511abaa48478900e818bd51b5ae115005f917b7246`、Runtime 清单 `sha256:b07df6ddfa784fdc6df5f6f25a2ba7b06f84d4645e0be887b911cacd735c6f4a`、Runtime schema `sha256:de4c8a8c60f8410bbbd9807dfba4cee6986eb1f2b7a0ded5bd1198783dbbb97c` 同时核对。正式 Desktop PR #325 在本节时仍保持旧 `b195512` pin；Core/Runtime 改动未合主线。

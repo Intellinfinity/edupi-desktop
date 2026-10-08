@@ -19,6 +19,8 @@ pub struct AmbientCaptureEntry {
     occurred_at: String,
     #[serde(default)]
     cancel_requested: bool,
+    #[serde(default)]
+    rejected_clear_requested: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -106,6 +108,9 @@ fn validate_outbox(value: &Outbox) -> Result<(), String> {
     let mut identities = HashSet::new();
     for entry in &value.entries {
         entry.validate()?;
+        if entry.cancel_requested && entry.rejected_clear_requested {
+            return Err("待核验请求状态冲突".into());
+        }
         if !identities.insert((entry.session_id.as_str(), entry.message_id.as_str())) {
             return Err("待核验请求身份重复".into());
         }
@@ -291,7 +296,7 @@ fn write_outbox(path: &Path, value: &Outbox) -> Result<(), String> {
 
 fn remember(path: &Path, entry: AmbientCaptureEntry) -> Result<(), String> {
     entry.validate()?;
-    if entry.cancel_requested {
+    if entry.cancel_requested || entry.rejected_clear_requested {
         return Err("待核验请求状态无效".into());
     }
     let _guard = locked()
@@ -355,10 +360,44 @@ fn mark_cancel_requested(
     if entry.occurred_at != occurred_at {
         return Err("待核验请求身份冲突".into());
     }
+    if entry.rejected_clear_requested {
+        return Err("待核验请求状态冲突".into());
+    }
     if entry.cancel_requested {
         return Ok(());
     }
     entry.cancel_requested = true;
+    write_outbox(path, &outbox)
+}
+
+fn mark_rejected_clear_requested(
+    path: &Path,
+    session_id: &str,
+    message_id: &str,
+    occurred_at: &str,
+) -> Result<(), String> {
+    if !valid_id(session_id, 256) || !valid_id(message_id, 128) || !valid_time(occurred_at) {
+        return Err("待核验请求身份无效".into());
+    }
+    let _guard = locked()
+        .lock()
+        .map_err(|_| "待核验请求锁不可用".to_string())?;
+    let mut outbox = read_outbox(path)?;
+    let entry = outbox
+        .entries
+        .iter_mut()
+        .find(|item| item.session_id == session_id && item.message_id == message_id)
+        .ok_or_else(|| "待核验请求不存在".to_string())?;
+    if entry.occurred_at != occurred_at {
+        return Err("待核验请求身份冲突".into());
+    }
+    if entry.cancel_requested {
+        return Err("待核验请求状态冲突".into());
+    }
+    if entry.rejected_clear_requested {
+        return Ok(());
+    }
+    entry.rejected_clear_requested = true;
     write_outbox(path, &outbox)
 }
 
@@ -394,6 +433,16 @@ pub fn mark_ambient_capture_cancel_requested(
     mark_cancel_requested(&path(&app)?, &session_id, &message_id, &occurred_at)
 }
 
+#[tauri::command]
+pub fn mark_ambient_capture_rejected_clear_requested(
+    app: AppHandle,
+    session_id: String,
+    message_id: String,
+    occurred_at: String,
+) -> Result<(), String> {
+    mark_rejected_clear_requested(&path(&app)?, &session_id, &message_id, &occurred_at)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -412,6 +461,7 @@ mod tests {
             message_id: "prompt-stable".into(),
             occurred_at: "2026-10-08T00:00:00.000Z".into(),
             cancel_requested: false,
+            rejected_clear_requested: false,
         };
         remember(&file, entry.clone()).unwrap();
         assert_eq!(read_outbox(&file).unwrap().entries, vec![entry.clone()]);
@@ -480,6 +530,30 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 
+    #[test]
+    fn definite_rejection_clear_marker_survives_reopen_without_becoming_a_cancel_intent() {
+        let dir = std::env::temp_dir().join(format!(
+            "edupi-ambient-rejected-clear-{}",
+            crate::generate_random_hex().unwrap()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("ambient-capture-outbox-v1.json");
+        let old = r#"{"version":1,"entries":[{"sessionId":"synthetic-session","messageId":"prompt-stable","occurredAt":"2026-10-08T00:00:00.000Z"}]}"#;
+        fs::write(&file, old).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(read_outbox(&file).unwrap().entries[0].rejected_clear_requested, false);
+        mark_rejected_clear_requested(&file, "synthetic-session", "prompt-stable", "2026-10-08T00:00:00.000Z").unwrap();
+        let reopened = read_outbox(&file).unwrap();
+        assert_eq!(reopened.entries[0].rejected_clear_requested, true);
+        assert_eq!(reopened.entries[0].cancel_requested, false);
+        assert!(mark_cancel_requested(&file, "synthetic-session", "prompt-stable", "2026-10-08T00:00:00.000Z").is_err());
+        assert!(mark_rejected_clear_requested(&file, "synthetic-session", "prompt-stable", "2026-10-08T00:00:01.000Z").is_err());
+        clear(&file, "synthetic-session", "prompt-stable").unwrap();
+        assert!(read_outbox(&file).unwrap().entries.is_empty());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
     #[cfg(unix)]
     #[test]
     fn replacing_the_outbox_between_stat_and_open_never_reads_the_substitute() {
@@ -498,6 +572,7 @@ mod tests {
                 message_id: "prompt-original".into(),
                 occurred_at: "2026-10-08T00:00:00.000Z".into(),
                 cancel_requested: false,
+                rejected_clear_requested: false,
             },
         )
         .unwrap();
@@ -509,6 +584,7 @@ mod tests {
                 message_id: "prompt-foreign".into(),
                 occurred_at: "2026-10-08T00:00:00.000Z".into(),
                 cancel_requested: false,
+                rejected_clear_requested: false,
             }],
         };
         fs::write(&foreign, serde_json::to_vec(&substitute).unwrap()).unwrap();

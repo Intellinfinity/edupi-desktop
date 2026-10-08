@@ -1,7 +1,8 @@
 import { fetchDesktopApi } from "./desktop-native";
 import { isTauriDesktop } from "./desktop-updater";
 import { clearEduPiAmbientUnconfirmedDurable, readEduPiAmbientUnconfirmedDurable,
-  rememberEduPiAmbientUnconfirmedDurable, markEduPiAmbientCancelRequestedDurable } from "./edupi-ambient-client-pending";
+  rememberEduPiAmbientUnconfirmedDurable, markEduPiAmbientCancelRequestedDurable,
+  markEduPiAmbientRejectedClearDurable } from "./edupi-ambient-client-pending";
 
 export type EduPiAmbientPendingState = { status: "clear" | "outcome_unknown" | "applied" | "unavailable";
   pending: Array<{ messageId: string; occurredAt: string; unconfirmed?: boolean; nonBlocking?: boolean;
@@ -36,6 +37,7 @@ export async function armEduPiAmbientMessage(input: CaptureIdentity): Promise<{ 
     if (!await rememberEduPiAmbientUnconfirmedDurable(identity)) return { status: "unavailable" };
     const status = await postPlanAction("arm", identity);
     if (["disabled", "verification_pending", "unconfigured", "session_unavailable"].includes(status)) {
+      if (!await markEduPiAmbientRejectedClearDurable(identity)) return { status: "outcome_unknown" };
       return { status: await clearEduPiAmbientUnconfirmedDurable(identity.sessionId, identity.messageId) ? status : "outcome_unknown" };
     }
     if (status !== "armed") return { status: "outcome_unknown" };
@@ -59,6 +61,11 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
   const unavailable: EduPiAmbientPendingState = { status: "unavailable", pending: [], recovered: [] };
   if (!isTauriDesktop()) return { status: "clear", pending: [], recovered: [] };
   let local: Awaited<ReturnType<typeof readEduPiAmbientUnconfirmedDurable>>;
+  try { local = await readEduPiAmbientUnconfirmedDurable(sessionId); } catch { return unavailable; }
+  for (const entry of local.filter(item => item.rejectedClearRequested === true)) {
+    try { await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId); }
+    catch { /* The exact rejection marker remains for the next local retry. */ }
+  }
   try { local = await readEduPiAmbientUnconfirmedDurable(sessionId); } catch { return unavailable; }
   for (const entry of local.filter(item => item.cancelRequested === true)) {
     try {

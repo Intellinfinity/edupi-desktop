@@ -75,7 +75,8 @@ export async function fetchDesktopApi(apiPath: string, init: RequestInit = {}): 
   return fetch(apiPath, { ...init, headers: await desktopApiHeaders(init.headers) });
 }
 
-export type AmbientCaptureIdentity = { sessionId: string; messageId: string; occurredAt: string; cancelRequested?: boolean };
+export type AmbientCaptureIdentity = { sessionId: string; messageId: string; occurredAt: string;
+  cancelRequested?: boolean; rejectedClearRequested?: boolean };
 
 export async function readAmbientCaptureOutboxNative(): Promise<AmbientCaptureIdentity[]> {
   if (!isTauriDesktop()) return [];
@@ -99,6 +100,12 @@ export async function markAmbientCaptureCancelRequestedNative(sessionId: string,
   if (!isTauriDesktop()) throw new Error("desktop_only");
   const { invoke } = await import("@tauri-apps/api/core");
   await invoke("mark_ambient_capture_cancel_requested", { sessionId, messageId, occurredAt });
+}
+
+export async function markAmbientCaptureRejectedClearRequestedNative(sessionId: string, messageId: string, occurredAt: string): Promise<void> {
+  if (!isTauriDesktop()) throw new Error("desktop_only");
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("mark_ambient_capture_rejected_clear_requested", { sessionId, messageId, occurredAt });
 }
 
 export async function showOpenConnectorConsole(port: number): Promise<void> {

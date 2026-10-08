@@ -60,9 +60,9 @@ test("a cold client reload keeps native outbox pending after G1 applies and G2 b
     "acknowledgeEduPiAmbientMessagePlan", "armEduPiAmbientMessagePlan", "cancelEduPiAmbientMessagePlan",
     "confirmEduPiAmbientMessageBinding", "finishEduPiAmbientPlanDomain", "markEduPiAmbientMessageOutcomeUnknown",
     "markEduPiAmbientMessageOutcomeVerified", "markEduPiAmbientPlanDomainUnavailable",
-    "prepareEduPiAmbientMessageBinding", "readCompletedEduPiAmbientMessages", "readCancelledEduPiAmbientMessages",
+    "prepareEduPiAmbientPlanDomainBinding", "readCompletedEduPiAmbientMessages", "readCancelledEduPiAmbientMessages",
     "readLegacySettledEduPiAmbientMessages", "readEduPiAmbientMessagePlan",
-    "readPendingEduPiAmbientMessages", "readUnsettledEduPiAmbientMessages", "startEduPiAmbientPlanDomain",
+    "readPendingEduPiAmbientMessages", "readUnsettledEduPiAmbientMessages",
   ].map(name => [name, (...args) => ledger[name](...args.slice(0, -1), ledgerOptions)]));
   const modules = {
     "next/server": { NextResponse: { json: (body, options = {}) => new Response(JSON.stringify(body), { status: options.status ?? 200,

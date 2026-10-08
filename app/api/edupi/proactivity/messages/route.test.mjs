@@ -22,7 +22,7 @@ test("ambient message intake is bounded, owner-controlled, and external-send-fre
   assert.ok(source.indexOf("armEduPiAmbientMessagePlan") < source.indexOf("captureAndApplyAmbientMessage(host"));
   assert.match(source, /export async function GET/);
   assert.match(source, /captureAndApplyAmbientMessage/);
-  assert.match(source, /prepareEduPiAmbientMessageBinding/);
+  assert.match(source, /prepareEduPiAmbientPlanDomainBinding/);
   assert.match(source, /confirmEduPiAmbientMessageBinding/);
   assert.match(source, /sessionId/);
   assert.match(source, /readProactivityOwnerContext/);

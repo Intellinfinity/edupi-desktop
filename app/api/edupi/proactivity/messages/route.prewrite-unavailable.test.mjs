@@ -41,10 +41,9 @@ test("owner read failure before onPrepared remains known pre-write and never str
     "@/lib/edupi-ambient-message-ledger": Object.fromEntries([
       "acknowledgeEduPiAmbientMessagePlan", "armEduPiAmbientMessagePlan", "cancelEduPiAmbientMessagePlan",
       "confirmEduPiAmbientMessageBinding", "finishEduPiAmbientPlanDomain", "markEduPiAmbientMessageOutcomeUnknown",
-      "markEduPiAmbientMessageOutcomeVerified", "markEduPiAmbientPlanDomainUnavailable", "prepareEduPiAmbientMessageBinding",
+      "markEduPiAmbientMessageOutcomeVerified", "markEduPiAmbientPlanDomainUnavailable", "prepareEduPiAmbientPlanDomainBinding",
       "readCompletedEduPiAmbientMessages", "readCancelledEduPiAmbientMessages", "readLegacySettledEduPiAmbientMessages",
       "readEduPiAmbientMessagePlan", "readPendingEduPiAmbientMessages", "readUnsettledEduPiAmbientMessages",
-      "startEduPiAmbientPlanDomain",
     ].map(name => [name, (...args) => ledger[name](...args.slice(0, -1), options)])),
     "@/lib/edupi-ambient-message-recovery": { readExactEduPiAmbientGoalBinding: async () => ({ status: "outcome_unknown" }),
       readExactEduPiG2Execution: async () => ({ status: "outcome_unknown" }) },

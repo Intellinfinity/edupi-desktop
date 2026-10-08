@@ -6,10 +6,10 @@ import { captureAndApplyAmbientMessage, EduPiAmbientMessageError, predictEduPiOw
 import { acknowledgeEduPiAmbientMessagePlan, armEduPiAmbientMessagePlan, cancelEduPiAmbientMessagePlan,
   confirmEduPiAmbientMessageBinding, finishEduPiAmbientPlanDomain, markEduPiAmbientMessageOutcomeUnknown,
   markEduPiAmbientMessageOutcomeVerified, markEduPiAmbientPlanDomainUnavailable,
-  prepareEduPiAmbientMessageBinding, readCompletedEduPiAmbientMessages, readEduPiAmbientMessagePlan,
+  prepareEduPiAmbientPlanDomainBinding, readCompletedEduPiAmbientMessages, readEduPiAmbientMessagePlan,
   readCancelledEduPiAmbientMessages, readPendingEduPiAmbientMessages,
   readLegacySettledEduPiAmbientMessages,
-  readUnsettledEduPiAmbientMessages, startEduPiAmbientPlanDomain } from "@/lib/edupi-ambient-message-ledger";
+  readUnsettledEduPiAmbientMessages } from "@/lib/edupi-ambient-message-ledger";
 import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution } from "@/lib/edupi-ambient-message-recovery";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { isCapabilityGrantBindingIdentity, type EduPiCapabilityDomain } from "@/lib/edupi-proactivity-control";
@@ -82,13 +82,17 @@ export async function GET(request: Request) {
             const rootRef = health?.data_root_fingerprint;
             if (typeof rootRef === "string" && /^sha256:[a-f0-9]{64}$/u.test(rootRef)) {
               for (const entry of readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root })
-                .filter(item => item.status === "outcome_unknown").slice(0, 20)) {
+                .filter(item => ["pending", "captured", "outcome_unknown"].includes(item.status)).slice(0, 20)) {
                 const plan = readEduPiAmbientMessagePlan(sessionId, entry.messageId, { dataRoot: roots.dataRoot.root });
                 const domain = plan?.domains.find(item => item.grantId === entry.grantId && item.state === "unknown"
                   && predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, item.domain) === entry.messageRef)?.domain;
+                if (entry.status !== "outcome_unknown" && !domain) continue;
+                // The exact Core projection can prove an applied write even if
+                // the process stopped before the local capture ACK was saved.
+                const proofEntry = entry.status === "outcome_unknown" ? entry : { ...entry, status: "outcome_unknown" as const };
                 const g2 = predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, "student_followup") === entry.messageRef;
                 if (g2) {
-                  const proof = await readExactEduPiG2Execution(host, rootRef, entry);
+                  const proof = await readExactEduPiG2Execution(host, rootRef, proofEntry);
                   if (proof.status !== "applied") continue;
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
                     { dataRoot: roots.dataRoot.root });
@@ -96,7 +100,7 @@ export async function GET(request: Request) {
                   recovered.push({ messageId: entry.messageId, goalId: proof.goalId,
                     followUpId: proof.followUpId, executionId: proof.executionId });
                 } else {
-                  const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, entry);
+                  const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, proofEntry);
                   if (proof.status !== "applied") continue;
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
                     { dataRoot: roots.dataRoot.root });
@@ -227,10 +231,9 @@ export async function POST(request: Request) {
             rootRef, grantId: planned.grantId, messageId, text: body.text as string, occurredAt, domain,
           }, { controlScope: current.activation.scope, capabilityActive: isG3Domain(domain) && capabilities.g3_processor === "active",
             onPrepared: async (binding) => {
-              // Owner/grant reads have completed. Fence this exact domain before
-              // the first Core write, so a pre-write owner failure stays retryable.
-              startEduPiAmbientPlanDomain(sessionId, messageId, domain, ledgerOptions);
-              prepareEduPiAmbientMessageBinding({ sessionId, messageId, occurredAt, ...binding }, ledgerOptions);
+              // One durable commit couples the write fence to its exact Core
+              // receipt identity before owner_message can be called.
+              prepareEduPiAmbientPlanDomainBinding({ sessionId, messageId, occurredAt, domain, ...binding }, ledgerOptions);
               preparedMessageRef = binding.messageRef;
             },
             onCaptured: async (binding) => {

@@ -1,7 +1,7 @@
 import { fetchDesktopApi } from "./desktop-native";
 import { isTauriDesktop } from "./desktop-updater";
-import { clearEduPiAmbientUnconfirmed, readEduPiAmbientUnconfirmed,
-  rememberEduPiAmbientUnconfirmed } from "./edupi-ambient-client-pending";
+import { clearEduPiAmbientUnconfirmedDurable, readEduPiAmbientUnconfirmedDurable,
+  rememberEduPiAmbientUnconfirmedDurable } from "./edupi-ambient-client-pending";
 
 export type EduPiAmbientPendingState = { status: "clear" | "outcome_unknown" | "applied" | "unavailable";
   pending: Array<{ messageId: string; occurredAt: string; unconfirmed?: boolean }>;
@@ -10,8 +10,8 @@ export type EduPiAmbientPendingState = { status: "clear" | "outcome_unknown" | "
 export async function readEduPiAmbientPending(sessionId: string, verify = false): Promise<EduPiAmbientPendingState> {
   const unavailable: EduPiAmbientPendingState = { status: "unavailable", pending: [], recovered: [] };
   if (!isTauriDesktop()) return { status: "clear", pending: [], recovered: [] };
-  let local: ReturnType<typeof readEduPiAmbientUnconfirmed>;
-  try { local = readEduPiAmbientUnconfirmed(sessionId); } catch { return unavailable; }
+  let local: Awaited<ReturnType<typeof readEduPiAmbientUnconfirmedDurable>>;
+  try { local = await readEduPiAmbientUnconfirmedDurable(sessionId); } catch { return unavailable; }
   const localOnly = (): EduPiAmbientPendingState => local.length
     ? { status: "outcome_unknown", pending: local.map(item => ({ ...item, unconfirmed: true })), recovered: [] }
     : unavailable;
@@ -32,8 +32,8 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
     if (!pending || !recovered || item.status === "clear" && item.pending.length !== 0
       || item.status === "outcome_unknown" && item.pending.length === 0) return localOnly();
     const server = item as EduPiAmbientPendingState;
-    for (const entry of [...server.pending, ...server.recovered]) clearEduPiAmbientUnconfirmed(sessionId, entry.messageId);
-    local = readEduPiAmbientUnconfirmed(sessionId);
+    for (const entry of [...server.pending, ...server.recovered]) await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId);
+    local = await readEduPiAmbientUnconfirmedDurable(sessionId);
     const seen = new Set(server.pending.map(entry => entry.messageId));
     const pendingEntries = [...server.pending,
       ...local.filter(entry => !seen.has(entry.messageId)).map(entry => ({ ...entry, unconfirmed: true }))];
@@ -52,11 +52,11 @@ export async function captureEduPiAmbientMessage(input: { sessionId: string; mes
     || (availabilityBody as Record<string, unknown>).externalSend !== false) {
     return { status: availability.ok ? "disabled" : "unavailable" };
   }
-  let existing: ReturnType<typeof readEduPiAmbientUnconfirmed>;
-  try { existing = readEduPiAmbientUnconfirmed(input.sessionId); } catch { return { status: "unavailable" }; }
+  let existing: Awaited<ReturnType<typeof readEduPiAmbientUnconfirmedDurable>>;
+  try { existing = await readEduPiAmbientUnconfirmedDurable(input.sessionId); } catch { return { status: "unavailable" }; }
   if (existing.some(item => item.messageId === input.messageId)) return { status: "outcome_unknown" };
   if (existing.length) return { status: "verification_pending" };
-  if (!rememberEduPiAmbientUnconfirmed({ sessionId: input.sessionId, messageId: input.messageId,
+  if (!await rememberEduPiAmbientUnconfirmedDurable({ sessionId: input.sessionId, messageId: input.messageId,
     occurredAt: input.occurredAt })) return { status: "unavailable" };
   let response: Response;
   try {
@@ -76,11 +76,11 @@ export async function captureEduPiAmbientMessage(input: { sessionId: string; mes
   const status = String(result.status);
   if (status === "unavailable") {
     if (["input", "owner", "runtime"].includes(String(result.stage))) {
-      clearEduPiAmbientUnconfirmed(input.sessionId, input.messageId);
+      await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId);
       return { status: "unavailable" };
     }
     return { status: "outcome_unknown" };
   }
-  if (!["outcome_unknown", "recorded"].includes(status)) clearEduPiAmbientUnconfirmed(input.sessionId, input.messageId);
+  if (!["outcome_unknown", "recorded"].includes(status)) await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId);
   return { status };
 }

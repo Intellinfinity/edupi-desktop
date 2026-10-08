@@ -26,6 +26,7 @@
     "allow-show-main-window-cmd",
     "allow-show-openconnector-console",
     "allow-set-ui-theme",
+    "allow-ambient-capture-outbox",
     "allow-foreground-settings",
     "allow-get-update-proxy",
     "allow-set-update-proxy",

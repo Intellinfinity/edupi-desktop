@@ -33,7 +33,7 @@ impl ForegroundSettings {
     }
 }
 
-fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     let requested = [
         super::ROUTE1_ISOLATED_CANARY_ENV,
         "EDUPI_DESKTOP_ISOLATED_CANARY",

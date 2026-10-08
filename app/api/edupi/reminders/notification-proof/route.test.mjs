@@ -39,9 +39,10 @@ async function fixture(work) {
   try {
     await writeFile(preferences, JSON.stringify({ graceDays: 3, pinnedTaskIds: [] }));
     await updateReminderStore(file, events, undefined, now.getTime());
-    const state = await updateReminderStore(file, events, { id: "*", type: "claim_notifications" }, now.getTime(), { sourceFingerprint: item => proof.reminderNotificationSourceFingerprint(item, data) });
-    const item = state.notifications[0], claims = [{ id: item.id, attemptedAt: item.notificationAttemptedAt }];
-    await updateReminderStore(file, events, { id: "*", type: "mark_attention_routes", routes: [{ reminderId: item.id, attemptedAt: item.notificationAttemptedAt, route: "teacher_local" }] });
+    const state = await updateReminderStore(file, events, { id: "*", type: "claim_notifications", instanceId: instance }, now.getTime(), { sourceFingerprint: item => proof.reminderNotificationSourceFingerprint(item, data) });
+    const item = state.notifications[0], claims = [{ id: item.id, attemptId: item.notificationAttemptId, attemptedAt: item.notificationAttemptedAt }];
+    await updateReminderStore(file, events, { id: "*", type: "mark_attention_routes", routes: [{ reminderId: item.id, attemptId: item.notificationAttemptId,
+      attemptedAt: item.notificationAttemptedAt, route: "teacher_local" }] }, now.getTime());
     const body = () => ({ version: 1, nonce, claims });
     const post = (value = body(), extraHeaders = {}) => routeModule.exports.POST(new Request("http://127.0.0.1:30373/api/edupi/reminders/notification-proof", {
       method: "POST", headers: { host: "127.0.0.1:30373", origin: "http://127.0.0.1:30373", "content-type": "application/json", "x-pi-desktop-token": token, ...extraHeaders }, body: JSON.stringify(value),
@@ -70,7 +71,8 @@ test("only exact current attempts receive a no-store 204 proof bound to nonce an
   assert.equal(await response.text(), "");
   assert.deepEqual(await readFile(fixture.file), before);
   assert.equal((await fixture.post({ ...fixture.body(), claims: [{ ...fixture.claims[0], attemptedAt: new Date(now.getTime() + 1).toISOString() }] })).status, 409);
-  await updateReminderStore(fixture.file, fixture.events, { id: fixture.claims[0].id, attemptedAt: fixture.claims[0].attemptedAt, type: "release_notification" });
+  await updateReminderStore(fixture.file, fixture.events, { id: fixture.claims[0].id, attemptId: fixture.claims[0].attemptId,
+    attemptedAt: fixture.claims[0].attemptedAt, type: "release_notification" });
   assert.equal((await fixture.post()).status, 409, "replaying an old proof request after cancellation cannot restore authority");
 }));
 

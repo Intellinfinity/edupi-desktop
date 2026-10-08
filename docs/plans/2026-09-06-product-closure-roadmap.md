@@ -1,5 +1,7 @@
 # EduPi 产品闭环 PR 路线图
 
+2026-10-08 R03 通知风险追补：原“claim 落盘后异常无法恢复”已在 Desktop 源码补原子 native-send、精确 UUID/租约、未知结果保留及教师明确再提醒；定向/全套/隔离实际页面证据见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-08-r03-系统通知未知结果恢复)。状态为**已实现待签名安装验收**，不是 TCC/真实通知/睡眠通过。Core 假期 #233 人审与家庭/阶段 main 合同仍为外部门；公开 `.56` 和 Core pin 不变。
+
 2026-10-08交付状态：Desktop [#320](https://github.com/Intellinfinity/edupi-desktop/pull/320)已用精确`b195512` Core身份通过CI37709332574并合main `ec856c1ccd033df0e04681f8e3a6ba11caf848a2`；原分支已快进。2225通过/12跳过/0失败、本机闭包15/15与暂存Core启动通过。此段取代下方“当前配对补丁未提交/CI待跑”的中间状态；`cbc145f`的DOCX实际页面证据仍不改名。Core #233人工审阅和新家庭/阶段合同未合，安装/TCC/原生采用/真实睡眠/真人质量仍未验。[证据](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-08-core-239240-追补)。
 
 2026-10-08当前pin追补：Core #239/#240已合，Desktop原分支从下述`cbc145f`继续精确更新到`b195512`；Bridge/Runtime schema与fixture不变，双组件摘要更新。决策日志去重/前缀保护不提升G1/G2/G3授权。已过本机新Core定向与Desktop闭包，暂存/最终CI仍按新精确身份重验；下述DOCX页面证据仍只绑定`cbc145f`。[当前验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-08-core-239240-追补)。

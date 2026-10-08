@@ -283,9 +283,10 @@ pub fn get_notification_permission_status(
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Claim {
     id: String,
+    attempt_id: String,
     attempted_at: String,
 }
 
@@ -295,6 +296,8 @@ pub struct Target {
     reminder_id: String,
     task_id: String,
     kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    attempt_id: Option<String>,
 }
 
 #[cfg(target_os = "macos")]
@@ -312,6 +315,10 @@ fn valid_target(target: &Target) -> bool {
         && !target.task_id.is_empty()
         && target.task_id.len() <= 500
         && matches!(target.kind.as_str(), "ready" | "failed" | "due" | "brief")
+        && target
+            .attempt_id
+            .as_deref()
+            .map_or(true, super::reminder_notification_gate::valid_uuid)
 }
 
 #[cfg(target_os = "macos")]
@@ -385,11 +392,25 @@ fn valid(request: &ReminderNotification) -> bool {
         && request.title.len() <= 512
         && request.body.len() <= 2048
         && !request.claims.is_empty()
-        && request.claims.len() <= 1000
+        && request.claims.len() <= 16
         && request.claims.iter().all(|claim| {
-            !claim.id.is_empty() && claim.id.len() <= 64 && claim.attempted_at.len() <= 80
+            !claim.id.is_empty()
+                && claim.id.len() <= 64
+                && claim.attempted_at.len() <= 80
+                && claim.attempted_at.contains('T')
+                && super::reminder_notification_gate::valid_uuid(&claim.attempt_id)
         })
         && request.target.as_ref().map_or(true, valid_target)
+        && request.target.as_ref().map_or(true, |target| {
+            request.claims.len() == 1
+                && target.reminder_id == request.claims[0].id
+                && target.attempt_id.as_deref() == Some(request.claims[0].attempt_id.as_str())
+        })
+        && request.claims.iter().enumerate().all(|(index, claim)| {
+            !request.claims[..index]
+                .iter()
+                .any(|earlier| earlier.id == claim.id)
+        })
 }
 
 fn diagnostic(request: &ReminderNotification) -> bool {
@@ -429,19 +450,55 @@ fn current_notification_proof(
         &nonce,
         &body,
     ) {
-        super::reminder_notification_gate::ProofResult::Current => Ok(()),
+        super::reminder_notification_gate::ProofResult::Current(_dispatch_id) => Ok(()),
         super::reminder_notification_gate::ProofResult::Changed => Err("notification_stale".into()),
         super::reminder_notification_gate::ProofResult::Unavailable => {
-            Err("notification_validation_unavailable".into())
+            // The server may have committed send_started before its reply was
+            // lost. No OS call is permitted, but this is not proof of release.
+            Err("notification_send_unknown".into())
         }
     }
 }
 
+#[cfg(test)]
 fn cancelled(error: &str) -> bool {
     matches!(
         error,
         "notification_stale" | "notification_validation_unavailable"
     )
+}
+
+fn submission_response<T>(
+    response: Result<T, std::sync::mpsc::RecvTimeoutError>,
+) -> Result<T, String> {
+    response.map_err(|_| "notification_send_unknown".to_string())
+}
+
+fn known_send_failure(error: &str) -> bool {
+    error == "notification_failed"
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn submit_and_confirm<T>(
+    submit: impl FnOnce() -> Result<T, String>,
+    confirm: impl FnOnce(Result<(), String>),
+) -> Result<T, String> {
+    let result = submit();
+    confirm(result.as_ref().map(|_| ()).map_err(Clone::clone));
+    result
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn submit_confirm_and_wait<T>(
+    waiting: Waiting,
+    submit: impl FnOnce() -> Result<T, String>,
+    confirm: impl FnOnce(Result<(), String>),
+    wait_for_action: impl FnOnce(T),
+) -> Result<(), String> {
+    let notification = submit_and_confirm(submit, confirm)?;
+    drop(waiting);
+    wait_for_action(notification);
+    Ok(())
 }
 
 fn activate(app: &AppHandle, target: &Option<Target>) {
@@ -544,9 +601,7 @@ fn deliver(app: &AppHandle, request: &ReminderNotification) -> Result<(), String
     })
     .map_err(|_| "notification_failed".to_string())?;
 
-    receiver
-        .recv_timeout(Duration::from_secs(10))
-        .map_err(|_| "notification_failed".to_string())?
+    submission_response(receiver.recv_timeout(Duration::from_secs(10)))?
         .then_some(())
         .ok_or_else(|| "notification_failed".to_string())
 }
@@ -567,19 +622,33 @@ fn deliver(app: &AppHandle, request: &ReminderNotification) -> Result<(), String
 }
 
 #[cfg(target_os = "linux")]
-fn deliver(app: &AppHandle, request: &ReminderNotification) -> Result<(), String> {
-    let notification = notify_rust::Notification::new()
-        .summary(&request.title)
-        .body(&request.body)
-        .action("default", "打开")
-        .show()
-        .map_err(|_| "notification_failed")?;
-    notification.wait_for_action(|action| {
-        if action == "default" {
-            activate(app, &request.target);
-        }
-    });
-    Ok(())
+fn deliver_linux_confirmed(
+    app: &AppHandle,
+    request: &ReminderNotification,
+    sender: &std::sync::mpsc::Sender<Result<(), String>>,
+    waiting: Waiting,
+) -> Result<(), String> {
+    submit_confirm_and_wait(
+        waiting,
+        || {
+            notify_rust::Notification::new()
+                .summary(&request.title)
+                .body(&request.body)
+                .action("default", "打开")
+                .show()
+                .map_err(|_| "notification_failed".to_string())
+        },
+        |result| {
+            let _ = sender.send(result);
+        },
+        |notification| {
+            notification.wait_for_action(|action| {
+                if action == "default" {
+                    activate(app, &request.target);
+                }
+            });
+        },
+    )
 }
 
 #[tauri::command]
@@ -603,7 +672,7 @@ pub fn send_reminder_notification(
             current_notification_proof(&app, &request).and_then(|_| deliver(&app, &request));
         drop(waiting);
         if let Err(error) = result {
-            if !cancelled(&error) {
+            if known_send_failure(&error) {
                 let _ = app.emit("edupi://reminder-failed", &request.claims);
             }
             return Err(error);
@@ -620,15 +689,16 @@ pub fn send_reminder_notification(
                 let _waiting = waiting;
                 let result = current_notification_proof(&app, &request)
                     .and_then(|_| deliver(&app, &request));
-                if result.as_ref().is_err_and(|error| !cancelled(error)) {
+                if result
+                    .as_ref()
+                    .is_err_and(|error| known_send_failure(error))
+                {
                     let _ = app.emit("edupi://reminder-failed", &request.claims);
                 }
                 let _ = sender.send(result);
             })
             .map_err(|_| "notification_failed".to_string())?;
-        return receiver
-            .recv_timeout(std::time::Duration::from_secs(10))
-            .map_err(|_| "notification_failed".to_string())?;
+        return submission_response(receiver.recv_timeout(std::time::Duration::from_secs(10)))?;
     }
 
     #[cfg(target_os = "linux")]
@@ -637,28 +707,171 @@ pub fn send_reminder_notification(
         std::thread::Builder::new()
             .name("edupi-notification".into())
             .spawn(move || {
-                let _waiting = waiting;
                 if let Err(error) = current_notification_proof(&app, &request) {
                     let _ = sender.send(Err(error));
                     return;
                 }
-                // A source veto is returned before acknowledgement. The existing
-                // action listener may then wait independently without blocking JS.
-                let _ = sender.send(Ok(()));
-                if deliver(&app, &request).is_err() {
+                // Acknowledgement follows OS show acceptance; click waiting is
+                // independent and must not promote an unsubmitted request.
+                if deliver_linux_confirmed(&app, &request, &sender, waiting).is_err() {
                     let _ = app.emit("edupi://reminder-failed", &request.claims);
                 }
             })
             .map_err(|_| "notification_failed".to_string())?;
-        receiver
-            .recv_timeout(std::time::Duration::from_secs(3))
-            .map_err(|_| "notification_validation_unavailable".to_string())?
+        submission_response(receiver.recv_timeout(std::time::Duration::from_secs(3)))?
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_claim_without_attempt_identity_cannot_begin_an_os_send() {
+        assert!(serde_json::from_str::<Claim>(
+            r#"{"id":"r1","attemptedAt":"2026-10-08T00:00:00Z"}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn an_os_result_timeout_or_disconnect_is_unknown_not_a_known_failed_send() {
+        for error in [
+            std::sync::mpsc::RecvTimeoutError::Timeout,
+            std::sync::mpsc::RecvTimeoutError::Disconnected,
+        ] {
+            assert_eq!(
+                submission_response::<()>(Err(error)),
+                Err("notification_send_unknown".to_string())
+            );
+        }
+        assert!(!known_send_failure("notification_send_unknown"));
+        assert!(!cancelled("notification_send_unknown"));
+        assert!(known_send_failure("notification_failed"));
+    }
+
+    #[test]
+    fn submission_confirmation_follows_show_success_and_never_precedes_it() {
+        use std::sync::mpsc;
+        let (confirmed, receiver) = mpsc::channel();
+        let (entered, observing) = mpsc::channel();
+        let (release, waiting) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            submit_and_confirm(
+                || {
+                    entered.send(()).unwrap();
+                    waiting.recv().unwrap();
+                    Ok::<_, String>("OS handle")
+                },
+                |result| {
+                    confirmed.send(result).unwrap();
+                },
+            )
+        });
+        observing.recv().unwrap();
+        assert_eq!(receiver.try_recv(), Err(mpsc::TryRecvError::Empty));
+        release.send(()).unwrap();
+        assert_eq!(receiver.recv().unwrap(), Ok(()));
+        assert_eq!(worker.join().unwrap(), Ok("OS handle"));
+        let (confirmed, receiver) = mpsc::channel();
+        let result = submit_and_confirm(
+            || Err::<(), _>("notification_failed".to_string()),
+            |result| {
+                confirmed.send(result).unwrap();
+            },
+        );
+        assert_eq!(result, Err("notification_failed".into()));
+        assert_eq!(receiver.recv().unwrap(), Err("notification_failed".into()));
+    }
+
+    #[test]
+    fn linux_send_permit_is_released_after_show_confirmation_before_click_wait() {
+        use std::sync::{atomic::AtomicBool, mpsc, Arc};
+        use std::time::Duration;
+
+        let other_sends: Vec<_> = (0..15).map(|_| acquire_waiting().unwrap()).collect();
+        let waiting = acquire_waiting().unwrap();
+        assert!(acquire_waiting().is_err());
+        let (show_started, observing_show) = mpsc::channel();
+        let (finish_show, show_result) = mpsc::channel();
+        let (confirmed, confirmation) = mpsc::channel();
+        let (click_wait_started, observing_click_wait) = mpsc::channel();
+        let (click, click_event) = mpsc::channel();
+        let clicked = Arc::new(AtomicBool::new(false));
+        let clicked_by_worker = clicked.clone();
+        let worker = std::thread::spawn(move || {
+            submit_confirm_and_wait(
+                waiting,
+                || {
+                    show_started.send(()).unwrap();
+                    show_result.recv().unwrap();
+                    Ok::<_, String>("OS handle")
+                },
+                |result| confirmed.send(result).unwrap(),
+                |handle| {
+                    click_wait_started.send(handle).unwrap();
+                    click_event.recv().unwrap();
+                    clicked_by_worker.store(true, Ordering::SeqCst);
+                },
+            )
+        });
+        observing_show.recv_timeout(Duration::from_secs(3)).unwrap();
+        assert_eq!(confirmation.try_recv(), Err(mpsc::TryRecvError::Empty));
+        assert!(acquire_waiting().is_err(), "show still owns a send permit");
+        finish_show.send(()).unwrap();
+        assert_eq!(
+            confirmation.recv_timeout(Duration::from_secs(3)).unwrap(),
+            Ok(())
+        );
+        assert_eq!(
+            observing_click_wait
+                .recv_timeout(Duration::from_secs(3))
+                .unwrap(),
+            "OS handle"
+        );
+        assert!(!clicked.load(Ordering::SeqCst));
+        let next_send = acquire_waiting();
+        click.send(()).unwrap();
+        assert_eq!(worker.join().unwrap(), Ok(()));
+        assert!(
+            clicked.load(Ordering::SeqCst),
+            "click listener remains active"
+        );
+        drop(other_sends);
+        assert!(
+            next_send.is_ok(),
+            "click waiting must not occupy a send permit"
+        );
+    }
+
+    #[test]
+    fn business_target_and_claim_share_exact_attempt_but_old_targets_remain_navigation_only() {
+        let request = r#"{"title":"EduPi 提醒","body":"synthetic","target":{"reminderId":"r1","taskId":"task1","kind":"ready","attemptId":"10000000-0000-4000-8000-000000000001"},"claims":[{"id":"r1","attemptId":"10000000-0000-4000-8000-000000000001","attemptedAt":"2026-10-08T00:00:00Z"}]}"#;
+        let mut request: ReminderNotification = serde_json::from_str(request).unwrap();
+        assert!(valid(&request));
+        let encoded = serde_json::to_value(&request.claims[0]).unwrap();
+        assert_eq!(encoded.as_object().unwrap().len(), 3);
+        assert_eq!(encoded["attemptId"], "10000000-0000-4000-8000-000000000001");
+        request.target.as_mut().unwrap().attempt_id =
+            Some("10000000-0000-4000-8000-000000000002".into());
+        assert!(!valid(&request));
+        let old: Target =
+            serde_json::from_str(r#"{"reminderId":"r1","taskId":"task1","kind":"ready"}"#).unwrap();
+        assert!(valid_target(&old));
+        assert!(old.attempt_id.is_none());
+        assert!(serde_json::to_value(&old)
+            .unwrap()
+            .get("attemptId")
+            .is_none());
+        request.target = Some(old);
+        assert!(
+            !valid(&request),
+            "old click targets decode, but cannot authorize a new business send"
+        );
+        request.target = None;
+        request.claims.push(request.claims[0].clone());
+        assert!(!valid(&request));
+    }
 
     #[test]
     fn a_test_id_cannot_bypass_the_business_gate_with_arbitrary_content_or_a_task_target() {
@@ -668,6 +881,7 @@ mod tests {
             target: None,
             claims: vec![Claim {
                 id: "notification-test".into(),
+                attempt_id: "10000000-0000-4000-8000-000000000001".into(),
                 attempted_at: "2026-10-08T00:00:00Z".into(),
             }],
         };
@@ -679,6 +893,7 @@ mod tests {
             reminder_id: "notification-test".into(),
             task_id: "old-task".into(),
             kind: "due".into(),
+            attempt_id: None,
         });
         assert!(!diagnostic(&request));
         assert!(cancelled("notification_stale"));
@@ -733,6 +948,7 @@ mod tests {
             reminder_id: "r1".into(),
             task_id: "teacher-task-1".into(),
             kind: "ready".into(),
+            attempt_id: None,
         };
         let encoded = encode_persisted_target(id, &target).unwrap();
         assert!(encoded.len() <= MAX_PERSISTED_TARGET_BYTES);
@@ -740,6 +956,17 @@ mod tests {
             decode_persisted_target(id, &encoded).unwrap().task_id,
             target.task_id
         );
+        assert!(decode_persisted_target(id, &encoded)
+            .unwrap()
+            .attempt_id
+            .is_none());
+        let old_payload = format!(
+            r#"{{"version":1,"notificationId":"{id}","target":{{"reminderId":"r1","taskId":"teacher-task-1","kind":"ready"}}}}"#
+        );
+        assert!(decode_persisted_target(id, &old_payload)
+            .unwrap()
+            .attempt_id
+            .is_none());
         assert!(decode_persisted_target("edupi-r1-654321", &encoded).is_none());
         assert!(decode_persisted_target(id, &"x".repeat(MAX_PERSISTED_TARGET_BYTES + 1)).is_none());
 
@@ -755,6 +982,7 @@ mod tests {
             reminder_id: "r2".into(),
             task_id: "teacher-task-2".into(),
             kind: "failed".into(),
+            attempt_id: Some("10000000-0000-4000-8000-000000000001".into()),
         };
         let content = objc2_user_notifications::UNMutableNotificationContent::new();
         set_persisted_target_user_info(&content, id, &target).unwrap();
@@ -762,6 +990,7 @@ mod tests {
         assert_eq!(decoded.reminder_id, target.reminder_id);
         assert_eq!(decoded.task_id, target.task_id);
         assert_eq!(decoded.kind, target.kind);
+        assert_eq!(decoded.attempt_id, target.attempt_id);
     }
 
     #[cfg(target_os = "macos")]
@@ -780,6 +1009,7 @@ mod tests {
             reminder_id: "r1".into(),
             task_id: "task-1".into(),
             kind: "ready".into(),
+            attempt_id: None,
         }));
         enqueue_notification_open(None);
         let first = take_pending_reminder_open();
@@ -793,6 +1023,7 @@ mod tests {
                 reminder_id: format!("r{index}"),
                 task_id: format!("task-{index}"),
                 kind: "ready".into(),
+                attempt_id: None,
             }));
         }
         let remaining = take_pending_reminder_open();
@@ -811,12 +1042,14 @@ mod tests {
             body: "已准备".into(),
             claims: vec![Claim {
                 id: "r1".into(),
-                attempted_at: "2026-09-09".into(),
+                attempt_id: "10000000-0000-4000-8000-000000000001".into(),
+                attempted_at: "2026-09-09T00:00:00Z".into(),
             }],
             target: Some(Target {
                 reminder_id: "r1".into(),
                 task_id: "task1".into(),
                 kind: "ready".into(),
+                attempt_id: Some("10000000-0000-4000-8000-000000000001".into()),
             }),
         };
         assert!(valid(&value));

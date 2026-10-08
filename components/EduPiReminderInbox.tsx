@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Reminder } from "@/lib/edupi-reminder-store";
+import { notificationSendNeedsReview } from "@/lib/edupi-reminder-attempt";
 import type { DesktopControlInput } from "@/lib/edupi-desktop-control";
 import { useSearchParams } from "next/navigation";
 import { compareForegroundReminders, isReminderForeground, paginateForeground, reminderReferenceDate, type ForegroundContext, type ForegroundPolicy } from "@/lib/edupi-foreground";
@@ -144,14 +145,15 @@ export function EduPiReminderInbox({
   const setPage = (page: number) => setPages(current => ({ ...current, [filter]: page }));
   const selected = pageItems.find((item) => item.id === selectedId) || pageItems[0] || null;
 
-  const change = async (id: string, type: "read" | "dismiss" | "snooze") => {
+  const change = async (id: string, type: "read" | "dismiss" | "snooze" | "rearm_notification", item?: Reminder) => {
     const blocksActions = type !== "read";
     if (blocksActions) setBusy(true);
     try {
       const response = await fetch("/api/edupi/reminders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, type }),
+        body: JSON.stringify({ id, type, ...(type === "rearm_notification" ? { attemptId: item?.notificationAttemptId,
+          attemptedAt: item?.notificationAttemptedAt } : {}) }),
       });
       if (!response.ok) throw new Error();
       const result = await response.json() as { items?: Reminder[] };
@@ -166,7 +168,7 @@ export function EduPiReminderInbox({
 
   const selectItem = (item: Reminder) => {
     setSelectedId(item.id);
-    if (!item.read) void change(item.id, "read");
+    if (!item.read && !notificationSendNeedsReview(item)) void change(item.id, "read");
   };
 
   const openRelated = async (item: Reminder) => {
@@ -290,6 +292,7 @@ export function EduPiReminderInbox({
                     <time dateTime={selected.snoozedUntil || selected.createdAt}>{formatReminderDate(selected.snoozedUntil || selected.createdAt)}</time>
                   </header>
                   <p className="edupi-reminder-inbox__detail-message">{reminderMessage(selected, filter)}</p>
+                  {notificationSendNeedsReview(selected) ? <p className="edupi-reminder-inbox__detail-message" role="status">系统通知结果待核对。再次提醒可能重复。</p> : null}
                   <dl className="edupi-reminder-inbox__meta">
                     <div><dt>状态</dt><dd>{filterLabel}</dd></div>
                     <div><dt>来源</dt><dd>{reminderSource(selected)}</dd></div>
@@ -299,6 +302,8 @@ export function EduPiReminderInbox({
                     <button type="button" className="is-primary" disabled={busy} onClick={() => void continueItem(selected)}>继续聊</button>
                     <button type="button" disabled={busy} onClick={() => void openRelated(selected)}>{selected.kind === "brief" ? "查看简报" : "查看事项"}</button>
                     {filter === "pending" ? <button type="button" disabled={busy} onClick={() => void change(selected.id, "snooze")}>稍后提醒</button> : null}
+                    {notificationSendNeedsReview(selected) && isReminderForeground(selected, policy, workspace || {})
+                      ? <button type="button" disabled={busy} onClick={() => void change(selected.id, "rearm_notification", selected)}>再提醒</button> : null}
                     {filter !== "handled" ? <button type="button" className="is-quiet" disabled={busy} title="只从提醒列表移除，不修改任务" onClick={() => void change(selected.id, "dismiss")}>从提醒中移除</button> : null}
                   </div>
                 </>

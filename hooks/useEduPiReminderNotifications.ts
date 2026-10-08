@@ -16,15 +16,15 @@ export function reminderContinuationTaskId(target: ReminderNotificationTarget | 
 
 export function authorizedReminderNotifications(result: { notifications?: Reminder[]; nativeNotificationIds?: string[] }): Reminder[] {
   const ids = new Set(result.nativeNotificationIds);
-  return (result.notifications || []).filter((item) => ids.has(item.id));
+  return (result.notifications || []).filter((item) => ids.has(item.id) && Boolean(item.notificationAttemptId && item.notificationAttemptedAt));
 }
 
-export function reminderOutcomeType(status: "attempted" | "failed" | "skipped" | "cancelled"): "notification_delivered" | "notification_failed" | "notification_deferred" | "release_notification" {
-  return status === "cancelled" ? "release_notification" : status === "attempted" ? "notification_delivered" : status === "skipped" ? "notification_deferred" : "notification_failed";
+export function reminderOutcomeType(status: "attempted" | "failed" | "skipped" | "cancelled" | "unknown"): "notification_delivered" | "notification_failed" | "notification_deferred" | "release_notification" | "notification_unknown" {
+  return status === "unknown" ? "notification_unknown" : status === "cancelled" ? "release_notification" : status === "attempted" ? "notification_delivered" : status === "skipped" ? "notification_deferred" : "notification_failed";
 }
 
-export function reminderOutcomeAction(claim: ReminderNotificationClaim, type: "notification_delivered" | "notification_failed" | "notification_deferred" | "release_notification") {
-  return { id: claim.id, attemptedAt: claim.attemptedAt, type };
+export function reminderOutcomeAction(claim: ReminderNotificationClaim, type: "notification_delivered" | "notification_failed" | "notification_deferred" | "release_notification" | "notification_unknown") {
+  return { id: claim.id, attemptId: claim.attemptId, attemptedAt: claim.attemptedAt, type };
 }
 
 export function useEduPiReminderNotifications(onOpen: (target: ReminderNotificationTarget | null) => void | Promise<void>) {
@@ -33,12 +33,12 @@ export function useEduPiReminderNotifications(onOpen: (target: ReminderNotificat
     let timer: ReturnType<typeof setTimeout>;
     let unlisten: (() => void) | undefined;
     let nativeReady = false;
-    const updateClaims = async (claims: ReminderNotificationClaim[], type: "notification_delivered" | "notification_failed" | "notification_deferred" | "release_notification") => {
+    const updateClaims = async (claims: ReminderNotificationClaim[], type: "notification_delivered" | "notification_failed" | "notification_deferred" | "release_notification" | "notification_unknown") => {
       for (const item of claims) await fetch("/api/edupi/reminders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reminderOutcomeAction(item, type)), signal: type === "release_notification" ? AbortSignal.timeout(5000) : controller.signal });
     };
     const markOpened = async (target: ReminderNotificationTarget | null) => {
-      if (!target || !reminderContinuationTaskId(target)) return;
-      await fetch("/api/edupi/reminders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: target.reminderId, type: "notification_opened", taskId: target.taskId }) });
+      if (!target || !reminderContinuationTaskId(target) || !target.attemptId) return;
+      await fetch("/api/edupi/reminders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: target.reminderId, type: "notification_opened", taskId: target.taskId, attemptId: target.attemptId }) });
     };
     const poll = async () => {
       try {
@@ -58,12 +58,12 @@ export function useEduPiReminderNotifications(onOpen: (target: ReminderNotificat
         const result = await response.json();
         const items = authorizedReminderNotifications(result);
         if (controller.signal.aborted) {
-          if (items.length) await updateClaims(items.map(item => ({ id: item.id, attemptedAt: item.notificationAttemptedAt! })), "release_notification");
+          if (items.length) await updateClaims(items.map(item => ({ id: item.id, attemptId: item.notificationAttemptId!, attemptedAt: item.notificationAttemptedAt! })), "release_notification");
           return;
         }
         if (items.length) {
-          const claims = items.map(item => ({ id: item.id, attemptedAt: item.notificationAttemptedAt! }));
-          const target = items.length === 1 ? { reminderId: items[0].id, taskId: items[0].taskId, kind: items[0].kind } : null;
+          const claims = items.map(item => ({ id: item.id, attemptId: item.notificationAttemptId!, attemptedAt: item.notificationAttemptedAt! }));
+          const target = items.length === 1 ? { reminderId: items[0].id, taskId: items[0].taskId, kind: items[0].kind, attemptId: items[0].notificationAttemptId } : null;
           const isCurrent = async () => {
             const localCurrent = () => !controller.signal.aborted && desktopNotificationsEnabled() && !document.hasFocus() && policyAtClaim === localPolicy();
             return localCurrent() && await foregroundNotificationPolicyMatchesNative() && localCurrent();

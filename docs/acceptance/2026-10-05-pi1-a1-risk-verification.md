@@ -1,5 +1,15 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-08 R03 系统通知未知结果恢复
+
+本节取代下方“claim 落盘后异常会留下无法恢复的 attempt”作为当前 Desktop 源码状态，不改变安装验收结论。代码基于 Desktop main `c9c7c65`、精确 Core pin `b195512fb9a96ae04c35340ebdea78eddd816152`；正式 `/Applications/EduPi.app`、公开 `.56`、Release/feed 均未改。
+
+- 风险修复：每次通知 claim 增加 UUID 尝试身份及 2 分钟租约。仅“尚未进入原生发送”的超时 claim 自动释放；`POST /api/edupi/reminders/native-send` 在本机 token、当前进程、完整来源/前台策略和尝试身份校验后，于锁内原子记录 `send_started`，文件与 macOS/Linux 目录同步完成才给原生 204/dispatch ID。并发相同或混入过期尝试仅一个成功。原生 503、连接中断、OS 结果超时及发送后失败保留未知状态，不自动重试；旧通知点击可导航，但缺 attempt ID 不确认新的尝试。
+- 恢复：应用内提醒不丢；`max(领取时刻, 原生开始时刻)+2 分钟`后显示“系统通知结果待核对。再次提醒可能重复。”，教师明确点击“再提醒”才清除该次未知状态。已过早、旧 UUID、已处理或撤下事项拒绝，点击详情不会先标已读与再提醒竞态。Linux 发送名额在 OS 接收后释放，点击等待另行持续，不因未关闭的 16 条通知停发。
+- 证据：本机 `npm test` 2258 项中 2225 pass、33 skipped、0 fail；`tsc --noEmit`、`npm run lint`、`cargo metadata --locked`、Cargo lib 58/58、`npm audit --audit-level=high` 退出 0（6 低/3 中，0 高/严重）；`git diff --check`通过。定向红→绿包含并发单胜、批量全拒、source/policy 更改、旧回调、新旧状态和慢授权跨租约；独立只读复核无剩余 Critical/Required。这里的 Node/VM/本机 Rust 测试均非安装版通知证据。
+- 隔离页面：`~/edupi-desktop-p0p2-canary-YLBNFm` 的合成教师根、Core `b195512`、本机 30374/62021；实际打开提醒，把一条合成事务模拟成已过 5 分钟的未知结果，页面显示提示与“再提醒”，选中后原账本仍 `read=false`。点击后同一条 `notification_rearmed` 落盘、attempt 清除、历史和事项保留；硬刷新再进该条，不再显示未知提示。浏览器 tab、Next 与模型已正常退出，端口不监听。没有发送 OS 通知、使用真实学生资料或外部模型。
+- 未验与门：真实 macOS 签名安装/TCC/系统通知点击、冷/热 Core 的 1.5 秒发送门延迟、真实跨到期睡眠、真人教学内容和 Windows/Linux 安装均缺证；Windows 断电级 rename 持久性未获证明，Linux 大量长期不关闭通知的点击等待线程容量仍需实机观察。Core 假期 [#233](https://github.com/Intellinfinity/edupi/pull/233) 截至本次只读查询仍 OPEN、无人工 review；家庭/真实阶段独立源码也未合 main，Desktop 不提前消费或称 G5 已验证。
+
 ## 2026-10-08 Core #239–#240 追补
 
 本节取代紧随其后的`cbc145f`作为当前pin身份，保留那一版的实际页面证据及初次暂存失败。Core main已合[#239](https://github.com/Intellinfinity/edupi/pull/239)与[#240](https://github.com/Intellinfinity/edupi/pull/240)，Desktop原分支未重建，当前未提交配对改为精确`b195512fb9a96ae04c35340ebdea78eddd816152`。Bridge schema`2749b120…`、Runtime schema`4749a9e9…`、fixture`807f27fd…`不变；Core组件更新为`ca757d41…`，Desktop组件更新为`e62be5dd…`。这两项Core变化保护规划决策日志：真正未变的决策不增行，既有前缀不重写；不改变本批DOCX材料交互合同。

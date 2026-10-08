@@ -28,7 +28,9 @@ async function result(action?: ReminderAction) {
     if (refreshed.workspace !== data.workspace) throw new Error("提醒工作区已变化");
     data = refreshed;
     events = reminderEvents(data.tasks, data.workspace, new Date(), data.continuity.documents, data.workCases, data.generatedArtifacts);
-    state = await updateReminderStore(file, events, action, Date.now(), { selectNotifications: async items => {
+    const instanceId = process.env[DESKTOP_INSTANCE_ID_ENV];
+    if (!instanceId || !/^[a-f0-9]{64}$/u.test(instanceId)) throw new Error("提醒服务标识不可用");
+    state = await updateReminderStore(file, events, { ...action, instanceId }, Date.now(), { selectNotifications: async items => {
       try { return selectForegroundReminders(items, data, await readServerForegroundPolicy()); }
       catch { foregroundPolicyStatus = "unavailable"; return []; }
     }, sourceFingerprint: item => reminderNotificationSourceFingerprint(item, data) });
@@ -36,7 +38,7 @@ async function result(action?: ReminderAction) {
   const claimed = action?.type === "claim_notifications" ? state.notifications || [] : [];
   const blockedIds = new Set([...recovery.pendingIds, ...pendingReminderAttentionOutcomes(state).map((item) => item.reminderId)]);
   let notifications = [] as typeof claimed;
-  let routeMarks = [] as { reminderId: string; attemptedAt: string; route: "core_linked" | "g1_local" | "teacher_local" | "legacy_local"; instanceId?: string }[];
+  let routeMarks = [] as { reminderId: string; attemptedAt: string; attemptId?: string; route: "core_linked" | "g1_local" | "teacher_local" | "legacy_local"; instanceId?: string }[];
   const markDeferredIds = new Set<string>();
   let attention: { status: "synced" | "unsupported" | "unavailable"; recorded: number; pendingCount?: number; blocked?: typeof recovery.blocked } = recovery;
   if (action?.type === "claim_notifications") {
@@ -53,7 +55,7 @@ async function result(action?: ReminderAction) {
       const route = nativeAttentionRoute(item, synced);
       if (!route || !item.notificationAttemptedAt) continue;
       notifications.push(item);
-      routeMarks.push({ reminderId: item.id, attemptedAt: item.notificationAttemptedAt, route,
+      routeMarks.push({ reminderId: item.id, attemptedAt: item.notificationAttemptedAt, attemptId: item.notificationAttemptId, route,
         ...(route === "core_linked" ? { instanceId } : {}) });
     }
     const g1LocalIds = new Set(routeMarks.filter((mark) => mark.route === "g1_local").map((mark) => mark.reminderId));
@@ -74,8 +76,10 @@ async function result(action?: ReminderAction) {
   }
   const allowed = new Set(notifications.map((item) => item.id));
   for (const item of claimed) {
-    if (!allowed.has(item.id) && !markDeferredIds.has(item.id)) state = await updateReminderStore(file, events, { id: item.id, type: "notification_deferred", attemptedAt: item.notificationAttemptedAt });
+    if (!allowed.has(item.id) && !markDeferredIds.has(item.id)) state = await updateReminderStore(file, events, { id: item.id, type: "notification_deferred", attemptedAt: item.notificationAttemptedAt, attemptId: item.notificationAttemptId });
   }
+  if (action?.type === "rearm_notification" && !state.notificationTransitionApplied)
+    return NextResponse.json({ error: "提醒已变化" }, { status: 409 });
   if (notifications.length) {
     const proposed = notifications;
     // Core attention may finish after a preference/source change or midnight.
@@ -98,7 +102,7 @@ async function result(action?: ReminderAction) {
     for (const item of proposed) if (!currentIds.has(item.id)) {
       // A display-policy veto is not failure, acknowledgement, or expiry of
       // the underlying transaction. Release only this exact unsent attempt.
-      state = await updateReminderStore(file, events, { id: item.id, type: "release_notification", attemptedAt: item.notificationAttemptedAt });
+      state = await updateReminderStore(file, events, { id: item.id, type: "release_notification", attemptedAt: item.notificationAttemptedAt, attemptId: item.notificationAttemptId });
     }
   }
   return NextResponse.json({ items: state.items, notifications, nativeNotificationIds: notifications.map((item) => item.id), metrics: state.metrics, attention, ...(action?.type === "claim_notifications" ? { foregroundPolicyStatus } : {}), workspace: data.workspace, taskSessions: data.taskSessions });

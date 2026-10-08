@@ -168,9 +168,13 @@ export async function captureAndApplyAmbientMessage(
   if (!HASH.test(input.rootRef) || !ID.test(input.grantId) || !RAW_ID.test(input.messageId)
     || typeof input.text !== "string" || !input.text.trim() || input.text.length > 4000
     || !canonicalOccurredAt) fail();
+  const domain = input.domain ?? "teaching_preparation";
+  if (!Object.hasOwn(ROUTE_READY_OPERATION, domain) || domain !== "teaching_preparation" && domain !== "student_followup" && !dependencies.controlScope
+    || dependencies.controlScope && (!ID.test(dependencies.controlScope.classId)
+      || typeof dependencies.controlScope.subject !== "string" || !dependencies.controlScope.subject.trim()
+      || dependencies.controlScope.subject.length > 128 || /[\u0000-\u001f\u007f]/u.test(dependencies.controlScope.subject))) fail();
   const context = await readProactivityOwnerContext(host, input.rootRef, input.grantId);
   if (!context || context.status !== "active") fail("proactivity_grant_unavailable", "owner");
-  const domain = input.domain ?? "teaching_preparation";
   const predictedMessageRef = predictEduPiOwnerMessageRef(input.rootRef, context.ownerId, input.messageId, domain);
   const messageBinding = { messageRef: predictedMessageRef, ownerId: context.ownerId, grantId: context.grantId,
     captureGrantVersion: context.grantVersion };
@@ -208,8 +212,6 @@ export async function captureAndApplyAmbientMessage(
       fail("proactivity_runtime_unavailable", "capture");
     }
   }
-  if (dependencies.controlScope && (!ID.test(dependencies.controlScope.classId)
-    || typeof dependencies.controlScope.subject !== "string" || !dependencies.controlScope.subject)) fail();
   const candidate = dependencies.controlScope && domain === "teaching_preparation" ? intentCandidate(await host.callOwnerControl("owner_intent_read", {
     root_ref: input.rootRef,
     expected_owner_id: context.ownerId,

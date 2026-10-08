@@ -81,11 +81,12 @@ async function waitFor(label, read, predicate, timeoutMs = 30_000) {
 
 function writeModelSettings(port) {
   fs.writeFileSync(path.join(agentDir, "models.json"), JSON.stringify({ providers: { local: {
-    api: "openai-completions", apiKey: "local-test-placeholder", baseUrl: `http://127.0.0.1:${port}/v1`,
-    models: [{ id: "local", name: "Route1 local test", input: ["text"],
+    api: "openai-completions", baseUrl: `http://127.0.0.1:${port}/v1`,
+    models: [{ id: "local", name: "Route1 local test", reasoning: false, input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 32_000, maxTokens: 2_048 }],
   } } }), { mode: 0o600 });
   fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "local", defaultModel: "local" }), { mode: 0o600 });
+  fs.writeFileSync(path.join(agentDir, "auth.json"), JSON.stringify({ local: { type: "api_key", key: "local-test-placeholder" } }), { mode: 0o600 });
 }
 
 async function startPackagedServer(label) {

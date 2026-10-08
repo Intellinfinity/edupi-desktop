@@ -1,5 +1,7 @@
 # EduPi 产品闭环 PR 路线图
 
+2026-10-08 R21/L4 失联回执检查点：未合并 Desktop 分支 `2fc4666c` 将同一 Pi `clientRequestId` 固定为捕获 ID，在 Core route apply 前私有持久标记 `outcome_unknown`。丢回包/重启不自动重写，原会话重进仍有待核验横幅；只有 Core 只读绑定带相同 `message_ref` 且匹配唯一当前 Goal/工作事项才清除，旧 schema 保持 pending。同会话不同新消息的主动写入在未知结果期间暂停。定向 48/48、全套 Node 2252 passed / 33 skipped / 0 failed、类型/lint 通过；尚未配对新 Core schema，安装版、实际跨会话点击与教师内容质量未验。此条取代下方“回执丢失仍未处理”的源码状态，证据见[六域路由验收](../acceptance/2026-10-08-desktop-six-domain-route-source.md#2026-10-08-失联回执持久待核验)。
+
 2026-10-08 R21/L4 六域路由写后读 P2 修复：未合并 Desktop 分支追加 `6663d582`。Core 已回执写入 Goal 后，关联读取失败或与当前 Goal 绑定不符，接口保留已知 Goal ID 并返回 `recorded/needs_verification`，不误报未记录，不再触发第二领域入队；聊天仅在该状态提示勿重发。先红后绿的定向 31/31、全套 Node 2240 passed / 33 skipped / 0 failed、类型和 lint 通过。安装版交互及真实 Desktop↔Core 写后读仍未验，上条 2236/33/0 为修复前源码检查点，当前证据见[六域路由验收](../acceptance/2026-10-08-desktop-six-domain-route-source.md#2026-10-08-g1-写后读失败修复)。
 
 2026-10-08 R21/L4 六领域 Desktop 自然消息路由源码检查点：独立分支 `codex/desktop-six-domain-routing-20261008` 的 `b321e737`、`46556d71`、`f10ce257` 已让普通消息消费 Core 领域路由，G1 建 Goal 走 Core route apply，G2 原观察入队保留，安全隐私与模糊来源停留；G3–G5 配置默认关闭且启用仍返回 `proactivity_activation_pending`。全套 Node 2236 passed / 33 skipped / 0 failed，类型和 lint 通过。隔离 Core E2 在 G1 启用阶段 503，尚无实际六域写入/重启/页面证据；不改变下方“六领域 Live 部分实现”与安装、真人质量欠项。此源码记录取代下方 `domain_out_of_scope` 作为**当前未合并分支**的行为描述；main/公开版状态不变。详见[验收记录](../acceptance/2026-10-08-desktop-six-domain-route-source.md)。

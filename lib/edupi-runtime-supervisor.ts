@@ -24,8 +24,7 @@ type Entry = { identity: string; baseIdentity: string; g3Identity: string;
 export const G3_DOMAINS = ["calendar_administration", "lesson_reflection", "parent_communication"] as const;
 type G3Domain = typeof G3_DOMAINS[number];
 type G3Binding = { domain: G3Domain; grantId: string; scope: { class_id: string; subject: string } };
-// The public Desktop pin remains older and cannot enter this staged exact
-// binding path. Replace only after the matching Core contract is merged.
+// Exact G3 bindings require this paired Core commit and an explicit canary.
 const G3_EXACT_GRANT_SCOPE_CORE_COMMIT = "682ebbad9ade9494d9304b026207e659eb265d29";
 const shared = globalThis as typeof globalThis & {
   __edupiRuntimeSupervisors?: Map<string, Entry>;

@@ -117,7 +117,7 @@ fn path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn read_outbox(path: &Path) -> Result<Outbox, String> {
-    match fs::symlink_metadata(path) {
+    let metadata = match fs::symlink_metadata(path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(Outbox {
                 version: 1,
@@ -129,37 +129,118 @@ fn read_outbox(path: &Path) -> Result<Outbox, String> {
                 && !metadata.file_type().is_symlink()
                 && metadata.len() <= MAX_BYTES =>
         {
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::MetadataExt;
-                let parent = path
-                    .parent()
-                    .ok_or_else(|| "待核验请求路径无效".to_string())?;
-                let directory =
-                    fs::metadata(parent).map_err(|_| "待核验请求路径无效".to_string())?;
-                if metadata.mode() & 0o077 != 0
-                    || metadata.nlink() != 1
-                    || metadata.uid() != directory.uid()
-                {
-                    return Err("待核验请求文件权限无效".into());
-                }
-            }
+            metadata
         }
         _ => return Err("待核验请求文件不可读取".into()),
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let parent = path
+            .parent()
+            .ok_or_else(|| "待核验请求路径无效".to_string())?;
+        let directory = fs::metadata(parent).map_err(|_| "待核验请求路径无效".to_string())?;
+        if metadata.mode() & 0o077 != 0
+            || metadata.nlink() != 1
+            || metadata.uid() != directory.uid()
+        {
+            return Err("待核验请求文件权限无效".into());
+        }
     }
+    read_outbox_after_stat(path, &metadata)
+}
+
+fn read_outbox_after_stat(path: &Path, metadata: &fs::Metadata) -> Result<Outbox, String> {
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    let file = options
+        .open(path)
+        .map_err(|_| "待核验请求文件不可读取".to_string())?;
+    let opened = file
+        .metadata()
+        .map_err(|_| "待核验请求文件不可读取".to_string())?;
+    if !opened.is_file() || opened.file_type().is_symlink() || opened.len() > MAX_BYTES {
+        return Err("待核验请求文件不可读取".into());
+    }
+    verify_open_file(path, metadata, &opened)?;
     let mut raw = Vec::new();
-    fs::File::open(path)
-        .map_err(|_| "待核验请求文件不可读取".to_string())?
+    (&file)
         .take(MAX_BYTES + 1)
         .read_to_end(&mut raw)
         .map_err(|_| "待核验请求文件不可读取".to_string())?;
     if raw.len() as u64 > MAX_BYTES {
         return Err("待核验请求文件过大".into());
     }
+    let opened_after = file
+        .metadata()
+        .map_err(|_| "待核验请求文件不可读取".to_string())?;
+    verify_open_file(path, metadata, &opened_after)?;
     let value: Outbox =
         serde_json::from_slice(&raw).map_err(|_| "待核验请求文件无效".to_string())?;
     validate_outbox(&value)?;
     Ok(value)
+}
+
+fn verify_open_file(
+    path: &Path,
+    before: &fs::Metadata,
+    opened: &fs::Metadata,
+) -> Result<(), String> {
+    let current = fs::symlink_metadata(path).map_err(|_| "待核验请求文件不可读取".to_string())?;
+    if !current.is_file() || current.file_type().is_symlink() || current.len() > MAX_BYTES {
+        return Err("待核验请求文件不可读取".into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let same = |left: &fs::Metadata, right: &fs::Metadata| {
+            left.dev() == right.dev()
+                && left.ino() == right.ino()
+                && left.len() == right.len()
+                && left.mode() == right.mode()
+                && left.uid() == right.uid()
+                && left.nlink() == right.nlink()
+                && left.mtime() == right.mtime()
+                && left.mtime_nsec() == right.mtime_nsec()
+                && left.ctime() == right.ctime()
+                && left.ctime_nsec() == right.ctime_nsec()
+        };
+        if !same(before, opened)
+            || !same(opened, &current)
+            || opened.mode() & 0o077 != 0
+            || opened.nlink() != 1
+            || current.mode() & 0o077 != 0
+            || current.nlink() != 1
+        {
+            return Err("待核验请求文件身份已变化".into());
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+        if opened.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+            || current.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+            || before.len() != opened.len()
+            || opened.len() != current.len()
+            || before.last_write_time() != opened.last_write_time()
+            || opened.last_write_time() != current.last_write_time()
+        {
+            return Err("待核验请求文件身份已变化".into());
+        }
+    }
+    Ok(())
 }
 
 fn write_outbox(path: &Path, value: &Outbox) -> Result<(), String> {
@@ -330,6 +411,57 @@ mod tests {
         #[cfg(unix)]
         fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
         assert!(read_outbox(&file).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replacing_the_outbox_between_stat_and_open_never_reads_the_substitute() {
+        use std::os::unix::fs::symlink;
+        let dir = std::env::temp_dir().join(format!(
+            "edupi-ambient-outbox-race-{}",
+            crate::generate_random_hex().unwrap()
+        ));
+        let file = dir.join("ambient-capture-outbox-v1.json");
+        let saved = dir.join("saved.json");
+        let foreign = dir.join("foreign.json");
+        remember(
+            &file,
+            AmbientCaptureEntry {
+                session_id: "original-session".into(),
+                message_id: "prompt-original".into(),
+                occurred_at: "2026-10-08T00:00:00.000Z".into(),
+            },
+        )
+        .unwrap();
+        let metadata = fs::symlink_metadata(&file).unwrap();
+        let substitute = Outbox {
+            version: 1,
+            entries: vec![AmbientCaptureEntry {
+                session_id: "foreign-session".into(),
+                message_id: "prompt-foreign".into(),
+                occurred_at: "2026-10-08T00:00:00.000Z".into(),
+            }],
+        };
+        fs::write(&foreign, serde_json::to_vec(&substitute).unwrap()).unwrap();
+        fs::set_permissions(&foreign, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::rename(&file, &saved).unwrap();
+        symlink(&foreign, &file).unwrap();
+        assert!(read_outbox_after_stat(&file, &metadata).is_err());
+        fs::remove_file(&file).unwrap();
+        fs::copy(&foreign, &file).unwrap();
+        assert!(read_outbox_after_stat(&file, &metadata).is_err());
+        let same_inode = fs::symlink_metadata(&file).unwrap();
+        fs::write(
+            &file,
+            serde_json::to_vec(&Outbox {
+                version: 1,
+                entries: vec![],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(read_outbox_after_stat(&file, &same_inode).is_err());
         fs::remove_dir_all(dir).unwrap();
     }
 }

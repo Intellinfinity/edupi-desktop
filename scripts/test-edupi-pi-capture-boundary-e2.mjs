@@ -33,8 +33,11 @@ function client(directory) {
   const exports = {};
   vm.runInNewContext(code, { exports, URLSearchParams, require(name) {
     if (name === "./desktop-native") return { fetchDesktopApi: async (_url, options) => {
-      if (options.method === "POST") posts++;
-      return { ok: true, json: async () => ({ status: "clear", pending: [], recovered: [], externalSend: false }) };
+      const action = options.method === "POST" ? JSON.parse(options.body).action : null;
+      if (options.method === "POST" && action !== "arm") posts++;
+      return { ok: true, json: async () => action === "arm"
+        ? { status: "armed", externalSend: false }
+        : { status: "clear", pending: [], recovered: [], externalSend: false } };
     } };
     if (name === "./desktop-updater") return { isTauriDesktop: () => true };
     if (name === "./edupi-ambient-client-pending") return storage;

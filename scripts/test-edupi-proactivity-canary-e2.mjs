@@ -174,6 +174,14 @@ try {
   assert.equal(enabledBody.externalSend, false);
   assert.equal((await (await messageRoute.GET(request("http://localhost/api/edupi/proactivity/messages"))).json()).status, "enabled");
 
+  const armMessage = async ({ sessionId: plannedSessionId, messageId, occurredAt }) => {
+    const response = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
+      action: "arm", sessionId: plannedSessionId, messageId, occurredAt,
+    }));
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+    assert.equal((await response.json()).status, "armed");
+  };
+
   for (const [domain, text] of [
     ["student-followup", "请跟进学生张三的课堂观察"],
     ["lesson-reflection", "请做这节课的课后复盘"],
@@ -182,8 +190,10 @@ try {
     ["safety-privacy", "请核对学生隐私和安全风险"],
   ]) {
     const messageId = `canary-held-${domain}`;
+    const occurredAt = new Date().toISOString();
+    await armMessage({ sessionId, messageId, occurredAt });
     const response = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
-      sessionId, messageId, text, occurredAt: new Date().toISOString(),
+      sessionId, messageId, text, occurredAt,
     }));
     const result = await response.json();
     assert.equal(response.status, 200, JSON.stringify({ domain, result }));
@@ -198,6 +208,7 @@ try {
   }
 
   const messageBody = { sessionId, messageId: "canary-message-1", text: "帮我准备明天的数学教案", occurredAt: new Date().toISOString() };
+  await armMessage(messageBody);
   const firstMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));
   const firstMessageBody = await firstMessage.json();
   assert.equal(firstMessage.status, 200, JSON.stringify(firstMessageBody));
@@ -206,7 +217,8 @@ try {
   const replayMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));
   const replayMessageBody = await replayMessage.json();
   assert.equal(replayMessage.status, 200, JSON.stringify(replayMessageBody));
-  assert.equal(replayMessageBody.goalId, firstMessageBody.goalId);
+  assert.equal(replayMessageBody.messageComplete, true);
+  assert.equal(replayMessageBody.resolutionStatus, "settled");
 
   const feedbackTargetResponse = await feedbackRoute.POST(request("http://localhost/api/edupi/teacher-feedback", "POST",
     { action: "target_read", target: { kind: "goal", target_id: firstMessageBody.goalId } }));
@@ -234,6 +246,7 @@ try {
   assert.equal(feedbackReadBody.result.summary.synthetic_excluded, 1);
 
   const correctionBody = { sessionId, messageId: "canary-message-2", text: `改到${correctedDay.date}的数学课`, occurredAt: new Date().toISOString() };
+  await armMessage(correctionBody);
   const correction = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", correctionBody));
   const correctionResult = await correction.json();
   assert.equal(correction.status, 200, JSON.stringify(correctionResult));
@@ -243,10 +256,11 @@ try {
   const correctionReplay = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", correctionBody));
   const correctionReplayResult = await correctionReplay.json();
   assert.equal(correctionReplay.status, 200, JSON.stringify(correctionReplayResult));
-  assert.equal(correctionReplayResult.status, "corrected", JSON.stringify(correctionReplayResult));
-  assert.equal(correctionReplayResult.goalId, correctionResult.goalId);
+  assert.equal(correctionReplayResult.messageComplete, true, JSON.stringify(correctionReplayResult));
+  assert.equal(correctionReplayResult.resolutionStatus, "settled");
 
   const cancellationBody = { sessionId, messageId: "canary-message-3", text: "取消这节数学备课", occurredAt: new Date().toISOString() };
+  await armMessage(cancellationBody);
   const cancellation = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", cancellationBody));
   const cancellationResult = await cancellation.json();
   assert.equal(cancellation.status, 200, JSON.stringify(cancellationResult));
@@ -261,9 +275,10 @@ try {
   assert.ok(["cancelled", "captured"].includes(cancellationReplayResult.status));
   const controlEventsAfterReplay = JSON.parse(fs.readFileSync(planningFile, "utf8")).state.events.filter((item) => item.kind === "goal_control").length;
   assert.equal(controlEventsAfterReplay, controlEventsBeforeReplay);
-  const deletionSource = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
-    sessionId, messageId: "canary-message-4", text: `帮我准备${deletionDay.date}的数学教案`, occurredAt: new Date().toISOString(),
-  }));
+  const deletionBody = { sessionId, messageId: "canary-message-4",
+    text: `帮我准备${deletionDay.date}的数学教案`, occurredAt: new Date().toISOString() };
+  await armMessage(deletionBody);
+  const deletionSource = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", deletionBody));
   const deletionSourceResult = await deletionSource.json();
   assert.equal(deletionSource.status, 200, JSON.stringify(deletionSourceResult));
   assert.equal(deletionSourceResult.status, "applied");
@@ -282,9 +297,9 @@ try {
   assert.equal(disabled.status, 200, JSON.stringify(disabledBody));
   assert.equal(disabledBody.activation.enabled, false);
   assert.equal((await (await messageRoute.GET(request("http://localhost/api/edupi/proactivity/messages"))).json()).status, "disabled");
-  const ignored = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", { sessionId,
-    messageId: "disabled-message", text: "帮我备课", occurredAt: new Date().toISOString() }));
-  assert.equal(ignored.status, 202);
+  const ignored = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", { action: "arm", sessionId,
+    messageId: "disabled-message", occurredAt: new Date().toISOString() }));
+  assert.equal(ignored.status, 200);
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });

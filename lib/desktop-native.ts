@@ -65,7 +65,13 @@ export async function desktopApiHeaders(initial?: HeadersInit): Promise<Headers>
 
 /** Fetch a privileged loopback route with the per-process desktop token. */
 export async function fetchDesktopApi(apiPath: string, init: RequestInit = {}): Promise<Response> {
-  if (!/^\/api\/[a-z0-9/_-]+$/iu.test(apiPath)) throw new Error("Desktop API path is invalid.");
+  const queryAt = typeof apiPath === "string" ? apiPath.indexOf("?") : -1;
+  const pathname = queryAt < 0 ? apiPath : apiPath.slice(0, queryAt);
+  const query = queryAt < 0 ? null : apiPath.slice(queryAt + 1);
+  if (typeof apiPath !== "string" || !/^\/api\/[a-z0-9/_-]+$/iu.test(pathname)
+    || pathname.includes("//") || apiPath.includes("#")
+    || query !== null && (!query || query.length > 2048 || query.includes("?")
+      || new URLSearchParams(query).toString() !== query)) throw new Error("Desktop API path is invalid.");
   return fetch(apiPath, { ...init, headers: await desktopApiHeaders(init.headers) });
 }
 

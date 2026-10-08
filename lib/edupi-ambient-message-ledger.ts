@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import type { EduPiProactivityDomain } from "./edupi-proactivity-config";
 
 const FILE_NAME = "edupi-ambient-message-ledger.json";
 const NOFOLLOW = fs.constants.O_NOFOLLOW ?? 0;
@@ -8,7 +9,10 @@ const HASH = /^sha256:[a-f0-9]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u;
 const MESSAGE_REF = /^owner_message:[a-f0-9]{64}$/u;
 const MAX_ENTRIES = 4096;
+const MAX_PLANS = 4096;
 const MAX_BYTES = 4 * 1024 * 1024;
+const DOMAINS: EduPiProactivityDomain[] = ["teaching_preparation", "student_followup", "calendar_administration",
+  "lesson_reflection", "parent_communication"];
 
 export type EduPiAmbientMessageBinding = {
   sessionId: string;
@@ -34,7 +38,16 @@ type StoredEntry = {
   withdrawn_at: string | null;
 };
 
-type StoredLedger = { version: 1; data_root_hash: string; revision: number; entries: StoredEntry[] };
+export type EduPiAmbientMessagePlan = { sessionId: string; messageId: string; occurredAt: string;
+  status: "pending" | "complete"; acknowledged: boolean;
+  domains: Array<{ domain: EduPiProactivityDomain; grantId: string; scopeHash: string;
+    state: "unattempted" | "unknown" | "unavailable" | "terminal"; messageRef: string | null }> };
+type StoredPlanDomain = { domain: EduPiProactivityDomain; grant_id: string; scope_hash: string;
+  state: EduPiAmbientMessagePlan["domains"][number]["state"]; message_ref: string | null };
+type StoredPlan = { session_id: string; message_id: string; occurred_at: string;
+  status: "pending" | "complete"; acknowledged: boolean; domains: StoredPlanDomain[] };
+type StoredLedger = { version: 2; data_root_hash: string; revision: number; entries: StoredEntry[]; plans: StoredPlan[] };
+type LegacyLedger = Omit<StoredLedger, "version" | "plans"> & { version: 1 };
 
 export class EduPiAmbientMessageLedgerError extends Error {
   readonly code = "ambient_message_ledger_unavailable";
@@ -61,13 +74,43 @@ function validEntry(value: unknown): value is StoredEntry {
       || ["withdrawn", "abandoned"].includes(String(item.status)) && canonicalTime(item.withdrawn_at));
 }
 
-function validLedger(value: unknown): value is StoredLedger {
+function validPlan(value: unknown): value is StoredPlan {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const plan = value as Record<string, unknown>;
+  if (Object.keys(plan).length !== 6 || !["session_id", "message_id", "occurred_at", "status", "acknowledged", "domains"]
+    .every(key => Object.hasOwn(plan, key)) || !ID.test(String(plan.session_id || ""))
+    || !ID.test(String(plan.message_id || "")) || !canonicalTime(plan.occurred_at)
+    || !["pending", "complete"].includes(String(plan.status)) || typeof plan.acknowledged !== "boolean"
+    || plan.acknowledged && plan.status !== "complete" || !Array.isArray(plan.domains)
+    || plan.domains.length < 1 || plan.domains.length > DOMAINS.length) return false;
+  const seen = new Set<string>();
+  for (const raw of plan.domains) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+    const item = raw as Record<string, unknown>;
+    if (Object.keys(item).length !== 5 || !["domain", "grant_id", "scope_hash", "state", "message_ref"]
+      .every(key => Object.hasOwn(item, key)) || !DOMAINS.includes(item.domain as EduPiProactivityDomain)
+      || seen.has(String(item.domain)) || !ID.test(String(item.grant_id || ""))
+      || !HASH.test(String(item.scope_hash || ""))
+      || !["unattempted", "unknown", "unavailable", "terminal"].includes(String(item.state))
+      || item.state === "terminal" && !MESSAGE_REF.test(String(item.message_ref || ""))
+      || item.state !== "terminal" && item.message_ref !== null) return false;
+    seen.add(String(item.domain));
+  }
+  return (plan.status === "complete") === plan.domains.every(item => item.state === "terminal");
+}
+
+function validLedger(value: unknown): value is StoredLedger | LegacyLedger {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const ledger = value as Record<string, unknown>;
-  if (Object.keys(ledger).length !== 4 || !["version", "data_root_hash", "revision", "entries"].every((key) => Object.hasOwn(ledger, key))
-    || ledger.version !== 1 || !HASH.test(String(ledger.data_root_hash || ""))
+  if (ledger.version !== 1 && ledger.version !== 2
+    || Object.keys(ledger).length !== (ledger.version === 2 ? 5 : 4)
+    || !["version", "data_root_hash", "revision", "entries", ...(ledger.version === 2 ? ["plans"] : [])]
+      .every((key) => Object.hasOwn(ledger, key))
+    || !HASH.test(String(ledger.data_root_hash || ""))
     || !Number.isSafeInteger(ledger.revision) || Number(ledger.revision) < 0
-    || !Array.isArray(ledger.entries) || ledger.entries.length > MAX_ENTRIES || !ledger.entries.every(validEntry)) return false;
+    || !Array.isArray(ledger.entries) || ledger.entries.length > MAX_ENTRIES || !ledger.entries.every(validEntry)
+    || ledger.version === 2 && (!Array.isArray(ledger.plans) || ledger.plans.length > MAX_PLANS
+      || !ledger.plans.every(validPlan))) return false;
   const keys = new Map<string, { occurredAt: string; ownerId: string }>(), refs = new Set<string>();
   for (const entry of ledger.entries as StoredEntry[]) {
     const key = `${entry.session_id}\0${entry.message_id}`;
@@ -76,6 +119,23 @@ function validLedger(value: unknown): value is StoredLedger {
       || refs.has(entry.message_ref)) return false;
     keys.set(key, { occurredAt: entry.occurred_at, ownerId: entry.owner_id });
     refs.add(entry.message_ref);
+  }
+  if (ledger.version === 2) {
+    const planKeys = new Set<string>();
+    for (const plan of ledger.plans as StoredPlan[]) {
+      const key = `${plan.session_id}\0${plan.message_id}`;
+      if (planKeys.has(key)) return false;
+      planKeys.add(key);
+      const matching = (ledger.entries as StoredEntry[]).filter(entry => entry.session_id === plan.session_id
+        && entry.message_id === plan.message_id);
+      if (matching.some(entry => entry.occurred_at !== plan.occurred_at)) return false;
+      for (const domain of plan.domains) {
+        if (domain.state !== "terminal") continue;
+        const receipt = matching.find(entry => entry.message_ref === domain.message_ref);
+        if (!receipt || receipt.grant_id !== domain.grant_id
+          || !["settled", "withdrawn"].includes(receipt.status)) return false;
+      }
+    }
   }
   return true;
 }
@@ -98,7 +158,7 @@ function rootHash(dataRoot: string): string {
   return `sha256:${crypto.createHash("sha256").update(root, "utf8").digest("hex")}`;
 }
 
-function empty(hash: string): StoredLedger { return { version: 1, data_root_hash: hash, revision: 0, entries: [] }; }
+function empty(hash: string): StoredLedger { return { version: 2, data_root_hash: hash, revision: 0, entries: [], plans: [] }; }
 
 function readLedger(stateDir: string | undefined, dataRoot: string): { root: string; value: StoredLedger } {
   const root = secureStateRoot(stateDir);
@@ -122,16 +182,25 @@ function readLedger(stateDir: string | undefined, dataRoot: string): { root: str
     let parsed: unknown;
     try { parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { fail(); }
     if (!validLedger(parsed) || parsed.data_root_hash !== hash) fail();
-    return { root, value: parsed };
+    return { root, value: parsed.version === 1 ? { ...parsed, version: 2, plans: [] } : parsed };
   } catch { fail(); }
   finally { if (descriptor !== undefined) try { fs.closeSync(descriptor); } catch { /* read-only cleanup */ } }
   return fail();
 }
 
 function writeLedger(root: string, value: StoredLedger): void {
-  if (!validLedger(value)) fail();
-  const content = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
-  if (content.length > MAX_BYTES) fail();
+  let candidate = value;
+  let content = Buffer.from(`${JSON.stringify(candidate, null, 2)}\n`, "utf8");
+  while (candidate.entries.length > MAX_ENTRIES || candidate.plans.length > MAX_PLANS || content.length > MAX_BYTES) {
+    // A native outbox ACK is the only evidence that a completed message no longer
+    // needs a server receipt for cold-start reconciliation.
+    const retired = candidate.plans.find(plan => plan.status === "complete" && plan.acknowledged);
+    if (!retired) fail();
+    candidate = { ...candidate, plans: candidate.plans.filter(plan => plan !== retired),
+      entries: candidate.entries.filter(entry => entry.session_id !== retired.session_id || entry.message_id !== retired.message_id) };
+    content = Buffer.from(`${JSON.stringify(candidate, null, 2)}\n`, "utf8");
+  }
+  if (!validLedger(candidate)) fail();
   const file = path.join(root, FILE_NAME);
   const temporary = path.join(root, `.edupi-ambient-message-ledger.${crypto.randomUUID()}.tmp`);
   let descriptor: number | undefined;
@@ -163,6 +232,134 @@ function publicEntry(entry: StoredEntry): EduPiAmbientMessageBinding {
     occurredAt: entry.occurred_at, status: entry.status, withdrawnAt: entry.withdrawn_at };
 }
 
+function publicPlan(plan: StoredPlan): EduPiAmbientMessagePlan {
+  return { sessionId: plan.session_id, messageId: plan.message_id, occurredAt: plan.occurred_at,
+    status: plan.status, acknowledged: plan.acknowledged,
+    domains: plan.domains.map(domain => ({ domain: domain.domain, grantId: domain.grant_id,
+      scopeHash: domain.scope_hash, state: domain.state, messageRef: domain.message_ref })) };
+}
+
+function findPlan(value: StoredLedger, sessionId: string, messageId: string): StoredPlan | undefined {
+  return value.plans.find(plan => plan.session_id === sessionId && plan.message_id === messageId);
+}
+
+export function armEduPiAmbientMessagePlan(input: { sessionId: string; messageId: string; occurredAt: string;
+  domains: Array<{ domain: EduPiProactivityDomain; grantId: string; scopeHash: string }> },
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessagePlan {
+  const candidate: StoredPlan = { session_id: input.sessionId, message_id: input.messageId, occurred_at: input.occurredAt,
+    status: "pending", acknowledged: false,
+    domains: input.domains.map(item => ({ domain: item.domain, grant_id: item.grantId, scope_hash: item.scopeHash,
+      state: "unattempted", message_ref: null })) };
+  if (!validPlan(candidate)) fail();
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const prior = findPlan(value, input.sessionId, input.messageId);
+  if (prior) {
+    if (prior.occurred_at !== candidate.occurred_at
+      || JSON.stringify(prior.domains.map(({ domain, grant_id, scope_hash }) => ({ domain, grant_id, scope_hash })))
+        !== JSON.stringify(candidate.domains.map(({ domain, grant_id, scope_hash }) => ({ domain, grant_id, scope_hash })))) fail();
+    return publicPlan(prior);
+  }
+  // A legacy receipt has no durable expected-domain set. Never retrofit a new
+  // plan over it and accidentally treat missing domains as completed.
+  if (value.entries.some(entry => entry.session_id === input.sessionId && entry.message_id === input.messageId)) fail();
+  writeLedger(root, { ...value, revision: value.revision + 1, plans: [...value.plans, candidate] });
+  return publicPlan(candidate);
+}
+
+export function readEduPiAmbientMessagePlan(sessionId: string, messageId: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessagePlan | null {
+  if (!ID.test(sessionId) || !ID.test(messageId)) fail();
+  const plan = findPlan(readLedger(stateDir, dataRoot).value, sessionId, messageId);
+  return plan ? publicPlan(plan) : null;
+}
+
+export function readPendingEduPiAmbientMessages(sessionId: string,
+  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string }> {
+  if (!ID.test(sessionId)) fail();
+  const value = readLedger(options.stateDir ?? process.env.PI_DESKTOP_STATE_DIR, options.dataRoot).value;
+  const pending = value.plans.filter(plan => plan.session_id === sessionId && plan.status === "pending")
+    .map(plan => ({ messageId: plan.message_id, occurredAt: plan.occurred_at }));
+  const plannedIds = new Set(value.plans.filter(plan => plan.session_id === sessionId).map(plan => plan.message_id));
+  const pendingIds = new Set(pending.map(item => item.messageId));
+  for (const entry of value.entries.filter(item => item.session_id === sessionId
+    && !plannedIds.has(item.message_id) && !["withdrawn", "abandoned"].includes(item.status))) {
+    if (!pendingIds.has(entry.message_id)) {
+      pending.push({ messageId: entry.message_id, occurredAt: entry.occurred_at });
+      pendingIds.add(entry.message_id);
+    }
+  }
+  return pending;
+}
+
+export function readCompletedEduPiAmbientMessages(sessionId: string,
+  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string }> {
+  if (!ID.test(sessionId)) fail();
+  return readLedger(options.stateDir ?? process.env.PI_DESKTOP_STATE_DIR, options.dataRoot).value.plans
+    .filter(plan => plan.session_id === sessionId && plan.status === "complete")
+    .map(plan => ({ messageId: plan.message_id, occurredAt: plan.occurred_at }));
+}
+
+export function startEduPiAmbientPlanDomain(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): void {
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const plan = findPlan(value, sessionId, messageId);
+  const planned = plan?.domains.find(item => item.domain === domain);
+  if (!plan || plan.status !== "pending" || !planned || planned.state !== "unattempted") fail();
+  const updated: StoredPlan = { ...plan, domains: plan.domains.map(item => item === planned ? { ...item, state: "unknown" } : item) };
+  writeLedger(root, { ...value, revision: value.revision + 1,
+    plans: value.plans.map(item => item === plan ? updated : item) });
+}
+
+export function markEduPiAmbientPlanDomainUnavailable(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): void {
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const plan = findPlan(value, sessionId, messageId);
+  const planned = plan?.domains.find(item => item.domain === domain);
+  if (!plan || plan.status !== "pending" || !planned || planned.state !== "unattempted") fail();
+  const updated: StoredPlan = { ...plan, domains: plan.domains.map(item => item === planned ? { ...item, state: "unavailable" } : item) };
+  writeLedger(root, { ...value, revision: value.revision + 1,
+    plans: value.plans.map(item => item === plan ? updated : item) });
+}
+
+export function finishEduPiAmbientPlanDomain(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
+  messageRef: string, { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessagePlan {
+  if (!MESSAGE_REF.test(messageRef)) fail();
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const plan = findPlan(value, sessionId, messageId);
+  const planned = plan?.domains.find(item => item.domain === domain);
+  const entry = value.entries.find(item => item.session_id === sessionId && item.message_id === messageId
+    && item.message_ref === messageRef && item.grant_id === planned?.grant_id);
+  if (!plan || plan.status !== "pending" || !planned || planned.state !== "unknown" || !entry
+    || !["captured", "outcome_unknown", "settled"].includes(entry.status)) fail();
+  const domains: StoredPlanDomain[] = plan.domains.map(item => item === planned
+    ? { ...item, state: "terminal", message_ref: messageRef } : item);
+  const updated: StoredPlan = { ...plan, status: domains.every(item => item.state === "terminal") ? "complete" : "pending", domains };
+  writeLedger(root, { ...value, revision: value.revision + 1,
+    plans: value.plans.map(item => item === plan ? updated : item),
+    entries: value.entries.map(item => item === entry ? { ...item, status: "settled" as const } : item) });
+  return publicPlan(updated);
+}
+
+export function acknowledgeEduPiAmbientMessagePlan(sessionId: string, messageId: string, occurredAt: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): void {
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const plan = findPlan(value, sessionId, messageId);
+  if (!plan || plan.occurred_at !== occurredAt || plan.status !== "complete") fail();
+  if (plan.acknowledged) return;
+  writeLedger(root, { ...value, revision: value.revision + 1,
+    plans: value.plans.map(item => item === plan ? { ...item, acknowledged: true } : item) });
+}
+
+export function cancelEduPiAmbientMessagePlan(sessionId: string, messageId: string, occurredAt: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): void {
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const plan = findPlan(value, sessionId, messageId);
+  if (!plan || plan.occurred_at !== occurredAt || plan.status !== "pending"
+    || plan.domains.some(item => item.state !== "unattempted")
+    || value.entries.some(item => item.session_id === sessionId && item.message_id === messageId)) fail();
+  writeLedger(root, { ...value, revision: value.revision + 1, plans: value.plans.filter(item => item !== plan) });
+}
+
 export function prepareEduPiAmbientMessageBinding(input: Omit<EduPiAmbientMessageBinding, "status" | "withdrawnAt">,
   { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding {
   const candidate: StoredEntry = { session_id: input.sessionId, message_id: input.messageId, message_ref: input.messageRef,
@@ -179,14 +376,7 @@ export function prepareEduPiAmbientMessageBinding(input: Omit<EduPiAmbientMessag
   if (value.entries.some((entry) => entry.session_id === candidate.session_id && entry.message_id === candidate.message_id
     && (entry.occurred_at !== candidate.occurred_at || entry.owner_id !== candidate.owner_id))) fail();
   if (value.entries.some((entry) => entry.message_ref === candidate.message_ref)) fail();
-  let retained = value.entries;
-  if (retained.length >= MAX_ENTRIES) {
-    const oldestWithdrawn = retained.filter((entry) => ["withdrawn", "abandoned"].includes(entry.status))
-      .sort((left, right) => String(left.withdrawn_at).localeCompare(String(right.withdrawn_at)))[0];
-    if (!oldestWithdrawn) fail();
-    retained = retained.filter((entry) => entry !== oldestWithdrawn);
-  }
-  const next = { ...value, revision: value.revision + 1, entries: [...retained, candidate]
+  const next = { ...value, revision: value.revision + 1, entries: [...value.entries, candidate]
     .sort((left, right) => `${left.session_id}\0${left.message_id}\0${left.message_ref}`
       .localeCompare(`${right.session_id}\0${right.message_id}\0${right.message_ref}`)) };
   writeLedger(root, next);

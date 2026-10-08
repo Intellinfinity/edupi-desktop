@@ -39,10 +39,11 @@ function draftHarness() {
 }
 
 function startupHarness({ input = true, acceptRestore = false, promptError = null, creationGate = null, modelGate = null,
-  armGate = null, armStatus = "armed", promptGate = null, initialSid = null, selectedModel = null } = {}) {
+  armGate = null, armStatus = "armed", promptGate = null, initialSid = null, selectedModel = null,
+  existingSessionId = null, captureStatus = "unavailable" } = {}) {
   const drafts = draftHarness();
   const draftKey = "new:/synthetic/startup";
-  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [], armed = [], sequence = [];
+  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [], armed = [], captures = [], pendingUpdates = [], sequence = [];
   let timerId = 0, creates = 0, active = false, history = emptyMessageHistory();
   class FakeEventSource {
     static CONNECTING = 0;
@@ -59,8 +60,9 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     setTimeout: (callback, ms) => { timers.set(++timerId, { callback, ms }); return timerId; },
     clearTimeout: id => timers.delete(id),
     console: { error: noop },
-    sessionIdentity: draftKey, isNew: true, newSessionCwd: "/synthetic/startup", newSessionModel: selectedModel, session: null,
-    sessionIdRef: { current: initialSid }, sessionGenerationRef: { current: 0 },
+    sessionIdentity: existingSessionId ?? draftKey, isNew: !existingSessionId, newSessionCwd: "/synthetic/startup", newSessionModel: selectedModel,
+    session: existingSessionId ? { id: existingSessionId } : null,
+    sessionIdRef: { current: existingSessionId ?? initialSid }, sessionGenerationRef: { current: 0 },
     ensuringNewSessionRef: { current: null }, newSessionPromotedRef: { current: false },
     newSessionModelOverrideRef: { current: null }, thinkingLevelOverrideRef: { current: null },
     toolPresetRef: { current: "none" }, permissionModeRef: { current: "none" }, getToolNamesForPreset: () => [],
@@ -79,9 +81,9 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     eventStreamGraceGenerationRef: { current: 0 }, eventStreamGraceActiveRef: { current: false }, eventStreamGraceTimerRef: { current: null },
     eventSourceRef: { current: null }, eventSourceSessionIdRef: { current: null }, eventConnectionAttemptRef: { current: null },
     handleAgentEventRef: { current: event => events.push(event) }, waitForPromptSettlement: (sid, runId) => settlements.push({ sid, runId }),
-    proactivityNoticeAtRef: { current: 0 }, captureEduPiAmbientMessage: async () => ({ status: "unavailable" }),
+    proactivityNoticeAtRef: { current: 0 }, captureEduPiAmbientMessage: async identity => { captures.push(identity); return { status: captureStatus }; },
     armEduPiAmbientMessage: async identity => { sequence.push("ambient-arm"); armed.push(identity); if (armGate) await armGate; return { status: armStatus }; },
-    cancelEduPiAmbientArm: async () => { sequence.push("ambient-cancel"); }, setAmbientPending: noop,
+    cancelEduPiAmbientArm: async () => { sequence.push("ambient-cancel"); }, setAmbientPending: value => pendingUpdates.push(value),
     addNotice: notice => notices.push(notice), restoreFailedMessageDraft: drafts.store.restoreFailedMessageDraft,
     chatInputRef: { current: input ? {
       preserveContextForSession: noop,
@@ -95,7 +97,7 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
   const connection = source.slice(source.indexOf("  const cancelEventStreamGrace = useCallback"), source.indexOf("  const respondToExtensionUi = useCallback"));
   const sending = source.slice(source.indexOf("  const handleSend = useCallback"), source.indexOf("  const executeBash = useCallback"));
   const api = new Function(...Object.keys(context), compile(`${constants}\n${connectionError}\n${creation}\n${connection}\n${sending}\nreturn { handleSend, ensureEventsConnected };`))(...Object.values(context));
-  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events, armed, sequence,
+  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events, armed, captures, pendingUpdates, sequence,
     send: api.handleSend, state: () => ({ creates, active, history }),
     expire: async ms => { const timer = [...timers.entries()].find(([, timer]) => timer.ms === ms); assert.ok(timer, `expected ${ms}ms deadline`); timers.delete(timer[0]); timer[1].callback(); await flush(); },
     timerDelays: () => [...timers.values()].map(timer => timer.ms),
@@ -145,6 +147,28 @@ test("switching after the Pi POST may have committed preserves the armed intent"
   await sending;
   assert.equal(f.sequence.includes("ambient-cancel"), false);
   assert.equal(f.armed.length, 1);
+});
+
+test("a successful Pi ACK schedules capture for its original session before UI generation changes", async () => {
+  for (const existingSessionId of [null, "existing-session"]) {
+    let releasePrompt;
+    const promptGate = new Promise(resolve => { releasePrompt = resolve; });
+    const f = startupHarness({ initialSid: "created-session", existingSessionId, promptGate, captureStatus: "outcome_unknown" });
+    const sending = f.send("合成原会话请求");
+    await flush();
+    f.sources[0].connected();
+    await flush();
+    assert.equal(f.commands.filter(command => command.type === "prompt").length, 1);
+    f.context.sessionIdRef.current = "other-session";
+    f.context.sessionGenerationRef.current++;
+    releasePrompt();
+    await sending;
+    await flush();
+    assert.equal(f.captures.length, 1, "an acknowledged prompt needs its original capture despite the UI switch");
+    assert.equal(f.captures[0].sessionId, existingSessionId ?? "created-session");
+    assert.equal(f.captures[0].text, "合成原会话请求");
+    assert.equal(f.pendingUpdates.length, 0, "the old capture cannot mutate the next session's pending banner");
+  }
 });
 
 test("native capture storage failure warns but does not block ordinary Pi chat", async () => {

@@ -98,7 +98,7 @@ export async function readEduPiAmbientUnconfirmedDurable(sessionId: string, nati
 
 export async function clearEduPiAmbientUnconfirmedDurable(sessionId: string, messageId: string,
   native: NativeOutbox = nativeOutbox): Promise<boolean> {
-  const local = clearEduPiAmbientUnconfirmed(sessionId, messageId);
+  clearEduPiAmbientUnconfirmed(sessionId, messageId);
   try { await native.clearAmbientCaptureNative(sessionId, messageId); return true; }
-  catch { return local; }
+  catch { return false; }
 }

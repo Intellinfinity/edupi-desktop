@@ -11,6 +11,16 @@ export type EduPiAmbientPendingState = { status: "clear" | "outcome_unknown" | "
 type CaptureIdentity = { sessionId: string; messageId: string; occurredAt: string };
 const armed = new Map<string, string>();
 const captureKey = (sessionId: string, messageId: string) => `${sessionId}\0${messageId}`;
+const actionBody = (action: "arm" | "cancel" | "ack", input: CaptureIdentity) => JSON.stringify({ action, ...input });
+
+async function postPlanAction(action: "arm" | "cancel" | "ack", input: CaptureIdentity): Promise<string> {
+  const response = await fetchDesktopApi("/api/edupi/proactivity/messages", { method: "POST", cache: "no-store",
+    headers: { "Content-Type": "application/json" }, body: actionBody(action, input) });
+  const body = await response.json() as unknown;
+  if (!response.ok || !body || typeof body !== "object" || Array.isArray(body)
+    || (body as Record<string, unknown>).externalSend !== false) return "unavailable";
+  return String((body as Record<string, unknown>).status);
+}
 
 export async function armEduPiAmbientMessage(input: CaptureIdentity): Promise<{ status: string }> {
   if (!isTauriDesktop()) return { status: "disabled" };
@@ -19,6 +29,11 @@ export async function armEduPiAmbientMessage(input: CaptureIdentity): Promise<{ 
     const existing = await readEduPiAmbientUnconfirmedDurable(identity.sessionId);
     if (existing.some(item => item.messageId === identity.messageId)) return { status: "outcome_unknown" };
     if (!await rememberEduPiAmbientUnconfirmedDurable(identity)) return { status: "unavailable" };
+    const status = await postPlanAction("arm", identity);
+    if (status === "disabled") {
+      return { status: await clearEduPiAmbientUnconfirmedDurable(identity.sessionId, identity.messageId) ? "disabled" : "outcome_unknown" };
+    }
+    if (status !== "armed") return { status: "outcome_unknown" };
     armed.set(captureKey(identity.sessionId, identity.messageId), identity.occurredAt);
     return { status: "armed" };
   } catch { return { status: "unavailable" }; }
@@ -28,7 +43,9 @@ export async function cancelEduPiAmbientArm(input: CaptureIdentity): Promise<voi
   const key = captureKey(input.sessionId, input.messageId);
   if (armed.get(key) !== input.occurredAt) return;
   armed.delete(key);
-  await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId);
+  if (await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId)) {
+    try { await postPlanAction("cancel", input); } catch { /* An unconfirmed cancellation remains visible server-side. */ }
+  }
 }
 
 export async function readEduPiAmbientPending(sessionId: string, verify = false): Promise<EduPiAmbientPendingState> {
@@ -73,8 +90,11 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
       const localTime = localById.get(entry.messageId);
       if (localTime !== undefined && localTime !== entry.occurredAt) return localOnly();
     }
-    for (const entry of [...server.pending, ...server.recovered, ...settled as Array<{ messageId: string }>]) {
-      await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId);
+    for (const entry of settled as Array<{ messageId: string; occurredAt: string }>) {
+      if (await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId)) {
+        try { await postPlanAction("ack", { sessionId, messageId: entry.messageId, occurredAt: entry.occurredAt }); }
+        catch { /* A completed, unacknowledged plan remains available for a later read. */ }
+      }
     }
     local = await readEduPiAmbientUnconfirmedDurable(sessionId);
     const seen = new Set(server.pending.map(entry => entry.messageId));
@@ -93,23 +113,8 @@ export async function captureEduPiAmbientMessage(input: { sessionId: string; mes
   try { existing = await readEduPiAmbientUnconfirmedDurable(input.sessionId); } catch { return { status: "unavailable" }; }
   const same = existing.some(item => item.messageId === input.messageId);
   if (same && !prepared) return { status: "outcome_unknown" };
-  if (prepared && !same) return { status: "unavailable" };
+  if (!prepared || !same) return { status: "unavailable" };
   if (existing.some(item => item.messageId !== input.messageId)) return { status: "verification_pending" };
-  let availability: Response;
-  try { availability = await fetchDesktopApi("/api/edupi/proactivity/messages", { method: "GET", cache: "no-store" }); }
-  catch { return { status: same ? "outcome_unknown" : "unavailable" }; }
-  const availabilityBody = await availability.json().catch(() => null) as unknown;
-  if (!availability.ok || !availabilityBody || typeof availabilityBody !== "object" || Array.isArray(availabilityBody)
-    || (availabilityBody as Record<string, unknown>).status !== "enabled"
-    || (availabilityBody as Record<string, unknown>).externalSend !== false) {
-    const disabled = availability.ok && availabilityBody && typeof availabilityBody === "object" && !Array.isArray(availabilityBody)
-      && (availabilityBody as Record<string, unknown>).status === "disabled"
-      && (availabilityBody as Record<string, unknown>).externalSend === false;
-    if (same && disabled) await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId);
-    return { status: disabled ? "disabled" : same ? "outcome_unknown" : "unavailable" };
-  }
-  if (!same && !await rememberEduPiAmbientUnconfirmedDurable({ sessionId: input.sessionId, messageId: input.messageId,
-    occurredAt: input.occurredAt })) return { status: "unavailable" };
   let response: Response;
   try {
     response = await fetchDesktopApi("/api/edupi/proactivity/messages", {
@@ -121,18 +126,17 @@ export async function captureEduPiAmbientMessage(input: { sessionId: string; mes
     });
   } catch { return { status: "outcome_unknown" }; }
   const body = await response.json().catch(() => null) as unknown;
-  if (!body || typeof body !== "object" || Array.isArray(body) || typeof (body as Record<string, unknown>).status !== "string") {
+  if (!response.ok || !body || typeof body !== "object" || Array.isArray(body)
+    || typeof (body as Record<string, unknown>).status !== "string"
+    || (body as Record<string, unknown>).externalSend !== false) {
     return { status: "outcome_unknown" };
   }
   const result = body as Record<string, unknown>;
   const status = String(result.status);
-  if (status === "unavailable") {
-    if (["input", "owner", "runtime"].includes(String(result.stage))) {
-      await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId);
-      return { status: "unavailable" };
-    }
+  if (result.messageComplete !== true || result.messageId !== input.messageId || result.occurredAt !== input.occurredAt) {
     return { status: "outcome_unknown" };
   }
-  if (!["outcome_unknown", "recorded"].includes(status)) await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId);
+  if (!await clearEduPiAmbientUnconfirmedDurable(input.sessionId, input.messageId)) return { status: "outcome_unknown" };
+  try { await postPlanAction("ack", input); } catch { /* Completion remains durable until it can be acknowledged. */ }
   return { status };
 }

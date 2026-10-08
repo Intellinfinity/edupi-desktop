@@ -3,9 +3,11 @@ import { createHash } from "node:crypto";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
 import { captureAndApplyAmbientMessage, EduPiAmbientMessageError, predictEduPiOwnerMessageRef } from "@/lib/edupi-ambient-message-runtime";
-import { confirmEduPiAmbientMessageBinding, markEduPiAmbientMessageOutcomeSettled, markEduPiAmbientMessageOutcomeUnknown,
-  markEduPiAmbientMessageOutcomeVerified, prepareEduPiAmbientMessageBinding, readSettledEduPiAmbientMessages,
-  readUnsettledEduPiAmbientMessages } from "@/lib/edupi-ambient-message-ledger";
+import { acknowledgeEduPiAmbientMessagePlan, armEduPiAmbientMessagePlan, cancelEduPiAmbientMessagePlan,
+  confirmEduPiAmbientMessageBinding, finishEduPiAmbientPlanDomain, markEduPiAmbientMessageOutcomeUnknown,
+  markEduPiAmbientMessageOutcomeVerified, markEduPiAmbientPlanDomainUnavailable,
+  prepareEduPiAmbientMessageBinding, readCompletedEduPiAmbientMessages, readEduPiAmbientMessagePlan,
+  readPendingEduPiAmbientMessages, readUnsettledEduPiAmbientMessages, startEduPiAmbientPlanDomain } from "@/lib/edupi-ambient-message-ledger";
 import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution } from "@/lib/edupi-ambient-message-recovery";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { isCapabilityGrantBindingIdentity, type EduPiCapabilityDomain } from "@/lib/edupi-proactivity-control";
@@ -20,11 +22,28 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 16 * 1024;
 const G3_DOMAINS: EduPiProactivityDomain[] = ["calendar_administration", "lesson_reflection", "parent_communication"];
+const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u;
+const MESSAGE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,127}$/u;
 
 function isG3Domain(domain: EduPiProactivityDomain): domain is EduPiCapabilityDomain { return G3_DOMAINS.includes(domain); }
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function validIdentity(body: Record<string, unknown>): body is Record<string, unknown> & {
+  sessionId: string; messageId: string; occurredAt: string } {
+  let canonical = false;
+  try { canonical = typeof body.occurredAt === "string" && new Date(body.occurredAt).toISOString() === body.occurredAt; }
+  catch { canonical = false; }
+  return typeof body.sessionId === "string" && SESSION_ID.test(body.sessionId)
+    && typeof body.messageId === "string" && MESSAGE_ID.test(body.messageId)
+    && typeof body.occurredAt === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(body.occurredAt)
+    && canonical;
+}
+
+function scopeHash(scope: { classId: string; subject: string }): string {
+  return `sha256:${createHash("sha256").update(JSON.stringify([scope.classId, scope.subject])).digest("hex")}`;
 }
 
 function activeBindings(roots: EduPiBridgeRoots) {
@@ -44,13 +63,13 @@ export async function GET(request: Request) {
     const query = new URL(request.url).searchParams;
     const sessionId = query.get("sessionId");
     if (sessionId !== null) {
-      if (!/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u.test(sessionId)) {
+      if (!SESSION_ID.test(sessionId)) {
         return NextResponse.json({ status: "invalid", externalSend: false }, { status: 400 });
       }
       const roots = resolveEduPiBridgeRoots();
       return await withEduPiAmbientSessionLock(sessionId, async () => {
         if (!await resolveSessionPath(sessionId)) return NextResponse.json({ status: "session_unavailable", externalSend: false }, { status: 409 });
-        let pending = readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+        let pending = readPendingEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
         const recovered: Array<{ messageId: string; goalId: string; workCaseId: string }
           | { messageId: string; goalId: string; followUpId: string; executionId: string }> = [];
         if (pending.length && query.get("verify") === "1") {
@@ -60,31 +79,36 @@ export async function GET(request: Request) {
             const health = healthResponse?.ok === true ? record(healthResponse.result) : null;
             const rootRef = health?.data_root_fingerprint;
             if (typeof rootRef === "string" && /^sha256:[a-f0-9]{64}$/u.test(rootRef)) {
-              for (const entry of pending.filter(item => item.status === "outcome_unknown").slice(0, 20)) {
+              for (const entry of readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root })
+                .filter(item => item.status === "outcome_unknown").slice(0, 20)) {
+                const plan = readEduPiAmbientMessagePlan(sessionId, entry.messageId, { dataRoot: roots.dataRoot.root });
+                const domain = plan?.domains.find(item => item.grantId === entry.grantId && item.state === "unknown"
+                  && predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, item.domain) === entry.messageRef)?.domain;
                 const g2 = predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, "student_followup") === entry.messageRef;
                 if (g2) {
                   const proof = await readExactEduPiG2Execution(host, rootRef, entry);
                   if (proof.status !== "applied") continue;
                   markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
+                  if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
+                    { dataRoot: roots.dataRoot.root });
                   recovered.push({ messageId: entry.messageId, goalId: proof.goalId,
                     followUpId: proof.followUpId, executionId: proof.executionId });
                 } else {
                   const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, entry);
                   if (proof.status !== "applied") continue;
                   markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
+                  if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
+                    { dataRoot: roots.dataRoot.root });
                   recovered.push({ messageId: entry.messageId, goalId: proof.goalId, workCaseId: proof.workCaseId });
                 }
               }
-              pending = readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+              pending = readPendingEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
             }
           } catch { /* Missing exact Core proof leaves the durable outcome pending. */ }
         }
-        const settled = readSettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+        const settled = readCompletedEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
         return NextResponse.json({ status: pending.length ? "outcome_unknown" : recovered.length ? "applied" : "clear",
-          recovered, pending: [...new Map(pending.map(item => [item.messageId,
-            { messageId: item.messageId, occurredAt: item.occurredAt }])).values()],
-          settled: [...new Map(settled.map(item => [item.messageId,
-            { messageId: item.messageId, occurredAt: item.occurredAt }])).values()],
+          recovered, pending, settled,
           externalSend: false });
       });
     }
@@ -115,39 +139,59 @@ export async function POST(request: Request) {
   if (!isDesktopApiRequestAllowed(request)) return NextResponse.json({ status: "rejected", externalSend: false }, { status: 403 });
   try {
     const roots = resolveEduPiBridgeRoots();
-    const activations = activeBindings(roots);
-    if (activations.length === 0) return NextResponse.json({ status: "disabled", externalSend: false }, { status: 202 });
-    const bindings = activations.filter(({ activation }) => activation.grantId && activation.scope);
-    if (bindings.length === 0) return NextResponse.json({ status: "unconfigured", externalSend: false }, { status: 409 });
     const body = record(await parseJsonWithinLimit(request, MAX_BODY_BYTES));
-    if (!body || Object.keys(body).length !== 4 || !Object.hasOwn(body, "sessionId") || !Object.hasOwn(body, "messageId") || !Object.hasOwn(body, "text") || !Object.hasOwn(body, "occurredAt")
-      || typeof body.sessionId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u.test(body.sessionId)
-      || typeof body.messageId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,127}$/u.test(body.messageId)
-      || typeof body.text !== "string" || !body.text.trim() || body.text.length > 4000
-      || typeof body.occurredAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(body.occurredAt)) {
+    if (!body || !validIdentity(body) || Object.keys(body).length !== 4
+      || !(body.action === "arm" || body.action === "ack" || body.action === "cancel")
+        && (typeof body.text !== "string" || !body.text.trim() || body.text.length > 4000)) {
       return NextResponse.json({ status: "invalid", externalSend: false }, { status: 400 });
     }
     const sessionId = body.sessionId;
     const messageId = body.messageId;
-    const text = body.text;
     const occurredAt = body.occurredAt;
     return await withEduPiAmbientSessionLock(sessionId, async () => {
       if (!await resolveSessionPath(sessionId)) {
         return NextResponse.json({ status: "session_unavailable", externalSend: false }, { status: 409 });
       }
-      const g2CaptureId = `g2_${createHash("sha256").update(`${sessionId}\0${messageId}`).digest("hex")}`;
-      const uncertain = readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
-      const priorUnknown = uncertain
-        .find(item => item.messageId === messageId || item.messageId === g2CaptureId);
-      if (priorUnknown) return NextResponse.json(priorUnknown.occurredAt === occurredAt
-        ? { status: "outcome_unknown", resolutionStatus: "needs_verification", reason: "apply_outcome_unknown", externalSend: false }
-        : { status: "identity_conflict", externalSend: false }, { status: priorUnknown.occurredAt === occurredAt ? 200 : 409 });
-      if (uncertain.length) return NextResponse.json({ status: "verification_pending", externalSend: false }, { status: 409 });
-      const priorSettled = readSettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root })
-        .find(item => item.messageId === messageId || item.messageId === g2CaptureId);
-      if (priorSettled) return NextResponse.json(priorSettled.occurredAt === occurredAt
-        ? { status: "captured", resolutionStatus: "settled", reason: null, externalSend: false }
-        : { status: "identity_conflict", externalSend: false }, { status: priorSettled.occurredAt === occurredAt ? 200 : 409 });
+      const ledgerOptions = { dataRoot: roots.dataRoot.root };
+      if (body.action === "ack") {
+        acknowledgeEduPiAmbientMessagePlan(sessionId, messageId, occurredAt, ledgerOptions);
+        return NextResponse.json({ status: "acknowledged", externalSend: false });
+      }
+      if (body.action === "cancel") {
+        cancelEduPiAmbientMessagePlan(sessionId, messageId, occurredAt, ledgerOptions);
+        return NextResponse.json({ status: "cancelled", externalSend: false });
+      }
+      if (body.action === "arm") {
+        if (readPendingEduPiAmbientMessages(sessionId, ledgerOptions).some(item => item.messageId !== messageId)) {
+          return NextResponse.json({ status: "verification_pending", externalSend: false }, { status: 409 });
+        }
+        const activations = activeBindings(roots);
+        if (activations.length === 0) return NextResponse.json({ status: "disabled", externalSend: false });
+        if (activations.some(({ activation }) => !activation.grantId || !activation.scope)) {
+          return NextResponse.json({ status: "unconfigured", externalSend: false }, { status: 409 });
+        }
+        const plan = armEduPiAmbientMessagePlan({ sessionId, messageId, occurredAt,
+          domains: activations.map(({ domain, activation }) => ({ domain,
+            grantId: activation.grantId!, scopeHash: scopeHash(activation.scope!) })) }, ledgerOptions);
+        return NextResponse.json({ status: plan.status === "pending" ? "armed" : "outcome_unknown", externalSend: false });
+      }
+      const plan = readEduPiAmbientMessagePlan(sessionId, messageId, ledgerOptions);
+      if (!plan) {
+        if (readPendingEduPiAmbientMessages(sessionId, ledgerOptions).some(item => item.messageId !== messageId)) {
+          return NextResponse.json({ status: "verification_pending", messageComplete: false, externalSend: false }, { status: 409 });
+        }
+        return NextResponse.json({ status: "outcome_unknown", resolutionStatus: "needs_verification",
+          reason: "plan_missing", messageComplete: false, externalSend: false }, { status: 409 });
+      }
+      if (plan.occurredAt !== occurredAt) return NextResponse.json({ status: "identity_conflict", externalSend: false }, { status: 409 });
+      if (plan.status === "complete") return NextResponse.json({ status: "captured", resolutionStatus: "settled",
+        reason: null, messageComplete: true, messageId, occurredAt, externalSend: false });
+      if (plan.domains.some(item => item.state !== "unattempted")) return NextResponse.json({ status: "outcome_unknown",
+        resolutionStatus: "needs_verification", reason: "plan_incomplete", messageComplete: false, externalSend: false });
+      const otherPending = readPendingEduPiAmbientMessages(sessionId, ledgerOptions)
+        .some(item => item.messageId !== messageId);
+      if (otherPending) return NextResponse.json({ status: "verification_pending", messageComplete: false,
+        externalSend: false }, { status: 409 });
       const host = await ensureEduPiRuntime(roots);
       const health = record((await host.call("health", null)).result);
       const capabilities = record(health?.capabilities);
@@ -157,36 +201,41 @@ export async function POST(request: Request) {
         throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
       }
       const results: Array<Record<string, unknown> & { status: string }> = [];
-      const settleAtEnd: string[] = [];
-      for (const { domain, activation } of bindings) {
+      for (const planned of plan.domains) {
+        const domain = planned.domain;
         let preparedMessageRef: string | null = null;
         let applyPending = false;
         try {
+          const current = activeBindings(roots).find(item => item.domain === domain
+            && item.activation.grantId === planned.grantId && item.activation.scope
+            && scopeHash(item.activation.scope) === planned.scopeHash);
+          if (!current?.activation.scope || !current.activation.grantId) {
+            markEduPiAmbientPlanDomainUnavailable(sessionId, messageId, domain, ledgerOptions);
+            results.push({ status: "unavailable", domain, code: "proactivity_grant_unavailable", externalSend: false });
+            continue;
+          }
           if (domain === "student_followup" && capabilities.g2_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
           if (isG3Domain(domain) && capabilities.g3_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
-          // Core distinguishes the domain conversations. The private ledger
-          // retains each distinct message_ref under the original Pi message
-          // ID so a cold-start outbox can reconcile any domain receipt.
-          const captureId = messageId;
+          startEduPiAmbientPlanDomain(sessionId, messageId, domain, ledgerOptions);
           const result = await captureAndApplyAmbientMessage(host, {
-            rootRef, grantId: activation.grantId!, messageId: captureId, text, occurredAt, domain,
-          }, { controlScope: activation.scope!, capabilityActive: isG3Domain(domain) && capabilities.g3_processor === "active",
+            rootRef, grantId: planned.grantId, messageId, text: body.text as string, occurredAt, domain,
+          }, { controlScope: current.activation.scope, capabilityActive: isG3Domain(domain) && capabilities.g3_processor === "active",
             onPrepared: async (binding) => {
-              prepareEduPiAmbientMessageBinding({ sessionId, messageId: captureId, occurredAt, ...binding }, { dataRoot: roots.dataRoot.root });
+              prepareEduPiAmbientMessageBinding({ sessionId, messageId, occurredAt, ...binding }, ledgerOptions);
               preparedMessageRef = binding.messageRef;
             },
             onCaptured: async (binding) => {
-              confirmEduPiAmbientMessageBinding(sessionId, captureId, binding.messageRef, { dataRoot: roots.dataRoot.root });
+              confirmEduPiAmbientMessageBinding(sessionId, messageId, binding.messageRef, ledgerOptions);
             },
             onApplyPending: async (binding) => {
               if (binding.messageRef !== preparedMessageRef) throw new Error("ambient_message_identity_changed");
-              markEduPiAmbientMessageOutcomeUnknown(sessionId, binding.messageRef, { dataRoot: roots.dataRoot.root });
+              markEduPiAmbientMessageOutcomeUnknown(sessionId, binding.messageRef, ledgerOptions);
               applyPending = true;
             } });
           if (result.status === "outcome_unknown" || result.status === "recorded") {
-            if (!applyPending) markEduPiAmbientMessageOutcomeUnknown(sessionId, preparedMessageRef!, { dataRoot: roots.dataRoot.root });
+            if (!applyPending && preparedMessageRef) markEduPiAmbientMessageOutcomeUnknown(sessionId, preparedMessageRef, ledgerOptions);
           } else if (preparedMessageRef) {
-            settleAtEnd.push(preparedMessageRef);
+            finishEduPiAmbientPlanDomain(sessionId, messageId, domain, preparedMessageRef, ledgerOptions);
           }
           results.push({ ...result, domain });
           // Core already persisted a G1 Goal. Do not start a second domain
@@ -195,28 +244,27 @@ export async function POST(request: Request) {
         } catch (error) {
           if (preparedMessageRef) {
             let durable = false;
-            try { markEduPiAmbientMessageOutcomeUnknown(sessionId, preparedMessageRef, { dataRoot: roots.dataRoot.root }); durable = true; }
+            try { markEduPiAmbientMessageOutcomeUnknown(sessionId, preparedMessageRef, ledgerOptions); durable = true; }
             catch { /* The uncertain write cannot be safely retried in this request. */ }
             results.push({ status: "outcome_unknown", resolutionStatus: "needs_verification",
               reason: "apply_outcome_unknown", domain, durable, externalSend: false });
             break;
           }
+          try { markEduPiAmbientPlanDomainUnavailable(sessionId, messageId, domain, ledgerOptions); }
+          catch { /* An already started domain remains unknown. */ }
           results.push({ status: "unavailable", domain, externalSend: false,
             code: error instanceof EduPiAmbientMessageError ? error.code : "proactivity_runtime_unavailable",
             stage: error instanceof EduPiAmbientMessageError ? error.stage : "runtime" });
         }
       }
-      // A completed first domain is not a completed Pi message. Persist the
-      // final receipt only after every enabled domain has been considered; a
-      // crash between domains leaves captured rows visibly unsettled.
-      for (const messageRef of settleAtEnd) {
-        markEduPiAmbientMessageOutcomeSettled(sessionId, messageRef, { dataRoot: roots.dataRoot.root });
-      }
-      const result = results.find(item => item.status === "outcome_unknown" || item.status === "recorded")
+      const completed = readEduPiAmbientMessagePlan(sessionId, messageId, ledgerOptions)?.status === "complete";
+      const chosen = results.find(item => item.status === "outcome_unknown" || item.status === "recorded")
         ?? results.find(item => ["applied", "cancelled", "corrected", "queued", "replayed"].includes(item.status))
         ?? results.find(item => item.status !== "unavailable") ?? results[0];
-      return NextResponse.json({ ...result, ...(results.length > 1 ? { domainResults: results } : {}) },
-        { status: result.status !== "unavailable" ? 200 : result.code === "proactivity_grant_unavailable" ? 409 : 503 });
+      const result = completed ? chosen : { status: "outcome_unknown", resolutionStatus: "needs_verification",
+        reason: "plan_incomplete", externalSend: false };
+      return NextResponse.json({ ...result, messageComplete: completed, ...(completed ? { messageId, occurredAt } : {}),
+        ...(results.length > 1 ? { domainResults: results } : {}) });
     });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ status: "too_large", externalSend: false }, { status: 413 });

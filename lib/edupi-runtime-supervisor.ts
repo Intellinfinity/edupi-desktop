@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { validateContainedRegularFile, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
+import { verifyEduPiRuntimeManifest, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
 import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-model-host";
 import { loadRuntimeOwnerControlToken } from "./edupi-owner-control-token";
 import { readEduPiProactivityActivation, type EduPiProactivityActivation } from "./edupi-proactivity-config";
@@ -166,14 +166,13 @@ export function restartEduPiRuntime(args: { runtime: ResolvedEduPiCore; dataRoot
 async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot, entry: Entry, activation: EduPiProactivityActivation,
   g1Scope: ReturnType<typeof g1ScopeForActivation>, g2Scope: ReturnType<typeof g2ScopeForActivation>,
   g3AllowedBindings: G3Binding[], executionAllowed: boolean): Promise<EduPiRuntimeHandle> {
+  const { manifest, filePath: manifestFile } = verifyEduPiRuntimeManifest({
+    root: runtime.root, pinnedHash: runtime.runtimeComponentManifestHash,
+  });
   const load = (file: string) => import(/* webpackIgnore: true */ pathToFileURL(path.join(runtime.root, "scripts", file)).href);
-  const manifestFile = validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.join(runtime.root, "contracts/edupi-core-runtime-component-manifest.json") });
-  const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
-  if (manifest.entrypoint !== "scripts/core_runtime_daemon.mjs" || manifest.component_manifest_version !== "1" || !/^sha256:[a-f0-9]{64}$/.test(manifest.component_manifest_hash)) throw unavailable();
-  for (const file of [...manifest.modules, ...manifest.assets]) validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.resolve(runtime.root, file.path) });
-  for (const dependency of manifest.runtime_dependencies) for (const file of dependency.files) validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.resolve(runtime.root, file.path), allowNodeModulesSymlink: true });
   const { generateComponentManifest } = await load("edupi_component_manifest.mjs");
-  const expected = generateComponentManifest({ root: runtime.root, entrypoint: manifest.entrypoint, assets: manifest.assets.map((item: { path: string }) => item.path), outputPath: manifestFile, write: false });
+  const expected = generateComponentManifest({ root: runtime.root, entrypoint: manifest.entrypoint,
+    assets: (manifest.assets as Array<{ path: string }>).map((item) => item.path), outputPath: manifestFile, write: false });
   if (!isDeepStrictEqual(expected, manifest)) throw unavailable();
   const protocol = await load("core_runtime_protocol.mjs");
   const { verifyCoreRuntimeRoot } = await load("core_runtime_root.mjs");

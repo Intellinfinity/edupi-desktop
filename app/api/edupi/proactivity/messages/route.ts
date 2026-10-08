@@ -3,8 +3,7 @@ import { createHash } from "node:crypto";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
 import { captureAndApplyAmbientMessage, EduPiAmbientMessageError } from "@/lib/edupi-ambient-message-runtime";
-import { confirmEduPiAmbientMessageBinding, markEduPiAmbientMessageWithdrawn,
-  prepareEduPiAmbientMessageBinding } from "@/lib/edupi-ambient-message-ledger";
+import { confirmEduPiAmbientMessageBinding, prepareEduPiAmbientMessageBinding } from "@/lib/edupi-ambient-message-ledger";
 import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { readEduPiProactivityActivation, type EduPiProactivityDomain } from "@/lib/edupi-proactivity-config";
 import { readProactivityOwnerContext } from "@/lib/edupi-proactivity-runtime";
@@ -101,9 +100,6 @@ export async function POST(request: Request) {
             },
             onCaptured: async (binding) => {
               confirmEduPiAmbientMessageBinding(sessionId, captureId, binding.messageRef, { dataRoot: roots.dataRoot.root });
-            },
-            onWithdrawn: async (binding) => {
-              markEduPiAmbientMessageWithdrawn(sessionId, binding.messageRef, binding.withdrawnAt, { dataRoot: roots.dataRoot.root });
             } });
           results.push({ ...result, domain });
         } catch (error) {

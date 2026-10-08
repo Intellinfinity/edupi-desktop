@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import type { EduPiRuntimeHandle } from "./edupi-runtime-supervisor";
-import { EDUPI_PROACTIVITY_CONVERSATION_ID, EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID } from "./edupi-proactivity-control";
+import { EDUPI_PROACTIVITY_CONVERSATION_ID, EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID,
+  EDUPI_CALENDAR_ADMINISTRATION_CONVERSATION_ID, EDUPI_LESSON_REFLECTION_CONVERSATION_ID,
+  EDUPI_PARENT_COMMUNICATION_CONVERSATION_ID } from "./edupi-proactivity-control";
 import type { EduPiProactivityDomain } from "./edupi-proactivity-config";
 import { readProactivityOwnerContext } from "./edupi-proactivity-runtime";
 
@@ -13,7 +15,40 @@ const DOMAINS = new Set(["teaching_preparation", "student_followup", "lesson_ref
 
 type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number; status: "active" | "paused" | "revoked" };
 type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed"; resolutionStatus: string; reason: string | null;
-  goalId: string | null; workCaseId: string | null; followUpId?: string; executionId?: string; externalSend: false };
+  goalId: string | null; workCaseId: string | null; followUpId?: string; executionId?: string; routedDomain?: string | null; externalSend: false };
+
+type CoreRoute = { domain: string | null; status: string; reason: string; ready: boolean; sourceBasisHash: string };
+const ROUTE_READY_OPERATION: Record<string, string> = {
+  teaching_preparation: "owner_intent_apply",
+  student_followup: "student_followup_goal_apply",
+  calendar_administration: "calendar_administration_execution_enqueue",
+  lesson_reflection: "lesson_reflection_execution_enqueue",
+  parent_communication: "parent_communication_execution_enqueue",
+};
+
+function coreRoute(value: unknown, messageRef: string): CoreRoute {
+  const view = result(value, "resolve");
+  const domain = view.domain;
+  const ready = view.status === "ready" && view.interaction === "silent";
+  const target = view.target;
+  if (view.version !== 1 || view.message_ref !== messageRef || !/^owner_intent:[a-f0-9]{64}$/u.test(String(view.intent_id || ""))
+    || domain !== null && !DOMAINS.has(String(domain))
+    || !["ready", "needs_input", "deferred", "held", "withdrawn", "abstained"].includes(String(view.status))
+    || typeof view.reason !== "string" || !view.reason || !["silent", "clarify", "review", "none"].includes(String(view.interaction))
+    || !HASH.test(String(view.source_basis_hash || "")) || typeof view.observed_at !== "string"
+    || view.automatic_continuation_allowed !== ready || view.apply !== false || view.live_authority !== false
+    || view.model_execute !== false || view.external_send !== false || !Array.isArray(view.required_inputs)
+    || ready && (view.next_operation !== ROUTE_READY_OPERATION[String(domain)]
+      || !target || typeof target !== "object" || Array.isArray(target)
+      || (target as Record<string, unknown>).kind !== domain
+      || !ID.test(String((target as Record<string, unknown>).id || ""))
+      || !Number.isSafeInteger(view.expected_goal_version) || Number(view.expected_goal_version) < 0)
+    || !ready && view.next_operation !== null && view.status !== "needs_input") {
+    fail("proactivity_response_invalid", "resolve");
+  }
+  return { domain: domain === null ? null : String(domain), status: String(view.status), reason: String(view.reason),
+    ready, sourceBasisHash: String(view.source_basis_hash) };
+}
 
 export class EduPiAmbientMessageError extends Error {
   constructor(public readonly code: "proactivity_grant_unavailable" | "proactivity_response_invalid" | "proactivity_runtime_unavailable",
@@ -33,12 +68,13 @@ function result(value: unknown, stage: EduPiAmbientMessageError["stage"]): Recor
   return output as Record<string, unknown>;
 }
 
-function intentCandidate(value: unknown, messageRef: string): { interpretation: string | null; domain: string | null; outOfScope: boolean } {
+function intentCandidate(value: unknown, messageRef: string): { interpretation: string | null; domain: string | null } {
   const view = result(value, "intent");
   const candidate = view.candidate;
   if (view.message_ref !== messageRef || view.external_send !== false) fail("proactivity_response_invalid", "intent");
-  if (view.status === "held" && view.action === "abstain" && view.reason === "domain_not_authorized" && candidate === null) {
-    return { interpretation: null, domain: null, outOfScope: true };
+  if ((view.status === "held" || view.status === "withdrawn") && candidate === null
+    && ["ask", "defer", "abstain"].includes(String(view.action)) && typeof view.reason === "string" && view.reason) {
+    return { interpretation: null, domain: null };
   }
   if (view.status !== "current" || !candidate || typeof candidate !== "object" || Array.isArray(candidate)) fail("proactivity_response_invalid", "intent");
   const item = candidate as Record<string, unknown>;
@@ -46,7 +82,7 @@ function intentCandidate(value: unknown, messageRef: string): { interpretation: 
     || item.domain !== null && !DOMAINS.has(String(item.domain)) || !INTERPRETATIONS.has(String(item.interpretation))) {
     fail("proactivity_response_invalid", "intent");
   }
-  return { interpretation: String(item.interpretation), domain: item.domain === null ? null : String(item.domain), outOfScope: false };
+  return { interpretation: String(item.interpretation), domain: item.domain === null ? null : String(item.domain) };
 }
 
 async function controlBindings(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
@@ -100,25 +136,12 @@ function safeControlResult(value: unknown, stage: EduPiAmbientMessageError["stag
   return applied;
 }
 
-async function withdrawCapturedMessage(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
-  input: { rootRef: string }, context: { ownerId: string }, messageRef: string): Promise<string> {
-  const output = result(await host.callOwnerControl("owner_message", { action: "withdraw", root_ref: input.rootRef,
-    expected_owner_id: context.ownerId, message_ref: messageRef, expected_revision: 1 }), "capture");
-  const receipt = output.receipt;
-  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) fail("proactivity_response_invalid", "capture");
-  const item = receipt as Record<string, unknown>;
-  let recordedAt: string | null = null;
-  try { recordedAt = typeof item.recorded_at === "string" ? new Date(item.recorded_at).toISOString() : null; } catch { recordedAt = null; }
-  if (item.action !== "withdraw" || item.message_ref !== messageRef || item.revision !== 2
-    || item.owner_id !== context.ownerId || item.root_ref !== input.rootRef || item.apply !== false
-    || item.live_authority !== false || item.external_send !== false || recordedAt === null || recordedAt !== item.recorded_at
-    || typeof output.replayed !== "boolean") fail("proactivity_response_invalid", "capture");
-  return recordedAt;
-}
-
 function conversationId(domain: EduPiProactivityDomain): string {
   if (domain === "teaching_preparation") return EDUPI_PROACTIVITY_CONVERSATION_ID;
   if (domain === "student_followup") return EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID;
+  if (domain === "calendar_administration") return EDUPI_CALENDAR_ADMINISTRATION_CONVERSATION_ID;
+  if (domain === "lesson_reflection") return EDUPI_LESSON_REFLECTION_CONVERSATION_ID;
+  if (domain === "parent_communication") return EDUPI_PARENT_COMMUNICATION_CONVERSATION_ID;
   return fail();
 }
 
@@ -138,8 +161,7 @@ export async function captureAndApplyAmbientMessage(
   dependencies: { findAppliedGoal?: (workCaseId: string) => Promise<{ goalId: string } | null>;
     controlScope?: { classId: string; subject: string };
     onPrepared?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
-    onCaptured?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
-    onWithdrawn?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number; withdrawnAt: string }) => Promise<void> } = {},
+    onCaptured?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void> } = {},
 ): Promise<AmbientResult> {
   let canonicalOccurredAt = false;
   try { canonicalOccurredAt = new Date(input.occurredAt).toISOString() === input.occurredAt; } catch { canonicalOccurredAt = false; }
@@ -188,12 +210,34 @@ export async function captureAndApplyAmbientMessage(
   }
   if (dependencies.controlScope && (!ID.test(dependencies.controlScope.classId)
     || typeof dependencies.controlScope.subject !== "string" || !dependencies.controlScope.subject)) fail();
+  const candidate = dependencies.controlScope && domain === "teaching_preparation" ? intentCandidate(await host.callOwnerControl("owner_intent_read", {
+    root_ref: input.rootRef,
+    expected_owner_id: context.ownerId,
+    message_ref: messageRef,
+  }), messageRef) : null;
+  const legacyGoalControl = candidate?.domain === "teaching_preparation"
+    && (candidate.interpretation === "cancel" || candidate.interpretation === "correction");
+  const routed = dependencies.controlScope && !legacyGoalControl ? coreRoute(await host.callOwnerControl("owner_intent_route_read", {
+    root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+  }), messageRef) : null;
+  const g2ObservationIntake = domain === "student_followup"
+    && routed && ["student_followup_not_found", "intent_unknown"].includes(routed.reason);
+  if (routed?.domain === "safety_privacy") {
+    if (routed.ready) fail("proactivity_response_invalid", "resolve");
+    return { status: "captured", resolutionStatus: "held", reason: routed.reason,
+      goalId: null, workCaseId: null, routedDomain: routed.domain, externalSend: false };
+  }
+  if (routed && !g2ObservationIntake && (routed.domain !== domain || !routed.ready)) {
+    return { status: "captured", resolutionStatus: routed.status, reason: routed.reason,
+      goalId: null, workCaseId: null, routedDomain: routed.domain, externalSend: false };
+  }
   if (domain === "student_followup") {
     const response = await host.callOwnerControl("student_followup_intent_execution_enqueue", {
       root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
     });
     if (response?.ok === false && ["invalid_candidate", "activation_pending", "permission_denied", "budget_exhausted", "stale_source", "stale_revision"].includes(String(response.error_code))) {
-      return { status: "captured", resolutionStatus: "held", reason: String(response.error_code), goalId: null, workCaseId: null, externalSend: false };
+      return { status: "captured", resolutionStatus: "held", reason: String(response.error_code), goalId: null,
+        workCaseId: null, routedDomain: routed?.domain ?? null, externalSend: false };
     }
     const queued = result(response, "apply");
     if (queued.version !== 1 || !["queued", "replayed"].includes(String(queued.status))
@@ -204,21 +248,13 @@ export async function captureAndApplyAmbientMessage(
       || queued.live_authority !== false || queued.external_send !== false) fail("proactivity_response_invalid", "apply");
     return { status: queued.status as "queued" | "replayed", resolutionStatus: String(queued.status), reason: null,
       goalId: String(queued.goal_id), workCaseId: null, followUpId: String(queued.follow_up_id),
-      executionId: String(queued.execution_id), externalSend: false };
+      executionId: String(queued.execution_id), routedDomain: routed?.domain ?? domain, externalSend: false };
   }
-  const candidate = dependencies.controlScope ? intentCandidate(await host.callOwnerControl("owner_intent_read", {
-    root_ref: input.rootRef,
-    expected_owner_id: context.ownerId,
-    message_ref: messageRef,
-  }), messageRef) : null;
-  if (candidate && (candidate.outOfScope || candidate.domain !== "teaching_preparation")) {
-    const withdrawnAt = await withdrawCapturedMessage(host, input, context, messageRef);
-    if (dependencies.onWithdrawn) {
-      try { await dependencies.onWithdrawn({ ...messageBinding, withdrawnAt }); }
-      catch { fail("proactivity_runtime_unavailable", "capture"); }
-    }
-    return { status: "captured", resolutionStatus: "held", reason: "domain_out_of_scope",
-      goalId: null, workCaseId: null, externalSend: false };
+  // G3–G5 share one Core processor. Until its startup accepts a durable
+  // per-grant stop fence, a local domain switch cannot authorize execution.
+  if (routed && domain !== "teaching_preparation") {
+    return { status: "captured", resolutionStatus: "held", reason: "activation_pending",
+      goalId: null, workCaseId: null, routedDomain: routed.domain, externalSend: false };
   }
   let bindingsPromise: Promise<ControlBinding[]> | null = null;
   const bindings = () => bindingsPromise ??= controlBindings(host, input, context, dependencies.controlScope!);
@@ -244,6 +280,43 @@ export async function captureAndApplyAmbientMessage(
       || typeof applied.queue_cancellation !== "object" || Array.isArray(applied.queue_cancellation)) fail("proactivity_response_invalid", "apply");
     return { status: "cancelled", resolutionStatus: "cancelled", reason: String(applied.reason || "cancellation_applied"),
       goalId: binding.goalId, workCaseId: binding.workCaseId, externalSend: false };
+  }
+  if (routed && domain === "teaching_preparation") {
+    const applied = result(await host.callOwnerControl("owner_intent_route_apply", {
+      root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+    }), "apply");
+    const appliedRoute = coreRoute({ ok: true, result: applied.route }, messageRef);
+    if (applied.version !== 1 || appliedRoute.ready && appliedRoute.domain !== domain || applied.model_execute !== false
+      || applied.notify !== false || applied.live_authority !== false || applied.external_send !== false
+      || applied.execution_started !== false || Object.hasOwn(applied, "execution")) fail("proactivity_response_invalid", "apply");
+    if (!appliedRoute.ready) {
+      if (applied.applied_operation !== null || applied.application !== null
+        || applied.automatic_continuation_attempted !== false) fail("proactivity_response_invalid", "apply");
+      return { status: "captured", resolutionStatus: appliedRoute.status, reason: appliedRoute.reason,
+        goalId: null, workCaseId: null, routedDomain: appliedRoute.domain, externalSend: false };
+    }
+    const application = applied.application;
+    if (applied.applied_operation !== "owner_intent_apply" || applied.automatic_continuation_attempted !== true
+      || !application || typeof application !== "object" || Array.isArray(application)) fail("proactivity_response_invalid", "apply");
+    const goal = application as Record<string, unknown>;
+    if (!["applied", "replayed", "held"].includes(String(goal.status)) || !ID.test(String(goal.goal_id || ""))
+      || !Number.isSafeInteger(goal.goal_version) || Number(goal.goal_version) < 1
+      || typeof goal.goal_created !== "boolean" || typeof goal.replayed !== "boolean"
+      || goal.replayed !== (goal.status === "replayed") || goal.source_basis_hash !== appliedRoute.sourceBasisHash
+      || goal.opportunity_id !== null && !ID.test(String(goal.opportunity_id))) fail("proactivity_response_invalid", "apply");
+    if (goal.status === "held") return { status: "captured", resolutionStatus: "held", reason: appliedRoute.reason,
+      goalId: null, workCaseId: null, routedDomain: domain, externalSend: false };
+    const resolution = result(await host.callOwnerControl("owner_intent_resolve", {
+      root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+    }), "resolve");
+    const target = resolution.target;
+    const workCaseId = target && typeof target === "object" && !Array.isArray(target)
+      ? (target as Record<string, unknown>).work_case_id : null;
+    if (resolution.status !== "source_bound" || resolution.external_send !== false || !ID.test(String(workCaseId || ""))) {
+      fail("proactivity_response_invalid", "resolve");
+    }
+    return { status: "applied", resolutionStatus: "source_bound", reason: appliedRoute.reason,
+      goalId: String(goal.goal_id), workCaseId: String(workCaseId), routedDomain: domain, externalSend: false };
   }
   const resolution = result(await host.callOwnerControl("owner_intent_resolve", {
     root_ref: input.rootRef,

@@ -14,6 +14,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
   target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
 const G1 = "teaching_preparation";
 const G2 = "student_followup";
+const PENDING_DOMAINS = ["calendar_administration", "lesson_reflection", "parent_communication"];
 const scope = { classId: "class-7-1", subject: "数学" };
 const rootRef = `sha256:${"a".repeat(64)}`;
 
@@ -25,7 +26,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
     students: [{ class_name: "七一班" }] };
   const teacherMaterials = [{ material_id: "material-1", class_id: scope.classId, subject: scope.subject }];
   const g1Binding = control.buildProactivityGrantBinding(scope, workspace, teacherMaterials);
-  const activations = new Map([G1, G2].map(domain => [domain, { enabled: false, source: "default", configurationStatus: "missing",
+  const activations = new Map([G1, G2, ...PENDING_DOMAINS].map(domain => [domain, { enabled: false, source: "default", configurationStatus: "missing",
     scope: null, grantId: null, updatedAt: null }]));
   const markers = new Map();
   const grants = new Map();
@@ -146,6 +147,25 @@ test("G2 GET and enable remain independent of G1 and do not read materials or pr
   assert.equal(f.events.filter(event => event.operation === "owner_control").length, beforeReplay, "same enabled scope does not renew a grant");
 });
 
+test("G3 through G5 expose default-off state and reject live activation before Core grant fencing", async () => {
+  const f = fixture();
+  for (const domain of PENDING_DOMAINS) {
+    const stateResponse = await f.get(`?domain=${domain}`);
+    const state = await stateResponse.json();
+    assert.equal(stateResponse.status, 200);
+    assert.equal(state.activation.enabled, false);
+    assert.equal(state.limits.domain, domain);
+    assert.equal(state.limits.maxModelCalls, 0);
+    assert.equal(state.activationBlocked, "activation_pending");
+    assert.doesNotThrow(() => client.parseEduPiProactivityState(state));
+    const enabled = await f.toggle(true, domain);
+    assert.equal(enabled.status, 409);
+    assert.equal((await enabled.json()).code, "proactivity_activation_pending");
+    assert.equal(f.read(domain).enabled, false);
+  }
+  assert.equal(f.events.some(event => ["owner_control", "config", "prepare_due", "materials"].includes(event.operation)), false);
+});
+
 test("stopping either domain permits the other processor and ambient planning to remain active", async () => {
   for (const stoppedDomain of [G1, G2]) {
     const f = fixture({ g1Enabled: true });
@@ -226,7 +246,7 @@ test("invalid G2 execution degrades reads without presenting a false empty queue
 
 test("unknown domains and non-isolated G2 enables stop before any Core access", async () => {
   const f = fixture({ isolated: false });
-  for (const query of ["?domain=parent_communication", "?domain=", "?domain=student_followup&domain=teaching_preparation"]) {
+  for (const query of ["?domain=unknown", "?domain=", "?domain=student_followup&domain=teaching_preparation"]) {
     assert.equal((await f.get(query)).status, 400);
   }
   for (const domain of ["unknown", null]) {

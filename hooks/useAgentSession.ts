@@ -1709,6 +1709,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         void captureEduPiAmbientMessage({ sessionId: sentSessionId, messageId: `prompt-${globalThis.crypto.randomUUID()}`, text: trimmedMessage,
           occurredAt: new Date(occurredAtMs).toISOString() }).then((result) => {
           if (result.status === "unavailable") reportCaptureFailure();
+          else if (result.status === "recorded") addNotice({ type: "warning", message: "请求已记录，任务关联待核对，请勿重复发送" });
         }, reportCaptureFailure);
       }
       if (isSlashCommandPrompt && sentSessionId) {

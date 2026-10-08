@@ -102,13 +102,16 @@ export async function POST(request: Request) {
               confirmEduPiAmbientMessageBinding(sessionId, captureId, binding.messageRef, { dataRoot: roots.dataRoot.root });
             } });
           results.push({ ...result, domain });
+          // Core already persisted a G1 Goal. Do not start a second domain
+          // while its exact work-case linkage still needs verification.
+          if (result.status === "recorded") break;
         } catch (error) {
           results.push({ status: "unavailable", domain, externalSend: false,
             code: error instanceof EduPiAmbientMessageError ? error.code : "proactivity_runtime_unavailable",
             stage: error instanceof EduPiAmbientMessageError ? error.stage : "runtime" });
         }
       }
-      const result = results.find(item => ["applied", "cancelled", "corrected", "queued", "replayed"].includes(item.status))
+      const result = results.find(item => ["applied", "cancelled", "corrected", "queued", "replayed", "recorded"].includes(item.status))
         ?? results.find(item => item.status !== "unavailable") ?? results[0];
       return NextResponse.json({ ...result, ...(results.length > 1 ? { domainResults: results } : {}) },
         { status: result.status !== "unavailable" ? 200 : result.code === "proactivity_grant_unavailable" ? 409 : 503 });

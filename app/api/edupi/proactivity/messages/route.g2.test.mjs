@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import test from "node:test";
 import ts from "typescript";
 
-function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false}={}) {
+function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Recorded=false}={}) {
   const prepared=[],captured=[],confirmed=[];
   let bodyReads=0;
   class AmbientError extends Error {constructor(code){super(code);this.code=code;this.stage="owner";}}
@@ -31,7 +31,9 @@ function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false}={}) 
       if(failG1&&input.domain==="teaching_preparation")throw new AmbientError("proactivity_grant_unavailable");
       const binding={messageRef:`owner_message:${(input.domain==="student_followup"?"b":"a").repeat(64)}`,ownerId:"owner-1",grantId:input.grantId,captureGrantVersion:1};
       await callbacks.onPrepared(binding);await callbacks.onCaptured(binding);
-      return {status:input.domain==="student_followup"?"queued":"captured",externalSend:false};
+      return {status:input.domain==="student_followup"?"queued":g1Recorded?"recorded":"captured",
+        ...(g1Recorded&&input.domain==="teaching_preparation"?{goalId:"goal-synthetic",workCaseId:null,
+          resolutionStatus:"needs_verification",reason:"work_case_unverified"}:{}),externalSend:false};
     }},
   };
   const exports={};
@@ -72,4 +74,17 @@ test("an unavailable G1 grant does not drop an independently authorized G2 messa
   assert.equal(response.status,200);assert.equal(body.status,"queued");
   assert.equal(body.domainResults[0].code,"proactivity_grant_unavailable");
   assert.equal(f.prepared.length,1);assert.equal(f.prepared[0].grantId,"student_followup");
+});
+
+test("a persisted G1 receipt needing verification stops before a second-domain enqueue",async()=>{
+  const f=fixture({g1Recorded:true});
+  const response=await f.route.POST(f.request());
+  const body=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(body.status,"recorded");
+  assert.equal(body.goalId,"goal-synthetic");
+  assert.equal(body.workCaseId,null);
+  assert.equal(f.captured.length,1);
+  assert.equal(f.captured[0].domain,"teaching_preparation");
+  assert.equal(Object.hasOwn(body,"domainResults"),false);
 });

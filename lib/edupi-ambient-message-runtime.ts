@@ -14,7 +14,7 @@ const INTERPRETATIONS = new Set(["request", "commitment", "preference", "questio
 const DOMAINS = new Set(["teaching_preparation", "student_followup", "lesson_reflection", "calendar_administration", "parent_communication", "safety_privacy"]);
 
 type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number; status: "active" | "paused" | "revoked" };
-type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed"; resolutionStatus: string; reason: string | null;
+type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed" | "recorded"; resolutionStatus: string; reason: string | null;
   goalId: string | null; workCaseId: string | null; followUpId?: string; executionId?: string; routedDomain?: string | null; externalSend: false };
 
 type CoreRoute = { domain: string | null; status: string; reason: string; ready: boolean; sourceBasisHash: string };
@@ -308,15 +308,25 @@ export async function captureAndApplyAmbientMessage(
       || goal.opportunity_id !== null && !ID.test(String(goal.opportunity_id))) fail("proactivity_response_invalid", "apply");
     if (goal.status === "held") return { status: "captured", resolutionStatus: "held", reason: appliedRoute.reason,
       goalId: null, workCaseId: null, routedDomain: domain, externalSend: false };
-    const resolution = result(await host.callOwnerControl("owner_intent_resolve", {
-      root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
-    }), "resolve");
+    const recorded: AmbientResult = { status: "recorded", resolutionStatus: "needs_verification",
+      reason: "work_case_unverified", goalId: String(goal.goal_id), workCaseId: null, routedDomain: domain, externalSend: false };
+    let resolution: Record<string, unknown>;
+    try {
+      resolution = result(await host.callOwnerControl("owner_intent_resolve", {
+        root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+      }), "resolve");
+    } catch { return recorded; }
     const target = resolution.target;
     const workCaseId = target && typeof target === "object" && !Array.isArray(target)
       ? (target as Record<string, unknown>).work_case_id : null;
     if (resolution.status !== "source_bound" || resolution.external_send !== false || !ID.test(String(workCaseId || ""))) {
-      fail("proactivity_response_invalid", "resolve");
+      return recorded;
     }
+    let currentBindings: ControlBinding[];
+    try { currentBindings = await bindings(); }
+    catch { return recorded; }
+    if (currentBindings.filter(item => item.goalId === goal.goal_id && item.workCaseId === workCaseId
+      && item.goalVersion === goal.goal_version && item.status === "active").length !== 1) return recorded;
     return { status: "applied", resolutionStatus: "source_bound", reason: appliedRoute.reason,
       goalId: String(goal.goal_id), workCaseId: String(workCaseId), routedDomain: domain, externalSend: false };
   }

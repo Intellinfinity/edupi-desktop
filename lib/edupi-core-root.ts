@@ -172,6 +172,7 @@ type RuntimeDependencyManifest = { name?: unknown; version?: unknown; root?: unk
 type ValidManifestFile = { path: string; sha256: string; size: number };
 type CollectedManifestFile = { entry: ValidManifestFile; metadata: string; allowNodeModulesSymlink: boolean };
 type CollectedManifestFiles = Map<string, CollectedManifestFile>;
+type ManifestScan = { root: string; directories: Map<string, { stamp: string; symlink: boolean }> };
 const verifiedFiles = new Map<string, { stamp: string; hash: string; size: number }>();
 // The paired Core contains over 13,000 audited files. Keep room for two
 // independent roots without evicting the entire manifest during each read.
@@ -196,12 +197,57 @@ function collectManifestFile(entry: ComponentManifestFile, seenPaths: Set<string
   files.set(entryPath, { entry: entry as ValidManifestFile, metadata, allowNodeModulesSymlink });
 }
 
-function verifyManifestFile(root: string, { entry, allowNodeModulesSymlink }: CollectedManifestFile): void {
+function directoryStamp(stat: fs.BigIntStats): string {
+  return `${stat.dev}:${stat.ino}:${stat.mode}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+}
+
+function checkManifestDirectory(scan: ManifestScan, directory: string, allowNodeModulesSymlink = false): void {
+  const previous = scan.directories.get(directory);
+  if (previous) {
+    if (previous.symlink && !allowNodeModulesSymlink) throw new Error(`Core component contains a symlink: ${directory}`);
+    return;
+  }
+  const stat = fs.lstatSync(directory, { bigint: true });
+  const symlink = stat.isSymbolicLink();
+  if (symlink) {
+    if (!allowNodeModulesSymlink) throw new Error(`Core component contains a symlink: ${directory}`);
+  } else if (!stat.isDirectory()) {
+    throw new Error(`Core component path must be a directory: ${directory}`);
+  }
+  scan.directories.set(directory, { stamp: directoryStamp(stat), symlink });
+  if (symlink) checkManifestDirectory(scan, fs.realpathSync.native(directory));
+}
+
+function validateManifestFile(scan: ManifestScan, entryPath: string, allowNodeModulesSymlink: boolean): {
+  resolved: string; stat: fs.BigIntStats;
+} {
+  const lexical = path.join(scan.root, entryPath);
+  const resolved = fs.realpathSync.native(lexical);
+  if (!isInside(scan.root, resolved)) {
+    if (!allowNodeModulesSymlink) throw new Error(`Core entry is outside allowed root: ${lexical}`);
+    const physicalNodeModules = fs.realpathSync.native(path.join(scan.root, "node_modules"));
+    if (!isInside(physicalNodeModules, resolved)) throw new Error(`Core entry is outside allowed root: ${lexical}`);
+    // The permitted node_modules link can point outside Core. Watch its target
+    // too, so replacing that directory during this scan invalidates the proof.
+    checkManifestDirectory(scan, physicalNodeModules);
+  }
+  let current = scan.root;
+  checkManifestDirectory(scan, current);
+  for (const [index, component] of entryPath.split("/").slice(0, -1).entries()) {
+    current = path.join(current, component);
+    checkManifestDirectory(scan, current, allowNodeModulesSymlink && index === 0 && component === "node_modules");
+  }
+  const stat = fs.lstatSync(lexical, { bigint: true });
+  if (stat.isSymbolicLink()) throw new Error(`Core component contains a symlink: ${lexical}`);
+  if (!stat.isFile()) throw new Error(`Core entry must be a regular file: ${lexical}`);
+  return { resolved, stat };
+}
+
+function verifyManifestFile(scan: ManifestScan, { entry, allowNodeModulesSymlink }: CollectedManifestFile): void {
   const entryPath = entry.path;
   const entryHash = entry.sha256;
   const entrySize = entry.size;
-  const resolved = validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, entryPath), allowNodeModulesSymlink });
-  const stat = fs.statSync(resolved, { bigint: true });
+  const { resolved, stat } = validateManifestFile(scan, entryPath, allowNodeModulesSymlink);
   const stamp = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
   const cached = verifiedFiles.get(resolved);
   if (cached?.stamp === stamp && cached.hash === entryHash && cached.size === entrySize) return;
@@ -286,7 +332,17 @@ function collectRuntimeManifest(root: string, pinnedHash: string, files: Collect
 }
 
 function verifyCollectedFiles(root: string, files: CollectedManifestFiles): void {
-  for (const file of files.values()) verifyManifestFile(root, file);
+  const scan: ManifestScan = { root: fs.realpathSync(root), directories: new Map() };
+  for (const file of files.values()) verifyManifestFile(scan, file);
+  for (const [directory, proof] of scan.directories) {
+    let current: fs.BigIntStats;
+    try {
+      current = fs.lstatSync(directory, { bigint: true });
+    } catch {
+      throw new Error(`Core directory changed during component validation: ${directory}`);
+    }
+    if (directoryStamp(current) !== proof.stamp) throw new Error(`Core directory changed during component validation: ${directory}`);
+  }
 }
 
 export function verifyEduPiRuntimeManifest({ root, pinnedHash }: { root: string; pinnedHash: string }): {

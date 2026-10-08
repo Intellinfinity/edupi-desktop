@@ -1,6 +1,6 @@
 import { isTauriDesktop } from "@/lib/desktop-updater";
 import { APP_PREF_KEYS, getPrefBool } from "@/lib/app-prefs";
-import { isCancelledReminderNotificationError, isDeferredReminderNotificationError, sendReminderNotificationNative, type NativeReminderNotification } from "@/lib/desktop-native";
+import { isCancelledReminderNotificationError, isDeferredReminderNotificationError, isUnknownReminderNotificationError, sendReminderNotificationNative, type NativeReminderNotification } from "@/lib/desktop-native";
 
 export function desktopNotificationsEnabled(): boolean {
   return getPrefBool(APP_PREF_KEYS.notifyOnComplete, true);
@@ -25,7 +25,7 @@ export async function notifyDesktop(options: {
   body: string;
   reminder?: Pick<NativeReminderNotification, "target" | "claims">;
   isCurrent?: () => boolean | Promise<boolean>;
-}): Promise<"attempted" | "skipped" | "failed" | "cancelled"> {
+}): Promise<"attempted" | "skipped" | "failed" | "cancelled" | "unknown"> {
   if (!isTauriDesktop() || !desktopNotificationsEnabled()) return "skipped";
 
   try {
@@ -65,6 +65,7 @@ export async function notifyDesktop(options: {
     return "attempted";
   } catch (error) {
     if (isCancelledReminderNotificationError(error)) return "cancelled";
+    if (isUnknownReminderNotificationError(error)) return "unknown";
     console.error("Desktop notification failed:", error);
     if (isDeferredReminderNotificationError(error)) return "skipped";
     return "failed";
@@ -94,6 +95,6 @@ export async function testDesktopNotification(): Promise<void> {
     title: "EduPi",
     body: "点击后打开提醒",
     target: null,
-    claims: [{ id: "notification-test", attemptedAt: new Date().toISOString() }],
+    claims: [{ id: "notification-test", attemptId: crypto.randomUUID(), attemptedAt: new Date().toISOString() }],
   });
 }

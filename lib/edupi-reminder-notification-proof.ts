@@ -16,7 +16,7 @@ import { isReminderForeground, shanghaiDate } from "./edupi-foreground";
 import { reminderEvents } from "./edupi-reminder-events";
 import type { Reminder } from "./edupi-reminder-store";
 
-export type NotificationClaim = { id: string; attemptedAt: string };
+export type NotificationClaim = { id: string; attemptId: string; attemptedAt: string };
 export type NotificationProofRequest = { version: 1; nonce: string; claims: NotificationClaim[] };
 export const NOTIFICATION_PROOF_NONCE_HEADER = "x-pi-reminder-proof-nonce";
 export const NOTIFICATION_PROOF_DEADLINE_MS = 1500;
@@ -32,8 +32,9 @@ export function validNotificationProofRequest(value: unknown): value is Notifica
   return input.claims.every(value => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
     const claim = value as Record<string, unknown>;
-    if (Object.keys(claim).some(key => !["id", "attemptedAt"].includes(key)) || typeof claim.id !== "string"
+    if (Object.keys(claim).some(key => !["id", "attemptId", "attemptedAt"].includes(key)) || typeof claim.id !== "string"
       || !/^[A-Za-z0-9._-]{1,64}$/.test(claim.id) || ids.has(claim.id)
+      || typeof claim.attemptId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(claim.attemptId)
       || typeof claim.attemptedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(claim.attemptedAt)
       || claim.attemptedAt.length > 80 || !Number.isFinite(Date.parse(claim.attemptedAt))) return false;
     ids.add(claim.id); return true;
@@ -139,7 +140,9 @@ export async function notificationClaimsAreCurrent(claims: readonly Notification
   return claims.every(claim => {
     const matches = items.filter(item => item?.id === claim.id);
     const item = matches.length === 1 ? matches[0] : null;
-    if (!item || item.notificationAttemptedAt !== claim.attemptedAt || item.read !== false || item.handled !== false || item.withdrawn !== false
+    if (!item || item.notificationAttemptedAt !== claim.attemptedAt || item.notificationAttemptId !== claim.attemptId
+      || item.notificationSendState !== "claimed" || Date.parse(item.notificationClaimExpiresAt || "") <= currentTime.getTime()
+      || item.read !== false || item.handled !== false || item.withdrawn !== false
       || item.snoozedUntil || item.notificationDeliveredAt || item.notificationOpenedAt || !isReminderForeground(item, policy, data)
       || item.notificationSourceFingerprint !== reminderNotificationSourceFingerprint(item, data)) return false;
     const event = currentEvents.find(event => event.taskId === item.taskId && event.identity === item.identity && event.completion === item.kind);

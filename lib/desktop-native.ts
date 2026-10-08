@@ -401,11 +401,15 @@ export async function getNotificationPermissionStatusNative(): Promise<Notificat
   return invoke<NotificationPermissionStatus>("get_notification_permission_status");
 }
 
-export type ReminderNotificationTarget = { reminderId: string; taskId: string; kind: "ready" | "failed" | "due" | "brief" };
-export type ReminderNotificationClaim = { id: string; attemptedAt: string };
+export type ReminderNotificationTarget = { reminderId: string; taskId: string; kind: "ready" | "failed" | "due" | "brief"; attemptId?: string };
+export type ReminderNotificationClaim = { id: string; attemptId: string; attemptedAt: string };
 export type NativeReminderNotification = { title: string; body: string; target: ReminderNotificationTarget | null; claims: ReminderNotificationClaim[] };
 const DEFERRED_REMINDER_NOTIFICATION_ERRORS = new Set(["notification_permission_denied", "notification_permission_timeout", "notification_permission_unavailable", "notification_busy"]);
 const CANCELLED_REMINDER_NOTIFICATION_ERRORS = new Set(["notification_stale", "notification_validation_unavailable"]);
+
+export function isUnknownReminderNotificationError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "notification_send_unknown");
+}
 
 export function isCancelledReminderNotificationError(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error
@@ -441,7 +445,8 @@ export function createReminderOpenDrainer(takePending: () => Promise<Array<Remin
 
 function isNotificationDiagnostic(request: NativeReminderNotification): boolean {
   return request.title === "EduPi" && request.body === "点击后打开提醒" && request.target === null && request.claims.length === 1
-    && request.claims[0].id === "notification-test" && /^\d{4}-\d{2}-\d{2}T/.test(request.claims[0].attemptedAt);
+    && request.claims[0].id === "notification-test" && /^[0-9a-f-]{36}$/.test(request.claims[0].attemptId)
+    && /^\d{4}-\d{2}-\d{2}T/.test(request.claims[0].attemptedAt);
 }
 
 /** A read-only, native-token guarded proof; no caller policy or credentials in the body. */
@@ -469,8 +474,11 @@ export async function sendReminderNotificationNative(request: NativeReminderNoti
     if (code === "notification_permission_unavailable") throw nativeReminderError(code, "暂时无法请求通知授权，请重试");
     if (code === "notification_failed") throw nativeReminderError(code, "通知发送失败，请检查系统通知设置");
     if (code === "notification_busy") throw nativeReminderError(code, "通知发送繁忙，请稍后重试");
+    if (code === "notification_send_unknown") throw nativeReminderError(code, "系统通知结果待核对，请在提醒中查看");
     if (CANCELLED_REMINDER_NOTIFICATION_ERRORS.has(code)) throw nativeReminderError(code, "提醒已变化");
-    throw error;
+    // A rejected invoke may have reached the native sender before the reply
+    // was lost. Never turn transport uncertainty into an automatic retry.
+    throw nativeReminderError("notification_send_unknown", "系统通知结果待核对，请在提醒中查看");
   }
 }
 

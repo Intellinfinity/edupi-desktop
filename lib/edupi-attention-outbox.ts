@@ -38,7 +38,7 @@ export async function persistNativeAttentionRouteMarks(file: string, snapshot: R
       // A concurrent claim or changed Core binding must not strand the whole
       // batch after claims were persisted. Defer only this exact attempt.
       state = await updateReminderStore(file, snapshot, { id: mark.reminderId,
-        type: "notification_deferred", attemptedAt: mark.attemptedAt });
+        type: "notification_deferred", attemptedAt: mark.attemptedAt, attemptId: mark.attemptId });
       deferredIds.push(mark.reminderId);
     }
   }

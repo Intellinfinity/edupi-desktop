@@ -7,11 +7,11 @@ use std::{
 
 const MAX_HEADERS: usize = 4096;
 const DEADLINE: Duration = Duration::from_millis(1500);
-const PROOF_PATH: &str = "/api/edupi/reminders/notification-proof";
+const PROOF_PATH: &str = "/api/edupi/reminders/native-send";
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ProofResult {
-    Current,
+    Current(String),
     Changed,
     Unavailable,
 }
@@ -21,6 +21,22 @@ fn hex_identity(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+pub(crate) fn valid_uuid(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if [8, 13, 18, 23].contains(&index) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+        && matches!(value.as_bytes()[14].to_ascii_lowercase(), b'1'..=b'8')
+        && matches!(
+            value.as_bytes()[19].to_ascii_lowercase(),
+            b'8' | b'9' | b'a' | b'b'
+        )
 }
 
 fn response_proof(response: &[u8], instance: &str, nonce: &str) -> ProofResult {
@@ -45,6 +61,7 @@ fn response_proof(response: &[u8], instance: &str, nonce: &str) -> ProofResult {
     }
     let mut found_instance = None;
     let mut found_nonce = None;
+    let mut found_dispatch = None;
     for line in lines {
         let Some((name, value)) = line.split_once(':') else {
             return ProofResult::Unavailable;
@@ -65,9 +82,17 @@ fn response_proof(response: &[u8], instance: &str, nonce: &str) -> ProofResult {
                 return ProofResult::Unavailable;
             }
         }
+        if name.eq_ignore_ascii_case("x-pi-reminder-dispatch-id") {
+            if found_dispatch.replace(value).is_some() {
+                return ProofResult::Unavailable;
+            }
+        }
     }
-    if found_instance == Some(instance) && found_nonce == Some(nonce) {
-        ProofResult::Current
+    if found_instance == Some(instance)
+        && found_nonce == Some(nonce)
+        && found_dispatch.is_some_and(valid_uuid)
+    {
+        ProofResult::Current(found_dispatch.unwrap().to_string())
     } else {
         ProofResult::Unavailable
     }
@@ -138,11 +163,12 @@ mod tests {
     use super::*;
     use std::{net::TcpListener, sync::mpsc, thread};
     const TOKEN: &str = "synthetic-native-proof-token-123456789";
+    const DISPATCH: &str = "10000000-0000-4000-8000-000000000001";
     fn identities() -> (String, String) {
         ("b".repeat(64), "a".repeat(64))
     }
     fn response(instance: &str, nonce: &str) -> Vec<u8> {
-        format!("HTTP/1.1 204 No Content\r\nx-pi-desktop-instance: {instance}\r\nx-pi-reminder-proof-nonce: {nonce}\r\nContent-Length: 0\r\n\r\n").into_bytes()
+        format!("HTTP/1.1 204 No Content\r\nx-pi-desktop-instance: {instance}\r\nx-pi-reminder-proof-nonce: {nonce}\r\nx-pi-reminder-dispatch-id:{DISPATCH}\r\nContent-Length: 0\r\n\r\n").into_bytes()
     }
     fn fixture(
         reply: Vec<u8>,
@@ -193,16 +219,15 @@ mod tests {
         let (instance, nonce) = identities();
         let (port, request, _, worker) = fixture(response(&instance, &nonce), false);
         let body = format!(
-            r#"{{"version":1,"nonce":"{nonce}","claims":[{{"id":"synthetic","attemptedAt":"2026-10-08T00:00:00Z"}}]}}"#
+            r#"{{"version":1,"nonce":"{nonce}","claims":[{{"id":"synthetic","attemptId":"10000000-0000-4000-8000-000000000002","attemptedAt":"2026-10-08T00:00:00Z"}}]}}"#
         );
         assert_eq!(
             validate(port, TOKEN, &instance, &nonce, body.as_bytes()),
-            ProofResult::Current
+            ProofResult::Current(DISPATCH.into())
         );
         let captured = String::from_utf8(request.recv().unwrap()).unwrap();
-        assert!(captured.starts_with(
-            "POST /api/edupi/reminders/notification-proof HTTP/1.1\r\nHost: 127.0.0.1:"
-        ));
+        assert!(captured
+            .starts_with("POST /api/edupi/reminders/native-send HTTP/1.1\r\nHost: 127.0.0.1:"));
         assert!(captured.contains("x-pi-desktop-token: synthetic-native-proof-token-123456789"));
         assert!(!captured.split_once("\r\n\r\n").unwrap().1.contains(TOKEN));
         worker.join().unwrap();
@@ -231,7 +256,10 @@ mod tests {
         for reply in replies {
             let (port, _, _, worker) = fixture(reply, false);
             let mut delivered = false;
-            if validate(port, TOKEN, &instance, &nonce, b"{}") == ProofResult::Current {
+            if matches!(
+                validate(port, TOKEN, &instance, &nonce, b"{}"),
+                ProofResult::Current(_)
+            ) {
                 delivered = true;
             }
             assert!(!delivered);
@@ -241,7 +269,7 @@ mod tests {
         let (port, _, _, worker) = fixture(old_proof, false);
         assert_ne!(
             validate(port, TOKEN, &instance, &"d".repeat(64), b"{}"),
-            ProofResult::Current
+            ProofResult::Current(DISPATCH.into())
         );
         worker.join().unwrap();
     }
@@ -284,5 +312,51 @@ mod tests {
             validate(1, "injected\r\nheader", &instance, &nonce, b"{}"),
             ProofResult::Unavailable
         );
+    }
+
+    #[test]
+    fn native_send_never_accepts_a_readonly_proof_without_a_dispatch_uuid() {
+        let (instance, nonce) = identities();
+        let readonly = format!("HTTP/1.1 204 No Content\r\nx-pi-desktop-instance:{instance}\r\nx-pi-reminder-proof-nonce:{nonce}\r\n\r\n");
+        assert_eq!(
+            response_proof(readonly.as_bytes(), &instance, &nonce),
+            ProofResult::Unavailable
+        );
+    }
+
+    #[test]
+    fn native_send_transport_requests_the_atomic_send_path_not_readonly_proof() {
+        let (instance, nonce) = identities();
+        let reply = format!("HTTP/1.1 204 No Content\r\nx-pi-desktop-instance:{instance}\r\nx-pi-reminder-proof-nonce:{nonce}\r\nx-pi-reminder-dispatch-id:10000000-0000-4000-8000-000000000001\r\n\r\n");
+        let (port, captured, _, worker) = fixture(reply.into_bytes(), false);
+        let _ = validate(port, TOKEN, &instance, &nonce, b"{}");
+        assert!(String::from_utf8(captured.recv().unwrap())
+            .unwrap()
+            .starts_with("POST /api/edupi/reminders/native-send HTTP/1.1\r\n"));
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn dispatch_permit_requires_exactly_one_real_uuid() {
+        let (instance, nonce) = identities();
+        for dispatch in ["not-uuid", "00000000-0000-0000-0000-000000000000", "10000000-0000-4000-8000-000000000001\r\nx-pi-reminder-dispatch-id:10000000-0000-4000-8000-000000000002"] {
+            let reply = format!("HTTP/1.1 204 No Content\r\nx-pi-desktop-instance:{instance}\r\nx-pi-reminder-proof-nonce:{nonce}\r\nx-pi-reminder-dispatch-id:{dispatch}\r\n\r\n");
+            assert_eq!(response_proof(reply.as_bytes(), &instance, &nonce), ProofResult::Unavailable);
+        }
+    }
+
+    #[test]
+    fn lost_begin_response_never_authorizes_os_send_and_remains_unknown() {
+        let (instance, nonce) = identities();
+        let (port, captured, _, worker) = fixture(Vec::new(), false);
+        assert_eq!(
+            validate(port, TOKEN, &instance, &nonce, b"{}"),
+            ProofResult::Unavailable
+        );
+        assert!(
+            !captured.recv().unwrap().is_empty(),
+            "the server received a request and may already have committed its marker"
+        );
+        worker.join().unwrap();
     }
 }

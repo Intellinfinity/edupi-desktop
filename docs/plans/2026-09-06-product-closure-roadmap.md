@@ -1,6 +1,6 @@
 # EduPi 产品闭环 PR 路线图
 
-2026-10-08 R21/L4 六领域 Desktop 自然消息路由源码检查点：独立分支 `codex/desktop-six-domain-routing-20261008` 的 `b321e737`、`46556d71` 已让普通消息消费 Core 领域路由，G1 建 Goal 走 Core route apply，G2 原观察入队保留，安全隐私与模糊来源停留；G3–G5 配置默认关闭且启用仍返回 `proactivity_activation_pending`。全套 Node 2235 passed / 33 skipped / 0 failed，类型和 lint 通过。隔离 Core E2 在 G1 启用阶段 503，尚无实际六域写入/重启/页面证据；不改变下方“六领域 Live 部分实现”与安装、真人质量欠项。此源码记录取代下方 `domain_out_of_scope` 作为**当前未合并分支**的行为描述；main/公开版状态不变。详见[验收记录](../acceptance/2026-10-08-desktop-six-domain-route-source.md)。
+2026-10-08 R21/L4 六领域 Desktop 自然消息路由源码检查点：独立分支 `codex/desktop-six-domain-routing-20261008` 的 `b321e737`、`46556d71`、`f10ce257` 已让普通消息消费 Core 领域路由，G1 建 Goal 走 Core route apply，G2 原观察入队保留，安全隐私与模糊来源停留；G3–G5 配置默认关闭且启用仍返回 `proactivity_activation_pending`。全套 Node 2236 passed / 33 skipped / 0 failed，类型和 lint 通过。隔离 Core E2 在 G1 启用阶段 503，尚无实际六域写入/重启/页面证据；不改变下方“六领域 Live 部分实现”与安装、真人质量欠项。此源码记录取代下方 `domain_out_of_scope` 作为**当前未合并分支**的行为描述；main/公开版状态不变。详见[验收记录](../acceptance/2026-10-08-desktop-six-domain-route-source.md)。
 
 2026-10-08 R03 通知风险追补：原“claim 落盘后异常无法恢复”已在 Desktop 源码补原子 native-send、精确 UUID/租约、未知结果保留及教师明确再提醒；[PR #322](https://github.com/Intellinfinity/edupi-desktop/pull/322) 与精确质量检查已合 main `b88af212`，定向/全套/隔离实际页面证据见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-08-r03-系统通知未知结果恢复)。状态为**已实现待签名安装验收**，不是 TCC/真实通知/睡眠通过。Core 假期 #233 人审与家庭/阶段 main 合同仍为外部门；公开 `.56` 和 Core pin 不变。
 

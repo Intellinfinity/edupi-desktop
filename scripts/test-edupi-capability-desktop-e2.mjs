@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
+import ts from "typescript";
 
 const configured = process.env.EDUPI_CORE_ROOT;
 assert.ok(configured && path.isAbsolute(configured), "EDUPI_CORE_ROOT must name the isolated staged Core checkout");
@@ -270,11 +271,53 @@ try {
   assert.equal(afterStop[0].status, "stale", "stopping the selected grant retires only its current admin work");
   assert.deepEqual(afterStop[0].artifacts, beforeRestart[0].artifacts, "immutable admin draft identities are retained");
   assert.deepEqual(afterStop.slice(1), beforeRestart.slice(1), "G4/G5 accepted work is not invalidated by G3 stop");
+  const g1Scope = { classId: classroom.entity_id, subject: "math" };
+  const g1Binding = control.buildProactivityGrantBinding(g1Scope, workspace,
+    [{ material_id: "synthetic-math-material", class_id: classroom.entity_id, subject: "math", available: true }]);
+  await runtime.ensureProactivityGrant(host, active.result.data_root_fingerprint, g1Binding);
+  config.writeEduPiProactivityConfig({ enabled: true, scope: g1Scope, grantId: g1Binding.grantId }, { dataRoot, stateDir });
+  config.writeEduPiProactivityConfig({ enabled: true, scope: g1Scope, grantId: g1Binding.grantId },
+    { dataRoot, stateDir, domain: "calendar_administration" });
+  const routeSource = fs.readFileSync(new URL("../app/api/edupi/proactivity/route.ts", import.meta.url), "utf8");
+  const routeCode = ts.transpileModule(routeSource, { compilerOptions: { module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+  const routeModule = { exports: {} };
+  const safeMode = await jiti.import("../lib/safe-mode.ts");
+  const modules = {
+    "next/server": { NextResponse: { json: (body, options = {}) => ({ status: options.status || 200, json: async () => body }) } },
+    "@/lib/bounded-form-data": { parseJsonWithinLimit: request => request.json(), RequestBodyTooLargeError: class extends Error {} },
+    "@/lib/desktop-api-auth": { isDesktopApiRequestAllowed: () => true },
+    "@/lib/edupi-core-snapshot": { resolveEduPiBridgeRoots: () => ({ runtime: runtimeRoot, dataRoot: dataRootDescriptor }),
+      readEduPiEducationSnapshot: async () => ({ workspace }) },
+    "@/lib/edupi-generated-artifacts": { workspaceResourcesRequest: async () => ({ teacherMaterials: [] }) },
+    "@/lib/edupi-proactivity-control": control,
+    "@/lib/edupi-proactivity-config": config,
+    "@/lib/edupi-proactivity-runtime": runtime,
+    "@/lib/edupi-runtime-supervisor": supervisor,
+    "@/lib/safe-mode": safeMode,
+  };
+  new Function("require", "module", "exports", routeCode)(name => {
+    assert.ok(Object.hasOwn(modules, name), `unexpected route dependency ${name}`);
+    return modules[name];
+  }, routeModule, routeModule.exports);
+  const aliasBefore = config.readEduPiProactivityActivation({ dataRoot, stateDir, domain: "calendar_administration" });
+  const aliasResponse = await routeModule.exports.POST(new Request("http://localhost/api/edupi/proactivity", { method: "POST",
+    headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled: false, classId: null,
+      subject: null, expectedUpdatedAt: aliasBefore.updatedAt, domain: "calendar_administration" }) }));
+  assert.equal(aliasResponse.status, 200, JSON.stringify(await aliasResponse.json()));
+  assert.equal((await aliasResponse.json()).grantPaused, false, "the aliased G1 grant cannot be paused by G3 stop");
+  assert.equal(config.readEduPiProactivityActivation({ dataRoot, stateDir, domain: "calendar_administration" }).enabled, false);
+  assert.equal(config.readEduPiProactivityActivation({ dataRoot, stateDir }).enabled, true);
+  host = await supervisor.ensureEduPiRuntime({ runtime: runtimeRoot, dataRoot: dataRootDescriptor });
+  const g1After = await runtime.readProactivityGrantDomainProof(host, active.result.data_root_fingerprint, g1Binding.grantId);
+  assert.equal(g1After.status, "active");
+  assert.equal(g1After.domain, "teaching_preparation");
   assert.deepEqual(fs.readdirSync(agentDir), [], "G3–G5 require no model config, credential file or paid provider");
   console.log(JSON.stringify({ status: "passed", coreCommit: stagedCommit,
     domains: results.map(item => ({ domain: item.domain, goalId: item.goalId, workCaseId: item.workCaseId })),
     drafts: casesReady.length, publicTaskReviews: 3, syntheticFeedback: 3, restartStable: true, replayNoNewQueue: true,
     stoppedDomain: "calendar_administration", remainingDomainsActive: 2, sameDomainForeignGrantQueued: false,
+    realConfigAliasStopPreservedG1: true,
     modelCalls: 0, externalSend: false }));
 } finally {
   if (admission) await admission.release();

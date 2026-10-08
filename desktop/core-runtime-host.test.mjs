@@ -114,6 +114,22 @@ test("runtime host leaves G1 Live off without an exact scoped grant and forwards
   assert.equal(messages[0].type, "model-config-request");
   assert.equal(lastOptions().g3Live, undefined);
   await scoped.close();
+  const exactBindings = [{ domain: "calendar_administration", grantId: "calendar-grant-1",
+    scope: { class_id: "class-7-1", subject: "administration" } }];
+  const g3 = await startCoreRuntimeHost({ coreRoot: root, options: { ...options,
+    ownerControlToken: "owner-control-test", g3AllowedBindings: exactBindings } }, channel);
+  assert.deepEqual(lastOptions().g3Live, { allowedBindings: exactBindings });
+  assert.equal(lastOptions().g1Live, undefined);
+  assert.equal(messages.length, 1, "G3 startup cannot request a private model configuration");
+  await g3.close();
+  for (const invalidBindings of [[], [{ domain: "calendar_administration", grantId: "calendar-grant-1" }],
+    [exactBindings[0], exactBindings[0]], [{ ...exactBindings[0], domain: "safety_privacy" }]]) {
+    await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
+      options: { ...options, ownerControlToken: "owner-control-test", g3AllowedBindings: invalidBindings } }, channel),
+    /Invalid runtime bootstrap/);
+  }
+  await assert.rejects(startCoreRuntimeHost({ coreRoot: root, options: { ...options,
+    g3AllowedBindings: exactBindings } }, channel), /Invalid runtime bootstrap/);
   for (const domains of [[], ["calendar_administration"], ["calendar_administration", "lesson_reflection"],
     ["calendar_administration", "calendar_administration"], ["safety_privacy"]]) {
     await assert.rejects(startCoreRuntimeHost({ coreRoot: root,

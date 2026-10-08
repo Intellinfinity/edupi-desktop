@@ -106,7 +106,8 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
   const budget = state.grant?.modelBudget;
   const operational = active && !blocked && state.grant?.status === "active" && state.capabilities !== null
     && Object.values(state.capabilities).every(Boolean) && (!studentFollowup || state.capabilities.studentFollowup === true)
-    && (studentFollowup && !budget
+    && (!pendingDomain || state.capabilities.sharedCapability === true)
+    && (pendingDomain || studentFollowup && !budget
       || budget && !budget.usageUnverified && budget.remainingCalls > 0);
   const budgetExhausted = active && budget && !budget.usageUnverified && budget.remainingCalls === 0;
   const ready = state.scopes.filter((scope) => scope.ready);
@@ -122,7 +123,7 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
         ? PENDING_DOMAIN_NAMES[state.limits.domain as keyof typeof PENDING_DOMAIN_NAMES] : "课前准备试用"}</strong><small>{active && state.grant
         ? budget && !budget.usageUnverified ? `${currentLabel} · 剩余 ${budget.remainingCalls} 次`
           : `${currentLabel} · 最多 ${state.limits.maxModelCalls} 次 · 剩余未知`
-        : active || recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用`}</small></span>
+        : active || recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次${pendingDomain ? "内部处理" : "模型调用"}`}</small></span>
       {active ? <em className={operational ? "is-ready" : undefined}>{blockedLabel || (state.requiresSafeMode ? "安全模式待启动" : budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复")}</em>
         : <em>{recoveryPending ? state.activation.configurationStatus === "legacy" ? "旧授权待停止" : "停止待恢复"
           : blockedLabel || (state.requiresSafeMode ? "安全模式可试用" : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭")}</em>}
@@ -132,7 +133,8 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
     {message ? <p role="status" aria-live="polite">{message}</p>
       : !active && state.activationBlocked === "isolated_canary_required" ? <p role="status">学生跟进需使用隔离数据目录试用。</p>
       : !active && state.requiresSafeMode ? <p role="status">Windows 试用需用隔离数据目录以安全模式启动。</p>
-      : !active && !blocked && ready.length === 0 ? <p role="status">{studentFollowup ? "需要明确班级的数学课表和当前学生名单。" : "需要一条带班级 ID 的课表和同范围材料。"}</p> : null}
+      : !active && !blocked && ready.length === 0 ? <p role="status">{studentFollowup ? "需要明确班级的数学课表和当前学生名单。"
+        : pendingDomain ? "需要明确班级与当前来源。" : "需要一条带班级 ID 的课表和同范围材料。"}</p> : null}
     {studentFollowup ? <details className="edupi-proactivity-execution">
       <summary>执行记录</summary>
       {!state.execution?.available ? <p>执行记录暂不可用</p>
@@ -191,13 +193,14 @@ export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false, dom
   const pendingDomain = domain in PENDING_DOMAIN_NAMES;
   if (!state || state.limits.domain !== domain) return pendingDomain && !message ? null
     : <p className="edupi-proactivity-canary__loading" role={message ? "alert" : "status"}>{message || "正在读取主动运行…"}</p>;
-  if (pendingDomain && !state.activation.enabled && state.activation.scope === null) return null;
+  if (pendingDomain && state.activationBlocked === "activation_pending" && !state.activation.enabled && state.activation.scope === null) return null;
   const toggle = async () => {
     if (busyRef.current) return;
     const recoveryPending = !state.activation.enabled && state.activation.scope !== null;
     const enabling = !state.activation.enabled && !recoveryPending;
     if (enabling && (!selected || state.requiresSafeMode || state.activationBlocked
-      || !window.confirm(`启用 ${selected.className || selected.classId} · ${selected.subject} 的${domain === "student_followup" ? "学生跟进" : "主动备课"}试用？\n${state.limits.durationDays} 天，最多 ${state.limits.maxModelCalls} 次调用已配置模型；不会自动发给学生或家长。`))) return;
+      || !window.confirm(`启用 ${selected.className || selected.classId} · ${selected.subject} 的${domain === "student_followup" ? "学生跟进"
+        : pendingDomain ? PENDING_DOMAIN_NAMES[domain as keyof typeof PENDING_DOMAIN_NAMES] : "主动备课"}试用？\n${state.limits.durationDays} 天，最多 ${state.limits.maxModelCalls} 次${pendingDomain ? "内部处理" : "调用已配置模型"}；不会自动发给学生或家长。`))) return;
     busyRef.current = true;
     ++refreshEpoch.current;
     refreshAbort.current?.abort();
@@ -209,7 +212,8 @@ export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false, dom
       setState(next);
       setMessage(enabling ? next.grant?.modelBudget && !next.grant.modelBudget.usageUnverified && next.grant.modelBudget.remainingCalls === 0 ? "额度已用完"
         : domain === "student_followup" ? "学生跟进已启用"
-        : next.initialScan?.needsAttention ? "已启用，部分课前任务需核对" : "主动备课已启用"
+        : pendingDomain ? `${PENDING_DOMAIN_NAMES[domain as keyof typeof PENDING_DOMAIN_NAMES]}已启用`
+          : next.initialScan?.needsAttention ? "已启用，部分课前任务需核对" : "主动备课已启用"
         : recoveryPending && state.activation.configurationStatus === "legacy" ? "旧授权已停止" : "主动运行已停止");
       onChanged?.();
     } catch (error) {

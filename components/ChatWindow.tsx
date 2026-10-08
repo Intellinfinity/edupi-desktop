@@ -1128,7 +1128,10 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
             <ExtensionWidgets widgets={belowEditorWidgets} teacherMode={teacherMode} />
             {teacherMode && <EduPiAmbientPendingBanner count={ambientPending.pending.length}
               unconfirmedCount={ambientPending.pending.filter(item => item.unconfirmed).length}
-              busy={ambientPendingBusy} onVerify={() => { void refreshAmbientPending(); }} />}
+              partialCount={ambientPending.pending.filter(item => item.partiallyHandled).length}
+              unprocessedCount={ambientPending.pending.filter(item => item.unprocessed).length}
+              busy={ambientPendingBusy} onVerify={() => { void refreshAmbientPending(); }}
+              onReview={() => setOpenEduPiUtility("proactive")} />}
           </div>
         </div>
         {chatInputElement}

@@ -223,9 +223,41 @@ export async function readProactivityGrantStatus(
   return grantStatus(await readOwner(host, rootRef), grantId, now, domain);
 }
 
+export async function readProactivityGrantDomainProof(
+  host: Pick<EduPiRuntimeHandle, "call">, rootRef: string, grantId: string,
+): Promise<{ grantId: string; domain: EduPiProactivityDomain; scope: { classId: string; subject: string };
+  status: "active" | "paused" | "revoked"; version: number } | null> {
+  if (!HASH.test(rootRef) || !ID.test(grantId)) invalid();
+  const response = await host.call("owner_read", { root_ref: rootRef });
+  const result = response && typeof response === "object" && !Array.isArray(response)
+    ? response.result as Record<string, unknown> | null : null;
+  const owner = result?.owner;
+  if (response?.ok !== true || !result || result.root_ref !== rootRef || result.external_send !== false
+    || !owner || typeof owner !== "object" || Array.isArray(owner)
+    || !ID.test(String((owner as Record<string, unknown>).id || ""))
+    || !Array.isArray(result.grants) || result.grants.length > 128) invalid();
+  const matching = result.grants.filter(item => item && typeof item === "object" && !Array.isArray(item)
+    && (item as Record<string, unknown>).id === grantId);
+  if (matching.length > 1) invalid();
+  if (matching.length === 0) return null;
+  const row = matching[0] as Record<string, unknown>;
+  const scope = row.scope && typeof row.scope === "object" && !Array.isArray(row.scope)
+    ? row.scope as Record<string, unknown> : null;
+  const domain = Array.isArray(row.domains) && row.domains.length === 1 ? row.domains[0] : null;
+  if (!scope || !ID.test(String(scope.class_id || "")) || typeof scope.subject !== "string"
+    || !scope.subject.trim() || scope.subject.length > 128
+    || !["teaching_preparation", "student_followup", "calendar_administration", "lesson_reflection", "parent_communication"].includes(String(domain))
+    || !["active", "paused", "revoked"].includes(String(row.status))
+    || !Number.isSafeInteger(row.version) || Number(row.version) < 1) invalid();
+  return { grantId, domain: domain as EduPiProactivityDomain,
+    scope: { classId: String(scope.class_id), subject: scope.subject },
+    status: row.status as "active" | "paused" | "revoked", version: Number(row.version) };
+}
+
 function grantStatus(state: OwnerRead, grantId: string | null, now: number, domain: EduPiProactivityDomain) {
   const grant = state.grants.find((item) => item.id === grantId);
-  const budgets = domain === "teaching_preparation" ? state.g1ModelBudget : state.g2ModelBudget;
+  const budgets = domain === "teaching_preparation" ? state.g1ModelBudget
+    : domain === "student_followup" ? state.g2ModelBudget : null;
   const budget = budgets?.find(item => item.grantId === grantId);
   if (grant && !budget && (domain === "teaching_preparation" || budgets !== null)) invalid();
   return grant ? { status: (grant.status === "active" && Date.parse(grant.ends_at) <= now ? "expired" : grant.status) as EffectiveGrantStatus,

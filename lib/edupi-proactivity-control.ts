@@ -10,6 +10,8 @@ export const EDUPI_PARENT_COMMUNICATION_CONVERSATION_ID = "desktop-parent-commun
 export const EDUPI_PROACTIVITY_DURATION_DAYS = 7;
 export const EDUPI_PROACTIVITY_MAX_CALLS = 12;
 export const EDUPI_STUDENT_FOLLOWUP_MAX_CALLS = 4;
+export const EDUPI_CAPABILITY_MAX_CALLS = 4;
+export type EduPiCapabilityDomain = "calendar_administration" | "lesson_reflection" | "parent_communication";
 
 export type EduPiProactivityGrantBinding = {
   grantId: string;
@@ -21,7 +23,8 @@ export type EduPiProactivityGrantBinding = {
     ends_at: string;
     budget: { id: string; max_calls: number };
   } & ({ domains: ["teaching_preparation"]; actions: ["prepare", "update"] }
-    | { domains: ["student_followup"]; actions: ["update"] });
+    | { domains: ["student_followup"]; actions: ["update"] }
+    | { domains: [EduPiCapabilityDomain]; actions: ["update"] });
 };
 
 type RawRecord = Record<string, unknown>;
@@ -123,6 +126,67 @@ export function buildStudentFollowupScopeCandidates(workspace: unknown): EduPiPr
         && students.some((student) => student?.class_name === className)),
     };
   });
+}
+
+export function buildCapabilityScopeCandidates(domain: EduPiCapabilityDomain, workspace: unknown): EduPiProactivityScopeCandidate[] {
+  const groups = internalScopes(workspace, []);
+  if (domain === "calendar_administration") {
+    const classes = new Map<string, InternalScope[]>();
+    for (const item of groups) classes.set(item.classId, [...(classes.get(item.classId) || []), item]);
+    return [...classes].slice(0, 50).map(([classId, rows]) => {
+      const names = new Set(rows.map(item => item.className).filter(Boolean));
+      return { classId, className: names.size === 1 ? [...names][0] : null, subject: "administration",
+        slotCount: rows.reduce((total, item) => total + item.slotIds.length, 0), materialCount: 0,
+        ready: names.size === 1 && rows.some(item => item.slotIds.length > 0) };
+    });
+  }
+  const slots = Array.isArray(record(workspace)?.timetable) ? (record(workspace)!.timetable as unknown[]).map(record) : [];
+  const students = Array.isArray(record(workspace)?.students) ? (record(workspace)!.students as unknown[]).map(record) : [];
+  return groups.filter(item => item.subject !== "administration").slice(0, 50).map(item => {
+    const names = new Set(slots.filter(slot => slot?.kind === "class" && slot.class_id === item.classId
+      && slot.subject === item.subject).map(slot => text(slot?.class_name, 120)));
+    const className = names.size === 1 ? [...names][0] : null;
+    const classIds = new Set(slots.filter(slot => slot?.kind === "class" && slot.class_name === className)
+      .map(slot => slot?.class_id));
+    const recipientReady = domain !== "parent_communication" || Boolean(className && classIds.size === 1
+      && classIds.has(item.classId) && students.some(student => student?.class_name === className));
+    return { classId: item.classId, className, subject: item.subject, slotCount: item.slotIds.length,
+      materialCount: 0, ready: item.slotIds.length > 0 && recipientReady };
+  });
+}
+
+const CAPABILITY_CONVERSATIONS = {
+  calendar_administration: EDUPI_CALENDAR_ADMINISTRATION_CONVERSATION_ID,
+  lesson_reflection: EDUPI_LESSON_REFLECTION_CONVERSATION_ID,
+  parent_communication: EDUPI_PARENT_COMMUNICATION_CONVERSATION_ID,
+} as const;
+
+function capabilityToken(domain: EduPiCapabilityDomain, scope: EduPiProactivityScope): string | null {
+  if (!Object.hasOwn(CAPABILITY_CONVERSATIONS, domain) || !ID.test(scope.classId)
+    || !text(scope.subject, 128) || scope.subject !== scope.subject.trim()) return null;
+  return crypto.createHash("sha256").update(`${domain}\0${scope.classId}\0${scope.subject}`, "utf8").digest("hex").slice(0, 32);
+}
+
+export function isCapabilityGrantBindingIdentity(domain: EduPiCapabilityDomain, scope: EduPiProactivityScope, grantId: string): boolean {
+  const token = capabilityToken(domain, scope);
+  return token !== null && grantId === `desktop_capability_${domain}_v1_${token}`;
+}
+
+export function buildCapabilityGrantBinding(domain: EduPiCapabilityDomain, scope: EduPiProactivityScope,
+  workspace: unknown, now = new Date().toISOString()): EduPiProactivityGrantBinding {
+  const token = capabilityToken(domain, scope);
+  const instant = new Date(now);
+  if (!token || !buildCapabilityScopeCandidates(domain, workspace).some(item => item.ready
+    && item.classId === scope.classId && item.subject === scope.subject)
+    || !Number.isFinite(instant.getTime()) || instant.toISOString() !== now) {
+    throw new EduPiProactivityControlError("proactivity_scope_unavailable");
+  }
+  const endsAt = new Date(instant.getTime() + EDUPI_PROACTIVITY_DURATION_DAYS * 86_400_000).toISOString();
+  return { grantId: `desktop_capability_${domain}_v1_${token}`, endsAt,
+    spec: { scope: { class_id: scope.classId, subject: scope.subject }, domains: [domain], actions: ["update"],
+      source_ids: [opaqueSource("conversation", CAPABILITY_CONVERSATIONS[domain])],
+      starts_at: new Date(instant.getTime() - 60_000).toISOString(), ends_at: endsAt,
+      budget: { id: `capability_budget_${domain}_v1_${token}`, max_calls: EDUPI_CAPABILITY_MAX_CALLS } } };
 }
 
 export function buildProactivityGrantBinding(

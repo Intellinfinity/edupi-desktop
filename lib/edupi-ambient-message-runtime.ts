@@ -13,7 +13,8 @@ const RAW_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,127}$/u;
 const INTERPRETATIONS = new Set(["request", "commitment", "preference", "question", "quote", "tentative", "cancel", "correction", "unknown"]);
 const DOMAINS = new Set(["teaching_preparation", "student_followup", "lesson_reflection", "calendar_administration", "parent_communication", "safety_privacy"]);
 
-type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number; status: "active" | "paused" | "revoked" };
+type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number; status: "active" | "paused" | "revoked";
+  messageRef?: string | null };
 type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed" | "recorded" | "outcome_unknown"; resolutionStatus: string; reason: string | null;
   goalId: string | null; workCaseId: string | null; followUpId?: string; executionId?: string; routedDomain?: string | null; externalSend: false };
 
@@ -120,13 +121,15 @@ async function controlBindings(host: Pick<EduPiRuntimeHandle, "callOwnerControl"
     if (!value || typeof value !== "object" || Array.isArray(value)) fail("proactivity_response_invalid", "binding");
     const binding = value as Record<string, unknown>;
     if (!ID.test(String(binding.goal_id || "")) || !ID.test(String(binding.work_case_id || ""))
-      || !ID.test(String(binding.task_id || "")) || !Number.isSafeInteger(binding.goal_version) || Number(binding.goal_version) < 1
+      || binding.task_id !== null && !ID.test(String(binding.task_id || ""))
+      || binding.message_ref !== undefined && !MESSAGE_REF.test(String(binding.message_ref))
+      || !Number.isSafeInteger(binding.goal_version) || Number(binding.goal_version) < 1
       || !["active", "paused", "revoked"].includes(String(binding.goal_status)) || seenGoals.has(String(binding.goal_id))) {
       fail("proactivity_response_invalid", "binding");
     }
     seenGoals.add(String(binding.goal_id));
     return { goalId: String(binding.goal_id), workCaseId: String(binding.work_case_id), goalVersion: Number(binding.goal_version),
-      status: binding.goal_status as ControlBinding["status"] };
+      status: binding.goal_status as ControlBinding["status"], messageRef: binding.message_ref === undefined ? null : String(binding.message_ref) };
   });
   return normalized;
 }
@@ -239,9 +242,19 @@ export async function captureAndApplyAmbientMessage(
       goalId: null, workCaseId: null, routedDomain: routed.domain, externalSend: false };
   }
   if (domain === "student_followup") {
-    const response = await host.callOwnerControl("student_followup_intent_execution_enqueue", {
-      root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
-    });
+    if (dependencies.onApplyPending) {
+      try { await dependencies.onApplyPending(messageBinding); }
+      catch { fail("proactivity_runtime_unavailable", "apply"); }
+    }
+    let response: Record<string, unknown>;
+    try {
+      response = await host.callOwnerControl("student_followup_intent_execution_enqueue", {
+        root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+      });
+    } catch {
+      return { status: "outcome_unknown", resolutionStatus: "needs_verification", reason: "apply_outcome_unknown",
+        goalId: null, workCaseId: null, routedDomain: routed?.domain ?? domain, externalSend: false };
+    }
     if (response?.ok === false && ["invalid_candidate", "activation_pending", "permission_denied", "budget_exhausted", "stale_source", "stale_revision"].includes(String(response.error_code))) {
       return { status: "captured", resolutionStatus: "held", reason: String(response.error_code), goalId: null,
         workCaseId: null, routedDomain: routed?.domain ?? null, externalSend: false };
@@ -253,6 +266,20 @@ export async function captureAndApplyAmbientMessage(
       || !Number.isSafeInteger(queued.attempt) || Number(queued.attempt) < 0
       || queued.execution_started !== true || queued.model_execute !== true || queued.notify !== false
       || queued.live_authority !== false || queued.external_send !== false) fail("proactivity_response_invalid", "apply");
+    let current = false;
+    try {
+      const read = result(await host.callOwnerControl("student_followup_intent_execution_read", {
+        root_ref: input.rootRef, expected_owner_id: context.ownerId, grant_id: context.grantId,
+        expected_grant_version: context.grantVersion, message_ref: messageRef,
+      }), "binding");
+      current = read.version === 1 && read.status === "current" && read.apply === false
+        && read.model_execute === false && read.live_authority === false && read.external_send === false
+        && read.follow_up_id === queued.follow_up_id && read.goal_id === queued.goal_id
+        && read.goal_version === queued.goal_version && read.execution_id === queued.execution_id;
+    } catch { /* A missing or failed read cannot turn a durable enqueue ACK into a verified current result. */ }
+    if (!current) return { status: "recorded", resolutionStatus: "needs_verification", reason: "g2_execution_unverified",
+      goalId: String(queued.goal_id), workCaseId: null, followUpId: String(queued.follow_up_id),
+      executionId: String(queued.execution_id), routedDomain: routed?.domain ?? domain, externalSend: false };
     return { status: queued.status as "queued" | "replayed", resolutionStatus: String(queued.status), reason: null,
       goalId: String(queued.goal_id), workCaseId: null, followUpId: String(queued.follow_up_id),
       executionId: String(queued.execution_id), routedDomain: routed?.domain ?? domain, externalSend: false };
@@ -293,7 +320,7 @@ export async function captureAndApplyAmbientMessage(
       || !["applied", "replayed"].includes(String(goal.status)) || !ID.test(String(goal.goal_id || ""))
       || !Number.isSafeInteger(goal.goal_version) || Number(goal.goal_version) < 1
       || goal.replayed !== (goal.status === "replayed") || typeof goal.goal_created !== "boolean"
-      || goal.source_basis_hash !== appliedRoute.sourceBasisHash
+      || !HASH.test(String(goal.source_basis_hash || ""))
       || !execution || typeof execution !== "object" || Array.isArray(execution)
       || execution.operation !== appliedRoute.nextOperation || execution.case_id !== appliedRoute.targetId
       || !ID.test(String(execution.capability_id || "")) || !ID.test(String(execution.work_case_id || ""))
@@ -301,6 +328,15 @@ export async function captureAndApplyAmbientMessage(
       || !Number.isSafeInteger(execution.attempt) || Number(execution.attempt) < 0 || Number(execution.attempt) > 3) {
       fail("proactivity_response_invalid", "apply");
     }
+    let bound = false;
+    try {
+      const bindings = await controlBindings(host, input, context, dependencies.controlScope!);
+      bound = bindings.filter(item => item.status === "active" && item.messageRef === messageRef
+        && item.goalId === goal.goal_id && item.goalVersion === goal.goal_version
+        && item.workCaseId === execution.work_case_id).length === 1;
+    } catch { /* Persisted Goal/queue receipt remains recorded, but cannot be called current. */ }
+    if (!bound) return { status: "recorded", resolutionStatus: "needs_verification", reason: "capability_binding_unverified",
+      goalId: String(goal.goal_id), workCaseId: null, routedDomain: domain, externalSend: false };
     return { status: execution.status === "replayed" ? "replayed" : "queued", resolutionStatus: String(execution.status),
       reason: null, goalId: String(goal.goal_id), workCaseId: String(execution.work_case_id),
       routedDomain: domain, externalSend: false };

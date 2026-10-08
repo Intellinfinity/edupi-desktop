@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { createJiti } from "jiti";
@@ -23,6 +24,8 @@ for (const directory of [stateDir, agentDir, path.join(home, "memory"), path.joi
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
 }
 const token = "proactivity-canary-test-token-012345678901234567890123";
+let modelServer;
+let modelCalls = 0;
 const keys = ["EDUPI_PROJECT_ROOT", "EDUPI_DATA_ROOT", "EDUPI_DATA_ALLOWED_ROOT", "EDUPI_CORE_ROOT", "EDUPI_CORE_ALLOWED_ROOT",
   "EDUPI_HOME", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR", "EDUPI_CORE_COMMIT", "EDUPI_AMBIENT_PLANNING",
   "PI_DESKTOP_STATE_DIR", "PI_DESKTOP_API_TOKEN", "PI_CODING_AGENT_DIR"];
@@ -61,6 +64,29 @@ function localFuture(days) {
 }
 
 try {
+  modelServer = http.createServer(async (request, response) => {
+    modelCalls++;
+    let bytes = 0;
+    for await (const chunk of request) {
+      bytes += chunk.length;
+      assert.ok(bytes <= 256 * 1024, "synthetic model request must stay bounded");
+    }
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    const chunk = { id: "synthetic-canary", object: "chat.completion.chunk", created: 1, model: "local" };
+    response.end(`data: ${JSON.stringify({ ...chunk, choices: [{ index: 0,
+      delta: { role: "assistant", content: "synthetic canary output" }, finish_reason: null }] })}\n\n` +
+      `data: ${JSON.stringify({ ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\n` +
+      "data: [DONE]\n\n");
+  });
+  await new Promise((resolve, reject) => { modelServer.once("error", reject); modelServer.listen(0, "127.0.0.1", resolve); });
+  const modelPort = modelServer.address().port;
+  fs.writeFileSync(path.join(agentDir, "models.json"), JSON.stringify({ providers: { local: {
+    api: "openai-completions", baseUrl: `http://127.0.0.1:${modelPort}/v1`,
+    models: [{ id: "local", name: "Synthetic canary", reasoning: false, input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 32_000, maxTokens: 2_048 }],
+  } } }), { mode: 0o600 });
+  fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "local", defaultModel: "local" }), { mode: 0o600 });
+  fs.writeFileSync(path.join(agentDir, "auth.json"), JSON.stringify({ local: { type: "api_key", key: "local-test-placeholder" } }), { mode: 0o600 });
   const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
   const staging = await jiti.import("../lib/edupi-material-staging.ts");
   const flow = await jiti.import("../lib/edupi-material-intake-flow.ts");
@@ -174,6 +200,14 @@ try {
   assert.equal(enabledBody.externalSend, false);
   assert.equal((await (await messageRoute.GET(request("http://localhost/api/edupi/proactivity/messages"))).json()).status, "enabled");
 
+  const armMessage = async ({ sessionId: plannedSessionId, messageId, occurredAt }) => {
+    const response = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
+      action: "arm", sessionId: plannedSessionId, messageId, occurredAt,
+    }));
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+    assert.equal((await response.json()).status, "armed");
+  };
+
   for (const [domain, text] of [
     ["student-followup", "请跟进学生张三的课堂观察"],
     ["lesson-reflection", "请做这节课的课后复盘"],
@@ -182,8 +216,10 @@ try {
     ["safety-privacy", "请核对学生隐私和安全风险"],
   ]) {
     const messageId = `canary-held-${domain}`;
+    const occurredAt = new Date().toISOString();
+    await armMessage({ sessionId, messageId, occurredAt });
     const response = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
-      sessionId, messageId, text, occurredAt: new Date().toISOString(),
+      sessionId, messageId, text, occurredAt,
     }));
     const result = await response.json();
     assert.equal(response.status, 200, JSON.stringify({ domain, result }));
@@ -198,6 +234,7 @@ try {
   }
 
   const messageBody = { sessionId, messageId: "canary-message-1", text: "帮我准备明天的数学教案", occurredAt: new Date().toISOString() };
+  await armMessage(messageBody);
   const firstMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));
   const firstMessageBody = await firstMessage.json();
   assert.equal(firstMessage.status, 200, JSON.stringify(firstMessageBody));
@@ -206,7 +243,8 @@ try {
   const replayMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));
   const replayMessageBody = await replayMessage.json();
   assert.equal(replayMessage.status, 200, JSON.stringify(replayMessageBody));
-  assert.equal(replayMessageBody.goalId, firstMessageBody.goalId);
+  assert.equal(replayMessageBody.messageComplete, true);
+  assert.equal(replayMessageBody.resolutionStatus, "settled");
 
   const feedbackTargetResponse = await feedbackRoute.POST(request("http://localhost/api/edupi/teacher-feedback", "POST",
     { action: "target_read", target: { kind: "goal", target_id: firstMessageBody.goalId } }));
@@ -234,6 +272,7 @@ try {
   assert.equal(feedbackReadBody.result.summary.synthetic_excluded, 1);
 
   const correctionBody = { sessionId, messageId: "canary-message-2", text: `改到${correctedDay.date}的数学课`, occurredAt: new Date().toISOString() };
+  await armMessage(correctionBody);
   const correction = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", correctionBody));
   const correctionResult = await correction.json();
   assert.equal(correction.status, 200, JSON.stringify(correctionResult));
@@ -243,10 +282,11 @@ try {
   const correctionReplay = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", correctionBody));
   const correctionReplayResult = await correctionReplay.json();
   assert.equal(correctionReplay.status, 200, JSON.stringify(correctionReplayResult));
-  assert.equal(correctionReplayResult.status, "corrected", JSON.stringify(correctionReplayResult));
-  assert.equal(correctionReplayResult.goalId, correctionResult.goalId);
+  assert.equal(correctionReplayResult.messageComplete, true, JSON.stringify(correctionReplayResult));
+  assert.equal(correctionReplayResult.resolutionStatus, "settled");
 
   const cancellationBody = { sessionId, messageId: "canary-message-3", text: "取消这节数学备课", occurredAt: new Date().toISOString() };
+  await armMessage(cancellationBody);
   const cancellation = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", cancellationBody));
   const cancellationResult = await cancellation.json();
   assert.equal(cancellation.status, 200, JSON.stringify(cancellationResult));
@@ -261,9 +301,10 @@ try {
   assert.ok(["cancelled", "captured"].includes(cancellationReplayResult.status));
   const controlEventsAfterReplay = JSON.parse(fs.readFileSync(planningFile, "utf8")).state.events.filter((item) => item.kind === "goal_control").length;
   assert.equal(controlEventsAfterReplay, controlEventsBeforeReplay);
-  const deletionSource = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
-    sessionId, messageId: "canary-message-4", text: `帮我准备${deletionDay.date}的数学教案`, occurredAt: new Date().toISOString(),
-  }));
+  const deletionBody = { sessionId, messageId: "canary-message-4",
+    text: `帮我准备${deletionDay.date}的数学教案`, occurredAt: new Date().toISOString() };
+  await armMessage(deletionBody);
+  const deletionSource = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", deletionBody));
   const deletionSourceResult = await deletionSource.json();
   assert.equal(deletionSource.status, 200, JSON.stringify(deletionSourceResult));
   assert.equal(deletionSourceResult.status, "applied");
@@ -282,9 +323,9 @@ try {
   assert.equal(disabled.status, 200, JSON.stringify(disabledBody));
   assert.equal(disabledBody.activation.enabled, false);
   assert.equal((await (await messageRoute.GET(request("http://localhost/api/edupi/proactivity/messages"))).json()).status, "disabled");
-  const ignored = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", { sessionId,
-    messageId: "disabled-message", text: "帮我备课", occurredAt: new Date().toISOString() }));
-  assert.equal(ignored.status, 202);
+  const ignored = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", { action: "arm", sessionId,
+    messageId: "disabled-message", occurredAt: new Date().toISOString() }));
+  assert.equal(ignored.status, 200);
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });
@@ -353,13 +394,17 @@ await closeAllEduPiRuntimes();`;
     concurrent_activation_cas: true, out_of_scope_tombstoned: true, natural_correction: true, natural_cancellation: true, replay_no_duplicate: true, restart_persistent: true,
     feedback_channel: true, synthetic_feedback_excluded: true, explicit_stop: true, session_delete_withdrawal: true,
     active_goal_delete_propagation: true, capture_crash_recovery: true, stop_durability_failure_fenced: true,
-    model_provider_calls: 0, external_send: false }));
+    model_provider_calls: modelCalls, external_send: false }));
 } finally {
   try {
     const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
     const supervisor = await jiti.import("../lib/edupi-runtime-supervisor.ts");
     await supervisor.closeAllEduPiRuntimes();
   } catch { /* bounded cleanup */ }
+  if (modelServer) {
+    modelServer.closeAllConnections();
+    await new Promise(resolve => modelServer.close(resolve));
+  }
   if (keepArtifacts) console.log(JSON.stringify({ status: "retained", temporary_root: temp, data_root: dataRoot, state_dir: stateDir, agent_dir: agentDir }));
   else fs.rmSync(temp, { recursive: true, force: true });
   for (const [key, value] of previous) {

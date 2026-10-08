@@ -36,6 +36,14 @@ for (const required of [occurrenceSchema, occurrenceHash, runtimeSchemaHash]) as
 assert.deepEqual(JSON.parse(fs.readFileSync(occurrenceSchema, "utf8")), JSON.parse(fs.readFileSync(path.join(root, occurrenceIdentity.schema_path), "utf8")));
 assert.equal(JSON.parse(fs.readFileSync(occurrenceHash, "utf8")).schema_hash, occurrenceIdentity.schema_hash);
 assert.equal(JSON.parse(fs.readFileSync(runtimeSchemaHash, "utf8")).schema_hash, compat.core_runtime.runtime_schema_hash);
+const runtimeManifest = JSON.parse(fs.readFileSync(path.join(stagedCoreRoot, "contracts/edupi-core-runtime-component-manifest.json"), "utf8"));
+const isolatedModelDependency = runtimeManifest.runtime_dependencies.find(item => item.name === "@earendil-works/pi-ai");
+assert.ok(isolatedModelDependency, "the Core isolated G1 worker's pi-ai import must be in the reviewed runtime dependency manifest");
+assert.equal(isolatedModelDependency.version, compat.core_sdk.pi);
+const modelCompat = path.join(stagedCoreRoot, "node_modules/@earendil-works/pi-ai/dist/compat.js");
+assert.equal(fs.lstatSync(modelCompat).isFile(), true, "the isolated model worker's package import must resolve inside bundled Core");
+assert.equal(isolatedModelDependency.files.some(item => path.resolve(stagedCoreRoot, item.path) === modelCompat), true,
+  "the copied worker SDK entrypoint must be in the audited Core manifest");
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-staged-runtime-"));
 const isolatedResources = path.join(temporaryRoot, "staged-resources");

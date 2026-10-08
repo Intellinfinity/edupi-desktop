@@ -20,6 +20,8 @@ function settledValue<T>(result: PromiseSettledResult<T>): T | null {
 }
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const feedbackHealthOnly = url.searchParams.get("feedback-health") === "1";
   const manifest = loadEduPiCompatManifest();
   const identity = { runtime: manifest.core_runtime, contract: manifest.contract_identities[0] };
   const expectedCompatibility = {
@@ -34,11 +36,12 @@ export async function GET(request: Request) {
     unsupportedCommandReasons: { ...manifest.unsupported_command_reasons },
     unsupportedProjectionReasons: { ...manifest.unsupported_projection_reasons },
   };
-  const summaryOnly = request ? new URL(request.url).searchParams.get("summary") === "1" : false;
+  const summaryOnly = url.searchParams.get("summary") === "1";
   let roots;
   try {
     roots = resolveEduPiBridgeRoots();
   } catch (error) {
+    if (feedbackHealthOnly) return NextResponse.json({ proactivity: { teacherFeedback: false } });
     const reason = failureReason(error, "Core 配置不可用");
     return NextResponse.json({
       scope: "teacher_internal",
@@ -55,7 +58,12 @@ export async function GET(request: Request) {
   let runtime: ProjectedCoreRuntimeHealth | null = null;
   let runtimeReason = "Core Runtime 不可用";
   let runtimeCapabilities: Record<string, unknown> | null = null;
-  const activation = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root });
+  let activation;
+  try { activation = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root }); }
+  catch (error) {
+    if (feedbackHealthOnly) return NextResponse.json({ proactivity: { teacherFeedback: false } });
+    throw error;
+  }
   try {
     const host = await ensureEduPiRuntime(roots);
     const runtimeHealth = await host.call("health", null);
@@ -67,6 +75,10 @@ export async function GET(request: Request) {
   } catch (error) {
     runtimeReason = failureReason(error, "Core Runtime 不可用");
   }
+
+  if (feedbackHealthOnly) return NextResponse.json({ proactivity: {
+    teacherFeedback: Boolean(runtime && runtimeCapabilities?.teacher_feedback === "active"),
+  } });
 
   const [healthResult, snapshotResult, kernelResult] = await Promise.allSettled([
     readEduPiCoreHealth({ roots, requestId: `desktop-status-health-${Date.now().toString(36)}` }),

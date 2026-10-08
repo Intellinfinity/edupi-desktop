@@ -18,7 +18,7 @@ const PENDING_DOMAINS = ["calendar_administration", "lesson_reflection", "parent
 const scope = { classId: "class-7-1", subject: "数学" };
 const rootRef = `sha256:${"a".repeat(64)}`;
 
-function fixture({ isolated = true, g1Enabled = false, g2Processor = true, forceG2Active = false, failG2Grant = false, failPause = false, failDisabledWrite = false, ownerReadPatch = {} } = {}) {
+function fixture({ isolated = true, exactG3 = false, g1Enabled = false, g2Processor = true, forceG2Active = false, failG2Grant = false, failPause = false, failDisabledWrite = false, ownerReadPatch = {} } = {}) {
   // In-memory config and Core transport only. This never starts a daemon,
   // reads teacher data, calls a model, or proves an installation flow.
   const events = [];
@@ -41,11 +41,11 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
   const health = () => {
     const g1 = read(G1).enabled;
     const g2 = read(G2).enabled && g2Processor || forceG2Active;
-    const g3 = false; // Current Core pin has no exact grant+scope startup binding.
+    const g3 = exactG3 && PENDING_DOMAINS.some(domain => read(domain).enabled && read(domain).configurationStatus === "ready");
     return { ok: true, result: { data_root_fingerprint: rootRef, capabilities: {
       g1_processor: g1 ? "active" : "activation_pending", g2_processor: g2 ? "active" : "activation_pending",
       g3_processor: g3 ? "active" : "activation_pending",
-      internal_timer: "active", ambient_planning: g1 || g2 ? "active" : "activation_pending",
+      internal_timer: "active", ambient_planning: g1 || g2 || g3 ? "active" : "activation_pending",
       owner_authorization: "active", owner_conversation: "active", owner_intent: "active",
       attention_delivery: "active", teacher_feedback: "active",
     } } };
@@ -56,7 +56,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
       if (operation === "health") return health();
       if (operation === "prepare_due") return { ok: true, result: { tasks: [], failures: [] } };
       assert.equal(operation, "owner_read");
-      return { ok: true, result: { root_ref: rootRef, owner, grants: [...grants.values()], g1_model_budget: [...grants.values()]
+      return { ok: true, result: { root_ref: rootRef, owner, grants: [...grants.values()].map(grant => ({ ...grant, ...grant.spec })), external_send: false, g1_model_budget: [...grants.values()]
         .filter(grant => grant.spec.domains[0] === G1).map(grant => ({ grant_id: grant.id, budget_id: grant.spec.budget.id,
           used_calls: 0, max_calls: 12, remaining_calls: 12, exhausted: false, usage_unverified: false })), ...ownerReadPatch } };
     },
@@ -82,7 +82,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
     "@/lib/safe-mode": { canStartEduPiProactivity: () => true, canStartEduPiStudentFollowup: () => isolated,
       canStartEduPiCapabilityCanary: () => isolated },
     "@/lib/edupi-core-snapshot": {
-      resolveEduPiBridgeRoots: () => { events.push({ operation: "resolve" }); return { runtime: { coreCommit: "synthetic-old-pin" }, dataRoot: { root } }; },
+      resolveEduPiBridgeRoots: () => { events.push({ operation: "resolve" }); return { runtime: { coreCommit: exactG3 ? "synthetic-exact-pin" : "synthetic-old-pin" }, dataRoot: { root } }; },
       readEduPiEducationSnapshot: async () => { events.push({ operation: "snapshot" }); return { workspace }; },
     },
     "@/lib/edupi-generated-artifacts": { workspaceResourcesRequest: async () => { events.push({ operation: "materials" }); return { teacherMaterials }; } },
@@ -107,9 +107,11 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
     },
     "@/lib/edupi-runtime-supervisor": {
       G3_DOMAINS: PENDING_DOMAINS,
-      g3AllowedDomainsForActivations: (items, coreCommit) => {
+      isEduPiG3ExactRuntimeSupported: () => exactG3 && isolated,
+      g3AllowedBindingsForActivations: (items, coreCommit) => {
         events.push({ operation: "startup-allowset", domains: items.map(item => item.domain), coreCommit });
-        return [];
+        return exactG3 ? items.filter(item => item.activation.enabled && item.activation.configurationStatus === "ready")
+          .map(item => ({ domain: item.domain, grantId: item.activation.grantId, scope: item.activation.scope })) : [];
       },
       ensureEduPiRuntime: async () => { events.push({ operation: "ensure" }); return host; },
       restartEduPiRuntime: async () => { events.push({ operation: "restart" }); return host; },
@@ -174,6 +176,33 @@ test("G3 through G5 expose default-off state and reject live activation before C
   assert.equal(f.events.some(event => ["owner_control", "config", "prepare_due", "materials"].includes(event.operation)), false);
 });
 
+test("an exact Core pin activates distinct G3 through G5 grants without G1 model work", async () => {
+  const f = fixture({ exactG3: true });
+  const subjects = { calendar_administration: "administration", lesson_reflection: "数学", parent_communication: "数学" };
+  const ids = [];
+  for (const domain of PENDING_DOMAINS) {
+    const before = await (await f.get(`?domain=${domain}`)).json();
+    assert.equal(before.activationBlocked, null);
+    assert.equal(before.scopes.some(item => item.classId === scope.classId && item.subject === subjects[domain] && item.ready), true);
+    const response = await f.post({ enabled: true, classId: scope.classId, subject: subjects[domain],
+      expectedUpdatedAt: f.read(domain).updatedAt, domain });
+    assert.equal(response.status, 200, JSON.stringify({ body: await response.json(), events: f.events.slice(-15) }));
+    const grantId = f.read(domain).grantId;
+    ids.push(grantId);
+    assert.deepEqual(f.grants.get(grantId).spec.domains, [domain]);
+    assert.equal(f.grants.get(grantId).spec.budget.max_calls, 4);
+    assert.equal(f.health().result.capabilities.g3_processor, "active");
+  }
+  assert.equal(new Set(ids).size, 3);
+  assert.equal(f.events.some(item => item.operation === "prepare_due"), false);
+  const stop = await f.toggle(false, "lesson_reflection");
+  assert.equal(stop.status, 200);
+  assert.equal(f.grants.get(ids[1]).status, "paused");
+  assert.equal(f.grants.get(ids[0]).status, "active");
+  assert.equal(f.grants.get(ids[2]).status, "active");
+  assert.equal(f.health().result.capabilities.g3_processor, "active");
+});
+
 test("a stale G3 config never appears as an active live capability", async () => {
   const f = fixture();
   f.activations.set("calendar_administration", { enabled: true, source: "desktop_canary",
@@ -196,7 +225,7 @@ test("two old G3 configs can be stopped one by one while the shared processor re
     f.activations.set(domain, { enabled: true, source: "desktop_canary", configurationStatus: "ready",
       scope, grantId, updatedAt: "2026-10-04T00:00:00.000Z" });
     f.grants.set(grantId, { id: grantId, version: 1, status: "active", ends_at: "2099-01-01T00:00:00.000Z",
-      spec: { domains: [domain], budget: { id: `budget-${domain}`, max_calls: 0 } } });
+      spec: { scope: { class_id: scope.classId, subject: scope.subject }, domains: [domain], budget: { id: `budget-${domain}`, max_calls: 0 } } });
   }
   const before = await f.get("?domain=calendar_administration");
   assert.equal((await before.json()).activation.enabled, true);
@@ -215,6 +244,48 @@ test("two old G3 configs can be stopped one by one while the shared processor re
   assert.equal(f.events.filter(event => event.operation === "startup-allowset").length, 2);
   assert.ok(f.events.findLastIndex(event => event.operation === "clear-quarantine")
     > f.events.findLastIndex(event => event.operation === "quarantine"));
+});
+
+test("stopping an old G3 config cannot pause the active G1 grant it aliases", async () => {
+  const f = fixture({ g1Enabled: true });
+  const sharedGrantId = f.read(G1).grantId;
+  f.activations.set("calendar_administration", { enabled: true, source: "desktop_canary", configurationStatus: "ready",
+    scope, grantId: sharedGrantId, updatedAt: "2026-10-04T00:00:00.000Z" });
+  const stopped = await f.toggle(false, "calendar_administration");
+  assert.equal(stopped.status, 200);
+  assert.equal(f.read("calendar_administration").enabled, false);
+  assert.equal(f.read(G1).enabled, true);
+  assert.equal(f.grants.get(sharedGrantId).status, "active", "a different domain still owns this Core grant");
+  assert.equal(f.events.some(event => event.operation === "owner_control" && event.action === "pause" && event.grant_id === sharedGrantId), false);
+});
+
+test("stopping an old G4 config cannot pause the active G2 grant it aliases", async () => {
+  const f = fixture();
+  assert.equal((await f.toggle(true, G2)).status, 200);
+  const sharedGrantId = f.read(G2).grantId;
+  f.activations.set("lesson_reflection", { enabled: true, source: "desktop_canary", configurationStatus: "ready",
+    scope, grantId: sharedGrantId, updatedAt: "2026-10-04T00:00:00.000Z" });
+  const stopped = await f.toggle(false, "lesson_reflection");
+  assert.equal(stopped.status, 200);
+  assert.equal(f.read("lesson_reflection").enabled, false);
+  assert.equal(f.read(G2).enabled, true);
+  assert.equal(f.grants.get(sharedGrantId).status, "active");
+  assert.equal(f.events.some(event => event.operation === "owner_control" && event.action === "pause" && event.grant_id === sharedGrantId), false);
+});
+
+test("an unproved G3 grant alias remains stop-pending without pausing another domain", async () => {
+  const f = fixture();
+  const grantId = "old-g1-identity";
+  f.activations.set("calendar_administration", { enabled: true, source: "desktop_canary", configurationStatus: "ready",
+    scope, grantId, updatedAt: "2026-10-04T00:00:00.000Z" });
+  f.grants.set(grantId, { id: grantId, version: 1, status: "active", ends_at: "2099-01-01T00:00:00.000Z",
+    spec: { scope: { class_id: scope.classId, subject: scope.subject }, domains: [G1], actions: ["prepare", "update"],
+      budget: { id: "old-g1-budget", max_calls: 12 } } });
+  const stopped = await f.toggle(false, "calendar_administration");
+  assert.equal(stopped.status, 503);
+  assert.equal((await stopped.json()).code, "proactivity_stop_uncertain");
+  assert.equal(f.grants.get(grantId).status, "active");
+  assert.equal(f.read("calendar_administration").configurationStatus, "stop_pending");
 });
 
 test("stopping either domain permits the other processor and ambient planning to remain active", async () => {

@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
@@ -81,11 +82,12 @@ async function waitFor(label, read, predicate, timeoutMs = 30_000) {
 
 function writeModelSettings(port) {
   fs.writeFileSync(path.join(agentDir, "models.json"), JSON.stringify({ providers: { local: {
-    api: "openai-completions", apiKey: "local-test-placeholder", baseUrl: `http://127.0.0.1:${port}/v1`,
-    models: [{ id: "local", name: "Route1 local test", input: ["text"],
+    api: "openai-completions", baseUrl: `http://127.0.0.1:${port}/v1`,
+    models: [{ id: "local", name: "Route1 local test", reasoning: false, input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 32_000, maxTokens: 2_048 }],
   } } }), { mode: 0o600 });
   fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "local", defaultModel: "local" }), { mode: 0o600 });
+  fs.writeFileSync(path.join(agentDir, "auth.json"), JSON.stringify({ local: { type: "api_key", key: "local-test-placeholder" } }), { mode: 0o600 });
 }
 
 async function startPackagedServer(label) {
@@ -93,7 +95,7 @@ async function startPackagedServer(label) {
   const child = spawn(nodeBinary, [serverEntry], { cwd: serverDir, detached: process.platform !== "win32", env: {
     ...process.env, HOME: homeRoot, HOSTNAME: "127.0.0.1", PORT: String(port), NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
     PI_CODING_AGENT_DIR: agentDir, PI_DESKTOP_STATE_DIR: stateDir, PI_DESKTOP_API_TOKEN: token,
-    PI_DESKTOP_INSTANCE_ID: "route1-packaged-loop", PI_WEB_PARENT_PID: String(process.pid), PI_OFFLINE: "1",
+    PI_DESKTOP_INSTANCE_ID: "d".repeat(64), PI_WEB_PARENT_PID: String(process.pid), PI_OFFLINE: "1",
     EDUPI_DESKTOP_ISOLATED_CANARY: "1",
     EDUPI_PROJECT_ROOT: dataRoot, EDUPI_DATA_ROOT: dataRoot, EDUPI_DATA_ALLOWED_ROOT: temp,
     EDUPI_CORE_ROOT: coreRoot, EDUPI_CORE_ALLOWED_ROOT: resources, EDUPI_CORE_VALIDATION_MODE: "bundled",
@@ -123,12 +125,13 @@ async function stop(server) {
 }
 
 async function api(server, pathname, body) {
+  const startedAt = performance.now();
   const response = await fetch(`${server.url}${pathname}`, { method: body === undefined ? "GET" : "POST",
     headers: { origin: server.url, "sec-fetch-site": "same-origin", "x-pi-desktop-token": token,
       ...(body === undefined ? {} : { "content-type": "application/json" }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(30_000) });
   const value = await response.json();
-  assert.equal(response.ok, true, `${pathname} ${response.status}: ${JSON.stringify(value)}`);
+  assert.equal(response.ok, true, `${pathname} ${response.status} after ${Math.round(performance.now() - startedAt)}ms: ${JSON.stringify(value)}`);
   return value;
 }
 
@@ -175,6 +178,9 @@ try {
     const fixture = JSON.parse(fixtureLine);
     assert.equal(fixture.materials.length > 0, true, "G1 model request has no verified material");
     const sourceId = fixture.materials[0].source_id;
+    assert.equal(sourceId, materialId, "the model must cite the reviewed synthetic material");
+    assert.equal(fixture.materials[0].content, materialText, "the model must receive only the confirmed excerpt");
+    assert.equal(fixture.materials[0].sha256, `sha256:${createHash("sha256").update(materialText).digest("hex")}`);
     modelCalls += 1;
     const content = JSON.stringify({ artifacts: fixture.task.deliverables.map(title => ({ title,
       content: title.includes("答案") ? "2x + 3 = 7，移项得 2x = 4，所以 x = 2；代入检验成立。" : "使用已确认材料，练习解方程 2x + 3 = 7。",
@@ -227,6 +233,12 @@ try {
   const draftRead = await api(firstServer, `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(artifactId)}`);
   assert.equal(draftRead.artifact.artifact_id, artifactId, "scoped draft must be readable for teacher review");
   assert.equal(draftRead.artifact.revision, 1);
+  const draftReads = await Promise.all(ready.workCase.artifactIds.map(id => api(firstServer,
+    `/api/edupi/preparation-artifact?artifactId=${encodeURIComponent(id)}`)));
+  assert.deepEqual(draftReads.map(item => item.artifact.title).sort(), [...ready.data.tasks.find(item => item.id === taskId).deliverables].sort());
+  const answer = draftReads.find(item => item.artifact.title.includes("答案"))?.artifact.content;
+  assert.ok(answer?.includes("x = 2") && answer.includes("代入检验") && 2 * 2 + 3 === 7,
+    "the synthetic reference answer must solve and check 2x + 3 = 7");
   assert.equal(ready.data.generatedArtifacts.filter(item => item.task_id === taskId && item.available).length, artifactCount);
 
   const repeatEnsure = await api(firstServer, "/api/edupi/preparation", { action: "ensure" });
@@ -242,9 +254,11 @@ try {
   const nativeClaim = claimed.notifications.find(item => item.id === reminder.id);
   assert.ok(nativeClaim, `Core-linked G1 reminder was not admitted for native notification: ${JSON.stringify({ attention: claimed.attention,
     l4Preparation: ready.data.l4Preparation, item: claimed.items.find(item => item.id === reminder.id) })}`);
-  const failed = await api(firstServer, "/api/edupi/reminders", { id: reminder.id, type: "notification_failed", attemptedAt: nativeClaim.notificationAttemptedAt });
+  const failed = await api(firstServer, "/api/edupi/reminders", { id: reminder.id, type: "notification_failed", attemptedAt: nativeClaim.notificationAttemptedAt,
+    attemptId: nativeClaim.notificationAttemptId });
   assert.equal(failed.items.find(item => item.id === reminder.id).notificationFailureCount, 1);
-  const repeatedFailure = await api(firstServer, "/api/edupi/reminders", { id: reminder.id, type: "notification_failed", attemptedAt: nativeClaim.notificationAttemptedAt });
+  const repeatedFailure = await api(firstServer, "/api/edupi/reminders", { id: reminder.id, type: "notification_failed", attemptedAt: nativeClaim.notificationAttemptedAt,
+    attemptId: nativeClaim.notificationAttemptId });
   assert.equal(repeatedFailure.items.find(item => item.id === reminder.id).notificationFailureCount, 1);
   assert.equal(repeatedFailure.items.find(item => item.id === reminder.id).handled, false);
 
@@ -316,7 +330,8 @@ try {
   success = true;
   console.log(JSON.stringify({ status: "passed", platform: process.platform, coreCommit: status.compatibility.actual.coreCommit,
     taskId, artifactCount, modelCalls, reminderId: reminder.id, notificationFailureDeduped: true,
-    review: "accepted", syntheticFeedbackExcluded: true, restartPreserved: true,
+    review: "accepted", syntheticFeedbackExcluded: true, mathAnswerChecked: true, reviewedExcerptBound: true,
+    restartPreserved: true,
     stoppedDraftReadAndManualRevision: true, externalSend: false }));
 } finally {
   await stop(firstServer);

@@ -6,18 +6,23 @@ import { workspaceResourcesRequest } from "@/lib/edupi-generated-artifacts";
 import {
   buildProactivityGrantBinding,
   buildProactivityScopeCandidates,
+  buildCapabilityGrantBinding,
+  buildCapabilityScopeCandidates,
   buildStudentFollowupGrantBinding,
   buildStudentFollowupScopeCandidates,
   EDUPI_PROACTIVITY_DURATION_DAYS,
   EDUPI_PROACTIVITY_MAX_CALLS,
   EDUPI_STUDENT_FOLLOWUP_MAX_CALLS,
+  EDUPI_CAPABILITY_MAX_CALLS,
   EduPiProactivityControlError,
+  isCapabilityGrantBindingIdentity,
+  type EduPiCapabilityDomain,
   type EduPiProactivityScopeCandidate,
 } from "@/lib/edupi-proactivity-control";
 import { clearEduPiProactivityStopIntent, readEduPiProactivityActivation, writeEduPiProactivityConfig,
   writeEduPiProactivityStopIntent, type EduPiProactivityActivation, type EduPiProactivityDomain, type EduPiProactivityScope } from "@/lib/edupi-proactivity-config";
-import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantStatus, readProactivityRuntimeState } from "@/lib/edupi-proactivity-runtime";
-import { G3_DOMAINS, g3AllowedDomainsForActivations, clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
+import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantDomainProof, readProactivityGrantStatus, readProactivityRuntimeState } from "@/lib/edupi-proactivity-runtime";
+import { G3_DOMAINS, g3AllowedBindingsForActivations, isEduPiG3ExactRuntimeSupported, clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
   quarantineEduPiRuntime, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
 
@@ -47,7 +52,7 @@ function requestedDomain(value: unknown): EduPiProactivityDomain | null {
       || value === "lesson_reflection" || value === "parent_communication" ? value : null;
 }
 
-function pendingCapability(domain: EduPiProactivityDomain): boolean {
+function pendingCapability(domain: EduPiProactivityDomain): domain is EduPiCapabilityDomain {
   return domain === "calendar_administration" || domain === "lesson_reflection" || domain === "parent_communication";
 }
 
@@ -65,6 +70,10 @@ async function readScopeContext(roots: EduPiBridgeRoots, domain: EduPiProactivit
   if (domain === "student_followup") {
     const snapshot = await readEduPiEducationSnapshot({ roots });
     return { workspace: snapshot.workspace, teacherMaterials: [], scopes: buildStudentFollowupScopeCandidates(snapshot.workspace) };
+  }
+  if (pendingCapability(domain)) {
+    const snapshot = await readEduPiEducationSnapshot({ roots });
+    return { workspace: snapshot.workspace, teacherMaterials: [], scopes: buildCapabilityScopeCandidates(domain, snapshot.workspace) };
   }
   const [snapshot, resources] = await Promise.all([
     readEduPiEducationSnapshot({ roots }),
@@ -87,7 +96,11 @@ function publicActivation(activation: EduPiProactivityActivation) {
 async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivityActivation,
   domain: EduPiProactivityDomain,
   context?: Awaited<ReturnType<typeof readScopeContext>>, allowDegraded = false) {
-  if (pendingCapability(domain)) return { ok: true, degraded: false, activationBlocked: "activation_pending",
+  const g3 = pendingCapability(domain);
+  const g3Ready = g3 && isEduPiG3ExactRuntimeSupported(roots.runtime.coreCommit)
+    && (!activation.enabled || Boolean(activation.scope && activation.grantId
+      && isCapabilityGrantBindingIdentity(domain, activation.scope, activation.grantId)));
+  if (g3 && !g3Ready) return { ok: true, degraded: false, activationBlocked: "activation_pending",
     activation: publicActivation(activation), scopes: [], grant: null, capabilities: null,
     limits: { durationDays: EDUPI_PROACTIVITY_DURATION_DAYS, maxModelCalls: 0, domain }, externalSend: false };
   let currentContext = context;
@@ -119,7 +132,8 @@ async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivit
     degraded,
     requiresSafeMode: domain === "teaching_preparation" && process.platform === "win32" && !canStartEduPiProactivity(),
     ...(domain === "student_followup" ? { activationBlocked: process.platform === "win32" ? "windows_unavailable"
-      : !canStartEduPiStudentFollowup() ? "isolated_canary_required" : null } : {}),
+      : !canStartEduPiStudentFollowup() ? "isolated_canary_required" : null }
+      : g3 ? { activationBlocked: null } : {}),
     activation: publicActivation(activation),
     scopes: currentContext.scopes,
     grant,
@@ -130,9 +144,11 @@ async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivit
       attentionDelivery: capabilities.attention_delivery === "active",
       teacherFeedback: capabilities.teacher_feedback === "active",
       ...(domain === "student_followup" ? { studentFollowup: capabilities.g2_processor === "active" } : {}),
+      ...(g3 ? { sharedCapability: capabilities.g3_processor === "active" } : {}),
     } : null,
     limits: { durationDays: EDUPI_PROACTIVITY_DURATION_DAYS,
-      maxModelCalls: domain === "student_followup" ? EDUPI_STUDENT_FOLLOWUP_MAX_CALLS : EDUPI_PROACTIVITY_MAX_CALLS, domain },
+      maxModelCalls: domain === "student_followup" ? EDUPI_STUDENT_FOLLOWUP_MAX_CALLS
+        : g3 ? EDUPI_CAPABILITY_MAX_CALLS : EDUPI_PROACTIVITY_MAX_CALLS, domain },
     externalSend: false,
   };
 }
@@ -204,12 +220,31 @@ async function recoverFailedEnable(roots: EduPiBridgeRoots, previous: EduPiProac
 async function enableCanary(roots: EduPiBridgeRoots, activation: EduPiProactivityActivation, scope: EduPiProactivityScope, domain: EduPiProactivityDomain) {
   const context = await readScopeContext(roots, domain);
   const binding = domain === "student_followup" ? buildStudentFollowupGrantBinding(scope, context.workspace)
-    : buildProactivityGrantBinding(scope, context.workspace, context.teacherMaterials);
+    : pendingCapability(domain) ? buildCapabilityGrantBinding(domain, scope, context.workspace)
+      : buildProactivityGrantBinding(scope, context.workspace, context.teacherMaterials);
   if (!activation.enabled && activation.scope) throw new EduPiProactivityControlError("proactivity_scope_conflict");
   if (activation.scope && (!sameScope(activation.scope, scope) || activation.grantId !== binding.grantId)) {
     throw new EduPiProactivityControlError("proactivity_scope_conflict");
   }
   if (activation.enabled) return currentState(roots, activation, domain, context);
+  if (pendingCapability(domain)) {
+    try {
+      const host = await ensureEduPiRuntime(roots);
+      const health = runtimeHealth(await host.call("health", null));
+      await ensureProactivityGrant(host, health.rootRef, binding);
+      writeEduPiProactivityConfig({ enabled: true, scope, grantId: binding.grantId },
+        { dataRoot: roots.dataRoot.root, now: mutationTime(activation.updatedAt), domain });
+      const started = await restartEduPiRuntime(roots);
+      requireActiveCapabilities(runtimeHealth(await started.call("health", null)).capabilities, domain);
+      const next = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain });
+      return await currentState(roots, next, domain, context);
+    } catch (error) {
+      if (!await recoverFailedEnable(roots, activation, { scope, grantId: binding.grantId }, domain)) {
+        throw new EduPiProactivityRuntimeError("proactivity_stop_uncertain");
+      }
+      throw error;
+    }
+  }
   writeEduPiProactivityConfig({ enabled: true, scope, grantId: binding.grantId },
     { dataRoot: roots.dataRoot.root, now: mutationTime(activation.updatedAt), domain });
   try {
@@ -253,12 +288,23 @@ async function disableCanary(roots: EduPiBridgeRoots, activation: EduPiProactivi
     await quarantineEduPiRuntime(roots.dataRoot.root);
     clearEduPiRuntimeQuarantine(roots.dataRoot.root);
   }
-  let stopState: "paused" | "missing" | "revoked" | "uncertain" = activation.grantId ? "uncertain" : "missing";
+  let stopState: "paused" | "missing" | "revoked" | "shared" | "uncertain" = activation.grantId ? "uncertain" : "missing";
   if (activation.grantId) {
     try {
       const host = await ensureEduPiRuntime(roots);
       const health = runtimeHealth(await host.call("health", null));
-      stopState = (await pauseProactivityGrant(host, health.rootRef, activation.grantId)).state;
+      if (pendingCapability(domain)) {
+        const proof = await readProactivityGrantDomainProof(host, health.rootRef, activation.grantId);
+        const exactScope = Boolean(proof && activation.scope && sameScope(activation.scope, proof.scope));
+        if (proof === null) stopState = "missing";
+        else if (exactScope && proof.domain === domain) stopState = (await pauseProactivityGrant(host, health.rootRef, activation.grantId)).state;
+        else if (exactScope && ["teaching_preparation", "student_followup", ...G3_DOMAINS].some(candidate => {
+          if (candidate === domain || candidate !== proof.domain) return false;
+          const other = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain: candidate });
+          return other.enabled && other.source === "desktop_canary" && other.configurationStatus === "ready"
+            && other.grantId === activation.grantId && sameScope(other.scope, proof.scope);
+        })) stopState = "shared";
+      } else stopState = (await pauseProactivityGrant(host, health.rootRef, activation.grantId)).state;
     } catch { /* Keep the old binding as a fence until a later stop retry proves it safe. */ }
   }
   const cleanupSafe = stopState !== "uncertain";
@@ -281,7 +327,7 @@ async function disableCanary(roots: EduPiBridgeRoots, activation: EduPiProactivi
     const host = await restartEduPiRuntime(roots);
     const health = runtimeHealth(await host.call("health", null));
     const processor = pendingCapability(domain) ? "g3_processor" : domain === "student_followup" ? "g2_processor" : "g1_processor";
-    const otherG3Active = pendingCapability(domain) && g3AllowedDomainsForActivations(
+    const otherG3Active = pendingCapability(domain) && g3AllowedBindingsForActivations(
       G3_DOMAINS.filter(candidate => candidate !== domain).map(candidate => ({ domain: candidate,
         activation: readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain: candidate }) })),
       roots.runtime.coreCommit).length > 0;
@@ -328,15 +374,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, code: "proactivity_isolated_canary_required",
         error: process.platform === "win32" ? "Windows 暂不支持学生跟进试用" : "学生跟进仅可在隔离数据目录试用", externalSend: false }, { status: 409 });
     }
-    if (body.enabled && pendingCapability(domain)) {
-      return NextResponse.json({ ok: false, code: "proactivity_activation_pending",
-        error: "该领域的主动执行尚未开放", externalSend: false }, { status: 409 });
-    }
     if (body.enabled && domain === "teaching_preparation" && !canStartEduPiProactivity()) {
       return NextResponse.json({ ok: false, code: "proactivity_safe_mode_required",
         error: "Windows 主动运行仅可在隔离安全模式试用", externalSend: false }, { status: 409 });
     }
     const roots = resolveEduPiBridgeRoots();
+    if (body.enabled && pendingCapability(domain) && !isEduPiG3ExactRuntimeSupported(roots.runtime.coreCommit)) {
+      return NextResponse.json({ ok: false, code: "proactivity_activation_pending",
+        error: "该领域的主动执行尚未开放", externalSend: false }, { status: 409 });
+    }
     return await withMutationLock(roots.dataRoot.root, async () => {
       const activation = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain });
       if (activation.source === "environment") {

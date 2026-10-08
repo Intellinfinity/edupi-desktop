@@ -102,6 +102,30 @@ test("a saved G3 configuration shows its fenced state and withdrawal action", ()
   assert.equal((html.match(/<button/g) || []).length, 1);
 });
 
+test("an exact Core G3 row offers a scoped activation and shows shared processor readiness", () => {
+  const enabled = { ...base, activationBlocked: null,
+    limits: { durationDays: 7, maxModelCalls: 4, domain: "calendar_administration" },
+    scopes: [{ ...scope, subject: "administration", materialCount: 0 }],
+    activation: { ...base.activation, enabled: true, source: "desktop_canary", configurationStatus: "ready",
+      scope: { classId: "class-7-1", subject: "administration" } },
+    grant: { status: "active", grantVersion: 1, endsAt: "2099-01-01T00:00:00.000Z", modelBudget: null },
+    capabilities: { ambientPlanning: true, ownerIntent: true, attentionDelivery: true,
+      teacherFeedback: true, sharedCapability: true } };
+  const active = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: enabled,
+    selectedKey: "", busy: false, message: null, onSelect() {}, onToggle() {} }));
+  assert.match(active, /校历与行政/);
+  assert.match(active, /已启用/);
+  assert.match(active, />停止主动运行</);
+  assert.doesNotMatch(active, /课前准备|调用已配置模型|最多 0 次/u);
+  const disabled = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: { ...enabled,
+    activation: { ...enabled.activation, enabled: false, scope: null }, grant: null, capabilities: null },
+    selectedKey: JSON.stringify(["class-7-1", "administration"]), busy: false, message: null,
+    onSelect() {}, onToggle() {} }));
+  assert.match(disabled, />启用试用</);
+  assert.match(disabled, /7 天 · 最多 4 次/);
+  assert.doesNotMatch(disabled, /模型调用/);
+});
+
 test("missed-opportunity feedback covers every L4 domain with one scoped report action", () => {
   const html = renderToStaticMarkup(component.EduPiMissedOpportunityFeedbackView({
     scopes: [scope],

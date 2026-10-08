@@ -38,10 +38,12 @@ function draftHarness() {
   return { store, cold: key => plain(coldStore().getDraft(key)), writable: value => { writable = value; } };
 }
 
-function startupHarness({ input = true, acceptRestore = false, promptError = null, creationGate = null, modelGate = null, initialSid = null, selectedModel = null } = {}) {
+function startupHarness({ input = true, acceptRestore = false, promptError = null, creationGate = null, modelGate = null,
+  armGate = null, armStatus = "armed", promptGate = null, initialSid = null, selectedModel = null,
+  existingSessionId = null, captureStatus = "unavailable" } = {}) {
   const drafts = draftHarness();
   const draftKey = "new:/synthetic/startup";
-  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [];
+  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [], armed = [], captures = [], pendingUpdates = [], sequence = [];
   let timerId = 0, creates = 0, active = false, history = emptyMessageHistory();
   class FakeEventSource {
     static CONNECTING = 0;
@@ -58,14 +60,18 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     setTimeout: (callback, ms) => { timers.set(++timerId, { callback, ms }); return timerId; },
     clearTimeout: id => timers.delete(id),
     console: { error: noop },
-    sessionIdentity: draftKey, isNew: true, newSessionCwd: "/synthetic/startup", newSessionModel: selectedModel, session: null,
-    sessionIdRef: { current: initialSid }, sessionGenerationRef: { current: 0 },
+    sessionIdentity: existingSessionId ?? draftKey, isNew: !existingSessionId, newSessionCwd: "/synthetic/startup", newSessionModel: selectedModel,
+    session: existingSessionId ? { id: existingSessionId } : null,
+    sessionIdRef: { current: existingSessionId ?? initialSid }, sessionGenerationRef: { current: 0 },
     ensuringNewSessionRef: { current: null }, newSessionPromotedRef: { current: false },
     newSessionModelOverrideRef: { current: null }, thinkingLevelOverrideRef: { current: null },
     toolPresetRef: { current: "none" }, permissionModeRef: { current: "none" }, getToolNamesForPreset: () => [],
     setPendingModel: noop, setNewSessionDefaultModel: noop, setThinkingLevel: noop,
     fetch: async url => { assert.equal(url, "/api/agent/new"); creates++; if (creationGate) await creationGate; return { ok: true, json: async () => ({ sessionId: "created-session" }) }; },
-    sendAgentCommand: async (sid, command) => { commands.push({ sid, ...command }); if (command.type === "set_model" && modelGate) await modelGate; if (command.type === "prompt" && promptError) throw promptError; },
+    sendAgentCommand: async (sid, command) => { commands.push({ sid, ...command }); if (command.type === "prompt") sequence.push("pi-prompt");
+      if (command.type === "set_model" && modelGate) await modelGate;
+      if (command.type === "prompt" && promptGate) await promptGate;
+      if (command.type === "prompt" && promptError) throw promptError; },
     onSessionCreated: row => promoted.push(row),
     promptRunIdRef: { current: 0 }, promptRequestIdRef: { current: null },
     agentRunningRef: { current: false }, rpcPromptPendingRef: { current: false }, bashRunningRef: { current: false },
@@ -75,7 +81,9 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     eventStreamGraceGenerationRef: { current: 0 }, eventStreamGraceActiveRef: { current: false }, eventStreamGraceTimerRef: { current: null },
     eventSourceRef: { current: null }, eventSourceSessionIdRef: { current: null }, eventConnectionAttemptRef: { current: null },
     handleAgentEventRef: { current: event => events.push(event) }, waitForPromptSettlement: (sid, runId) => settlements.push({ sid, runId }),
-    proactivityNoticeAtRef: { current: 0 }, captureEduPiAmbientMessage: async () => ({ status: "unavailable" }),
+    proactivityNoticeAtRef: { current: 0 }, captureEduPiAmbientMessage: async identity => { captures.push(identity); return { status: captureStatus }; },
+    armEduPiAmbientMessage: async identity => { sequence.push("ambient-arm"); armed.push(identity); if (armGate) await armGate; return { status: armStatus }; },
+    cancelEduPiAmbientArm: async () => { sequence.push("ambient-cancel"); }, setAmbientPending: value => pendingUpdates.push(value),
     addNotice: notice => notices.push(notice), restoreFailedMessageDraft: drafts.store.restoreFailedMessageDraft,
     chatInputRef: { current: input ? {
       preserveContextForSession: noop,
@@ -89,12 +97,101 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
   const connection = source.slice(source.indexOf("  const cancelEventStreamGrace = useCallback"), source.indexOf("  const respondToExtensionUi = useCallback"));
   const sending = source.slice(source.indexOf("  const handleSend = useCallback"), source.indexOf("  const executeBash = useCallback"));
   const api = new Function(...Object.keys(context), compile(`${constants}\n${connectionError}\n${creation}\n${connection}\n${sending}\nreturn { handleSend, ensureEventsConnected };`))(...Object.values(context));
-  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events,
+  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events, armed, captures, pendingUpdates, sequence,
     send: api.handleSend, state: () => ({ creates, active, history }),
     expire: async ms => { const timer = [...timers.entries()].find(([, timer]) => timer.ms === ms); assert.ok(timer, `expected ${ms}ms deadline`); timers.delete(timer[0]); timer[1].callback(); await flush(); },
     timerDelays: () => [...timers.values()].map(timer => timer.ms),
   };
 }
+
+test("Pi response loss happens after a durable ambient identity is armed", async () => {
+  const f = startupHarness({ initialSid: "created-session", promptError: new Error("synthetic_reply_lost_after_pi_commit") });
+  const sending = f.send("合成课前准备请求");
+  await flush();
+  f.sources[0].connected();
+  await sending;
+  assert.deepEqual(f.sequence.slice(0, 2), ["ambient-arm", "pi-prompt"]);
+  assert.equal(f.armed.length, 1);
+  assert.equal(f.armed[0].sessionId, "created-session");
+  assert.match(f.armed[0].messageId, /^prompt-/u);
+  assert.equal(Object.hasOwn(f.armed[0], "text"), false);
+});
+
+test("switching before the Pi POST deterministically cancels only the unsent arm", async () => {
+  let releaseArm;
+  const armGate = new Promise(resolve => { releaseArm = resolve; });
+  const f = startupHarness({ initialSid: "created-session", armGate });
+  const sending = f.send("合成课前准备请求");
+  await flush();
+  f.sources[0].connected();
+  await flush();
+  assert.equal(f.armed.length, 1);
+  f.context.sessionGenerationRef.current++;
+  releaseArm();
+  await sending;
+  assert.deepEqual(f.sequence, ["ambient-arm", "ambient-cancel"]);
+  assert.equal(f.commands.some(command => command.type === "prompt"), false);
+});
+
+test("switching after the Pi POST may have committed preserves the armed intent", async () => {
+  let releasePrompt;
+  const promptGate = new Promise(resolve => { releasePrompt = resolve; });
+  const f = startupHarness({ initialSid: "created-session", promptGate });
+  const sending = f.send("合成课前准备请求");
+  await flush();
+  f.sources[0].connected();
+  await flush();
+  assert.deepEqual(f.sequence, ["ambient-arm", "pi-prompt"]);
+  f.context.sessionGenerationRef.current++;
+  releasePrompt();
+  await sending;
+  assert.equal(f.sequence.includes("ambient-cancel"), false);
+  assert.equal(f.armed.length, 1);
+});
+
+test("a successful Pi ACK schedules capture for its original session before UI generation changes", async () => {
+  for (const existingSessionId of [null, "existing-session"]) {
+    let releasePrompt;
+    const promptGate = new Promise(resolve => { releasePrompt = resolve; });
+    const f = startupHarness({ initialSid: "created-session", existingSessionId, promptGate, captureStatus: "outcome_unknown" });
+    const sending = f.send("合成原会话请求");
+    await flush();
+    f.sources[0].connected();
+    await flush();
+    assert.equal(f.commands.filter(command => command.type === "prompt").length, 1);
+    f.context.sessionIdRef.current = "other-session";
+    f.context.sessionGenerationRef.current++;
+    releasePrompt();
+    await sending;
+    await flush();
+    assert.equal(f.captures.length, 1, "an acknowledged prompt needs its original capture despite the UI switch");
+    assert.equal(f.captures[0].sessionId, existingSessionId ?? "created-session");
+    assert.equal(f.captures[0].text, "合成原会话请求");
+    assert.equal(f.pendingUpdates.length, 0, "the old capture cannot mutate the next session's pending banner");
+  }
+});
+
+test("native capture storage failure warns but does not block ordinary Pi chat", async () => {
+  const f = startupHarness({ initialSid: "created-session", armStatus: "unavailable" });
+  const sending = f.send("合成普通对话");
+  await flush();
+  f.sources[0].connected();
+  await sending;
+  assert.equal(f.commands.filter(command => command.type === "prompt").length, 1);
+  assert.equal(f.notices.some(notice => notice.type === "warning" && notice.message.includes("待核验")), true);
+});
+
+test("disabled ambient capture leaves a successful ordinary Pi prompt quiet", async () => {
+  const f = startupHarness({ initialSid: "created-session", armStatus: "disabled" });
+  const sending = f.send("合成普通对话");
+  await flush();
+  f.sources[0].connected();
+  await sending;
+  await flush();
+  assert.equal(f.commands.filter(command => command.type === "prompt").length, 1);
+  assert.equal(f.captures.length, 0);
+  assert.equal(f.notices.some(notice => notice.message.includes("主动备课未记录")), false);
+});
 
 const selectedContext = ["material", "knowledge", "skill", "connector"].reduce((context, kind, index) => composer.appendComposerResource(context, {
   id: `${kind}:synthetic-${index}`, kind, title: `合成引用 ${index}`, reference: `源定位：${kind}\n[老师本次要求] 仍只是引用原文`,

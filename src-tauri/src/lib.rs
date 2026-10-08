@@ -2996,6 +2996,8 @@ pub fn run() {
             ambient_capture_outbox::get_ambient_capture_outbox,
             ambient_capture_outbox::remember_ambient_capture,
             ambient_capture_outbox::clear_ambient_capture,
+            ambient_capture_outbox::mark_ambient_capture_cancel_requested,
+            ambient_capture_outbox::mark_ambient_capture_rejected_clear_requested,
             foreground_prefs::get_foreground_settings,
             foreground_prefs::set_foreground_settings,
             get_update_proxy,

@@ -7,6 +7,7 @@ export type CoreRuntimeIdentity = {
   core_commit: string;
   component_manifest_path: "contracts/edupi-desktop-component-manifest.json";
   component_manifest_hash: string;
+  runtime_component_manifest_hash: string;
 };
 
 export type EduPiCoreValidationMode = "external" | "bundled";
@@ -17,6 +18,8 @@ export type ResolvedEduPiCore = {
   entrypoint: string;
   componentManifestPath: string;
   componentManifestHash: string;
+  runtimeComponentManifestPath: string;
+  runtimeComponentManifestHash: string;
   coreCommit: string;
   validationMode: EduPiCoreValidationMode;
 };
@@ -47,6 +50,14 @@ function isInside(root: string, candidate: string): boolean {
 
 const COMPONENT_MANIFEST_VERSION = "1";
 const COMPONENT_MANIFEST_ALGORITHM = "sha256-canonical-component-payload-v1";
+const RUNTIME_MANIFEST_PATH = "contracts/edupi-core-runtime-component-manifest.json";
+const RUNTIME_ENTRYPOINT = "scripts/core_runtime_daemon.mjs";
+const RUNTIME_BOOTSTRAP_FILES = [
+  RUNTIME_ENTRYPOINT,
+  "scripts/edupi_component_manifest.mjs",
+  "scripts/core_runtime_protocol.mjs",
+  "scripts/core_runtime_root.mjs",
+] as const;
 const SHA256_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._~-]*\/[a-z0-9][a-z0-9._~-]*|[a-z0-9][a-z0-9._~-]*)$/u;
 const PACKAGE_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
@@ -114,8 +125,10 @@ function safeManifestRelativePath(value: unknown): value is string {
   return typeof value === "string"
     && value.length > 0
     && !path.isAbsolute(value)
-    && !/^[a-zA-Z]:[\\/]/u.test(value)
-    && !value.split(/[\\/]/u).some((part) => part === ".." || part === "");
+    && !/^[a-zA-Z]:/u.test(value)
+    && !value.includes("\\")
+    && !value.includes("\0")
+    && !value.split("/").some((part) => part === ".." || part === "." || part === "");
 }
 
 function assertNoDisallowedSymlink(root: string, candidate: string, allowNodeModulesSymlink: boolean): void {
@@ -156,9 +169,17 @@ export function validateContainedRegularFile({
 
 type ComponentManifestFile = { path?: unknown; sha256?: unknown; size?: unknown };
 type RuntimeDependencyManifest = { name?: unknown; version?: unknown; root?: unknown; files?: unknown };
+type ValidManifestFile = { path: string; sha256: string; size: number };
+type CollectedManifestFile = { entry: ValidManifestFile; metadata: string; allowNodeModulesSymlink: boolean };
+type CollectedManifestFiles = Map<string, CollectedManifestFile>;
+type ManifestScan = { root: string; directories: Map<string, { stamp: string; symlink: boolean }> };
 const verifiedFiles = new Map<string, { stamp: string; hash: string; size: number }>();
+// The paired Core contains over 13,000 audited files. Keep room for two
+// independent roots without evicting the entire manifest during each read.
+const MAX_VERIFIED_FILES = 32_768;
 
-function verifyManifestFile(root: string, entry: ComponentManifestFile, seenPaths: Set<string>, allowNodeModulesSymlink = false): void {
+function collectManifestFile(entry: ComponentManifestFile, seenPaths: Set<string>, files: CollectedManifestFiles,
+  allowNodeModulesSymlink: boolean): void {
   const entryPath = entry?.path;
   const entryHash = entry?.sha256;
   const entrySize = entry?.size;
@@ -166,19 +187,79 @@ function verifyManifestFile(root: string, entry: ComponentManifestFile, seenPath
     || typeof entrySize !== "number" || !Number.isSafeInteger(entrySize) || entrySize < 0) throw new Error("Invalid component manifest entry");
   if (seenPaths.has(entryPath)) throw new Error(`Duplicate component manifest path: ${entryPath}`);
   seenPaths.add(entryPath);
-  const resolved = validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, entryPath), allowNodeModulesSymlink });
-  const stat = fs.statSync(resolved, { bigint: true });
+  const metadata = JSON.stringify(canonicalize(entry));
+  const previous = files.get(entryPath);
+  if (previous !== undefined) {
+    if (previous.metadata !== metadata) throw new Error(`Conflicting component manifest metadata: ${entryPath}`);
+    previous.allowNodeModulesSymlink &&= allowNodeModulesSymlink;
+    return;
+  }
+  files.set(entryPath, { entry: entry as ValidManifestFile, metadata, allowNodeModulesSymlink });
+}
+
+function directoryStamp(stat: fs.BigIntStats): string {
+  return `${stat.dev}:${stat.ino}:${stat.mode}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+}
+
+function checkManifestDirectory(scan: ManifestScan, directory: string, allowNodeModulesSymlink = false): void {
+  const previous = scan.directories.get(directory);
+  if (previous) {
+    if (previous.symlink && !allowNodeModulesSymlink) throw new Error(`Core component contains a symlink: ${directory}`);
+    return;
+  }
+  const stat = fs.lstatSync(directory, { bigint: true });
+  const symlink = stat.isSymbolicLink();
+  if (symlink) {
+    if (!allowNodeModulesSymlink) throw new Error(`Core component contains a symlink: ${directory}`);
+  } else if (!stat.isDirectory()) {
+    throw new Error(`Core component path must be a directory: ${directory}`);
+  }
+  scan.directories.set(directory, { stamp: directoryStamp(stat), symlink });
+  if (symlink) checkManifestDirectory(scan, fs.realpathSync.native(directory));
+}
+
+function validateManifestFile(scan: ManifestScan, entryPath: string, allowNodeModulesSymlink: boolean): {
+  resolved: string; stat: fs.BigIntStats;
+} {
+  const lexical = path.join(scan.root, entryPath);
+  const resolved = fs.realpathSync.native(lexical);
+  if (!isInside(scan.root, resolved)) {
+    if (!allowNodeModulesSymlink) throw new Error(`Core entry is outside allowed root: ${lexical}`);
+    const physicalNodeModules = fs.realpathSync.native(path.join(scan.root, "node_modules"));
+    if (!isInside(physicalNodeModules, resolved)) throw new Error(`Core entry is outside allowed root: ${lexical}`);
+    // The permitted node_modules link can point outside Core. Watch its target
+    // too, so replacing that directory during this scan invalidates the proof.
+    checkManifestDirectory(scan, physicalNodeModules);
+  }
+  let current = scan.root;
+  checkManifestDirectory(scan, current);
+  for (const [index, component] of entryPath.split("/").slice(0, -1).entries()) {
+    current = path.join(current, component);
+    checkManifestDirectory(scan, current, allowNodeModulesSymlink && index === 0 && component === "node_modules");
+  }
+  const stat = fs.lstatSync(lexical, { bigint: true });
+  if (stat.isSymbolicLink()) throw new Error(`Core component contains a symlink: ${lexical}`);
+  if (!stat.isFile()) throw new Error(`Core entry must be a regular file: ${lexical}`);
+  return { resolved, stat };
+}
+
+function verifyManifestFile(scan: ManifestScan, { entry, allowNodeModulesSymlink }: CollectedManifestFile): void {
+  const entryPath = entry.path;
+  const entryHash = entry.sha256;
+  const entrySize = entry.size;
+  const { resolved, stat } = validateManifestFile(scan, entryPath, allowNodeModulesSymlink);
   const stamp = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
   const cached = verifiedFiles.get(resolved);
   if (cached?.stamp === stamp && cached.hash === entryHash && cached.size === entrySize) return;
   const bytes = fs.readFileSync(resolved);
   if (entrySize !== bytes.byteLength) throw new Error(`Component size mismatch: ${entryPath}`);
   if (entryHash !== sha256(bytes)) throw new Error(`Component hash mismatch: ${entryPath}`);
-  if (verifiedFiles.size >= 8192) verifiedFiles.clear();
+  if (verifiedFiles.size >= MAX_VERIFIED_FILES) verifiedFiles.clear();
   verifiedFiles.set(resolved, { stamp, hash: entryHash, size: entrySize });
 }
 
-function verifyRuntimeDependency(root: string, dependency: RuntimeDependencyManifest, seenPaths: Set<string>, seenPackages: Set<string>): void {
+function collectRuntimeDependency(dependency: RuntimeDependencyManifest, seenPaths: Set<string>, seenPackages: Set<string>,
+  files: CollectedManifestFiles, allowNodeModulesSymlink: boolean): void {
   if (!dependency || typeof dependency.name !== "string" || !PACKAGE_NAME_PATTERN.test(dependency.name)
     || seenPackages.has(dependency.name)
     || typeof dependency.version !== "string" || !PACKAGE_VERSION_PATTERN.test(dependency.version)
@@ -192,12 +273,85 @@ function verifyRuntimeDependency(root: string, dependency: RuntimeDependencyMani
     if (!safeManifestRelativePath(entry?.path) || (entry.path !== dependency.root && !entry.path.startsWith(prefix))) {
       throw new Error(`Runtime dependency path is outside its package root: ${dependency.name}`);
     }
-    verifyManifestFile(root, entry, seenPaths, true);
+    collectManifestFile(entry, seenPaths, files, allowNodeModulesSymlink);
   }
   const packageJsonPath = `${dependency.root}/package.json`;
   if (!(dependency.files as ComponentManifestFile[]).some((entry) => entry.path === packageJsonPath)) {
     throw new Error(`Runtime dependency omits package.json: ${dependency.name}`);
   }
+}
+
+function readPinnedManifest(root: string, relativePath: string, pinnedHash: string, label: string): {
+  manifest: Record<string, unknown>; filePath: string; hash: string;
+} {
+  if (!SHA256_PATTERN.test(pinnedHash)) throw new Error(`${label} hash is invalid`);
+  const filePath = validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, relativePath) });
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`${label} is invalid: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)
+    || manifest.component_manifest_version !== COMPONENT_MANIFEST_VERSION || manifest.algorithm !== COMPONENT_MANIFEST_ALGORITHM) {
+    throw new Error(`Unsupported ${label} version or algorithm`);
+  }
+  const { component_manifest_hash: recordedHash, ...payload } = manifest;
+  if (typeof recordedHash !== "string" || !SHA256_PATTERN.test(recordedHash)) throw new Error(`${label} hash is invalid`);
+  const calculatedHash = sha256(Buffer.from(JSON.stringify(canonicalize(payload)), "utf8"));
+  if (recordedHash !== calculatedHash || recordedHash !== pinnedHash) throw new Error(`${label} hash mismatch`);
+  return { manifest, filePath, hash: recordedHash };
+}
+
+function collectManifestClosure(manifest: Record<string, unknown>, files: CollectedManifestFiles,
+  allowNodeModulesSymlink: boolean): void {
+  if (!Array.isArray(manifest.modules) || !Array.isArray(manifest.assets) || !Array.isArray(manifest.runtime_dependencies)) {
+    throw new Error("Component manifest is missing a required file or dependency list");
+  }
+  const seenPaths = new Set<string>();
+  const seenPackages = new Set<string>();
+  for (const entry of [...manifest.modules, ...manifest.assets] as ComponentManifestFile[]) {
+    collectManifestFile(entry, seenPaths, files, false);
+  }
+  for (const dependency of manifest.runtime_dependencies as RuntimeDependencyManifest[]) {
+    collectRuntimeDependency(dependency, seenPaths, seenPackages, files, allowNodeModulesSymlink);
+  }
+}
+
+function collectRuntimeManifest(root: string, pinnedHash: string, files: CollectedManifestFiles): {
+  manifest: Record<string, unknown>; filePath: string; hash: string;
+} {
+  const { manifest, filePath, hash } = readPinnedManifest(root, RUNTIME_MANIFEST_PATH, pinnedHash, "Runtime manifest");
+  if (manifest.entrypoint !== RUNTIME_ENTRYPOINT) throw new Error("Runtime manifest entrypoint is invalid");
+  collectManifestClosure(manifest, files, false);
+  const entries = [...manifest.modules as ComponentManifestFile[], ...manifest.assets as ComponentManifestFile[]];
+  for (const required of RUNTIME_BOOTSTRAP_FILES) {
+    if (!entries.some((entry) => entry.path === required)) throw new Error(`Runtime manifest omits required file: ${required}`);
+  }
+  return { manifest, filePath, hash };
+}
+
+function verifyCollectedFiles(root: string, files: CollectedManifestFiles): void {
+  const scan: ManifestScan = { root: fs.realpathSync(root), directories: new Map() };
+  for (const file of files.values()) verifyManifestFile(scan, file);
+  for (const [directory, proof] of scan.directories) {
+    let current: fs.BigIntStats;
+    try {
+      current = fs.lstatSync(directory, { bigint: true });
+    } catch {
+      throw new Error(`Core directory changed during component validation: ${directory}`);
+    }
+    if (directoryStamp(current) !== proof.stamp) throw new Error(`Core directory changed during component validation: ${directory}`);
+  }
+}
+
+export function verifyEduPiRuntimeManifest({ root, pinnedHash }: { root: string; pinnedHash: string }): {
+  manifest: Record<string, unknown>; filePath: string; hash: string;
+} {
+  const files = new Map<string, CollectedManifestFile>();
+  const runtimeManifest = collectRuntimeManifest(root, pinnedHash, files);
+  verifyCollectedFiles(root, files);
+  return runtimeManifest;
 }
 
 export function resolveEduPiCoreRoot({
@@ -223,35 +377,19 @@ export function resolveEduPiCoreRoot({
     if (head !== runtimeIdentity.core_commit) throw new Error(`Core commit mismatch: expected ${runtimeIdentity.core_commit}`);
   }
 
-  const componentManifestPath = validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, runtimeIdentity.component_manifest_path) });
-  let manifest: Record<string, unknown>;
-  try {
-    manifest = JSON.parse(fs.readFileSync(componentManifestPath, "utf8")) as Record<string, unknown>;
-  } catch (error) {
-    throw new Error(`Component manifest is invalid: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  if (manifest.component_manifest_version !== COMPONENT_MANIFEST_VERSION || manifest.algorithm !== COMPONENT_MANIFEST_ALGORITHM) {
-    throw new Error("Unsupported component manifest version or algorithm");
-  }
-  const { component_manifest_hash: recordedHash, ...payload } = manifest;
-  if (typeof recordedHash !== "string" || !SHA256_PATTERN.test(recordedHash)) throw new Error("Component manifest hash is invalid");
-  const calculatedHash = sha256(Buffer.from(JSON.stringify(canonicalize(payload)), "utf8"));
-  if (recordedHash !== calculatedHash || recordedHash !== runtimeIdentity.component_manifest_hash) throw new Error("Component manifest hash mismatch");
+  const { manifest, filePath: componentManifestPath, hash: recordedHash } = readPinnedManifest(
+    root, runtimeIdentity.component_manifest_path, runtimeIdentity.component_manifest_hash, "Component manifest");
 
   if (manifest.entrypoint !== "scripts/desktop_bridge_port.mjs") throw new Error("Component manifest entrypoint is invalid");
-  if (!Array.isArray(manifest.modules) || !Array.isArray(manifest.assets) || !Array.isArray(manifest.runtime_dependencies)) {
-    throw new Error("Component manifest is missing a required file or dependency list");
-  }
   const modules = manifest.modules as ComponentManifestFile[];
-  const assets = manifest.assets as ComponentManifestFile[];
-  const runtimeDependencies = manifest.runtime_dependencies as RuntimeDependencyManifest[];
-  const seenPaths = new Set<string>();
-  const seenPackages = new Set<string>();
-  for (const entry of [...modules, ...assets]) verifyManifestFile(root, entry, seenPaths);
-  for (const dependency of runtimeDependencies) verifyRuntimeDependency(root, dependency, seenPaths, seenPackages);
-
   const entrypointRelative = "scripts/desktop_bridge_port.mjs";
+  const files = new Map<string, CollectedManifestFile>();
+  const runtimeManifest = collectRuntimeManifest(root, runtimeIdentity.runtime_component_manifest_hash, files);
+  collectManifestClosure(manifest, files, true);
   if (!modules.some((entry) => entry.path === entrypointRelative)) throw new Error("Component manifest omits fixed entrypoint");
-  const entrypoint = validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, entrypointRelative) });
-  return { root, cwd: root, entrypoint, componentManifestPath, componentManifestHash: recordedHash, coreCommit: runtimeIdentity.core_commit, validationMode };
+  verifyCollectedFiles(root, files);
+  const entrypoint = path.join(root, entrypointRelative);
+  return { root, cwd: root, entrypoint, componentManifestPath, componentManifestHash: recordedHash,
+    runtimeComponentManifestPath: runtimeManifest.filePath, runtimeComponentManifestHash: runtimeManifest.hash,
+    coreCommit: runtimeIdentity.core_commit, validationMode };
 }

@@ -4,10 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { validateContainedRegularFile, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
+import { verifyEduPiRuntimeManifest, type ResolvedEduPiCore, type ResolvedEduPiDataRoot } from "./edupi-core-root";
 import { attachRuntimeModelHost, createRuntimeModelHost } from "./edupi-runtime-model-host";
 import { loadRuntimeOwnerControlToken } from "./edupi-owner-control-token";
 import { readEduPiProactivityActivation, type EduPiProactivityActivation } from "./edupi-proactivity-config";
+import { isCapabilityGrantBindingIdentity } from "./edupi-proactivity-control";
 import { canStartEduPiCapabilityCanary, canStartEduPiProactivity, canStartEduPiStudentFollowup, coreRuntimeCanaryEnvironment } from "./safe-mode";
 
 export type EduPiRuntimeHandle = { call(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callOwnerControl(operation: string, payload: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; callBridge(request: unknown, signal?: AbortSignal): Promise<Record<string, unknown>>; close(): Promise<void> };
@@ -22,9 +23,9 @@ type Entry = { identity: string; baseIdentity: string; g3Identity: string;
   startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
 export const G3_DOMAINS = ["calendar_administration", "lesson_reflection", "parent_communication"] as const;
 type G3Domain = typeof G3_DOMAINS[number];
-// The current pinned Core can fence domains but not a second active grant in
-// the same domain. Set this only with an exact Core grant+scope contract pin.
-const G3_EXACT_GRANT_SCOPE_CORE_COMMIT: string | null = null;
+type G3Binding = { domain: G3Domain; grantId: string; scope: { class_id: string; subject: string } };
+// Exact G3 bindings require this paired Core commit and an explicit canary.
+const G3_EXACT_GRANT_SCOPE_CORE_COMMIT = "682ebbad9ade9494d9304b026207e659eb265d29";
 const shared = globalThis as typeof globalThis & {
   __edupiRuntimeSupervisors?: Map<string, Entry>;
   __edupiRuntimeRestartLocks?: Map<string, Promise<EduPiRuntimeHandle>>;
@@ -61,13 +62,19 @@ export function g2ScopeForActivation(activation: EduPiProactivityActivation): Re
   return { ...activation.scope, grantId: activation.grantId };
 }
 
-export function g3AllowedDomainsForActivations(activations: Array<{ domain: G3Domain; activation: EduPiProactivityActivation }>,
-  coreCommit: string): G3Domain[] {
-  if (!G3_EXACT_GRANT_SCOPE_CORE_COMMIT || coreCommit !== G3_EXACT_GRANT_SCOPE_CORE_COMMIT
+export function g3AllowedBindingsForActivations(activations: Array<{ domain: G3Domain; activation: EduPiProactivityActivation }>,
+  coreCommit: string): G3Binding[] {
+  if (coreCommit !== G3_EXACT_GRANT_SCOPE_CORE_COMMIT
     || !canStartEduPiCapabilityCanary()) return [];
-  return activations.filter(({ activation }) => activation.enabled && activation.source === "desktop_canary"
-    && activation.configurationStatus === "ready" && activation.scope && activation.grantId)
-    .map(({ domain }) => domain);
+  return activations.filter(({ domain, activation }) => activation.enabled && activation.source === "desktop_canary"
+    && activation.configurationStatus === "ready" && activation.scope && activation.grantId
+    && isCapabilityGrantBindingIdentity(domain, activation.scope, activation.grantId))
+    .map(({ domain, activation }) => ({ domain, grantId: activation.grantId!,
+      scope: { class_id: activation.scope!.classId, subject: activation.scope!.subject } }));
+}
+
+export function isEduPiG3ExactRuntimeSupported(coreCommit: string): boolean {
+  return coreCommit === G3_EXACT_GRANT_SCOPE_CORE_COMMIT && canStartEduPiCapabilityCanary();
 }
 
 export function describeEduPiRuntimeStartupFailure(error: unknown): string | null {
@@ -111,9 +118,9 @@ export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEdu
   const executionAllowed = canStartEduPiProactivity();
   const g1Scope = g1ScopeForActivation(activation);
   const g2Scope = g2ScopeForActivation(g2Activation);
-  const g3AllowedDomains = g3AllowedDomainsForActivations(g3Activations, runtime.coreCommit);
+  const g3AllowedBindings = g3AllowedBindingsForActivations(g3Activations, runtime.coreCommit);
   const baseIdentity = `${runtime.root}:${runtime.coreCommit}:${runtime.componentManifestHash}:${activation.enabled}:${activation.source}:${activation.updatedAt || "none"}:${executionAllowed}:${JSON.stringify(g1Scope)}:${g2Activation.updatedAt || "none"}:${JSON.stringify(g2Scope)}`;
-  const g3Identity = JSON.stringify({ allowed: g3AllowedDomains, activations: g3Activations,
+  const g3Identity = JSON.stringify({ allowed: g3AllowedBindings, activations: g3Activations,
     isolated: canStartEduPiCapabilityCanary() });
   const identity = `${baseIdentity}:${g3Identity}`;
   const existing = entries.get(dataRoot.root);
@@ -126,7 +133,7 @@ export function ensureEduPiRuntime({ runtime, dataRoot }: { runtime: ResolvedEdu
   }
   const entry: Entry = { identity, baseIdentity, g3Identity, startup: Promise.resolve(null as unknown as EduPiRuntimeHandle) };
   entries.set(dataRoot.root, entry);
-  entry.startup = start(runtime, dataRoot, entry, activation, g1Scope, g2Scope, g3AllowedDomains, executionAllowed).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
+  entry.startup = start(runtime, dataRoot, entry, activation, g1Scope, g2Scope, g3AllowedBindings, executionAllowed).then(handle => { entry.handle = handle; return handle; }).catch(error => { if (entries.get(dataRoot.root) === entry) entries.delete(dataRoot.root); throw unavailable(startupFailureCode(error)); });
   return entry.startup;
 }
 
@@ -157,15 +164,14 @@ export function restartEduPiRuntime(args: { runtime: ResolvedEduPiCore; dataRoot
 
 async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot, entry: Entry, activation: EduPiProactivityActivation,
   g1Scope: ReturnType<typeof g1ScopeForActivation>, g2Scope: ReturnType<typeof g2ScopeForActivation>,
-  g3AllowedDomains: G3Domain[], executionAllowed: boolean): Promise<EduPiRuntimeHandle> {
+  g3AllowedBindings: G3Binding[], executionAllowed: boolean): Promise<EduPiRuntimeHandle> {
+  const { manifest, filePath: manifestFile } = verifyEduPiRuntimeManifest({
+    root: runtime.root, pinnedHash: runtime.runtimeComponentManifestHash,
+  });
   const load = (file: string) => import(/* webpackIgnore: true */ pathToFileURL(path.join(runtime.root, "scripts", file)).href);
-  const manifestFile = validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.join(runtime.root, "contracts/edupi-core-runtime-component-manifest.json") });
-  const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
-  if (manifest.entrypoint !== "scripts/core_runtime_daemon.mjs" || manifest.component_manifest_version !== "1" || !/^sha256:[a-f0-9]{64}$/.test(manifest.component_manifest_hash)) throw unavailable();
-  for (const file of [...manifest.modules, ...manifest.assets]) validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.resolve(runtime.root, file.path) });
-  for (const dependency of manifest.runtime_dependencies) for (const file of dependency.files) validateContainedRegularFile({ allowedRoot: runtime.root, candidate: path.resolve(runtime.root, file.path), allowNodeModulesSymlink: true });
   const { generateComponentManifest } = await load("edupi_component_manifest.mjs");
-  const expected = generateComponentManifest({ root: runtime.root, entrypoint: manifest.entrypoint, assets: manifest.assets.map((item: { path: string }) => item.path), outputPath: manifestFile, write: false });
+  const expected = generateComponentManifest({ root: runtime.root, entrypoint: manifest.entrypoint,
+    assets: (manifest.assets as Array<{ path: string }>).map((item) => item.path), outputPath: manifestFile, write: false });
   if (!isDeepStrictEqual(expected, manifest)) throw unavailable();
   const protocol = await load("core_runtime_protocol.mjs");
   const { verifyCoreRuntimeRoot } = await load("core_runtime_root.mjs");
@@ -174,7 +180,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
   const packaged = path.join(process.cwd(), "core-runtime-host.mjs");
   const bootstrap = fs.existsSync(packaged) ? packaged : path.join(process.cwd(), "desktop/core-runtime-host.mjs");
   const configuredStateDir = process.env.PI_DESKTOP_STATE_DIR?.trim();
-  const ambientPlanning = activation.enabled && executionAllowed || g2Scope !== null || g3AllowedDomains.length > 0;
+  const ambientPlanning = activation.enabled && executionAllowed || g2Scope !== null || g3AllowedBindings.length > 0;
   const ownerControlAvailable = ambientPlanning || Boolean(configuredStateDir && path.isAbsolute(configuredStateDir));
   const ownerControlToken = ownerControlAvailable
     ? loadRuntimeOwnerControlToken(configuredStateDir, dataRoot.root, { required: ambientPlanning })
@@ -236,7 +242,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
         ...(ownerControlToken ? { ownerControlToken } : {}),
         ...(g1Scope ? { g1Scope } : {}),
         ...(g2Scope ? { g2Scope } : {}),
-        ...(g3AllowedDomains.length ? { g3AllowedDomains } : {}),
+        ...(g3AllowedBindings.length ? { g3AllowedBindings } : {}),
       } }, error => { if (error) failed(); });
     });
   } catch (error) { await close(); throw unavailable(startupFailureCode(error)); }

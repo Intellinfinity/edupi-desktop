@@ -20,7 +20,7 @@ import { rememberScrollPosition, sessionScrollTops } from "@/lib/scroll-memory";
 import { applyAssistantMessageEvent, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { EDUPI_STUDENT_RECORDS_UPDATED_EVENT } from "@/lib/edupi-ui-events";
-import { captureEduPiAmbientMessage, readEduPiAmbientPending, type EduPiAmbientPendingState } from "@/lib/edupi-ambient-message";
+import { armEduPiAmbientMessage, cancelEduPiAmbientArm, captureEduPiAmbientMessage, readEduPiAmbientPending, type EduPiAmbientPendingState } from "@/lib/edupi-ambient-message";
 import { acknowledgeLocalQueueRecovery, completeStagedQueueRecovery, getDraft, markQueueRecoveryUncertain, restoreFailedMessageDraft } from "@/lib/draft-store";
 import { recallQueueWithBackup } from "@/lib/queue-recovery";
 import { emptyMessageHistory, messageHistoryReducer, type MessageHistoryAction } from "@/lib/agent-message-history";
@@ -1686,11 +1686,59 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
     let sentSessionId: string | null = null;
     let promptRequestStarted = false;
+    const captureIntentRef: { current: { sessionId: string; messageId: string; occurredAt: string } | null } = { current: null };
     const assertCurrentSend = (sid?: string | null) => {
       if (sendGeneration !== sessionGenerationRef.current || promptRunIdRef.current !== promptRunId
         || (sid !== undefined && sessionIdRef.current !== sid)) {
         throw new Error("The conversation changed before the message was submitted.");
       }
+    };
+    const armCapture = async (sid: string) => {
+      if (isSlashCommandPrompt || !trimmedMessage) return;
+      const identity = { sessionId: sid, messageId: `prompt-${clientRequestId}`, occurredAt: new Date(occurredAtMs).toISOString() };
+      const result = await armEduPiAmbientMessage(identity);
+      if (result.status === "unavailable" || result.status === "outcome_unknown") {
+        addNotice({ type: "warning", message: "主动捕获待核验，普通对话仍可继续" });
+      }
+      if (result.status === "armed") captureIntentRef.current = identity;
+    };
+    const scheduleAmbientCapture = (captureSessionId: string) => {
+      if (isSlashCommandPrompt || !trimmedMessage || captureIntentRef.current?.sessionId !== captureSessionId) return;
+      const captureMessageId = `prompt-${clientRequestId}`;
+      const captureOccurredAt = new Date(occurredAtMs).toISOString();
+      const ownsVisibleSession = () => sessionIdRef.current === captureSessionId
+        && sessionGenerationRef.current === sendGeneration;
+      const reportCaptureFailure = () => {
+        if (!ownsVisibleSession()) return;
+        const now = Date.now();
+        if (now - proactivityNoticeAtRef.current < 60_000) return;
+        proactivityNoticeAtRef.current = now;
+        addNotice({ type: "warning", message: "主动备课未记录，请到管理中心检查运行状态" });
+      };
+      void captureEduPiAmbientMessage({ sessionId: captureSessionId, messageId: captureMessageId, text: trimmedMessage,
+        occurredAt: captureOccurredAt }).then((result) => {
+        if (result.status === "unavailable") reportCaptureFailure();
+        else if (result.status === "recorded" || result.status === "outcome_unknown") {
+          if (ownsVisibleSession()) {
+            const pendingLoadId = ++ambientPendingLoadIdRef.current;
+            setAmbientPending(current => ({ status: "outcome_unknown",
+              pending: current.pending.some(item => item.messageId === captureMessageId) ? current.pending
+                : [...current.pending, { messageId: captureMessageId, occurredAt: captureOccurredAt }],
+              recovered: [] }));
+            void readEduPiAmbientPending(captureSessionId).then(pending => {
+              if (ownsVisibleSession() && ambientPendingLoadIdRef.current === pendingLoadId
+                && pending.status === "outcome_unknown") setAmbientPending(pending);
+            });
+          }
+        } else if (result.status === "verification_pending") {
+          void readEduPiAmbientPending(captureSessionId).then(pending => {
+            if (ownsVisibleSession() && pending.status === "outcome_unknown") {
+              ambientPendingLoadIdRef.current += 1;
+              setAmbientPending(pending);
+            }
+          });
+        }
+      }, reportCaptureFailure);
     };
 
     try {
@@ -1712,6 +1760,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           }
           await ensureEventsConnected(sid);
           assertCurrentSend(sid);
+          await armCapture(sid);
+          assertCurrentSend(sid);
           promptRequestStarted = true;
           await sendAgentCommand(sid, {
             type: "prompt",
@@ -1719,6 +1769,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             clientRequestId,
             ...(piImages?.length ? { images: piImages } : {}),
           });
+          scheduleAmbientCapture(sid);
           assertCurrentSend(sid);
           promoteNewSession(1, message, message.startsWith("/"));
         }
@@ -1727,6 +1778,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         sentSessionId = session.id;
         await ensureEventsConnected(session.id);
         assertCurrentSend(session.id);
+        await armCapture(session.id);
+        assertCurrentSend(session.id);
         promptRequestStarted = true;
         await sendAgentCommand(session.id, {
           type: "prompt",
@@ -1734,46 +1787,21 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           clientRequestId,
           ...(piImages?.length ? { images: piImages } : {}),
         });
+        scheduleAmbientCapture(session.id);
         assertCurrentSend(session.id);
-      }
-      if (!isSlashCommandPrompt && trimmedMessage && sentSessionId) {
-        const reportCaptureFailure = () => {
-          const now = Date.now();
-          if (now - proactivityNoticeAtRef.current < 60_000) return;
-          proactivityNoticeAtRef.current = now;
-          addNotice({ type: "warning", message: "主动备课未记录，请到管理中心检查运行状态" });
-        };
-        const captureMessageId = `prompt-${clientRequestId}`;
-        const captureSessionId = sentSessionId;
-        void captureEduPiAmbientMessage({ sessionId: captureSessionId, messageId: captureMessageId, text: trimmedMessage,
-          occurredAt: new Date(occurredAtMs).toISOString() }).then((result) => {
-          if (result.status === "unavailable") reportCaptureFailure();
-          else if (result.status === "recorded" || result.status === "outcome_unknown") {
-            if (sessionIdRef.current === captureSessionId) {
-              const pendingLoadId = ++ambientPendingLoadIdRef.current;
-              setAmbientPending(current => ({ status: "outcome_unknown",
-                pending: current.pending.some(item => item.messageId === captureMessageId) ? current.pending
-                  : [...current.pending, { messageId: captureMessageId, occurredAt: new Date(occurredAtMs).toISOString() }],
-                recovered: [] }));
-              void readEduPiAmbientPending(captureSessionId).then(pending => {
-                if (sessionIdRef.current === captureSessionId && ambientPendingLoadIdRef.current === pendingLoadId
-                  && pending.status === "outcome_unknown") setAmbientPending(pending);
-              });
-            }
-          } else if (result.status === "verification_pending") {
-            void readEduPiAmbientPending(captureSessionId).then(pending => {
-              if (sessionIdRef.current === captureSessionId && pending.status === "outcome_unknown") {
-                ambientPendingLoadIdRef.current += 1;
-                setAmbientPending(pending);
-              }
-            });
-          }
-        }, reportCaptureFailure);
       }
       if (isSlashCommandPrompt && sentSessionId) {
         void waitForPromptSettlement(sentSessionId, promptRunId);
       }
     } catch (e) {
+      const captureIntent = captureIntentRef.current;
+      if (captureIntent && !promptRequestStarted) {
+        try { await cancelEduPiAmbientArm(captureIntent); } catch { /* A failed clear remains visible for verification. */ }
+      }
+      if (captureIntent && promptRequestStarted && sessionIdRef.current === captureIntent.sessionId) {
+        setAmbientPending(current => ({ status: "outcome_unknown", pending: current.pending.some(item => item.messageId === captureIntent.messageId)
+          ? current.pending : [...current.pending, { messageId: captureIntent.messageId, occurredAt: captureIntent.occurredAt, unconfirmed: true }], recovered: [] }));
+      }
       console.error("Failed to send message:", e);
       if (sendGeneration !== sessionGenerationRef.current || promptRunIdRef.current !== promptRunId) {
         if (!promptRequestStarted && originDraftKey) {

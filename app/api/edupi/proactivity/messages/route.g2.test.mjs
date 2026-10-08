@@ -284,6 +284,10 @@ test("the actual private ledger accepts all five domain captures for one Pi mess
     "@/lib/edupi-ambient-message-runtime": { EduPiAmbientMessageError: class extends Error {},
       predictEduPiOwnerMessageRef: () => "",
       captureAndApplyAmbientMessage: async (_host, input, callbacks) => {
+        if (input.domain === "student_followup") {
+          assert.equal(actualLedger.readUnsettledEduPiAmbientMessages("session-1", { stateDir, dataRoot }).length, 1,
+            "the first domain cannot be finalized before the full Pi message is processed");
+        }
         captureIds.push(input.messageId);
         const binding = { messageRef: `owner_message:${crypto.createHash("sha256").update(input.domain).digest("hex")}`,
           ownerId: "owner-1", grantId: input.grantId, captureGrantVersion: 1 };

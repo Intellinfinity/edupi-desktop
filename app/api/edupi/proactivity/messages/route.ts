@@ -157,6 +157,7 @@ export async function POST(request: Request) {
         throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
       }
       const results: Array<Record<string, unknown> & { status: string }> = [];
+      const settleAtEnd: string[] = [];
       for (const { domain, activation } of bindings) {
         let preparedMessageRef: string | null = null;
         let applyPending = false;
@@ -185,7 +186,7 @@ export async function POST(request: Request) {
           if (result.status === "outcome_unknown" || result.status === "recorded") {
             if (!applyPending) markEduPiAmbientMessageOutcomeUnknown(sessionId, preparedMessageRef!, { dataRoot: roots.dataRoot.root });
           } else if (preparedMessageRef) {
-            markEduPiAmbientMessageOutcomeSettled(sessionId, preparedMessageRef, { dataRoot: roots.dataRoot.root });
+            settleAtEnd.push(preparedMessageRef);
           }
           results.push({ ...result, domain });
           // Core already persisted a G1 Goal. Do not start a second domain
@@ -204,6 +205,12 @@ export async function POST(request: Request) {
             code: error instanceof EduPiAmbientMessageError ? error.code : "proactivity_runtime_unavailable",
             stage: error instanceof EduPiAmbientMessageError ? error.stage : "runtime" });
         }
+      }
+      // A completed first domain is not a completed Pi message. Persist the
+      // final receipt only after every enabled domain has been considered; a
+      // crash between domains leaves captured rows visibly unsettled.
+      for (const messageRef of settleAtEnd) {
+        markEduPiAmbientMessageOutcomeSettled(sessionId, messageRef, { dataRoot: roots.dataRoot.root });
       }
       const result = results.find(item => item.status === "outcome_unknown" || item.status === "recorded")
         ?? results.find(item => ["applied", "cancelled", "corrected", "queued", "replayed"].includes(item.status))

@@ -8,7 +8,9 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
 const MESSAGE_REF = /^owner_message:[a-f0-9]{64}$/u;
 
 type Recovery = { status: "outcome_unknown" } | { status: "applied"; goalId: string; goalVersion: number; workCaseId: string };
-const UNKNOWN: Recovery = { status: "outcome_unknown" };
+const UNKNOWN = { status: "outcome_unknown" } as const;
+type G2Recovery = { status: "outcome_unknown" } | { status: "applied"; goalId: string; goalVersion: number;
+  followUpId: string; executionId: string };
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -59,4 +61,32 @@ export async function readExactEduPiAmbientGoalBinding(host: Pick<EduPiRuntimeHa
     }
   }
   return matching.length === 1 ? { status: "applied", ...matching[0] } : UNKNOWN;
+}
+
+/** G2 has no work case. Its current execution must be proved by Core's exact
+ * grant/version/message read rather than a G1/G3 Goal binding projection. */
+export async function readExactEduPiG2Execution(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
+  rootRef: string, entry: EduPiAmbientMessageBinding): Promise<G2Recovery> {
+  if (!HASH.test(rootRef) || !ID.test(entry.ownerId) || !ID.test(entry.grantId)
+    || !MESSAGE_REF.test(entry.messageRef) || !Number.isSafeInteger(entry.captureGrantVersion)
+    || entry.captureGrantVersion < 1 || entry.status !== "outcome_unknown") return UNKNOWN;
+  try {
+    if (predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, "student_followup") !== entry.messageRef) return UNKNOWN;
+  } catch { return UNKNOWN; }
+  let response: Record<string, unknown> | null;
+  try {
+    response = record(await host.callOwnerControl("student_followup_intent_execution_read", {
+      root_ref: rootRef, expected_owner_id: entry.ownerId, grant_id: entry.grantId,
+      expected_grant_version: entry.captureGrantVersion, message_ref: entry.messageRef,
+    }));
+  } catch { return UNKNOWN; }
+  const view = record(response?.result);
+  if (response?.ok !== true || !view || view.version !== 1 || view.apply !== false
+    || view.model_execute !== false || view.live_authority !== false || view.external_send !== false) return UNKNOWN;
+  if (view.status === "unknown") return UNKNOWN;
+  if (view.status !== "current" || !ID.test(String(view.follow_up_id || ""))
+    || !ID.test(String(view.goal_id || "")) || !Number.isSafeInteger(view.goal_version)
+    || Number(view.goal_version) < 1 || !ID.test(String(view.execution_id || ""))) return UNKNOWN;
+  return { status: "applied", goalId: String(view.goal_id), goalVersion: Number(view.goal_version),
+    followUpId: String(view.follow_up_id), executionId: String(view.execution_id) };
 }

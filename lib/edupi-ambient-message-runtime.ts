@@ -239,9 +239,19 @@ export async function captureAndApplyAmbientMessage(
       goalId: null, workCaseId: null, routedDomain: routed.domain, externalSend: false };
   }
   if (domain === "student_followup") {
-    const response = await host.callOwnerControl("student_followup_intent_execution_enqueue", {
-      root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
-    });
+    if (dependencies.onApplyPending) {
+      try { await dependencies.onApplyPending(messageBinding); }
+      catch { fail("proactivity_runtime_unavailable", "apply"); }
+    }
+    let response: Record<string, unknown>;
+    try {
+      response = await host.callOwnerControl("student_followup_intent_execution_enqueue", {
+        root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+      });
+    } catch {
+      return { status: "outcome_unknown", resolutionStatus: "needs_verification", reason: "apply_outcome_unknown",
+        goalId: null, workCaseId: null, routedDomain: routed?.domain ?? domain, externalSend: false };
+    }
     if (response?.ok === false && ["invalid_candidate", "activation_pending", "permission_denied", "budget_exhausted", "stale_source", "stale_revision"].includes(String(response.error_code))) {
       return { status: "captured", resolutionStatus: "held", reason: String(response.error_code), goalId: null,
         workCaseId: null, routedDomain: routed?.domain ?? null, externalSend: false };
@@ -253,6 +263,20 @@ export async function captureAndApplyAmbientMessage(
       || !Number.isSafeInteger(queued.attempt) || Number(queued.attempt) < 0
       || queued.execution_started !== true || queued.model_execute !== true || queued.notify !== false
       || queued.live_authority !== false || queued.external_send !== false) fail("proactivity_response_invalid", "apply");
+    let current = false;
+    try {
+      const read = result(await host.callOwnerControl("student_followup_intent_execution_read", {
+        root_ref: input.rootRef, expected_owner_id: context.ownerId, grant_id: context.grantId,
+        expected_grant_version: context.grantVersion, message_ref: messageRef,
+      }), "binding");
+      current = read.version === 1 && read.status === "current" && read.apply === false
+        && read.model_execute === false && read.live_authority === false && read.external_send === false
+        && read.follow_up_id === queued.follow_up_id && read.goal_id === queued.goal_id
+        && read.goal_version === queued.goal_version && read.execution_id === queued.execution_id;
+    } catch { /* A missing or failed read cannot turn a durable enqueue ACK into a verified current result. */ }
+    if (!current) return { status: "recorded", resolutionStatus: "needs_verification", reason: "g2_execution_unverified",
+      goalId: String(queued.goal_id), workCaseId: null, followUpId: String(queued.follow_up_id),
+      executionId: String(queued.execution_id), routedDomain: routed?.domain ?? domain, externalSend: false };
     return { status: queued.status as "queued" | "replayed", resolutionStatus: String(queued.status), reason: null,
       goalId: String(queued.goal_id), workCaseId: null, followUpId: String(queued.follow_up_id),
       executionId: String(queued.execution_id), routedDomain: routed?.domain ?? domain, externalSend: false };

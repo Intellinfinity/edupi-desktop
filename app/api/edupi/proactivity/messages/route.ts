@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
-import { captureAndApplyAmbientMessage, EduPiAmbientMessageError } from "@/lib/edupi-ambient-message-runtime";
+import { captureAndApplyAmbientMessage, EduPiAmbientMessageError, predictEduPiOwnerMessageRef } from "@/lib/edupi-ambient-message-runtime";
 import { confirmEduPiAmbientMessageBinding, markEduPiAmbientMessageOutcomeUnknown, markEduPiAmbientMessageOutcomeVerified,
   prepareEduPiAmbientMessageBinding, readUncertainEduPiAmbientMessages } from "@/lib/edupi-ambient-message-ledger";
-import { readExactEduPiAmbientGoalBinding } from "@/lib/edupi-ambient-message-recovery";
+import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution } from "@/lib/edupi-ambient-message-recovery";
 import { resolveEduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { readEduPiProactivityActivation, type EduPiProactivityDomain } from "@/lib/edupi-proactivity-config";
 import { readProactivityOwnerContext } from "@/lib/edupi-proactivity-runtime";
@@ -48,7 +48,8 @@ export async function GET(request: Request) {
       return await withEduPiAmbientSessionLock(sessionId, async () => {
         if (!await resolveSessionPath(sessionId)) return NextResponse.json({ status: "session_unavailable", externalSend: false }, { status: 409 });
         let pending = readUncertainEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
-        const recovered: Array<{ messageId: string; goalId: string; workCaseId: string }> = [];
+        const recovered: Array<{ messageId: string; goalId: string; workCaseId: string }
+          | { messageId: string; goalId: string; followUpId: string; executionId: string }> = [];
         if (pending.length && query.get("verify") === "1") {
           try {
             const host = await ensureEduPiRuntime(roots);
@@ -57,10 +58,19 @@ export async function GET(request: Request) {
             const rootRef = health?.data_root_fingerprint;
             if (typeof rootRef === "string" && /^sha256:[a-f0-9]{64}$/u.test(rootRef)) {
               for (const entry of pending.slice(0, 20)) {
-                const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, entry);
-                if (proof.status !== "applied") continue;
-                markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
-                recovered.push({ messageId: entry.messageId, goalId: proof.goalId, workCaseId: proof.workCaseId });
+                const g2 = predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, "student_followup") === entry.messageRef;
+                if (g2) {
+                  const proof = await readExactEduPiG2Execution(host, rootRef, entry);
+                  if (proof.status !== "applied") continue;
+                  markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
+                  recovered.push({ messageId: entry.messageId, goalId: proof.goalId,
+                    followUpId: proof.followUpId, executionId: proof.executionId });
+                } else {
+                  const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, entry);
+                  if (proof.status !== "applied") continue;
+                  markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
+                  recovered.push({ messageId: entry.messageId, goalId: proof.goalId, workCaseId: proof.workCaseId });
+                }
               }
               pending = readUncertainEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
             }

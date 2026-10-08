@@ -5,7 +5,8 @@ import { clearEduPiAmbientUnconfirmedDurable, readEduPiAmbientUnconfirmedDurable
 
 export type EduPiAmbientPendingState = { status: "clear" | "outcome_unknown" | "applied" | "unavailable";
   pending: Array<{ messageId: string; occurredAt: string; unconfirmed?: boolean }>;
-  recovered: Array<{ messageId: string; goalId: string; workCaseId: string }> };
+  recovered: Array<{ messageId: string; goalId: string; workCaseId: string }
+    | { messageId: string; goalId: string; followUpId: string; executionId: string }> };
 
 type CaptureIdentity = { sessionId: string; messageId: string; occurredAt: string };
 const armed = new Map<string, string>();
@@ -50,8 +51,14 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
     const pending = item.pending.every(value => value && typeof value === "object" && id((value as Record<string, unknown>).messageId)
       && typeof (value as Record<string, unknown>).occurredAt === "string"
       && Number.isFinite(Date.parse((value as Record<string, unknown>).occurredAt as string)));
-    const recovered = item.recovered.every(value => value && typeof value === "object"
-      && ["messageId", "goalId", "workCaseId"].every(key => id((value as Record<string, unknown>)[key])));
+    const recovered = item.recovered.every(value => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      const row = value as Record<string, unknown>;
+      const keys = Object.keys(row).sort().join(",");
+      return id(row.messageId) && id(row.goalId)
+        && (keys === "goalId,messageId,workCaseId" && id(row.workCaseId)
+          || keys === "executionId,followUpId,goalId,messageId" && id(row.followUpId) && id(row.executionId));
+    });
     if (!pending || !recovered || item.status === "clear" && item.pending.length !== 0
       || item.status === "outcome_unknown" && item.pending.length === 0) return localOnly();
     const server = item as EduPiAmbientPendingState;

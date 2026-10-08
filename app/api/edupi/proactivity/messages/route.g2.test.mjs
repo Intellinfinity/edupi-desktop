@@ -5,9 +5,9 @@ import crypto from "node:crypto";
 import test from "node:test";
 import ts from "typescript";
 
-function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,lostG1Reply=false,lostG3Reply=false}={}) {
+function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,lostG1Reply=false,lostG2Reply=false,lostG3Reply=false}={}) {
   const prepared=[],captured=[],confirmed=[],uncertain=[];
-  let recoverG1=false;
+  let recoverG1=false,recoverG2=false;
   let premarked=0;
   let bodyReads=0;
   class AmbientError extends Error {constructor(code){super(code);this.code=code;this.stage="owner";}}
@@ -41,8 +41,12 @@ function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=
       },
     },
     "@/lib/edupi-ambient-message-recovery":{readExactEduPiAmbientGoalBinding:async()=>recoverG1
-      ?{status:"applied",goalId:"goal-1",goalVersion:1,workCaseId:"work-1"}:{status:"outcome_unknown"}},
-    "@/lib/edupi-ambient-message-runtime":{EduPiAmbientMessageError:AmbientError,captureAndApplyAmbientMessage:async(_host,input,callbacks)=>{
+      ?{status:"applied",goalId:"goal-1",goalVersion:1,workCaseId:"work-1"}:{status:"outcome_unknown"},
+      readExactEduPiG2Execution:async()=>recoverG2
+        ?{status:"applied",goalId:"goal-g2",goalVersion:1,followUpId:"followup-g2",executionId:"execution-g2"}:{status:"outcome_unknown"}},
+    "@/lib/edupi-ambient-message-runtime":{EduPiAmbientMessageError:AmbientError,
+      predictEduPiOwnerMessageRef:(_root,_owner,_message,domain)=>`owner_message:${(domain==="student_followup"?"b":"a").repeat(64)}`,
+      captureAndApplyAmbientMessage:async(_host,input,callbacks)=>{
       captured.push(input);
       if(failG1&&input.domain==="teaching_preparation")throw new AmbientError("proactivity_grant_unavailable");
       const binding={messageRef:`owner_message:${(input.domain==="student_followup"?"b":"a").repeat(64)}`,ownerId:"owner-1",grantId:input.grantId,captureGrantVersion:1};
@@ -53,6 +57,10 @@ function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=
         premarked++;
         assert.equal(uncertain.length,1,"the private marker is durable before Core route_apply");
         throw new Error("synthetic_lost_reply");
+      }
+      if(input.domain==="student_followup"){
+        await callbacks.onApplyPending(binding);
+        if(lostG2Reply)throw new Error("synthetic_g2_reply_lost_after_enqueue");
       }
       if(input.domain==="calendar_administration"){
         await callbacks.onApplyPending(binding);
@@ -69,7 +77,7 @@ function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=
   vm.runInNewContext(code,{exports,URL,require:name=>{assert.ok(modules[name],name);return modules[name];}});
   const request=()=>new Request("http://localhost/api/edupi/proactivity/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sessionId:"session-1",messageId:"message-1",text:"Synthetic teacher message",occurredAt:"2026-10-04T00:00:00.000Z"})});
   return {route:exports,request,prepared,captured,confirmed,uncertain,premarked:()=>premarked,
-    setRecoverG1:value=>{recoverG1=value;},bodyReads:()=>bodyReads};
+    setRecoverG1:value=>{recoverG1=value;},setRecoverG2:value=>{recoverG2=value;},bodyReads:()=>bodyReads};
 }
 
 test("one message keeps independent G1/G2 receipts under the same session withdrawal ledger",async()=>{
@@ -83,6 +91,28 @@ test("one message keeps independent G1/G2 receipts under the same session withdr
   assert.equal(new Set(f.prepared.map(x=>x.messageId)).size,2);
   assert.ok(f.prepared.every(x=>x.sessionId==="session-1"));
   assert.equal(f.confirmed.length,2);
+});
+
+test("G2 Core enqueue loss stays durable before write and cannot be replayed after restart",async()=>{
+  const f=fixture({g1:false,g2:true,lostG2Reply:true});
+  const first=await f.route.POST(f.request());
+  assert.equal(first.status,200);
+  assert.equal((await first.json()).status,"outcome_unknown");
+  assert.equal(f.uncertain.length,1);
+  assert.match(f.uncertain[0].messageId,/^g2_[a-f0-9]{64}$/);
+  const reopened=await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1"));
+  assert.equal((await reopened.json()).status,"outcome_unknown");
+  const repeated=await f.route.POST(f.request());
+  assert.equal((await repeated.json()).status,"outcome_unknown");
+  assert.equal(f.captured.length,1,"reentry cannot enqueue the same G2 message twice");
+  f.setRecoverG2(true);
+  const verified=await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1&verify=1"));
+  const state=await verified.json();
+  assert.equal(state.status,"applied");
+  assert.equal(state.pending.length,0);
+  assert.equal(JSON.stringify(state.recovered),JSON.stringify([{messageId:f.uncertain[0]?.messageId??f.prepared[0].messageId,
+    goalId:"goal-g2",followUpId:"followup-g2",executionId:"execution-g2"}]));
+  assert.equal(f.captured.length,1,"the read-only proof cannot enqueue again");
 });
 
 test("G2 cannot capture outside an isolated root or while its processor is off",async()=>{

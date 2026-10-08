@@ -157,6 +157,9 @@ export function validateContainedRegularFile({
 type ComponentManifestFile = { path?: unknown; sha256?: unknown; size?: unknown };
 type RuntimeDependencyManifest = { name?: unknown; version?: unknown; root?: unknown; files?: unknown };
 const verifiedFiles = new Map<string, { stamp: string; hash: string; size: number }>();
+// The paired Core contains over 13,000 audited files. Keep room for two
+// independent roots without evicting the entire manifest during each read.
+const MAX_VERIFIED_FILES = 32_768;
 
 function verifyManifestFile(root: string, entry: ComponentManifestFile, seenPaths: Set<string>, allowNodeModulesSymlink = false): void {
   const entryPath = entry?.path;
@@ -174,7 +177,7 @@ function verifyManifestFile(root: string, entry: ComponentManifestFile, seenPath
   const bytes = fs.readFileSync(resolved);
   if (entrySize !== bytes.byteLength) throw new Error(`Component size mismatch: ${entryPath}`);
   if (entryHash !== sha256(bytes)) throw new Error(`Component hash mismatch: ${entryPath}`);
-  if (verifiedFiles.size >= 8192) verifiedFiles.clear();
+  if (verifiedFiles.size >= MAX_VERIFIED_FILES) verifiedFiles.clear();
   verifiedFiles.set(resolved, { stamp, hash: entryHash, size: entrySize });
 }
 

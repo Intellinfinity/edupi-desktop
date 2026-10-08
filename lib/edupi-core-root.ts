@@ -169,13 +169,16 @@ export function validateContainedRegularFile({
 
 type ComponentManifestFile = { path?: unknown; sha256?: unknown; size?: unknown };
 type RuntimeDependencyManifest = { name?: unknown; version?: unknown; root?: unknown; files?: unknown };
-type VerifiedManifestEntries = Map<string, string>;
+type ValidManifestFile = { path: string; sha256: string; size: number };
+type CollectedManifestFile = { entry: ValidManifestFile; metadata: string; allowNodeModulesSymlink: boolean };
+type CollectedManifestFiles = Map<string, CollectedManifestFile>;
 const verifiedFiles = new Map<string, { stamp: string; hash: string; size: number }>();
 // The paired Core contains over 13,000 audited files. Keep room for two
 // independent roots without evicting the entire manifest during each read.
 const MAX_VERIFIED_FILES = 32_768;
 
-function verifyManifestFile(root: string, entry: ComponentManifestFile, seenPaths: Set<string>, verifiedEntries: VerifiedManifestEntries, allowNodeModulesSymlink = false): void {
+function collectManifestFile(entry: ComponentManifestFile, seenPaths: Set<string>, files: CollectedManifestFiles,
+  allowNodeModulesSymlink: boolean): void {
   const entryPath = entry?.path;
   const entryHash = entry?.sha256;
   const entrySize = entry?.size;
@@ -184,29 +187,33 @@ function verifyManifestFile(root: string, entry: ComponentManifestFile, seenPath
   if (seenPaths.has(entryPath)) throw new Error(`Duplicate component manifest path: ${entryPath}`);
   seenPaths.add(entryPath);
   const metadata = JSON.stringify(canonicalize(entry));
-  const previous = verifiedEntries.get(entryPath);
+  const previous = files.get(entryPath);
   if (previous !== undefined) {
-    if (previous !== metadata) throw new Error(`Conflicting component manifest metadata: ${entryPath}`);
-    validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, entryPath), allowNodeModulesSymlink });
+    if (previous.metadata !== metadata) throw new Error(`Conflicting component manifest metadata: ${entryPath}`);
+    previous.allowNodeModulesSymlink &&= allowNodeModulesSymlink;
     return;
   }
+  files.set(entryPath, { entry: entry as ValidManifestFile, metadata, allowNodeModulesSymlink });
+}
+
+function verifyManifestFile(root: string, { entry, allowNodeModulesSymlink }: CollectedManifestFile): void {
+  const entryPath = entry.path;
+  const entryHash = entry.sha256;
+  const entrySize = entry.size;
   const resolved = validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, entryPath), allowNodeModulesSymlink });
   const stat = fs.statSync(resolved, { bigint: true });
   const stamp = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
   const cached = verifiedFiles.get(resolved);
-  if (cached?.stamp === stamp && cached.hash === entryHash && cached.size === entrySize) {
-    verifiedEntries.set(entryPath, metadata);
-    return;
-  }
+  if (cached?.stamp === stamp && cached.hash === entryHash && cached.size === entrySize) return;
   const bytes = fs.readFileSync(resolved);
   if (entrySize !== bytes.byteLength) throw new Error(`Component size mismatch: ${entryPath}`);
   if (entryHash !== sha256(bytes)) throw new Error(`Component hash mismatch: ${entryPath}`);
   if (verifiedFiles.size >= MAX_VERIFIED_FILES) verifiedFiles.clear();
   verifiedFiles.set(resolved, { stamp, hash: entryHash, size: entrySize });
-  verifiedEntries.set(entryPath, metadata);
 }
 
-function verifyRuntimeDependency(root: string, dependency: RuntimeDependencyManifest, seenPaths: Set<string>, seenPackages: Set<string>, verifiedEntries: VerifiedManifestEntries, allowNodeModulesSymlink: boolean): void {
+function collectRuntimeDependency(dependency: RuntimeDependencyManifest, seenPaths: Set<string>, seenPackages: Set<string>,
+  files: CollectedManifestFiles, allowNodeModulesSymlink: boolean): void {
   if (!dependency || typeof dependency.name !== "string" || !PACKAGE_NAME_PATTERN.test(dependency.name)
     || seenPackages.has(dependency.name)
     || typeof dependency.version !== "string" || !PACKAGE_VERSION_PATTERN.test(dependency.version)
@@ -220,7 +227,7 @@ function verifyRuntimeDependency(root: string, dependency: RuntimeDependencyMani
     if (!safeManifestRelativePath(entry?.path) || (entry.path !== dependency.root && !entry.path.startsWith(prefix))) {
       throw new Error(`Runtime dependency path is outside its package root: ${dependency.name}`);
     }
-    verifyManifestFile(root, entry, seenPaths, verifiedEntries, allowNodeModulesSymlink);
+    collectManifestFile(entry, seenPaths, files, allowNodeModulesSymlink);
   }
   const packageJsonPath = `${dependency.root}/package.json`;
   if (!(dependency.files as ComponentManifestFile[]).some((entry) => entry.path === packageJsonPath)) {
@@ -250,7 +257,7 @@ function readPinnedManifest(root: string, relativePath: string, pinnedHash: stri
   return { manifest, filePath, hash: recordedHash };
 }
 
-function verifyManifestClosure(root: string, manifest: Record<string, unknown>, verifiedEntries: VerifiedManifestEntries,
+function collectManifestClosure(manifest: Record<string, unknown>, files: CollectedManifestFiles,
   allowNodeModulesSymlink: boolean): void {
   if (!Array.isArray(manifest.modules) || !Array.isArray(manifest.assets) || !Array.isArray(manifest.runtime_dependencies)) {
     throw new Error("Component manifest is missing a required file or dependency list");
@@ -258,19 +265,19 @@ function verifyManifestClosure(root: string, manifest: Record<string, unknown>, 
   const seenPaths = new Set<string>();
   const seenPackages = new Set<string>();
   for (const entry of [...manifest.modules, ...manifest.assets] as ComponentManifestFile[]) {
-    verifyManifestFile(root, entry, seenPaths, verifiedEntries);
+    collectManifestFile(entry, seenPaths, files, false);
   }
   for (const dependency of manifest.runtime_dependencies as RuntimeDependencyManifest[]) {
-    verifyRuntimeDependency(root, dependency, seenPaths, seenPackages, verifiedEntries, allowNodeModulesSymlink);
+    collectRuntimeDependency(dependency, seenPaths, seenPackages, files, allowNodeModulesSymlink);
   }
 }
 
-function verifyRuntimeManifest(root: string, pinnedHash: string, verifiedEntries: VerifiedManifestEntries): {
+function collectRuntimeManifest(root: string, pinnedHash: string, files: CollectedManifestFiles): {
   manifest: Record<string, unknown>; filePath: string; hash: string;
 } {
   const { manifest, filePath, hash } = readPinnedManifest(root, RUNTIME_MANIFEST_PATH, pinnedHash, "Runtime manifest");
   if (manifest.entrypoint !== RUNTIME_ENTRYPOINT) throw new Error("Runtime manifest entrypoint is invalid");
-  verifyManifestClosure(root, manifest, verifiedEntries, false);
+  collectManifestClosure(manifest, files, false);
   const entries = [...manifest.modules as ComponentManifestFile[], ...manifest.assets as ComponentManifestFile[]];
   for (const required of RUNTIME_BOOTSTRAP_FILES) {
     if (!entries.some((entry) => entry.path === required)) throw new Error(`Runtime manifest omits required file: ${required}`);
@@ -278,10 +285,17 @@ function verifyRuntimeManifest(root: string, pinnedHash: string, verifiedEntries
   return { manifest, filePath, hash };
 }
 
+function verifyCollectedFiles(root: string, files: CollectedManifestFiles): void {
+  for (const file of files.values()) verifyManifestFile(root, file);
+}
+
 export function verifyEduPiRuntimeManifest({ root, pinnedHash }: { root: string; pinnedHash: string }): {
   manifest: Record<string, unknown>; filePath: string; hash: string;
 } {
-  return verifyRuntimeManifest(root, pinnedHash, new Map());
+  const files = new Map<string, CollectedManifestFile>();
+  const runtimeManifest = collectRuntimeManifest(root, pinnedHash, files);
+  verifyCollectedFiles(root, files);
+  return runtimeManifest;
 }
 
 export function resolveEduPiCoreRoot({
@@ -311,14 +325,14 @@ export function resolveEduPiCoreRoot({
     root, runtimeIdentity.component_manifest_path, runtimeIdentity.component_manifest_hash, "Component manifest");
 
   if (manifest.entrypoint !== "scripts/desktop_bridge_port.mjs") throw new Error("Component manifest entrypoint is invalid");
-  const verifiedEntries = new Map<string, string>();
-  verifyManifestClosure(root, manifest, verifiedEntries, true);
   const modules = manifest.modules as ComponentManifestFile[];
-
   const entrypointRelative = "scripts/desktop_bridge_port.mjs";
+  const files = new Map<string, CollectedManifestFile>();
+  const runtimeManifest = collectRuntimeManifest(root, runtimeIdentity.runtime_component_manifest_hash, files);
+  collectManifestClosure(manifest, files, true);
   if (!modules.some((entry) => entry.path === entrypointRelative)) throw new Error("Component manifest omits fixed entrypoint");
-  const entrypoint = validateContainedRegularFile({ allowedRoot: root, candidate: path.join(root, entrypointRelative) });
-  const runtimeManifest = verifyRuntimeManifest(root, runtimeIdentity.runtime_component_manifest_hash, verifiedEntries);
+  verifyCollectedFiles(root, files);
+  const entrypoint = path.join(root, entrypointRelative);
   return { root, cwd: root, entrypoint, componentManifestPath, componentManifestHash: recordedHash,
     runtimeComponentManifestPath: runtimeManifest.filePath, runtimeComponentManifestHash: runtimeManifest.hash,
     coreCommit: runtimeIdentity.core_commit, validationMode };

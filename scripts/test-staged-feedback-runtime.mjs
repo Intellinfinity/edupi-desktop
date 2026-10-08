@@ -114,8 +114,13 @@ async function stop() {
 }
 
 async function jsonFetch(url, init) {
-  const response = await fetch(`${baseUrl}${url}`, { ...init, headers: { ...init?.headers, "x-pi-desktop-token": desktopToken }, signal: AbortSignal.timeout(15_000) });
-  return { response, body: await response.json() };
+  const startedAt = performance.now();
+  try {
+    const response = await fetch(`${baseUrl}${url}`, { ...init, headers: { ...init?.headers, "x-pi-desktop-token": desktopToken }, signal: AbortSignal.timeout(15_000) });
+    return { response, body: await response.json() };
+  } catch (error) {
+    throw new Error(`${url} failed after ${Math.round(performance.now() - startedAt)}ms: ${error instanceof Error ? error.name : String(error)}`, { cause: error });
+  }
 }
 
 try {

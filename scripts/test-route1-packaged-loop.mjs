@@ -125,12 +125,13 @@ async function stop(server) {
 }
 
 async function api(server, pathname, body) {
+  const startedAt = performance.now();
   const response = await fetch(`${server.url}${pathname}`, { method: body === undefined ? "GET" : "POST",
     headers: { origin: server.url, "sec-fetch-site": "same-origin", "x-pi-desktop-token": token,
       ...(body === undefined ? {} : { "content-type": "application/json" }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(30_000) });
   const value = await response.json();
-  assert.equal(response.ok, true, `${pathname} ${response.status}: ${JSON.stringify(value)}`);
+  assert.equal(response.ok, true, `${pathname} ${response.status} after ${Math.round(performance.now() - startedAt)}ms: ${JSON.stringify(value)}`);
   return value;
 }
 

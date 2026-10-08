@@ -3,11 +3,11 @@
   "core_repository": "edupi",
   "core_sdk": { "pi": "1.0.2", "pi_durable": "1.0.2" },
   "core_runtime": {
-    "core_commit": "b195512fb9a96ae04c35340ebdea78eddd816152",
+    "core_commit": "682ebbad9ade9494d9304b026207e659eb265d29",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:e62be5ddc0ed1cde02a96c033aafcd09940a2fb46f76ecb73314638058a651a7",
-    "runtime_component_manifest_hash": "sha256:ca757d41bdb2c0d5e48162a42db58bce8b8ead25aead6e0a035268eb90b64d63",
-    "runtime_schema_hash": "sha256:4749a9e921e1a0537270f2b2a024018304e231d9029385fabdefbb2ae380f82f"
+    "component_manifest_hash": "sha256:673514d291e58e54720607511abaa48478900e818bd51b5ae115005f917b7246",
+    "runtime_component_manifest_hash": "sha256:b07df6ddfa784fdc6df5f6f25a2ba7b06f84d4645e0be887b911cacd735c6f4a",
+    "runtime_schema_hash": "sha256:de4c8a8c60f8410bbbd9807dfba4cee6986eb1f2b7a0ded5bd1198783dbbb97c"
   },
   "contract_identities": [
     {
@@ -195,7 +195,9 @@
     "https://github.com/Intellinfinity/edupi/pull/238",
     "https://github.com/Intellinfinity/edupi/pull/239",
     "https://github.com/Intellinfinity/edupi/pull/240",
-    "https://github.com/Intellinfinity/edupi-desktop/pull/287"
+    "https://github.com/Intellinfinity/edupi-desktop/pull/287",
+    "https://github.com/Intellinfinity/edupi/pull/252",
+    "https://github.com/Intellinfinity/edupi-desktop/pull/325"
   ],
-  "change_note": "Desktop pairs merged Core main #223–#232 and #234–#240 at Pi/PiDurable 1.0.2. Runtime and Bridge schemas, both component manifests and reviewed closure are pinned together. Bridge v1.1, occurrence v1.2 and 12 public bridge commands remain unchanged. New G1 source-preview/review stays an explicit teacher-selected DOCX fragment workflow; a parsed fragment is not approval. Planning read views do not spend decision history and duplicate decision rows are omitted without rewriting history; selected material/source basis is strict and stale changes remain held. Core retains sole authority over Durable recovery, natural intake, material schedules and bounded method recall. G2/G3/G4 Live remain off by default; G5 and unverified guardian/material/term attribution are not promoted. external_send=false. Source pairing does not constitute installation verification."
+  "change_note": "Draft Desktop #325 pairs staged Core Draft #252 at exact commit 682ebbad, not merged Core main. G1 source revision, G2 lost-reply proof, exact G3–G5 grant scope and packaged isolated model worker are pinned with the Runtime and Desktop component manifests. Bridge v1.1, occurrence v1.2 and 12 public bridge commands remain unchanged. Core owns Goal, queue, model execution, review and feedback; every domain remains canary-off by default, parent messages remain internal drafts, and external_send=false. The local unsigned macOS bundle and synthetic workflow evidence do not establish signed installation, Windows/Linux continuity or teacher value."
 }

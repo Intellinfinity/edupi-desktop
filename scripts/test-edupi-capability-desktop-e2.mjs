@@ -88,7 +88,12 @@ try {
     { domain: "parent_communication", subject: "math",
       text: `请为${classroom.canonical_name}${term.canonical_name}的${student.canonical_name}草拟给${parent.canonical_name}的家长沟通稿，完成时间 ${deadline}。` },
   ];
-  const runtimeRoot = { root: coreRoot, coreCommit: stagedCommit, componentManifestHash: manifest.component_manifest_hash };
+  const { resolveEduPiCoreRoot } = await jiti.import("../lib/edupi-core-root.ts");
+  const { activeBridgeIdentity } = await jiti.import("../lib/edupi-bridge-manifest.ts");
+  const runtimeRoot = resolveEduPiCoreRoot({ configuredRoot: coreRoot, allowedRoot: path.dirname(coreRoot),
+    runtimeIdentity: activeBridgeIdentity().runtime, validationMode: "external" });
+  assert.equal(runtimeRoot.coreCommit, stagedCommit);
+  assert.equal(runtimeRoot.runtimeComponentManifestHash, manifest.component_manifest_hash);
   const dataRootDescriptor = { root: dataRoot, memoryDir, outputDir, lockDir };
   let host = await supervisor.ensureEduPiRuntime({ runtime: runtimeRoot, dataRoot: dataRootDescriptor });
   const initial = await host.call("health", null);

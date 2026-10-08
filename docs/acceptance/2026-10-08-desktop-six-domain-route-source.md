@@ -108,3 +108,9 @@
 - 原生可见验收：上述独立 `.app` 用用户目录下另建的 `edupi-route1-canary-l4final-*` 合成根、Safe Mode、`PI_OFFLINE=1` 冷启动；窗口实际显示管理中心 Core 与教育投影完成，自动运行页显示 G1/G2/G3/G4/G5 五张默认关闭的试用卡、缺来源时按钮禁用。合成根确有私有 Core SQLite，监听端口的 Next 进程属于该预览 App；预览 PID 精确 TERM 后 App 与 server 均退出。未在原生窗口完成真实 Pi 输入到五领域产物/通知点击/反馈表单，不能把可见入口等同完整 UI 验收。
 - 稳定性复跑：同一无签名包首次 `test-route1-packaged-loop.mjs` 成功，但独立复跑一次在四份草稿并行 GET 中有单项 HTTP 503，另一次更早在 `/api/edupi/proactivity` GET 到达 30 秒客户端期限；`test-staged-feedback-runtime.mjs` 的反馈 bootstrap 也在 5 秒期限内超时。Core pin/哈希并未漂移，当前 `resolveEduPiCoreRoot` 每次仍对约 13,285 文件逐路径校验，单次观察有 2.7–22.4 秒长尾；这是风险线索而非唯一已证明根因。此记录覆盖上方“单次打包循环通过”作为稳定性结论：不能以该次成功把包内 G1/反馈通道判为可靠，正式 Desktop pin 暂缓推进，待保真性能修补后再复跑多次与并行草稿读取。
 - 未验：最终 pin 尚未更新正式 Desktop PR；macOS 签名和公证、Windows/Linux 安装升级/回滚、真实睡眠到期、系统通知点击、六领域真人内容质量、教师 5 日基线和 10 日试用仍缺证据。GitHub Actions 因账户计费限制未启动；Core 与 Desktop 均保持 Draft。
+
+## 2026-10-08 精确配对进入 Desktop Draft
+
+- 本节取代上段“正式 PR #325 仍固定旧 pin”的源码状态：Desktop `codex/desktop-l4-exact-grants-20261008` 已快进至 `84586fe4a84b40e9b6abff6a5cf06be8084752f9`，固定 Core 集成 Draft #252 的 `682ebbad9ade9494d9304b026207e659eb265d29`，G3–G5 仍需隔离标记、当前范围与逐域授权才可试用。Core #252 尚未合入 main，Desktop #325 仍为 Draft，不改变正式签名安装版。
+- 固定配对源码 `npm test` 为 2,342 passed / 34 skipped / 0 failed，TypeScript、lint 通过；此前和并行 13k 清单基准同跑时的 4 项失败单独记录，不算通过。新包从实际 `.app` 资源三轮 G1 四草稿并发读取、一次本地模型、算术/来源、审核/重启均通过；反馈 bootstrap/错范围拒绝/漏报/回读也三轮通过。另以两条独立合成根同时跑 G1 与反馈各一轮，二者均通过，`externalSend=false`。G2 丢回复与 G3–G5 三草稿/三审核合成链路仍有上段的实跑证据；安全隐私是跨领域 hold 策略，未自动做风险定性。
+- 性能门仍未关闭：保真目录缓存将 13k 包每次检查的 `lstat` 降为约 16,138 次，但热解析独立五次观测的 p95 为 1.625 秒，未达到 1 秒目标；同机重负载旧包曾有 HTTP 503/30 秒超时。上述多轮包测证明正常负载下的稳定性改善，不证明所有设备或重负载无长尾。可写 Core 根的校验到延迟导入窗口、旧 v1 账本满额、签名/Windows/Linux、真实睡眠、系统通知点击和教师试用仍独立未验。

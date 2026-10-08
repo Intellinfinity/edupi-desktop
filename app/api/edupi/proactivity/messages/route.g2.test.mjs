@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import crypto from "node:crypto";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import ts from "typescript";
+import { createJiti } from "jiti";
 
-function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,lostG1Reply=false,lostG2Reply=false,lostG3Reply=false}={}) {
-  const prepared=[],captured=[],confirmed=[],uncertain=[];
+const actualLedger = await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../../lib/edupi-ambient-message-ledger.ts");
+
+function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,g1Applied=false,lostG1Reply=false,lostG2Reply=false,lostG3Reply=false}={}) {
+  const prepared=[],captured=[],confirmed=[],uncertain=[],settled=[];
   let recoverG1=false,recoverG2=false;
   let premarked=0;
   let bodyReads=0;
@@ -38,10 +43,17 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
         assert.ok(matched);
         if(!uncertain.some(item=>item.sessionId===sessionId&&item.messageRef===messageRef)) uncertain.push({...matched,status:"outcome_unknown"});
       },
-      readUncertainEduPiAmbientMessages:sessionId=>uncertain.filter(item=>item.sessionId===sessionId),
+      readUnsettledEduPiAmbientMessages:sessionId=>uncertain.filter(item=>item.sessionId===sessionId),
+      readSettledEduPiAmbientMessages:sessionId=>settled.filter(item=>item.sessionId===sessionId),
+      markEduPiAmbientMessageOutcomeSettled:(sessionId,messageRef)=>{
+        const index=uncertain.findIndex(item=>item.sessionId===sessionId&&item.messageRef===messageRef);
+        if(index>=0)uncertain.splice(index,1);
+        const matched=prepared.find(item=>item.sessionId===sessionId&&item.messageRef===messageRef);
+        assert.ok(matched);settled.push({...matched,status:"settled"});
+      },
       markEduPiAmbientMessageOutcomeVerified:(sessionId,messageRef)=>{
         const index=uncertain.findIndex(item=>item.sessionId===sessionId&&item.messageRef===messageRef);
-        assert.ok(index>=0);uncertain.splice(index,1);
+        assert.ok(index>=0);settled.push({...uncertain[index],status:"settled"});uncertain.splice(index,1);
       },
     },
     "@/lib/edupi-ambient-message-recovery":{readExactEduPiAmbientGoalBinding:async()=>recoverG1
@@ -71,7 +83,7 @@ function fixture({g1=true,g2=true,g3=false,g3Legacy=false,isolated=true,g2Active
         if(lostG3Reply)throw new Error("synthetic_g3_reply_lost");
         return {status:"queued",goalId:"goal-g3",workCaseId:"work-g3",routedDomain:input.domain,externalSend:false};
       }
-      return {status:input.domain==="student_followup"?"queued":g1Recorded?"recorded":"captured",
+      return {status:input.domain==="student_followup"?"queued":g1Recorded?"recorded":g1Applied?"applied":"captured",
         ...(g1Recorded&&input.domain==="teaching_preparation"?{goalId:"goal-synthetic",workCaseId:null,
           resolutionStatus:"needs_verification",reason:"work_case_unverified"}:{}),externalSend:false};
     }},
@@ -91,8 +103,8 @@ test("one message keeps independent G1/G2 receipts under the same session withdr
   const result=await response.json();
   assert.equal(response.status,200);assert.equal(result.status,"queued");
   assert.equal(result.domainResults.length,2);
-  assert.equal(f.captured[0].messageId,"message-1");assert.match(f.captured[1].messageId,/^g2_[a-f0-9]{64}$/);
-  assert.equal(new Set(f.prepared.map(x=>x.messageId)).size,2);
+  assert.equal(f.captured[0].messageId,"message-1");assert.equal(f.captured[1].messageId,"message-1");
+  assert.equal(new Set(f.prepared.map(x=>x.messageRef)).size,2);
   assert.ok(f.prepared.every(x=>x.sessionId==="session-1"));
   assert.equal(f.confirmed.length,2);
 });
@@ -103,7 +115,7 @@ test("G2 Core enqueue loss stays durable before write and cannot be replayed aft
   assert.equal(first.status,200);
   assert.equal((await first.json()).status,"outcome_unknown");
   assert.equal(f.uncertain.length,1);
-  assert.match(f.uncertain[0].messageId,/^g2_[a-f0-9]{64}$/);
+  assert.equal(f.uncertain[0].messageId,"message-1");
   const reopened=await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1"));
   assert.equal((await reopened.json()).status,"outcome_unknown");
   const repeated=await f.route.POST(f.request());
@@ -117,6 +129,17 @@ test("G2 Core enqueue loss stays durable before write and cannot be replayed aft
   assert.equal(JSON.stringify(state.recovered),JSON.stringify([{messageId:f.uncertain[0]?.messageId??f.prepared[0].messageId,
     goalId:"goal-g2",followUpId:"followup-g2",executionId:"execution-g2"}]));
   assert.equal(f.captured.length,1,"the read-only proof cannot enqueue again");
+});
+
+test("an earlier successful G1 result cannot mask a later G2 unknown outcome",async()=>{
+  const f=fixture({g1Applied:true,lostG2Reply:true});
+  const response=await f.route.POST(f.request());
+  const body=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(body.status,"outcome_unknown");
+  assert.equal(body.domain,"student_followup");
+  assert.equal(JSON.stringify(body.domainResults.map(item=>item.status)),JSON.stringify(["applied","outcome_unknown"]));
+  assert.equal(f.uncertain.length,1);
 });
 
 test("G2 cannot capture outside an isolated root or while its processor is off",async()=>{
@@ -225,4 +248,89 @@ test("G3 lost apply reply keeps one durable unknown and blocks a new domain mess
   const repeated=await f.route.POST(f.request());
   assert.equal((await repeated.json()).status,"outcome_unknown");
   assert.equal(f.captured.length,1);
+});
+
+test("the actual private ledger accepts all five domain captures for one Pi message", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-multidomain-route-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const stateDir = path.join(root, "state"), dataRoot = path.join(root, "data");
+  fs.mkdirSync(stateDir, { mode: 0o700 }); fs.mkdirSync(dataRoot, { mode: 0o700 });
+  const domains = ["teaching_preparation", "student_followup", "calendar_administration", "lesson_reflection", "parent_communication"];
+  const captureIds = [];
+  const modules = {
+    "next/server": { NextResponse: { json: (body, options = {}) => ({ status: options.status ?? 200, json: async () => body }) } },
+    "node:crypto": crypto,
+    "@/lib/desktop-api-auth": { isDesktopApiRequestAllowed: () => true },
+    "@/lib/bounded-form-data": { parseJsonWithinLimit: request => request.json(), RequestBodyTooLargeError: class extends Error {} },
+    "@/lib/edupi-core-snapshot": { resolveEduPiBridgeRoots: () => ({ runtime: { coreCommit: "synthetic-exact-pin" }, dataRoot: { root: dataRoot } }) },
+    "@/lib/safe-mode": { canStartEduPiStudentFollowup: () => true },
+    "@/lib/edupi-proactivity-config": { readEduPiProactivityActivation: ({ domain }) => ({ enabled: true,
+      source: "desktop_canary", configurationStatus: "ready", grantId: `grant-${domain}`,
+      scope: { classId: "class-1", subject: domain === "calendar_administration" ? "administration" : "数学" } }) },
+    "@/lib/session-reader": { resolveSessionPath: async () => "synthetic-session" },
+    "@/lib/edupi-ambient-session-lock": { withEduPiAmbientSessionLock: async (_id, operation) => operation() },
+    "@/lib/edupi-proactivity-runtime": { readProactivityOwnerContext: async () => ({ status: "active" }) },
+    "@/lib/edupi-runtime-supervisor": { isEduPiG3ExactRuntimeSupported: () => true,
+      ensureEduPiRuntime: async () => ({ call: async () => ({ ok: true, result: { data_root_fingerprint: `sha256:${"a".repeat(64)}`,
+        capabilities: { ambient_planning: "active", owner_intent: "active", g2_processor: "active", g3_processor: "active" } } }) }) },
+    "@/lib/edupi-proactivity-control": { isCapabilityGrantBindingIdentity: () => true },
+    "@/lib/edupi-ambient-message-ledger": Object.fromEntries([
+      "prepareEduPiAmbientMessageBinding", "confirmEduPiAmbientMessageBinding", "markEduPiAmbientMessageOutcomeUnknown",
+      "markEduPiAmbientMessageOutcomeVerified", "markEduPiAmbientMessageOutcomeSettled",
+      "readUnsettledEduPiAmbientMessages", "readSettledEduPiAmbientMessages",
+    ].map(name => [name, (...args) => actualLedger[name](...args.slice(0, -1), { stateDir, dataRoot })])),
+    "@/lib/edupi-ambient-message-recovery": { readExactEduPiAmbientGoalBinding: async () => ({ status: "outcome_unknown" }),
+      readExactEduPiG2Execution: async () => ({ status: "outcome_unknown" }) },
+    "@/lib/edupi-ambient-message-runtime": { EduPiAmbientMessageError: class extends Error {},
+      predictEduPiOwnerMessageRef: () => "",
+      captureAndApplyAmbientMessage: async (_host, input, callbacks) => {
+        captureIds.push(input.messageId);
+        const binding = { messageRef: `owner_message:${crypto.createHash("sha256").update(input.domain).digest("hex")}`,
+          ownerId: "owner-1", grantId: input.grantId, captureGrantVersion: 1 };
+        await callbacks.onPrepared(binding); await callbacks.onCaptured(binding);
+        if (input.domain === "lesson_reflection") {
+          await callbacks.onApplyPending(binding);
+          return { status: "queued", goalId: "goal-reflection", workCaseId: "work-reflection", routedDomain: input.domain, externalSend: false };
+        }
+        return { status: "captured", resolutionStatus: "held", reason: "different_domain", routedDomain: input.domain, externalSend: false };
+      } },
+  };
+  const source = fs.readFileSync(new URL("./route.ts", import.meta.url), "utf8");
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022 } }).outputText;
+  const exports = {};
+  vm.runInNewContext(code, { exports, URL, require: name => { assert.ok(modules[name], name); return modules[name]; } });
+  const request = new Request("http://localhost/api/edupi/proactivity/messages", { method: "POST",
+    headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: "session-1", messageId: "prompt-stable",
+      text: "合成课后反思", occurredAt: "2026-10-08T00:00:00.000Z" }) });
+  const response = await exports.POST(request);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "queued");
+  assert.equal(body.routedDomain, "lesson_reflection");
+  assert.deepEqual(captureIds, Array(5).fill("prompt-stable"));
+  const saved = actualLedger.readWithdrawableEduPiAmbientMessages("session-1", { stateDir, dataRoot });
+  assert.equal(saved.length, domains.length);
+  assert.equal(new Set(saved.map(item => item.messageRef)).size, domains.length);
+  assert.deepEqual(new Set(saved.map(item => item.messageId)), new Set(["prompt-stable"]));
+  assert.ok(saved.every(item => item.status === "settled"));
+  const coldRead = await exports.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1"));
+  const coldState = await coldRead.json();
+  assert.equal(coldState.status, "clear");
+  assert.equal(JSON.stringify(coldState.settled), JSON.stringify([{ messageId: "prompt-stable", occurredAt: "2026-10-08T00:00:00.000Z" }]));
+  const duplicate = await exports.POST(new Request("http://localhost/api/edupi/proactivity/messages", { method: "POST",
+    headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: "session-1", messageId: "prompt-stable",
+      text: "合成课后反思", occurredAt: "2026-10-08T00:00:00.000Z" }) }));
+  assert.equal((await duplicate.json()).resolutionStatus, "settled");
+  assert.equal(captureIds.length, domains.length, "a lost HTTP ACK cannot trigger a second Core route_apply");
+  actualLedger.recordEduPiAmbientMessageBinding({ sessionId: "session-crashed", messageId: "prompt-crashed",
+    messageRef: `owner_message:${"f".repeat(64)}`, ownerId: "owner-1", grantId: "grant-lesson_reflection",
+    captureGrantVersion: 1, occurredAt: "2026-10-08T00:00:01.000Z" }, { stateDir, dataRoot });
+  const crashed = await exports.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-crashed"));
+  assert.equal((await crashed.json()).status, "outcome_unknown", "capture ACK without a final outcome must remain visible");
+  const crashReplay = await exports.POST(new Request("http://localhost/api/edupi/proactivity/messages", { method: "POST",
+    headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: "session-crashed", messageId: "prompt-crashed",
+      text: "合成课后反思", occurredAt: "2026-10-08T00:00:01.000Z" }) }));
+  assert.equal((await crashReplay.json()).status, "outcome_unknown");
+  assert.equal(captureIds.length, domains.length, "an incomplete capture cannot be blindly replayed");
 });

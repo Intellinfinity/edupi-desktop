@@ -93,7 +93,7 @@ try {
       starts_at: new Date(Date.now() - 60_000).toISOString(), ends_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
       budget: { id: "desktop-g2-lost-reply-budget", max_calls: 4 } } });
   assert.equal(grant.ok, true, JSON.stringify(grant));
-  const sessionId = "synthetic-g2-session", messageId = `g2_${crypto.createHash("sha256").update(`${sessionId}\0prompt-stable`).digest("hex")}`;
+  const sessionId = "synthetic-g2-session", messageId = "prompt-stable";
   const occurredAt = new Date().toISOString();
   const source = { rootRef: daemon.dataRootFingerprint, grantId, messageId,
     text: "张三今天移项漏写负号，明天请帮我跟进学生张三。", occurredAt, domain: "student_followup" };

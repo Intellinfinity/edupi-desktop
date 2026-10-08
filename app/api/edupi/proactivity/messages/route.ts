@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
 import { captureAndApplyAmbientMessage, EduPiAmbientMessageError, predictEduPiOwnerMessageRef } from "@/lib/edupi-ambient-message-runtime";
-import { confirmEduPiAmbientMessageBinding, markEduPiAmbientMessageOutcomeUnknown, markEduPiAmbientMessageOutcomeVerified,
-  prepareEduPiAmbientMessageBinding, readUncertainEduPiAmbientMessages } from "@/lib/edupi-ambient-message-ledger";
+import { confirmEduPiAmbientMessageBinding, markEduPiAmbientMessageOutcomeSettled, markEduPiAmbientMessageOutcomeUnknown,
+  markEduPiAmbientMessageOutcomeVerified, prepareEduPiAmbientMessageBinding, readSettledEduPiAmbientMessages,
+  readUnsettledEduPiAmbientMessages } from "@/lib/edupi-ambient-message-ledger";
 import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution } from "@/lib/edupi-ambient-message-recovery";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { isCapabilityGrantBindingIdentity, type EduPiCapabilityDomain } from "@/lib/edupi-proactivity-control";
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
       const roots = resolveEduPiBridgeRoots();
       return await withEduPiAmbientSessionLock(sessionId, async () => {
         if (!await resolveSessionPath(sessionId)) return NextResponse.json({ status: "session_unavailable", externalSend: false }, { status: 409 });
-        let pending = readUncertainEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+        let pending = readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
         const recovered: Array<{ messageId: string; goalId: string; workCaseId: string }
           | { messageId: string; goalId: string; followUpId: string; executionId: string }> = [];
         if (pending.length && query.get("verify") === "1") {
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
             const health = healthResponse?.ok === true ? record(healthResponse.result) : null;
             const rootRef = health?.data_root_fingerprint;
             if (typeof rootRef === "string" && /^sha256:[a-f0-9]{64}$/u.test(rootRef)) {
-              for (const entry of pending.slice(0, 20)) {
+              for (const entry of pending.filter(item => item.status === "outcome_unknown").slice(0, 20)) {
                 const g2 = predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, "student_followup") === entry.messageRef;
                 if (g2) {
                   const proof = await readExactEduPiG2Execution(host, rootRef, entry);
@@ -74,12 +75,16 @@ export async function GET(request: Request) {
                   recovered.push({ messageId: entry.messageId, goalId: proof.goalId, workCaseId: proof.workCaseId });
                 }
               }
-              pending = readUncertainEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+              pending = readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
             }
           } catch { /* Missing exact Core proof leaves the durable outcome pending. */ }
         }
+        const settled = readSettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
         return NextResponse.json({ status: pending.length ? "outcome_unknown" : recovered.length ? "applied" : "clear",
-          recovered, pending: pending.map(item => ({ messageId: item.messageId, occurredAt: item.occurredAt })),
+          recovered, pending: [...new Map(pending.map(item => [item.messageId,
+            { messageId: item.messageId, occurredAt: item.occurredAt }])).values()],
+          settled: [...new Map(settled.map(item => [item.messageId,
+            { messageId: item.messageId, occurredAt: item.occurredAt }])).values()],
           externalSend: false });
       });
     }
@@ -131,13 +136,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ status: "session_unavailable", externalSend: false }, { status: 409 });
       }
       const g2CaptureId = `g2_${createHash("sha256").update(`${sessionId}\0${messageId}`).digest("hex")}`;
-      const uncertain = readUncertainEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
+      const uncertain = readUnsettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root });
       const priorUnknown = uncertain
         .find(item => item.messageId === messageId || item.messageId === g2CaptureId);
       if (priorUnknown) return NextResponse.json(priorUnknown.occurredAt === occurredAt
         ? { status: "outcome_unknown", resolutionStatus: "needs_verification", reason: "apply_outcome_unknown", externalSend: false }
         : { status: "identity_conflict", externalSend: false }, { status: priorUnknown.occurredAt === occurredAt ? 200 : 409 });
       if (uncertain.length) return NextResponse.json({ status: "verification_pending", externalSend: false }, { status: 409 });
+      const priorSettled = readSettledEduPiAmbientMessages(sessionId, { dataRoot: roots.dataRoot.root })
+        .find(item => item.messageId === messageId || item.messageId === g2CaptureId);
+      if (priorSettled) return NextResponse.json(priorSettled.occurredAt === occurredAt
+        ? { status: "captured", resolutionStatus: "settled", reason: null, externalSend: false }
+        : { status: "identity_conflict", externalSend: false }, { status: priorSettled.occurredAt === occurredAt ? 200 : 409 });
       const host = await ensureEduPiRuntime(roots);
       const health = record((await host.call("health", null)).result);
       const capabilities = record(health?.capabilities);
@@ -153,9 +163,10 @@ export async function POST(request: Request) {
         try {
           if (domain === "student_followup" && capabilities.g2_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
           if (isG3Domain(domain) && capabilities.g3_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
-          // One teacher message may have independent G1/G2 source receipts.
-          // Keep both in the existing session withdrawal ledger without a migration.
-          const captureId = domain === "student_followup" ? g2CaptureId : messageId;
+          // Core distinguishes the domain conversations. The private ledger
+          // retains each distinct message_ref under the original Pi message
+          // ID so a cold-start outbox can reconcile any domain receipt.
+          const captureId = messageId;
           const result = await captureAndApplyAmbientMessage(host, {
             rootRef, grantId: activation.grantId!, messageId: captureId, text, occurredAt, domain,
           }, { controlScope: activation.scope!, capabilityActive: isG3Domain(domain) && capabilities.g3_processor === "active",
@@ -173,8 +184,8 @@ export async function POST(request: Request) {
             } });
           if (result.status === "outcome_unknown" || result.status === "recorded") {
             if (!applyPending) markEduPiAmbientMessageOutcomeUnknown(sessionId, preparedMessageRef!, { dataRoot: roots.dataRoot.root });
-          } else if (applyPending) {
-            markEduPiAmbientMessageOutcomeVerified(sessionId, preparedMessageRef!, { dataRoot: roots.dataRoot.root });
+          } else if (preparedMessageRef) {
+            markEduPiAmbientMessageOutcomeSettled(sessionId, preparedMessageRef, { dataRoot: roots.dataRoot.root });
           }
           results.push({ ...result, domain });
           // Core already persisted a G1 Goal. Do not start a second domain
@@ -194,7 +205,8 @@ export async function POST(request: Request) {
             stage: error instanceof EduPiAmbientMessageError ? error.stage : "runtime" });
         }
       }
-      const result = results.find(item => ["applied", "cancelled", "corrected", "queued", "replayed", "recorded", "outcome_unknown"].includes(item.status))
+      const result = results.find(item => item.status === "outcome_unknown" || item.status === "recorded")
+        ?? results.find(item => ["applied", "cancelled", "corrected", "queued", "replayed"].includes(item.status))
         ?? results.find(item => item.status !== "unavailable") ?? results[0];
       return NextResponse.json({ ...result, ...(results.length > 1 ? { domainResults: results } : {}) },
         { status: result.status !== "unavailable" ? 200 : result.code === "proactivity_grant_unavailable" ? 409 : 503 });

@@ -18,7 +18,7 @@ export type EduPiAmbientMessageBinding = {
   grantId: string;
   captureGrantVersion: number;
   occurredAt: string;
-  status: "pending" | "captured" | "outcome_unknown" | "withdrawn" | "abandoned";
+  status: "pending" | "captured" | "outcome_unknown" | "settled" | "withdrawn" | "abandoned";
   withdrawnAt: string | null;
 };
 
@@ -30,7 +30,7 @@ type StoredEntry = {
   grant_id: string;
   capture_grant_version: number;
   occurred_at: string;
-  status: "pending" | "captured" | "outcome_unknown" | "withdrawn" | "abandoned";
+  status: "pending" | "captured" | "outcome_unknown" | "settled" | "withdrawn" | "abandoned";
   withdrawn_at: string | null;
 };
 
@@ -56,8 +56,8 @@ function validEntry(value: unknown): value is StoredEntry {
     && ID.test(String(item.session_id || "")) && ID.test(String(item.message_id || ""))
     && MESSAGE_REF.test(String(item.message_ref || "")) && ID.test(String(item.owner_id || "")) && ID.test(String(item.grant_id || ""))
     && Number.isSafeInteger(item.capture_grant_version) && Number(item.capture_grant_version) > 0
-    && canonicalTime(item.occurred_at) && ["pending", "captured", "outcome_unknown", "withdrawn", "abandoned"].includes(String(item.status))
-    && (["pending", "captured", "outcome_unknown"].includes(String(item.status)) && item.withdrawn_at === null
+    && canonicalTime(item.occurred_at) && ["pending", "captured", "outcome_unknown", "settled", "withdrawn", "abandoned"].includes(String(item.status))
+    && (["pending", "captured", "outcome_unknown", "settled"].includes(String(item.status)) && item.withdrawn_at === null
       || ["withdrawn", "abandoned"].includes(String(item.status)) && canonicalTime(item.withdrawn_at));
 }
 
@@ -68,11 +68,14 @@ function validLedger(value: unknown): value is StoredLedger {
     || ledger.version !== 1 || !HASH.test(String(ledger.data_root_hash || ""))
     || !Number.isSafeInteger(ledger.revision) || Number(ledger.revision) < 0
     || !Array.isArray(ledger.entries) || ledger.entries.length > MAX_ENTRIES || !ledger.entries.every(validEntry)) return false;
-  const keys = new Set<string>(), refs = new Set<string>();
+  const keys = new Map<string, { occurredAt: string; ownerId: string }>(), refs = new Set<string>();
   for (const entry of ledger.entries as StoredEntry[]) {
     const key = `${entry.session_id}\0${entry.message_id}`;
-    if (keys.has(key) || refs.has(entry.message_ref)) return false;
-    keys.add(key); refs.add(entry.message_ref);
+    const prior = keys.get(key);
+    if (prior && (prior.occurredAt !== entry.occurred_at || prior.ownerId !== entry.owner_id)
+      || refs.has(entry.message_ref)) return false;
+    keys.set(key, { occurredAt: entry.occurred_at, ownerId: entry.owner_id });
+    refs.add(entry.message_ref);
   }
   return true;
 }
@@ -167,11 +170,14 @@ export function prepareEduPiAmbientMessageBinding(input: Omit<EduPiAmbientMessag
     occurred_at: input.occurredAt, status: "pending", withdrawn_at: null };
   if (!validEntry(candidate)) fail();
   const { root, value } = readLedger(stateDir, dataRoot);
-  const prior = value.entries.find((entry) => entry.session_id === candidate.session_id && entry.message_id === candidate.message_id);
+  const prior = value.entries.find((entry) => entry.session_id === candidate.session_id && entry.message_id === candidate.message_id
+    && entry.message_ref === candidate.message_ref);
   if (prior) {
     if (JSON.stringify({ ...prior, status: "pending", withdrawn_at: null }) !== JSON.stringify(candidate)) fail();
     return publicEntry(prior);
   }
+  if (value.entries.some((entry) => entry.session_id === candidate.session_id && entry.message_id === candidate.message_id
+    && (entry.occurred_at !== candidate.occurred_at || entry.owner_id !== candidate.owner_id))) fail();
   if (value.entries.some((entry) => entry.message_ref === candidate.message_ref)) fail();
   let retained = value.entries;
   if (retained.length >= MAX_ENTRIES) {
@@ -181,7 +187,8 @@ export function prepareEduPiAmbientMessageBinding(input: Omit<EduPiAmbientMessag
     retained = retained.filter((entry) => entry !== oldestWithdrawn);
   }
   const next = { ...value, revision: value.revision + 1, entries: [...retained, candidate]
-    .sort((left, right) => `${left.session_id}\0${left.message_id}`.localeCompare(`${right.session_id}\0${right.message_id}`)) };
+    .sort((left, right) => `${left.session_id}\0${left.message_id}\0${left.message_ref}`
+      .localeCompare(`${right.session_id}\0${right.message_id}\0${right.message_ref}`)) };
   writeLedger(root, next);
   return publicEntry(candidate);
 }
@@ -192,7 +199,7 @@ export function confirmEduPiAmbientMessageBinding(sessionId: string, messageId: 
   const { root, value } = readLedger(stateDir, dataRoot);
   const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_id === messageId && entry.message_ref === messageRef);
   if (!prior || ["withdrawn", "abandoned"].includes(prior.status)) fail();
-  if (prior.status === "captured" || prior.status === "outcome_unknown") return publicEntry(prior);
+  if (prior.status === "captured" || prior.status === "outcome_unknown" || prior.status === "settled") return publicEntry(prior);
   const updated: StoredEntry = { ...prior, status: "captured" };
   writeLedger(root, { ...value, revision: value.revision + 1,
     entries: value.entries.map((entry) => entry === prior ? updated : entry) });
@@ -215,7 +222,21 @@ export function readWithdrawableEduPiAmbientMessages(sessionId: string,
   { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding[] {
   if (!ID.test(sessionId)) fail();
   return readLedger(stateDir, dataRoot).value.entries.filter((entry) => entry.session_id === sessionId
+    && ["pending", "captured", "outcome_unknown", "settled"].includes(entry.status)).map(publicEntry);
+}
+
+export function readUnsettledEduPiAmbientMessages(sessionId: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding[] {
+  if (!ID.test(sessionId)) fail();
+  return readLedger(stateDir, dataRoot).value.entries.filter((entry) => entry.session_id === sessionId
     && ["pending", "captured", "outcome_unknown"].includes(entry.status)).map(publicEntry);
+}
+
+export function readSettledEduPiAmbientMessages(sessionId: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding[] {
+  if (!ID.test(sessionId)) fail();
+  return readLedger(stateDir, dataRoot).value.entries.filter((entry) => entry.session_id === sessionId
+    && entry.status === "settled").map(publicEntry);
 }
 
 export function readUncertainEduPiAmbientMessages(sessionId: string,
@@ -230,7 +251,7 @@ export function markEduPiAmbientMessageOutcomeUnknown(sessionId: string, message
   if (!ID.test(sessionId) || !MESSAGE_REF.test(messageRef)) fail();
   const { root, value } = readLedger(stateDir, dataRoot);
   const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_ref === messageRef);
-  if (!prior || ["withdrawn", "abandoned"].includes(prior.status)) fail();
+  if (!prior || ["settled", "withdrawn", "abandoned"].includes(prior.status)) fail();
   if (prior.status === "outcome_unknown") return publicEntry(prior);
   const updated: StoredEntry = { ...prior, status: "outcome_unknown" };
   writeLedger(root, { ...value, revision: value.revision + 1,
@@ -244,7 +265,20 @@ export function markEduPiAmbientMessageOutcomeVerified(sessionId: string, messag
   const { root, value } = readLedger(stateDir, dataRoot);
   const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_ref === messageRef);
   if (!prior || prior.status !== "outcome_unknown") fail();
-  const updated: StoredEntry = { ...prior, status: "captured" };
+  const updated: StoredEntry = { ...prior, status: "settled" };
+  writeLedger(root, { ...value, revision: value.revision + 1,
+    entries: value.entries.map((entry) => entry === prior ? updated : entry) });
+  return publicEntry(updated);
+}
+
+export function markEduPiAmbientMessageOutcomeSettled(sessionId: string, messageRef: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding {
+  if (!ID.test(sessionId) || !MESSAGE_REF.test(messageRef)) fail();
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_ref === messageRef);
+  if (!prior || !["captured", "outcome_unknown", "settled"].includes(prior.status)) fail();
+  if (prior.status === "settled") return publicEntry(prior);
+  const updated: StoredEntry = { ...prior, status: "settled" };
   writeLedger(root, { ...value, revision: value.revision + 1,
     entries: value.entries.map((entry) => entry === prior ? updated : entry) });
   return publicEntry(updated);

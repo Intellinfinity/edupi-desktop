@@ -46,7 +46,8 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
     if (!response.ok || !body || typeof body !== "object" || Array.isArray(body)) return localOnly();
     const item = body as Record<string, unknown>;
     if (!["clear", "outcome_unknown", "applied"].includes(String(item.status)) || item.externalSend !== false
-      || !Array.isArray(item.pending) || item.pending.length > 4096 || !Array.isArray(item.recovered) || item.recovered.length > 20) return localOnly();
+      || !Array.isArray(item.pending) || item.pending.length > 4096 || !Array.isArray(item.recovered) || item.recovered.length > 20
+      || item.settled !== undefined && (!Array.isArray(item.settled) || item.settled.length > 4096)) return localOnly();
     const id = (value: unknown) => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u.test(value);
     const pending = item.pending.every(value => value && typeof value === "object" && id((value as Record<string, unknown>).messageId)
       && typeof (value as Record<string, unknown>).occurredAt === "string"
@@ -59,10 +60,22 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
         && (keys === "goalId,messageId,workCaseId" && id(row.workCaseId)
           || keys === "executionId,followUpId,goalId,messageId" && id(row.followUpId) && id(row.executionId));
     });
-    if (!pending || !recovered || item.status === "clear" && item.pending.length !== 0
+    const settled = item.settled === undefined ? [] : item.settled as unknown[];
+    const validSettled = settled.every(value => value && typeof value === "object" && !Array.isArray(value)
+      && Object.keys(value).length === 2 && id((value as Record<string, unknown>).messageId)
+      && typeof (value as Record<string, unknown>).occurredAt === "string"
+      && Number.isFinite(Date.parse((value as Record<string, unknown>).occurredAt as string)));
+    if (!pending || !recovered || !validSettled || item.status === "clear" && item.pending.length !== 0
       || item.status === "outcome_unknown" && item.pending.length === 0) return localOnly();
     const server = item as EduPiAmbientPendingState;
-    for (const entry of [...server.pending, ...server.recovered]) await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId);
+    const localById = new Map(local.map(entry => [entry.messageId, entry.occurredAt]));
+    for (const entry of [...server.pending, ...settled as Array<{ messageId: string; occurredAt: string }>]) {
+      const localTime = localById.get(entry.messageId);
+      if (localTime !== undefined && localTime !== entry.occurredAt) return localOnly();
+    }
+    for (const entry of [...server.pending, ...server.recovered, ...settled as Array<{ messageId: string }>]) {
+      await clearEduPiAmbientUnconfirmedDurable(sessionId, entry.messageId);
+    }
     local = await readEduPiAmbientUnconfirmedDurable(sessionId);
     const seen = new Set(server.pending.map(entry => entry.messageId));
     const pendingEntries = [...server.pending,

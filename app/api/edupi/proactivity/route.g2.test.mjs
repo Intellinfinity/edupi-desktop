@@ -166,6 +166,20 @@ test("G3 through G5 expose default-off state and reject live activation before C
   assert.equal(f.events.some(event => ["owner_control", "config", "prepare_due", "materials"].includes(event.operation)), false);
 });
 
+test("a stale G3 config never appears as an active live capability", async () => {
+  const f = fixture();
+  f.activations.set("calendar_administration", { enabled: true, source: "desktop_canary",
+    configurationStatus: "ready", scope, grantId: "synthetic-old-calendar-grant",
+    updatedAt: "2026-10-04T00:00:00.000Z" });
+  const response = await f.get("?domain=calendar_administration");
+  const state = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(state.activation.enabled, false);
+  assert.equal(state.activationBlocked, "activation_pending");
+  assert.equal(state.capabilities, null);
+  assert.equal(f.events.some(event => event.operation === "ensure" || event.operation === "owner_control"), false);
+});
+
 test("stopping either domain permits the other processor and ambient planning to remain active", async () => {
   for (const stoppedDomain of [G1, G2]) {
     const f = fixture({ g1Enabled: true });

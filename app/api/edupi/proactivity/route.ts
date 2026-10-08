@@ -88,7 +88,7 @@ async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivit
   domain: EduPiProactivityDomain,
   context?: Awaited<ReturnType<typeof readScopeContext>>, allowDegraded = false) {
   if (pendingCapability(domain)) return { ok: true, degraded: false, activationBlocked: "activation_pending",
-    activation: publicActivation(activation), scopes: [], grant: null, capabilities: null,
+    activation: { ...publicActivation(activation), enabled: false }, scopes: [], grant: null, capabilities: null,
     limits: { durationDays: EDUPI_PROACTIVITY_DURATION_DAYS, maxModelCalls: 0, domain }, externalSend: false };
   let currentContext = context;
   let degraded = false;

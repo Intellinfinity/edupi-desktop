@@ -5,7 +5,7 @@ import { clearEduPiAmbientUnconfirmedDurable, readEduPiAmbientUnconfirmedDurable
 
 export type EduPiAmbientPendingState = { status: "clear" | "outcome_unknown" | "applied" | "unavailable";
   pending: Array<{ messageId: string; occurredAt: string; unconfirmed?: boolean; nonBlocking?: boolean;
-    cancelRequested?: boolean; legacyUnproven?: boolean }>;
+    partiallyHandled?: boolean; unprocessed?: boolean; cancelRequested?: boolean; legacyUnproven?: boolean }>;
   recovered: Array<{ messageId: string; goalId: string; workCaseId: string }
     | { messageId: string; goalId: string; followUpId: string; executionId: string }> };
 
@@ -18,9 +18,13 @@ async function postPlanAction(action: "arm" | "cancel" | "ack", input: CaptureId
   const response = await fetchDesktopApi("/api/edupi/proactivity/messages", { method: "POST", cache: "no-store",
     headers: { "Content-Type": "application/json" }, body: actionBody(action, input) });
   const body = await response.json() as unknown;
-  if (!response.ok || !body || typeof body !== "object" || Array.isArray(body)
+  if (!body || typeof body !== "object" || Array.isArray(body)
     || (body as Record<string, unknown>).externalSend !== false) return "unavailable";
-  return String((body as Record<string, unknown>).status);
+  const status = (body as Record<string, unknown>).status;
+  if (typeof status !== "string") return "unavailable";
+  if (response.ok) return status;
+  return action === "arm" && response.status === 409
+    && ["verification_pending", "unconfigured", "session_unavailable"].includes(status) ? status : "unavailable";
 }
 
 export async function armEduPiAmbientMessage(input: CaptureIdentity): Promise<{ status: string }> {
@@ -31,8 +35,8 @@ export async function armEduPiAmbientMessage(input: CaptureIdentity): Promise<{ 
     if (existing.some(item => item.messageId === identity.messageId)) return { status: "outcome_unknown" };
     if (!await rememberEduPiAmbientUnconfirmedDurable(identity)) return { status: "unavailable" };
     const status = await postPlanAction("arm", identity);
-    if (status === "disabled") {
-      return { status: await clearEduPiAmbientUnconfirmedDurable(identity.sessionId, identity.messageId) ? "disabled" : "outcome_unknown" };
+    if (["disabled", "verification_pending", "unconfigured", "session_unavailable"].includes(status)) {
+      return { status: await clearEduPiAmbientUnconfirmedDurable(identity.sessionId, identity.messageId) ? status : "outcome_unknown" };
     }
     if (status !== "armed") return { status: "outcome_unknown" };
     armed.set(captureKey(identity.sessionId, identity.messageId), identity.occurredAt);
@@ -82,7 +86,11 @@ export async function readEduPiAmbientPending(sessionId: string, verify = false)
       && typeof (value as Record<string, unknown>).occurredAt === "string"
       && Number.isFinite(Date.parse((value as Record<string, unknown>).occurredAt as string))
       && ((value as Record<string, unknown>).nonBlocking === undefined
-        || typeof (value as Record<string, unknown>).nonBlocking === "boolean"));
+        || typeof (value as Record<string, unknown>).nonBlocking === "boolean")
+      && ((value as Record<string, unknown>).partiallyHandled === undefined
+        || typeof (value as Record<string, unknown>).partiallyHandled === "boolean")
+      && ((value as Record<string, unknown>).unprocessed === undefined
+        || typeof (value as Record<string, unknown>).unprocessed === "boolean"));
     const recovered = item.recovered.every(value => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return false;
       const row = value as Record<string, unknown>;

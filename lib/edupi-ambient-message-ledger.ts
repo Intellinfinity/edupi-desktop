@@ -276,19 +276,25 @@ export function readEduPiAmbientMessagePlan(sessionId: string, messageId: string
 }
 
 export function readPendingEduPiAmbientMessages(sessionId: string,
-  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string; nonBlocking: boolean }> {
+  options: { stateDir?: string; dataRoot: string }): Array<{ messageId: string; occurredAt: string;
+    nonBlocking: boolean; partiallyHandled: boolean; unprocessed: boolean }> {
   if (!ID.test(sessionId)) fail();
   const value = readLedger(options.stateDir ?? process.env.PI_DESKTOP_STATE_DIR, options.dataRoot).value;
   const pending = value.plans.filter(plan => plan.session_id === sessionId && plan.status === "pending")
     .map(plan => ({ messageId: plan.message_id, occurredAt: plan.occurred_at,
       nonBlocking: plan.domains.some(item => item.state === "unavailable")
-        && plan.domains.every(item => item.state !== "unknown") }));
+        && plan.domains.every(item => item.state !== "unknown"),
+      partiallyHandled: plan.domains.some(item => item.state === "terminal")
+        && plan.domains.every(item => item.state !== "unknown"),
+      unprocessed: plan.domains.some(item => item.state === "unavailable")
+        && plan.domains.every(item => item.state !== "terminal" && item.state !== "unknown") }));
   const plannedIds = new Set(value.plans.filter(plan => plan.session_id === sessionId).map(plan => plan.message_id));
   const pendingIds = new Set(pending.map(item => item.messageId));
   for (const entry of value.entries.filter(item => item.session_id === sessionId
     && !plannedIds.has(item.message_id) && ["pending", "captured", "outcome_unknown"].includes(item.status))) {
     if (!pendingIds.has(entry.message_id)) {
-      pending.push({ messageId: entry.message_id, occurredAt: entry.occurred_at, nonBlocking: false });
+      pending.push({ messageId: entry.message_id, occurredAt: entry.occurred_at,
+        nonBlocking: false, partiallyHandled: false, unprocessed: false });
       pendingIds.add(entry.message_id);
     }
   }

@@ -100,6 +100,14 @@
 - 本 lane 验证：相关 Node 89/89、`node_modules/.bin/tsc --noEmit`、`npm run lint`、`git diff --check` 均通过；`cargo test --manifest-path src-tauri/Cargo.toml --locked` 为 61/61，包含旧三字段原位读取、取消标记重开及文件替换竞态。整套 Node 在另一并行 lane 正修改 Runtime manifest 缓存时为 2,368 total / 2,330 passed / 34 skipped / 4 failed；4 项均来自未完成的 `edupi-core-root-runtime-manifest.test.mjs`，不把它们记为本消息补丁通过，也不触碰该 lane 文件。待其代码固定后须对同一 Desktop HEAD 重跑全套。
 - 未验：真实 Tauri WebView 的取消 503 冷启动交互、最终 Core 组合的原生五域完整页面、正常 Pi 发送新增预 arm 延迟、签名安装和真人内容质量尚无本补丁证据；文件背书 VM、Rust 原生测试与实际 App 交互分别计证。
 
+## 2026-10-08 写前失败与预 arm 拒绝收口
+
+- 代码身份：Desktop 独立分支在已固定 `d51dc1fff561a22b737df9375fdf88dcbd0fa602` 后追加本地消息 lane 修复；不改 Core-root、Core pin、签名或发布配置。本节取代上节“写前 owner 读取失败也留 unknown”与“明确 409 仍留孤儿 outbox”的源码状态，不改变真实 App 验收边界。
+- RED：实私有 ledger + 实路由 VM 让 owner/grant 读取在 `onPrepared` 前抛错，旧实现已将域标 unknown、没有 messageRef 可精确核验；另对明确 HTTP 409 `verification_pending`/`unconfigured`，旧客户端把回包折为 unavailable，原生预写身份无 server plan 却留在 outbox。单域零 terminal 的 unavailable 也被 UI 按非阻塞误写为“部分处理”。三个回归先失败再修复。
+- 实际：域的 durable unknown 栅栏移到 `onPrepared`，紧接着在 Core 首次写入前落账；owner/grant 写前失败落 `unavailable`，子进程冷读仍无伪 unknown，新消息可 arm。已进入 `onPrepared` 且写后丢回包仍为 unknown 并阻止新 arm。客户端只对服务端明确 409、带 `externalSend=false` 且状态为 `verification_pending`、`unconfigured` 或 `session_unavailable` 的 arm 拒绝清本次原生身份；网络/畸形回包继续保留 unknown。ledger 将“可继续新消息”与“已有域处理”分开记录；单域写前失败显示“未处理，待核对”，不冒充多域部分结果。
+- 检查：针对性 Node 92/92；`npm test` 2,379 total / 2,345 passed / 34 skipped / 0 failed；`cargo test --manifest-path src-tauri/Cargo.toml --locked` 61/61；`node_modules/.bin/tsc --noEmit`、`npm run lint`、`git diff --check` 均通过。测试仅使用临时合成根、VM 和本机子进程，未写真实教师资料、调用付费模型或外发。此前并行 Runtime manifest 测试的 4 项 RED 已由其独立 lane 修复；本次全套是新代码组合的通过结果。
+- 未验：真实 Tauri WebView 的 owner 失联、默认运行配置切换及预 arm 的 p95 延迟仍未在原生安装版测量；前述签名三平台、真人教学内容与价值门保持开放。已有单独性能 p95 项不因消息回归测试通过而关闭。
+
 ## 2026-10-08 Core #252 最终隔离配对
 
 - 代码身份：独立 `codex/desktop-l4-combo-20261008` 预览工作树以 Desktop `2550e837` 为基线，在配对提交 `715481c5` 临时固定 Core Draft #252 的干净提交 `682ebbad9ade9494d9304b026207e659eb265d29`；Desktop consumer 清单 `sha256:673514d291e58e54720607511abaa48478900e818bd51b5ae115005f917b7246`、Runtime 清单 `sha256:b07df6ddfa784fdc6df5f6f25a2ba7b06f84d4645e0be887b911cacd735c6f4a`、Runtime schema `sha256:de4c8a8c60f8410bbbd9807dfba4cee6986eb1f2b7a0ded5bd1198783dbbb97c` 同时核对。正式 Desktop PR #325 在本节时仍保持旧 `b195512` pin；Core/Runtime 改动未合主线。

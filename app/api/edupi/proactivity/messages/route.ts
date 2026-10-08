@@ -223,11 +223,13 @@ export async function POST(request: Request) {
           }
           if (domain === "student_followup" && capabilities.g2_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
           if (isG3Domain(domain) && capabilities.g3_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
-          startEduPiAmbientPlanDomain(sessionId, messageId, domain, ledgerOptions);
           const result = await captureAndApplyAmbientMessage(host, {
             rootRef, grantId: planned.grantId, messageId, text: body.text as string, occurredAt, domain,
           }, { controlScope: current.activation.scope, capabilityActive: isG3Domain(domain) && capabilities.g3_processor === "active",
             onPrepared: async (binding) => {
+              // Owner/grant reads have completed. Fence this exact domain before
+              // the first Core write, so a pre-write owner failure stays retryable.
+              startEduPiAmbientPlanDomain(sessionId, messageId, domain, ledgerOptions);
               prepareEduPiAmbientMessageBinding({ sessionId, messageId, occurredAt, ...binding }, ledgerOptions);
               preparedMessageRef = binding.messageRef;
             },

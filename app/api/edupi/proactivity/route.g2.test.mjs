@@ -41,7 +41,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
   const health = () => {
     const g1 = read(G1).enabled;
     const g2 = read(G2).enabled && g2Processor || forceG2Active;
-    const g3 = PENDING_DOMAINS.some(domain => read(domain).enabled);
+    const g3 = false; // Current Core pin has no exact grant+scope startup binding.
     return { ok: true, result: { data_root_fingerprint: rootRef, capabilities: {
       g1_processor: g1 ? "active" : "activation_pending", g2_processor: g2 ? "active" : "activation_pending",
       g3_processor: g3 ? "active" : "activation_pending",
@@ -82,7 +82,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
     "@/lib/safe-mode": { canStartEduPiProactivity: () => true, canStartEduPiStudentFollowup: () => isolated,
       canStartEduPiCapabilityCanary: () => isolated },
     "@/lib/edupi-core-snapshot": {
-      resolveEduPiBridgeRoots: () => { events.push({ operation: "resolve" }); return { dataRoot: { root } }; },
+      resolveEduPiBridgeRoots: () => { events.push({ operation: "resolve" }); return { runtime: { coreCommit: "synthetic-old-pin" }, dataRoot: { root } }; },
       readEduPiEducationSnapshot: async () => { events.push({ operation: "snapshot" }); return { workspace }; },
     },
     "@/lib/edupi-generated-artifacts": { workspaceResourcesRequest: async () => { events.push({ operation: "materials" }); return { teacherMaterials }; } },
@@ -106,6 +106,11 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
       },
     },
     "@/lib/edupi-runtime-supervisor": {
+      G3_DOMAINS: PENDING_DOMAINS,
+      g3AllowedDomainsForActivations: (items, coreCommit) => {
+        events.push({ operation: "startup-allowset", domains: items.map(item => item.domain), coreCommit });
+        return [];
+      },
       ensureEduPiRuntime: async () => { events.push({ operation: "ensure" }); return host; },
       restartEduPiRuntime: async () => { events.push({ operation: "restart" }); return host; },
       quarantineEduPiRuntime: async () => { events.push({ operation: "quarantine" }); },
@@ -177,13 +182,14 @@ test("a stale G3 config never appears as an active live capability", async () =>
   const response = await f.get("?domain=calendar_administration");
   const state = await response.json();
   assert.equal(response.status, 200);
-  assert.equal(state.activation.enabled, false);
+  assert.equal(state.activation.enabled, true, "the saved config must remain visible for withdrawal");
+  assert.deepEqual(state.activation.scope, scope);
   assert.equal(state.activationBlocked, "activation_pending");
   assert.equal(state.capabilities, null);
   assert.equal(f.events.some(event => event.operation === "ensure" || event.operation === "owner_control"), false);
 });
 
-test("stopping one G3 domain preserves the other permitted shared processor", async () => {
+test("two old G3 configs can be stopped one by one while the shared processor remains fenced", async () => {
   const f = fixture();
   for (const domain of ["calendar_administration", "lesson_reflection"]) {
     const grantId = `synthetic-${domain}-grant`;
@@ -192,13 +198,23 @@ test("stopping one G3 domain preserves the other permitted shared processor", as
     f.grants.set(grantId, { id: grantId, version: 1, status: "active", ends_at: "2099-01-01T00:00:00.000Z",
       spec: { domains: [domain], budget: { id: `budget-${domain}`, max_calls: 0 } } });
   }
+  const before = await f.get("?domain=calendar_administration");
+  assert.equal((await before.json()).activation.enabled, true);
   const stopped = await f.toggle(false, "calendar_administration");
   assert.equal(stopped.status, 200);
   assert.equal(f.read("calendar_administration").enabled, false);
   assert.equal(f.read("lesson_reflection").enabled, true);
-  assert.equal(f.health().result.capabilities.g3_processor, "active");
+  assert.equal(f.health().result.capabilities.g3_processor, "activation_pending");
+  const second = await f.toggle(false, "lesson_reflection");
+  assert.equal(second.status, 200);
+  assert.equal(f.read("lesson_reflection").enabled, false);
+  assert.equal(f.grants.get("synthetic-calendar_administration-grant").status, "paused");
+  assert.equal(f.grants.get("synthetic-lesson_reflection-grant").status, "paused");
   assert.ok(f.events.some(event => event.operation === "stop-marker" && event.domain === "calendar_administration"));
   assert.ok(f.events.some(event => event.operation === "restart"));
+  assert.equal(f.events.filter(event => event.operation === "startup-allowset").length, 2);
+  assert.ok(f.events.findLastIndex(event => event.operation === "clear-quarantine")
+    > f.events.findLastIndex(event => event.operation === "quarantine"));
 });
 
 test("stopping either domain permits the other processor and ambient planning to remain active", async () => {

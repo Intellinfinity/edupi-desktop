@@ -20,7 +20,7 @@ export function eduPiBridgeRequestBudget(request: unknown): { processingMs: numb
 }
 type Entry = { identity: string; baseIdentity: string; g3Identity: string;
   startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
-const G3_DOMAINS = ["calendar_administration", "lesson_reflection", "parent_communication"] as const;
+export const G3_DOMAINS = ["calendar_administration", "lesson_reflection", "parent_communication"] as const;
 type G3Domain = typeof G3_DOMAINS[number];
 // The current pinned Core can fence domains but not a second active grant in
 // the same domain. Set this only with an exact Core grant+scope contract pin.
@@ -61,7 +61,7 @@ export function g2ScopeForActivation(activation: EduPiProactivityActivation): Re
   return { ...activation.scope, grantId: activation.grantId };
 }
 
-function g3AllowedDomainsForActivations(activations: Array<{ domain: G3Domain; activation: EduPiProactivityActivation }>,
+export function g3AllowedDomainsForActivations(activations: Array<{ domain: G3Domain; activation: EduPiProactivityActivation }>,
   coreCommit: string): G3Domain[] {
   if (!G3_EXACT_GRANT_SCOPE_CORE_COMMIT || coreCommit !== G3_EXACT_GRANT_SCOPE_CORE_COMMIT
     || !canStartEduPiCapabilityCanary()) return [];

@@ -41,8 +41,10 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
   const health = () => {
     const g1 = read(G1).enabled;
     const g2 = read(G2).enabled && g2Processor || forceG2Active;
+    const g3 = PENDING_DOMAINS.some(domain => read(domain).enabled);
     return { ok: true, result: { data_root_fingerprint: rootRef, capabilities: {
       g1_processor: g1 ? "active" : "activation_pending", g2_processor: g2 ? "active" : "activation_pending",
+      g3_processor: g3 ? "active" : "activation_pending",
       internal_timer: "active", ambient_planning: g1 || g2 ? "active" : "activation_pending",
       owner_authorization: "active", owner_conversation: "active", owner_intent: "active",
       attention_delivery: "active", teacher_feedback: "active",
@@ -77,7 +79,8 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
     "next/server": { NextResponse: { json: (body, options = {}) => Response.json(body, { status: options.status || 200 }) } },
     "@/lib/bounded-form-data": { parseJsonWithinLimit: request => request.json(), RequestBodyTooLargeError: class extends Error {} },
     "@/lib/desktop-api-auth": { isDesktopApiRequestAllowed: () => true },
-    "@/lib/safe-mode": { canStartEduPiProactivity: () => true, canStartEduPiStudentFollowup: () => isolated },
+    "@/lib/safe-mode": { canStartEduPiProactivity: () => true, canStartEduPiStudentFollowup: () => isolated,
+      canStartEduPiCapabilityCanary: () => isolated },
     "@/lib/edupi-core-snapshot": {
       resolveEduPiBridgeRoots: () => { events.push({ operation: "resolve" }); return { dataRoot: { root } }; },
       readEduPiEducationSnapshot: async () => { events.push({ operation: "snapshot" }); return { workspace }; },
@@ -178,6 +181,24 @@ test("a stale G3 config never appears as an active live capability", async () =>
   assert.equal(state.activationBlocked, "activation_pending");
   assert.equal(state.capabilities, null);
   assert.equal(f.events.some(event => event.operation === "ensure" || event.operation === "owner_control"), false);
+});
+
+test("stopping one G3 domain preserves the other permitted shared processor", async () => {
+  const f = fixture();
+  for (const domain of ["calendar_administration", "lesson_reflection"]) {
+    const grantId = `synthetic-${domain}-grant`;
+    f.activations.set(domain, { enabled: true, source: "desktop_canary", configurationStatus: "ready",
+      scope, grantId, updatedAt: "2026-10-04T00:00:00.000Z" });
+    f.grants.set(grantId, { id: grantId, version: 1, status: "active", ends_at: "2099-01-01T00:00:00.000Z",
+      spec: { domains: [domain], budget: { id: `budget-${domain}`, max_calls: 0 } } });
+  }
+  const stopped = await f.toggle(false, "calendar_administration");
+  assert.equal(stopped.status, 200);
+  assert.equal(f.read("calendar_administration").enabled, false);
+  assert.equal(f.read("lesson_reflection").enabled, true);
+  assert.equal(f.health().result.capabilities.g3_processor, "active");
+  assert.ok(f.events.some(event => event.operation === "stop-marker" && event.domain === "calendar_administration"));
+  assert.ok(f.events.some(event => event.operation === "restart"));
 });
 
 test("stopping either domain permits the other processor and ambient planning to remain active", async () => {

@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import test from "node:test";
 import ts from "typescript";
 
-function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Recorded=false,lostG1Reply=false}={}) {
+function fixture({g1=true,g2=true,g3=false,isolated=true,g2Active=true,g3Active=true,failG1=false,g1Recorded=false,lostG1Reply=false,lostG3Reply=false}={}) {
   const prepared=[],captured=[],confirmed=[],uncertain=[];
   let recoverG1=false;
   let premarked=0;
@@ -17,12 +17,14 @@ function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Rec
     "@/lib/desktop-api-auth":{isDesktopApiRequestAllowed:()=>true},
     "@/lib/bounded-form-data":{parseJsonWithinLimit:async r=>{bodyReads++;return r.json();},RequestBodyTooLargeError:class extends Error{}},
     "@/lib/edupi-core-snapshot":{resolveEduPiBridgeRoots:()=>({dataRoot:{root:"/synthetic-root"}})},
-    "@/lib/safe-mode":{canStartEduPiStudentFollowup:()=>isolated},
-    "@/lib/edupi-proactivity-config":{readEduPiProactivityActivation:({domain})=>({enabled:domain==="student_followup"?g2:g1,grantId:domain,scope:{classId:"class-1",subject:"数学"}})},
+    "@/lib/safe-mode":{canStartEduPiStudentFollowup:()=>isolated,canStartEduPiCapabilityCanary:()=>isolated},
+    "@/lib/edupi-proactivity-config":{readEduPiProactivityActivation:({domain})=>({enabled:domain==="student_followup"?g2
+      :domain==="calendar_administration"?g3:domain==="teaching_preparation"?g1:false,
+      source:"desktop_canary",configurationStatus:"ready",grantId:domain,scope:{classId:"class-1",subject:"数学"}})},
     "@/lib/session-reader":{resolveSessionPath:async()=>"synthetic-session"},
     "@/lib/edupi-ambient-session-lock":{withEduPiAmbientSessionLock:async(_id,operation)=>operation()},
     "@/lib/edupi-proactivity-runtime":{readProactivityOwnerContext:async()=>({status:"active"})},
-    "@/lib/edupi-runtime-supervisor":{ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2Active?"active":"activation_pending"}}})})},
+    "@/lib/edupi-runtime-supervisor":{ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2Active?"active":"activation_pending",g3_processor:g3Active?"active":"activation_pending"}}})})},
     "@/lib/edupi-ambient-message-ledger":{
       prepareEduPiAmbientMessageBinding:value=>prepared.push(value),
       confirmEduPiAmbientMessageBinding:(sessionId,messageId,messageRef)=>confirmed.push({sessionId,messageId,messageRef}),
@@ -51,6 +53,11 @@ function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Rec
         premarked++;
         assert.equal(uncertain.length,1,"the private marker is durable before Core route_apply");
         throw new Error("synthetic_lost_reply");
+      }
+      if(input.domain==="calendar_administration"){
+        await callbacks.onApplyPending(binding);
+        if(lostG3Reply)throw new Error("synthetic_g3_reply_lost");
+        return {status:"queued",goalId:"goal-g3",workCaseId:"work-g3",routedDomain:input.domain,externalSend:false};
       }
       return {status:input.domain==="student_followup"?"queued":g1Recorded?"recorded":"captured",
         ...(g1Recorded&&input.domain==="teaching_preparation"?{goalId:"goal-synthetic",workCaseId:null,
@@ -149,4 +156,32 @@ test("a read-only exact Core binding clears one durable unknown outcome after re
   assert.equal(result.pending.length,0);
   assert.equal(JSON.stringify(result.recovered),JSON.stringify([{messageId:"message-1",goalId:"goal-1",workCaseId:"work-1"}]));
   assert.equal(f.captured.length,1,"read-only recovery must not repeat capture or route_apply");
+});
+
+test("an isolated ready G3 domain reaches only Core-owned routing and clears its write fence",async()=>{
+  const f=fixture({g1:false,g2:false,g3:true});
+  assert.equal((await(await f.route.GET(f.request())).json()).status,"enabled");
+  const response=await f.route.POST(f.request());
+  const body=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(body.status,"queued");
+  assert.equal(body.goalId,"goal-g3");
+  assert.equal(f.captured.length,1);
+  assert.equal(f.captured[0].domain,"calendar_administration");
+  assert.equal(f.uncertain.length,0,"a complete Core receipt clears the pre-write unknown marker");
+  const inactive=fixture({g1:false,g2:false,g3:true,g3Active:false});
+  assert.equal((await(await inactive.route.GET(inactive.request())).json()).status,"disabled");
+  assert.notEqual((await(await inactive.route.POST(inactive.request())).json()).status,"queued");
+  assert.equal(inactive.captured.length,0);
+});
+
+test("G3 lost apply reply keeps one durable unknown and blocks a new domain message",async()=>{
+  const f=fixture({g1:false,g2:false,g3:true,lostG3Reply:true});
+  const first=await f.route.POST(f.request());
+  assert.equal((await first.json()).status,"outcome_unknown");
+  assert.equal(f.uncertain.length,1);
+  assert.equal(f.captured.length,1);
+  const repeated=await f.route.POST(f.request());
+  assert.equal((await repeated.json()).status,"outcome_unknown");
+  assert.equal(f.captured.length,1);
 });

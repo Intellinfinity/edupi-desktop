@@ -19,7 +19,7 @@ import { clearEduPiProactivityStopIntent, readEduPiProactivityActivation, writeE
 import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantStatus, readProactivityRuntimeState } from "@/lib/edupi-proactivity-runtime";
 import { clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
   quarantineEduPiRuntime, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
-import { canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
+import { canStartEduPiCapabilityCanary, canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,7 +161,8 @@ function sameScope(left: EduPiProactivityScope | null, right: EduPiProactivitySc
 }
 
 function requireActiveCapabilities(capabilities: RawRecord, domain: EduPiProactivityDomain): void {
-  for (const key of [domain === "student_followup" ? "g2_processor" : "g1_processor", "internal_timer", "ambient_planning", "owner_authorization", "owner_conversation", "owner_intent", "attention_delivery", "teacher_feedback"]) {
+  for (const key of [pendingCapability(domain) ? "g3_processor" : domain === "student_followup" ? "g2_processor" : "g1_processor",
+    "internal_timer", "ambient_planning", "owner_authorization", "owner_conversation", "owner_intent", "attention_delivery", "teacher_feedback"]) {
     if (capabilities[key] !== "active") throw new Error("proactivity_activation_incomplete");
   }
 }
@@ -280,7 +281,13 @@ async function disableCanary(roots: EduPiBridgeRoots, activation: EduPiProactivi
     const host = await restartEduPiRuntime(roots);
     const health = runtimeHealth(await host.call("health", null));
     const processor = pendingCapability(domain) ? "g3_processor" : domain === "student_followup" ? "g2_processor" : "g1_processor";
-    if (health.capabilities[processor] !== "activation_pending") {
+    const otherG3Active = pendingCapability(domain) && canStartEduPiCapabilityCanary()
+      && (["calendar_administration", "lesson_reflection", "parent_communication"] as EduPiProactivityDomain[])
+        .filter(candidate => candidate !== domain)
+        .some(candidate => { const state = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain: candidate });
+          return state.enabled && state.configurationStatus === "ready" && state.source === "desktop_canary"
+            && Boolean(state.scope && state.grantId); });
+    if (health.capabilities[processor] !== (otherG3Active ? "active" : "activation_pending")) {
       throw new Error("proactivity_deactivation_incomplete");
     }
   } catch {

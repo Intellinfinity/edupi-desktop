@@ -1127,6 +1127,7 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
           <div style={{ maxWidth: 820, margin: "0 auto" }}>
             <ExtensionWidgets widgets={belowEditorWidgets} teacherMode={teacherMode} />
             {teacherMode && <EduPiAmbientPendingBanner count={ambientPending.pending.length}
+              unconfirmedCount={ambientPending.pending.filter(item => item.unconfirmed).length}
               busy={ambientPendingBusy} onVerify={() => { void refreshAmbientPending(); }} />}
           </div>
         </div>

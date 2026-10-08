@@ -17,7 +17,8 @@ type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number;
 type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed" | "recorded" | "outcome_unknown"; resolutionStatus: string; reason: string | null;
   goalId: string | null; workCaseId: string | null; followUpId?: string; executionId?: string; routedDomain?: string | null; externalSend: false };
 
-type CoreRoute = { domain: string | null; status: string; reason: string; ready: boolean; sourceBasisHash: string };
+type CoreRoute = { domain: string | null; status: string; reason: string; ready: boolean;
+  sourceBasisHash: string; nextOperation: string | null; targetId: string | null };
 const ROUTE_READY_OPERATION: Record<string, string> = {
   teaching_preparation: "owner_intent_apply",
   student_followup: "student_followup_goal_apply",
@@ -47,7 +48,9 @@ function coreRoute(value: unknown, messageRef: string): CoreRoute {
     fail("proactivity_response_invalid", "resolve");
   }
   return { domain: domain === null ? null : String(domain), status: String(view.status), reason: String(view.reason),
-    ready, sourceBasisHash: String(view.source_basis_hash) };
+    ready, sourceBasisHash: String(view.source_basis_hash),
+    nextOperation: view.next_operation === null ? null : String(view.next_operation),
+    targetId: ready ? String((target as Record<string, unknown>).id) : null };
 }
 
 export class EduPiAmbientMessageError extends Error {
@@ -160,6 +163,7 @@ export async function captureAndApplyAmbientMessage(
   input: { rootRef: string; grantId: string; messageId: string; text: string; occurredAt: string; domain?: EduPiProactivityDomain },
   dependencies: { findAppliedGoal?: (workCaseId: string) => Promise<{ goalId: string } | null>;
     controlScope?: { classId: string; subject: string };
+    capabilityActive?: boolean;
     onPrepared?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
     onCaptured?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
     onApplyPending?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void> } = {},
@@ -253,11 +257,53 @@ export async function captureAndApplyAmbientMessage(
       goalId: String(queued.goal_id), workCaseId: null, followUpId: String(queued.follow_up_id),
       executionId: String(queued.execution_id), routedDomain: routed?.domain ?? domain, externalSend: false };
   }
-  // G3–G5 share one Core processor. Until its startup accepts a durable
-  // per-grant stop fence, a local domain switch cannot authorize execution.
+  // G3–G5 share one Core processor. The caller can allow a write only after
+  // its current activation and an exact Core processor startup are verified.
   if (routed && domain !== "teaching_preparation") {
-    return { status: "captured", resolutionStatus: "held", reason: "activation_pending",
+    if (!dependencies.capabilityActive) return { status: "captured", resolutionStatus: "held", reason: "activation_pending",
       goalId: null, workCaseId: null, routedDomain: routed.domain, externalSend: false };
+    if (dependencies.onApplyPending) {
+      try { await dependencies.onApplyPending(messageBinding); }
+      catch { fail("proactivity_runtime_unavailable", "apply"); }
+    }
+    let applied: Record<string, unknown>;
+    try {
+      applied = result(await host.callOwnerControl("owner_intent_route_apply", {
+        root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+      }), "apply");
+    } catch {
+      return { status: "outcome_unknown", resolutionStatus: "needs_verification", reason: "apply_outcome_unknown",
+        goalId: null, workCaseId: null, routedDomain: domain, externalSend: false };
+    }
+    const appliedRoute = coreRoute({ ok: true, result: applied.route }, messageRef);
+    if (applied.version !== 1 || applied.model_execute !== false || applied.notify !== false
+      || applied.live_authority !== false || applied.external_send !== false) fail("proactivity_response_invalid", "apply");
+    if (!appliedRoute.ready) {
+      if (applied.applied_operation !== null || applied.application !== null
+        || applied.automatic_continuation_attempted !== false || applied.execution_started !== false
+        || Object.hasOwn(applied, "execution")) fail("proactivity_response_invalid", "apply");
+      return { status: "captured", resolutionStatus: appliedRoute.status, reason: appliedRoute.reason,
+        goalId: null, workCaseId: null, routedDomain: appliedRoute.domain, externalSend: false };
+    }
+    const goal = applied.application as Record<string, unknown> | null;
+    const execution = applied.execution as Record<string, unknown> | null;
+    if (appliedRoute.domain !== domain || applied.applied_operation !== appliedRoute.nextOperation
+      || applied.automatic_continuation_attempted !== true || applied.execution_started !== true
+      || !goal || typeof goal !== "object" || Array.isArray(goal)
+      || !["applied", "replayed"].includes(String(goal.status)) || !ID.test(String(goal.goal_id || ""))
+      || !Number.isSafeInteger(goal.goal_version) || Number(goal.goal_version) < 1
+      || goal.replayed !== (goal.status === "replayed") || typeof goal.goal_created !== "boolean"
+      || goal.source_basis_hash !== appliedRoute.sourceBasisHash
+      || !execution || typeof execution !== "object" || Array.isArray(execution)
+      || execution.operation !== appliedRoute.nextOperation || execution.case_id !== appliedRoute.targetId
+      || !ID.test(String(execution.capability_id || "")) || !ID.test(String(execution.work_case_id || ""))
+      || !["queued", "planned", "replayed"].includes(String(execution.status))
+      || !Number.isSafeInteger(execution.attempt) || Number(execution.attempt) < 0 || Number(execution.attempt) > 3) {
+      fail("proactivity_response_invalid", "apply");
+    }
+    return { status: execution.status === "replayed" ? "replayed" : "queued", resolutionStatus: String(execution.status),
+      reason: null, goalId: String(goal.goal_id), workCaseId: String(execution.work_case_id),
+      routedDomain: domain, externalSend: false };
   }
   let bindingsPromise: Promise<ControlBinding[]> | null = null;
   const bindings = () => bindingsPromise ??= controlBindings(host, input, context, dependencies.controlScope!);

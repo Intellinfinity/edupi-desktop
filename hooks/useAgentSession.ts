@@ -1750,11 +1750,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (result.status === "unavailable") reportCaptureFailure();
           else if (result.status === "recorded" || result.status === "outcome_unknown") {
             if (sessionIdRef.current === captureSessionId) {
-              ambientPendingLoadIdRef.current += 1;
+              const pendingLoadId = ++ambientPendingLoadIdRef.current;
               setAmbientPending(current => ({ status: "outcome_unknown",
                 pending: current.pending.some(item => item.messageId === captureMessageId) ? current.pending
                   : [...current.pending, { messageId: captureMessageId, occurredAt: new Date(occurredAtMs).toISOString() }],
                 recovered: [] }));
+              void readEduPiAmbientPending(captureSessionId).then(pending => {
+                if (sessionIdRef.current === captureSessionId && ambientPendingLoadIdRef.current === pendingLoadId
+                  && pending.status === "outcome_unknown") setAmbientPending(pending);
+              });
             }
           } else if (result.status === "verification_pending") {
             void readEduPiAmbientPending(captureSessionId).then(pending => {

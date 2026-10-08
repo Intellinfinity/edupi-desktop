@@ -12,21 +12,27 @@ import { readProactivityOwnerContext } from "@/lib/edupi-proactivity-runtime";
 import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { withEduPiAmbientSessionLock } from "@/lib/edupi-ambient-session-lock";
-import { canStartEduPiStudentFollowup } from "@/lib/safe-mode";
+import { canStartEduPiCapabilityCanary, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 16 * 1024;
+const G3_DOMAINS: EduPiProactivityDomain[] = ["calendar_administration", "lesson_reflection", "parent_communication"];
+
+function isG3Domain(domain: EduPiProactivityDomain): boolean { return G3_DOMAINS.includes(domain); }
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
 function activeBindings(dataRoot: string) {
-  const domains: EduPiProactivityDomain[] = canStartEduPiStudentFollowup()
-    ? ["teaching_preparation", "student_followup"] : ["teaching_preparation"];
+  const domains: EduPiProactivityDomain[] = ["teaching_preparation",
+    ...(canStartEduPiStudentFollowup() ? ["student_followup" as const] : []),
+    ...(canStartEduPiCapabilityCanary() ? G3_DOMAINS : [])];
   return domains.map(domain => ({ domain, activation: readEduPiProactivityActivation({ dataRoot, domain }) }))
-    .filter(binding => binding.activation.enabled);
+    .filter(({ domain, activation }) => activation.enabled && (!isG3Domain(domain)
+      || activation.source === "desktop_canary" && activation.configurationStatus === "ready"
+        && Boolean(activation.scope && activation.grantId)));
 }
 
 export async function GET(request: Request) {
@@ -78,6 +84,7 @@ export async function GET(request: Request) {
       || capabilities?.ambient_planning !== "active" || capabilities?.owner_intent !== "active") throw new Error("runtime unavailable");
     for (const { domain, activation } of bindings) {
       if (domain === "student_followup" && capabilities.g2_processor !== "active") continue;
+      if (isG3Domain(domain) && capabilities.g3_processor !== "active") continue;
       const context = await readProactivityOwnerContext(host, rootRef, activation.grantId!);
       if (context?.status === "active") return NextResponse.json({ status: "enabled", externalSend: false });
     }
@@ -133,12 +140,13 @@ export async function POST(request: Request) {
         let applyPending = false;
         try {
           if (domain === "student_followup" && capabilities.g2_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
+          if (isG3Domain(domain) && capabilities.g3_processor !== "active") throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
           // One teacher message may have independent G1/G2 source receipts.
           // Keep both in the existing session withdrawal ledger without a migration.
           const captureId = domain === "student_followup" ? g2CaptureId : messageId;
           const result = await captureAndApplyAmbientMessage(host, {
             rootRef, grantId: activation.grantId!, messageId: captureId, text, occurredAt, domain,
-          }, { controlScope: activation.scope!,
+          }, { controlScope: activation.scope!, capabilityActive: isG3Domain(domain) && capabilities.g3_processor === "active",
             onPrepared: async (binding) => {
               prepareEduPiAmbientMessageBinding({ sessionId, messageId: captureId, occurredAt, ...binding }, { dataRoot: roots.dataRoot.root });
               preparedMessageRef = binding.messageRef;

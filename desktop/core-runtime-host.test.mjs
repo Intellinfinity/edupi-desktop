@@ -114,6 +114,17 @@ test("runtime host leaves G1 Live off without an exact scoped grant and forwards
   assert.equal(messages[0].type, "model-config-request");
   assert.equal(lastOptions().g3Live, undefined);
   await scoped.close();
+  for (const domains of [[], ["calendar_administration"], ["calendar_administration", "lesson_reflection"],
+    ["calendar_administration", "calendar_administration"], ["safety_privacy"]]) {
+    await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
+      options: { ...options, ownerControlToken: "owner-control-test", g3AllowedDomains: domains } }, channel),
+    /Invalid runtime bootstrap/, "a domain-only fence cannot authorize a second active grant in the same domain");
+  }
+  await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
+    options: { ...options, g3AllowedDomains: ["calendar_administration"] } }, channel), /Invalid runtime bootstrap/);
+  await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
+    options: { ...options, ambientPlanning: false, ownerControlToken: "owner-control-test",
+      g3AllowedDomains: ["calendar_administration"] } }, channel), /Invalid runtime bootstrap/);
   for (const field of ["durableTeachingPreparation", "durableCalendarAdministration", "g1Live", "g3Live"]) {
     await assert.rejects(startCoreRuntimeHost({ coreRoot: root, options: { ...options, [field]: {} } }, channel), /Invalid runtime bootstrap/);
   }

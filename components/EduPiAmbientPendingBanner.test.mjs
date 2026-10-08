@@ -14,4 +14,7 @@ test("a durable unknown outcome remains visible in the chat until exact verifica
   assert.match(html, /请勿重复发送/);
   assert.match(html, /核对/);
   assert.match(html, /role="status"/);
+  const unconfirmed = renderToStaticMarkup(React.createElement(EduPiAmbientPendingBanner,
+    { count: 1, unconfirmedCount: 1, onVerify() {} }));
+  assert.match(unconfirmed, /未证实已捕获/);
 });

@@ -19,6 +19,11 @@ export function canStartEduPiStudentFollowup(platform: NodeJS.Platform = process
   return platform !== "win32" && environment.EDUPI_DESKTOP_ISOLATED_CANARY === "1";
 }
 
+export function canStartEduPiCapabilityCanary(platform: NodeJS.Platform = process.platform,
+  environment: NodeJS.ProcessEnv = process.env): boolean {
+  return platform !== "win32" && environment.EDUPI_DESKTOP_ISOLATED_CANARY === "1";
+}
+
 // Tauri has already proved the isolated root, bundled Core and private state
 // before setting the marker on this server. Core root admission must survive
 // stopping G1; the current scope/grant separately controls model execution.

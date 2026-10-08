@@ -47,7 +47,8 @@ export async function readExactEduPiAmbientGoalBinding(host: Pick<EduPiRuntimeHa
   for (const raw of view.bindings) {
     const item = record(raw);
     if (!item || !ID.test(String(item.goal_id || "")) || seen.has(String(item.goal_id))
-      || !ID.test(String(item.work_case_id || "")) || !ID.test(String(item.task_id || ""))
+      || !ID.test(String(item.work_case_id || "")) || !Object.hasOwn(item, "task_id")
+      || item.task_id !== null && !ID.test(String(item.task_id || ""))
       || !Number.isSafeInteger(item.goal_version) || Number(item.goal_version) < 1
       || !["active", "paused", "revoked"].includes(String(item.goal_status))
       || item.message_ref !== undefined && !MESSAGE_REF.test(String(item.message_ref))) return UNKNOWN;

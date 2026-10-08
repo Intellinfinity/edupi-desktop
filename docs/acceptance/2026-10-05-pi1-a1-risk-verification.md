@@ -1,5 +1,23 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-08 Core #239–#240 追补
+
+本节取代紧随其后的`cbc145f`作为当前pin身份，保留那一版的实际页面证据及初次暂存失败。Core main已合[#239](https://github.com/Intellinfinity/edupi/pull/239)与[#240](https://github.com/Intellinfinity/edupi/pull/240)，Desktop原分支未重建，当前未提交配对改为精确`b195512fb9a96ae04c35340ebdea78eddd816152`。Bridge schema`2749b120…`、Runtime schema`4749a9e9…`、fixture`807f27fd…`不变；Core组件更新为`ca757d41…`，Desktop组件更新为`e62be5dd…`。这两项Core变化保护规划决策日志：真正未变的决策不增行，既有前缀不重写；不改变本批DOCX材料交互合同。
+
+- 干净detached Core消费树已切到`b195512`并按其lock执行`npm ci`，本机0漏洞；Core新`test:planning-decision-dedup`4/4、`test:planning-read-view`9/9，Desktop精确Bridge/打包闭包15/15通过。此时签名安装与真实数据仍未触碰。
+- 原`cbc145f`的DOCX上传/确认/并发保稿、1440/800页面证据继续标其实际版本，不能换名为`b195512`的页面验收。标准`desktop:prepare`已按新pin暂存Core 2886文件；`test:staged-desktop-runtime`启动回读Core ready、G1/G2 activation_pending、externalSend=false，`test:staged-docx`通过。精确`b195512`下完整`npm test`为2225通过、12跳过、0失败；lint/tsc、locked Cargo metadata、`npm audit --audit-level=high`均通过，审计剩6低/3中、0高/严重；独立增量checker PASS。CI/PR仍需绑定即将提交的源码，不沿用`cbc`的运行结果计入新身份。
+
+## 2026-10-08 Core #234–#238 配对与 DOCX 来源
+
+此节取代下文“当前pin仍9ad”的旧状态，不取代安装验收。Desktop原工作树已快进已合并的[#319](https://github.com/Intellinfinity/edupi-desktop/pull/319) main `68ef3d39c2f4940c606a92192a0120098870d796`，在此基础上的最新Core配对仍为未提交补丁。精确Core已合main `cbc145f2d3fc64f59dcc895c2bd31874e3aebbbe`（#234–#238），只读隔离checkout位于`core-desktop-p0p2-4b8c600-20261007`；真实Core主树和教师数据根未改。
+
+- 严格身份：Runtime schema `sha256:4749a9e9…`、Core组件`sha256:70165837…`、Desktop组件`sha256:71bf86ea…`、Bridge v1.1 schema `sha256:2749b120…`、fixture manifest `sha256:807f27fd…`已同步；12个公开Bridge命令和课次v1.2不变。完整Bridge/打包闭包15/15通过；Core cbc本地合同、组件清单、DOCX片段4/4、规划视图9/9、方法来源2/2通过。没有把新内部`g1-excerpt`动作误写成公开C1命令。
+- 修复真实状态误报：旧Desktop仅凭历史产物ID就把Core `held` 任务显示为“已准备”；新Core保留历史只读草稿但撤销当前ready。定向测试先红后绿，当前状态与重放完成回执均重新读Core `currentState`，held+旧文件为idle、全局ready计数为0；15/15定向通过。
+- 新DOCX路径：材料详情可先读Core `source_preview` 的真实段落/单元格，再选最多20处UTF-16片段并明确确认。一次性Bridge无owner证明的实际拒绝`docx_fragment_authority`保留，接口改走受管Core Runtime而未绕过准入。合成836字节DOCX在隔离页面实际上传/接入703数学、两段预览、选择、Core确认、回读版本1/2片段、硬重载同材料正文；证据`~/edupi-desktop-p0p2-canary-QgYYbX/docx-source-confirmed-evidence.json`。这不证明题目、答案或真人教学质量。
+- 独立复审发现写后末次读失败会让旧revision/预览留在页上，及来源在写与读间变化仍可能误报200。现已补任意POST结果清旧选区、失败保留未保存手工正文、父级重读canonical；写后再次受管`source_preview`比basis/source/record，漂移拒绝409、读不出标“结果未核实”。两页真实并发：B写入版本2后，A旧选片返回409，页面读到版本2却保留A的逐字未保存草稿；B再以当前来源确认成版本3/2片段。最后800×900抽屉纵向布局、未保存提示切换、无横向溢出、控制台0错误/警告均在页面实看；证据`~/edupi-desktop-p0p2-canary-QgYYbX/docx-stale-preserved-evidence.json`。针对性测试与独立checker通过，不等于安装GUI。
+- 冻结源码带精确`cbc145f` Core根执行`npm test`为2225通过、12跳过、0失败；`npm run lint`和`tsc --noEmit`通过。首次直接运行staged runtime失败，实际读取到上版残留暂存Core schema `8b4d701c…`，与新pin `4749a9e9…`不符；没有放宽身份门；标准`desktop:prepare`随后成功暂存`cbc145f` Core 2886文件，`test:staged-desktop-runtime`重测通过（Core ready，G1/G2仍activation_pending，外发false），`test:staged-docx`通过。暂存服务运行不等于签名App或安装。
+- 当前未做签名/安装/TCC/原生确认采用/真实睡眠/真人内容验收；Core假期#233与家庭/真实阶段新合同仍需人工门和main合并，不能把cbc配对解释为这些分支已消费。公开`.56`、Release/feed不变。
+
 ## 2026-10-08 P0–P2 截图复查
 
 此节取代下文“家庭/阶段合同未实现”和“最后页面仍待复查”的旧状态；它不取代安装验收。原Desktop分支`codex/route1-core-a8fe471-20260926`在`8fba506`上保留全部未提交源码，当前严格Core pin仍为已合main `9ad3556`。隔离根`~/edupi-desktop-p0p2-canary-QgYYbX`，macOS生产源码页30373与仅本机合成模型52372；无真实教师根、凭据、launchd、OS权限或正式App变更。
@@ -7,7 +25,7 @@
 - 运行证据：Codex原生浏览器在1440×900/800×900真实操作“今天”三块、工作区每列10条与完成倒序/更多分页重载、跨月日程写入Core后列表搜索/重载、聊天资源入口与附件菜单、材料文风、学生同名跨班及可展开/缩放/选源图谱。逐项实际结果在`~/edupi-desktop-p0p2-canary-QgYYbX/screenshot-recheck-ui-20261008.json`；跨月合成日程ID `calendar-occurrence-d7430315bd4153623f6338912cde8aec`。十月1–7前台没有常规课，不等于后台生产已修。
 - 最后UI复查发现家校图谱不可用时重复提示和空画布；改为一条“家校记录暂不可用”及刷新。重新编译、硬重载、选703学生进入家校人物，实际AX只见一个错误与禁用添加，无假联系人/空图；静态渲染4/4、TypeScript及定向ESLint通过。图谱正路径在旧main已有记录下已实测；新家庭关系正路径仍缺Core合同合入与安装GUI。
 - 完整源码测试在最后UI调整前为2217通过、9跳过、0失败；通知复审修复后，用精确`9ad3556` Core根重跑当前源码为2219通过、12跳过、0失败，跳过项不算验收。Cargo49/49、locked metadata和依赖高危审计0高/严重保留各自运行身份。独立只读checker对家庭/阶段接线及最后通知补丁给PASS；其结论不代替人审、GUI或安装。
-- [Desktop PR #319](https://github.com/Intellinfinity/edupi-desktop/pull/319) 首个源码提交`101b9c8`已推送；远端安全CI `37702164757`绑定该提交，dependency audit与rust-audit通过。提交后独立复查发现通知授权等待时的开关/焦点竞态、原生偏好尚未落盘时的策略错位，以及15秒claim超时可导致持久attempt失联。三项均在原分支以针对性红→绿修复：发送前重查开关/焦点，本地与原生策略双读且不一致/超时失败关闭，claim请求不在落盘后由客户端超时/卸载中止，响应迟到时按精确attempt释放。复审补发现原生比对挂起时卸载仍可创建新claim，也已红→绿为0次POST；checker最终PASS。旧CI不属于后续修复字节，必须更新提交后重跑适用CI。
+- [Desktop PR #319](https://github.com/Intellinfinity/edupi-desktop/pull/319) 首个源码提交`101b9c8`已推送；远端安全CI `37702164757`绑定该提交，dependency audit与rust-audit通过。提交后独立复查发现通知授权等待时的开关/焦点竞态、原生偏好尚未落盘时的策略错位，以及15秒claim超时可导致持久attempt失联。三项均在原分支以针对性红→绿修复：发送前重查开关/焦点，本地与原生策略双读且不一致/超时失败关闭，claim请求不在落盘后由客户端超时/卸载中止，响应迟到时按精确attempt释放。复审补发现原生比对挂起时卸载仍可创建新claim，也已红→绿为0次POST；checker最终PASS。最终`7e14329`的[CI37703773527](https://github.com/Intellinfinity/edupi-desktop/actions/runs/37703773527) dependency audit与rust-audit通过；PR合并为main `68ef3d39c2f4940c606a92192a0120098870d796`。旧`101b9c8` CI只保留历史身份，不冒充最终提交。
 - 仍有通知活性边界：服务进程在claim落盘后崩溃、连接永不返回或落盘后503，可能留下未知attempt。不可直接TTL清零重发，因为OS已送而回执丢失也可能呈同一状态，自动回收会制造重复通知；保留应用内事项，正式通知恢复/点击及真实TCC仍未验。
 - Core家庭观察与真实备课执行阶段在两个独立未提交分支，来源/修订/旧数据兼容及事件隔离定向通过；生产main未含其合同，Desktop只显示能力不可用，不制造监护验证或阶段总数。Core假期[#233](https://github.com/Intellinfinity/edupi/pull/233) `9891941`仍无人审；主线已前进到`7bdee47`，PR当前冲突，旧绿CI不证明新组合。需按Core仓库人工门整合后，再精确更新Desktop pin/schema/双组件并做签名安装。
 - 安装、TCC、原生确认采用、真实跨到期睡眠、真人教学质量、家庭关系来源质量和六领域Live均未验；公开`.56`、Release/feed不变。本轮浏览器override已复位、仅自建tab已关闭，Next/模型端口30373/52372均不再监听，合成资料及日志保留。

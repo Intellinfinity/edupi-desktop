@@ -309,7 +309,7 @@ export function EduPiTodayWork({ data, onEducation, onTaskDetail, selectedObject
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/edupi/status?summary=1", { cache: "no-store", signal: controller.signal })
+    fetch("/api/edupi/status?feedback-health=1", { cache: "no-store", signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as { proactivity?: { teacherFeedback?: boolean } } : null)
       .then((value) => { if (!controller.signal.aborted) setFeedbackReady(isTauriDesktop() && value?.proactivity?.teacherFeedback === true); })
       .catch(() => { if (!controller.signal.aborted) setFeedbackReady(false); });

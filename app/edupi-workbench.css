@@ -949,6 +949,21 @@ html.dark .edupi-teacher-shell {
 .edupi-material-drawer > footer button.is-primary { border-color: var(--ep-text); background: var(--ep-text); color: var(--ep-surface); }
 .edupi-material-drawer > footer button.is-delete { border-color: color-mix(in srgb, var(--ep-red) 35%, var(--ep-border)); color: var(--ep-red); }
 .edupi-material-drawer > footer .edupi-icon-action { width: 31px; min-width: 31px; padding: 0; }
+.edupi-material-excerpt { padding: 12px 16px; border-top: 1px solid var(--ep-border); font-size: 11px; }
+.edupi-material-excerpt summary { cursor: pointer; font-weight: 600; }
+.edupi-material-excerpt__body { display: grid; gap: 8px; margin-top: 8px; }
+.edupi-material-excerpt__body > label { display: grid; gap: 6px; color: var(--ep-muted); }
+.edupi-material-excerpt textarea { box-sizing: border-box; width: 100%; min-height: 136px; padding: 8px; border: 1px solid var(--ep-border); border-radius: 6px; background: var(--ep-surface); color: var(--ep-text); font: inherit; line-height: 1.5; resize: vertical; }
+.edupi-material-excerpt__body > button { justify-self: start; }
+.edupi-material-excerpt__body > p { margin: 0; color: var(--ep-muted); }
+.edupi-material-excerpt__body > p[role="alert"] { color: var(--ep-red); }
+.edupi-docx-source { display: grid; gap: 8px; padding: 10px 0; }
+.edupi-docx-source > p { margin: 0; color: var(--ep-muted); font-size: 11px; line-height: 1.5; }
+.edupi-docx-source > p[role="alert"] { color: var(--ep-red); }
+.edupi-docx-source__list { display: grid; max-height: 320px; overflow: auto; border: 1px solid var(--ep-border); border-radius: 6px; }
+.edupi-docx-source__list label { display: flex; align-items: flex-start; gap: 8px; padding: 9px; border-bottom: 1px solid var(--ep-border); font-size: 11px; line-height: 1.5; cursor: pointer; }
+.edupi-docx-source__list label:last-child { border-bottom: 0; }
+.edupi-docx-source__list span { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .edupi-material-metadata-editor { padding: 14px 16px; border-top: 1px solid var(--ep-border); }
 .edupi-material-metadata-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .edupi-material-metadata-editor > header h3 { margin: 0; font-size: 11px; }

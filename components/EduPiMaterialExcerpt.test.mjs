@@ -7,6 +7,7 @@ const { EduPiMaterialExcerpt } = await createJiti(import.meta.url, { jsx: { runt
 test("excerpt starts collapsed and cannot confirm before authoritative read", () => {
   const html = renderToStaticMarkup(React.createElement(EduPiMaterialExcerpt, { materialId: "material", onPreview() {} }));
   assert.match(html, /<summary>用于备课<\/summary>/);
+  assert.match(html, /edupi-material-excerpt__body/);
   assert.doesNotMatch(html, /<details[^>]*open/);
   assert.match(html, /预览原材料/);
   assert.match(html, /disabled=""[^>]*>确认正文/);

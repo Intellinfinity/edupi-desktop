@@ -4,7 +4,7 @@
   "request_id": "v11-command-request",
   "issued_at": "1970-01-01T00:00:00.000Z",
   "producer": "edupi-core",
-  "schema_hash": "sha256:f61408ae1cf040abbf8e24e7f9b68c1f307215dd6141f55110fdabf1b2612d74",
+  "schema_hash": "sha256:2749b1208b47bf475bd30d266b5ca1b213aa78c6c8b4dcd53059c524400565c8",
   "snapshot_id": "snapshot_fixture",
   "provenance": [
     {

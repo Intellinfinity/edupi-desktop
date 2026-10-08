@@ -4629,6 +4629,33 @@
                     "maxItems": 50,
                     "type": "array"
                   },
+                  "managed_method_ref": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "content_hash": {
+                        "maxLength": 71,
+                        "minLength": 71,
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "content_revision": {
+                        "maximum": 9007199254740991,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "method_id": {
+                        "maxLength": 160,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "method_id",
+                      "content_revision",
+                      "content_hash"
+                    ],
+                    "type": "object"
+                  },
                   "memory_id": {
                     "maxLength": 160,
                     "minLength": 1,
@@ -4861,6 +4888,33 @@
                     "const": "candidate_only",
                     "type": "string"
                   },
+                  "managed_method_ref": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "content_hash": {
+                        "maxLength": 71,
+                        "minLength": 71,
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "content_revision": {
+                        "maximum": 9007199254740991,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "method_id": {
+                        "maxLength": 160,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "method_id",
+                      "content_revision",
+                      "content_hash"
+                    ],
+                    "type": "object"
+                  },
                   "proposed_content": {
                     "maxLength": 4000,
                     "type": "string"
@@ -5011,6 +5065,33 @@
                         "type": "string"
                       }
                     ]
+                  },
+                  "managed_method_ref": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "content_hash": {
+                        "maxLength": 71,
+                        "minLength": 71,
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "content_revision": {
+                        "maximum": 9007199254740991,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "method_id": {
+                        "maxLength": 160,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "method_id",
+                      "content_revision",
+                      "content_hash"
+                    ],
+                    "type": "object"
                   },
                   "observation_id": {
                     "maxLength": 160,

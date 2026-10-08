@@ -5,6 +5,7 @@ import { pumpBackgroundJobs } from "./edupi-background-jobs";
 import { readEduPiProactivityActivation } from "./edupi-proactivity-config";
 
 type PreparationStatus = { state: "idle" | "running" | "ready" | "error"; updatedAt: string | null; prepared: number; error: string | null; taskId?: string | null; retryable?: boolean };
+const READY_WORK_STATES = new Set(["draft_ready", "accepted", "modified", "completed"]);
 const shared = globalThis as typeof globalThis & { __edupiPreparationStatus?: PreparationStatus };
 const current = () => shared.__edupiPreparationStatus ??= { state: "idle", updatedAt: null, prepared: 0, error: null };
 
@@ -46,11 +47,12 @@ export async function preparationStatus(taskId?: string): Promise<PreparationSta
     const work = status.taskId ? data.workCases.find(item => item.taskId === status.taskId) : null;
     const task = status.taskId ? (data.tasks || []).find(item => item.id === status.taskId) : null;
     const preflight = task ? kernel?.projection.runs.find(item => item.trigger_id === "g1_prepare_task" && item.fire_key === `task:${task.id}:r${task.revision}` && ["failed", "needs_review"].includes(item.status)) : null;
-    const prepared = data.workCases.filter(item => item.artifactIds.length > 0 && ["draft_ready", "accepted", "modified", "completed"].includes(item.currentState)).length;
+    const prepared = data.workCases.filter(item => item.artifactIds.length > 0 && READY_WORK_STATES.has(item.currentState)).length;
+    const workReady = Boolean(work?.artifactIds.length && READY_WORK_STATES.has(work.currentState));
     if (preflight?.error_code) Object.assign(status, { state: "error", error: preparationFailureMessage(preflight.error_code), prepared });
     else if (work && ["queued", "running"].includes(work.currentState)) Object.assign(status, { state: pending ? "running" : "error", error: pending ? null : "备课执行已断开，请重试", prepared });
     else if (work?.currentState === "failed") Object.assign(status, { state: "error", error: "备课未完成，请重试", prepared });
-    else if (work?.artifactIds.length || !status.taskId && prepared > 0) Object.assign(status, { state: "ready", error: null, prepared });
+    else if (workReady || !status.taskId && prepared > 0) Object.assign(status, { state: "ready", error: null, prepared });
     else Object.assign(status, { state: "idle", error: null, prepared });
     return { ...status, retryable: false };
   } catch {
@@ -85,8 +87,8 @@ export async function startPreparation({ taskId = null }: { taskId?: string | nu
     }
     const batch = result.result as { tasks?: unknown[]; failures?: Array<{ code: string }> } | undefined;
     if (!taskId && !batch?.tasks?.length && batch?.failures?.length) throw failure({ error_code: batch.failures[0].code });
-    const state = taskId && acknowledgement?.state === "completed" ? "ready" : "running";
-    Object.assign(status, { taskId, state, updatedAt: new Date().toISOString(), error: null, retryable: false });
+    Object.assign(status, { taskId, state: "running", updatedAt: new Date().toISOString(), error: null, retryable: false });
+    if (taskId && acknowledgement?.state === "completed") Object.assign(status, await preparationStatus(taskId));
     return { ...status };
   } catch (error) {
     const code = (error as { code?: unknown })?.code;

@@ -20,7 +20,7 @@ import { rememberScrollPosition, sessionScrollTops } from "@/lib/scroll-memory";
 import { applyAssistantMessageEvent, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { EDUPI_STUDENT_RECORDS_UPDATED_EVENT } from "@/lib/edupi-ui-events";
-import { captureEduPiAmbientMessage, readEduPiAmbientPending, type EduPiAmbientPendingState } from "@/lib/edupi-ambient-message";
+import { armEduPiAmbientMessage, cancelEduPiAmbientArm, captureEduPiAmbientMessage, readEduPiAmbientPending, type EduPiAmbientPendingState } from "@/lib/edupi-ambient-message";
 import { acknowledgeLocalQueueRecovery, completeStagedQueueRecovery, getDraft, markQueueRecoveryUncertain, restoreFailedMessageDraft } from "@/lib/draft-store";
 import { recallQueueWithBackup } from "@/lib/queue-recovery";
 import { emptyMessageHistory, messageHistoryReducer, type MessageHistoryAction } from "@/lib/agent-message-history";
@@ -1686,11 +1686,21 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
     let sentSessionId: string | null = null;
     let promptRequestStarted = false;
+    const captureIntentRef: { current: { sessionId: string; messageId: string; occurredAt: string } | null } = { current: null };
     const assertCurrentSend = (sid?: string | null) => {
       if (sendGeneration !== sessionGenerationRef.current || promptRunIdRef.current !== promptRunId
         || (sid !== undefined && sessionIdRef.current !== sid)) {
         throw new Error("The conversation changed before the message was submitted.");
       }
+    };
+    const armCapture = async (sid: string) => {
+      if (isSlashCommandPrompt || !trimmedMessage) return;
+      const identity = { sessionId: sid, messageId: `prompt-${clientRequestId}`, occurredAt: new Date(occurredAtMs).toISOString() };
+      const result = await armEduPiAmbientMessage(identity);
+      if (result.status === "unavailable" || result.status === "outcome_unknown") {
+        addNotice({ type: "warning", message: "主动捕获待核验，普通对话仍可继续" });
+      }
+      if (result.status === "armed") captureIntentRef.current = identity;
     };
 
     try {
@@ -1712,6 +1722,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           }
           await ensureEventsConnected(sid);
           assertCurrentSend(sid);
+          await armCapture(sid);
+          assertCurrentSend(sid);
           promptRequestStarted = true;
           await sendAgentCommand(sid, {
             type: "prompt",
@@ -1726,6 +1738,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         assertCurrentSend(session.id);
         sentSessionId = session.id;
         await ensureEventsConnected(session.id);
+        assertCurrentSend(session.id);
+        await armCapture(session.id);
         assertCurrentSend(session.id);
         promptRequestStarted = true;
         await sendAgentCommand(session.id, {
@@ -1774,6 +1788,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         void waitForPromptSettlement(sentSessionId, promptRunId);
       }
     } catch (e) {
+      const captureIntent = captureIntentRef.current;
+      if (captureIntent && !promptRequestStarted) {
+        try { await cancelEduPiAmbientArm(captureIntent); } catch { /* A failed clear remains visible for verification. */ }
+      }
+      if (captureIntent && promptRequestStarted && sessionIdRef.current === captureIntent.sessionId) {
+        setAmbientPending(current => ({ status: "outcome_unknown", pending: current.pending.some(item => item.messageId === captureIntent.messageId)
+          ? current.pending : [...current.pending, { messageId: captureIntent.messageId, occurredAt: captureIntent.occurredAt, unconfirmed: true }], recovered: [] }));
+      }
       console.error("Failed to send message:", e);
       if (sendGeneration !== sessionGenerationRef.current || promptRunIdRef.current !== promptRunId) {
         if (!promptRequestStarted && originDraftKey) {

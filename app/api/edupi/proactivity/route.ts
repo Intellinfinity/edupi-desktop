@@ -16,7 +16,7 @@ import {
 } from "@/lib/edupi-proactivity-control";
 import { clearEduPiProactivityStopIntent, readEduPiProactivityActivation, writeEduPiProactivityConfig,
   writeEduPiProactivityStopIntent, type EduPiProactivityActivation, type EduPiProactivityDomain, type EduPiProactivityScope } from "@/lib/edupi-proactivity-config";
-import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantStatus, readProactivityRuntimeState } from "@/lib/edupi-proactivity-runtime";
+import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantDomainProof, readProactivityGrantStatus, readProactivityRuntimeState } from "@/lib/edupi-proactivity-runtime";
 import { G3_DOMAINS, g3AllowedDomainsForActivations, clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
   quarantineEduPiRuntime, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
@@ -253,12 +253,23 @@ async function disableCanary(roots: EduPiBridgeRoots, activation: EduPiProactivi
     await quarantineEduPiRuntime(roots.dataRoot.root);
     clearEduPiRuntimeQuarantine(roots.dataRoot.root);
   }
-  let stopState: "paused" | "missing" | "revoked" | "uncertain" = activation.grantId ? "uncertain" : "missing";
+  let stopState: "paused" | "missing" | "revoked" | "shared" | "uncertain" = activation.grantId ? "uncertain" : "missing";
   if (activation.grantId) {
     try {
       const host = await ensureEduPiRuntime(roots);
       const health = runtimeHealth(await host.call("health", null));
-      stopState = (await pauseProactivityGrant(host, health.rootRef, activation.grantId)).state;
+      if (pendingCapability(domain)) {
+        const proof = await readProactivityGrantDomainProof(host, health.rootRef, activation.grantId);
+        const exactScope = Boolean(proof && activation.scope && sameScope(activation.scope, proof.scope));
+        if (proof === null) stopState = "missing";
+        else if (exactScope && proof.domain === domain) stopState = (await pauseProactivityGrant(host, health.rootRef, activation.grantId)).state;
+        else if (exactScope && ["teaching_preparation", "student_followup", ...G3_DOMAINS].some(candidate => {
+          if (candidate === domain || candidate !== proof.domain) return false;
+          const other = readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain: candidate });
+          return other.enabled && other.source === "desktop_canary" && other.configurationStatus === "ready"
+            && other.grantId === activation.grantId && sameScope(other.scope, proof.scope);
+        })) stopState = "shared";
+      } else stopState = (await pauseProactivityGrant(host, health.rootRef, activation.grantId)).state;
     } catch { /* Keep the old binding as a fence until a later stop retry proves it safe. */ }
   }
   const cleanupSafe = stopState !== "uncertain";

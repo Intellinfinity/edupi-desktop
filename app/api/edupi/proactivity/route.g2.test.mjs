@@ -56,7 +56,7 @@ function fixture({ isolated = true, g1Enabled = false, g2Processor = true, force
       if (operation === "health") return health();
       if (operation === "prepare_due") return { ok: true, result: { tasks: [], failures: [] } };
       assert.equal(operation, "owner_read");
-      return { ok: true, result: { root_ref: rootRef, owner, grants: [...grants.values()], g1_model_budget: [...grants.values()]
+      return { ok: true, result: { root_ref: rootRef, owner, grants: [...grants.values()].map(grant => ({ ...grant, ...grant.spec })), external_send: false, g1_model_budget: [...grants.values()]
         .filter(grant => grant.spec.domains[0] === G1).map(grant => ({ grant_id: grant.id, budget_id: grant.spec.budget.id,
           used_calls: 0, max_calls: 12, remaining_calls: 12, exhausted: false, usage_unverified: false })), ...ownerReadPatch } };
     },
@@ -196,7 +196,7 @@ test("two old G3 configs can be stopped one by one while the shared processor re
     f.activations.set(domain, { enabled: true, source: "desktop_canary", configurationStatus: "ready",
       scope, grantId, updatedAt: "2026-10-04T00:00:00.000Z" });
     f.grants.set(grantId, { id: grantId, version: 1, status: "active", ends_at: "2099-01-01T00:00:00.000Z",
-      spec: { domains: [domain], budget: { id: `budget-${domain}`, max_calls: 0 } } });
+      spec: { scope: { class_id: scope.classId, subject: scope.subject }, domains: [domain], budget: { id: `budget-${domain}`, max_calls: 0 } } });
   }
   const before = await f.get("?domain=calendar_administration");
   assert.equal((await before.json()).activation.enabled, true);
@@ -215,6 +215,48 @@ test("two old G3 configs can be stopped one by one while the shared processor re
   assert.equal(f.events.filter(event => event.operation === "startup-allowset").length, 2);
   assert.ok(f.events.findLastIndex(event => event.operation === "clear-quarantine")
     > f.events.findLastIndex(event => event.operation === "quarantine"));
+});
+
+test("stopping an old G3 config cannot pause the active G1 grant it aliases", async () => {
+  const f = fixture({ g1Enabled: true });
+  const sharedGrantId = f.read(G1).grantId;
+  f.activations.set("calendar_administration", { enabled: true, source: "desktop_canary", configurationStatus: "ready",
+    scope, grantId: sharedGrantId, updatedAt: "2026-10-04T00:00:00.000Z" });
+  const stopped = await f.toggle(false, "calendar_administration");
+  assert.equal(stopped.status, 200);
+  assert.equal(f.read("calendar_administration").enabled, false);
+  assert.equal(f.read(G1).enabled, true);
+  assert.equal(f.grants.get(sharedGrantId).status, "active", "a different domain still owns this Core grant");
+  assert.equal(f.events.some(event => event.operation === "owner_control" && event.action === "pause" && event.grant_id === sharedGrantId), false);
+});
+
+test("stopping an old G4 config cannot pause the active G2 grant it aliases", async () => {
+  const f = fixture();
+  assert.equal((await f.toggle(true, G2)).status, 200);
+  const sharedGrantId = f.read(G2).grantId;
+  f.activations.set("lesson_reflection", { enabled: true, source: "desktop_canary", configurationStatus: "ready",
+    scope, grantId: sharedGrantId, updatedAt: "2026-10-04T00:00:00.000Z" });
+  const stopped = await f.toggle(false, "lesson_reflection");
+  assert.equal(stopped.status, 200);
+  assert.equal(f.read("lesson_reflection").enabled, false);
+  assert.equal(f.read(G2).enabled, true);
+  assert.equal(f.grants.get(sharedGrantId).status, "active");
+  assert.equal(f.events.some(event => event.operation === "owner_control" && event.action === "pause" && event.grant_id === sharedGrantId), false);
+});
+
+test("an unproved G3 grant alias remains stop-pending without pausing another domain", async () => {
+  const f = fixture();
+  const grantId = "old-g1-identity";
+  f.activations.set("calendar_administration", { enabled: true, source: "desktop_canary", configurationStatus: "ready",
+    scope, grantId, updatedAt: "2026-10-04T00:00:00.000Z" });
+  f.grants.set(grantId, { id: grantId, version: 1, status: "active", ends_at: "2099-01-01T00:00:00.000Z",
+    spec: { scope: { class_id: scope.classId, subject: scope.subject }, domains: [G1], actions: ["prepare", "update"],
+      budget: { id: "old-g1-budget", max_calls: 12 } } });
+  const stopped = await f.toggle(false, "calendar_administration");
+  assert.equal(stopped.status, 503);
+  assert.equal((await stopped.json()).code, "proactivity_stop_uncertain");
+  assert.equal(f.grants.get(grantId).status, "active");
+  assert.equal(f.read("calendar_administration").configurationStatus, "stop_pending");
 });
 
 test("stopping either domain permits the other processor and ambient planning to remain active", async () => {

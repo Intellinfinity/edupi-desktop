@@ -9,7 +9,7 @@ const HASH = /^sha256:[a-f0-9]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
 
 export type EduPiProactivityScope = { classId: string; subject: string };
-export type EduPiProactivityDomain = "teaching_preparation" | "student_followup";
+export type EduPiProactivityDomain = "teaching_preparation" | "student_followup" | "calendar_administration" | "lesson_reflection" | "parent_communication";
 export type EduPiProactivityActivation = {
   enabled: boolean;
   source: "default" | "desktop_canary" | "environment";
@@ -45,6 +45,9 @@ function fail(): never { throw new EduPiProactivityConfigError(); }
 function fileName(domain: EduPiProactivityDomain, stop = false): string {
   if (domain === "teaching_preparation") return stop ? STOP_FILE_NAME : FILE_NAME;
   if (domain === "student_followup") return stop ? "edupi-student-followup-stop.json" : "edupi-student-followup.json";
+  if (domain === "calendar_administration") return stop ? "edupi-calendar-administration-stop.json" : "edupi-calendar-administration.json";
+  if (domain === "lesson_reflection") return stop ? "edupi-lesson-reflection-stop.json" : "edupi-lesson-reflection.json";
+  if (domain === "parent_communication") return stop ? "edupi-parent-communication-stop.json" : "edupi-parent-communication.json";
   return fail();
 }
 

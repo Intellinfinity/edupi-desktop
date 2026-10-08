@@ -16,6 +16,7 @@ type ViewProps = {
 
 const scopeKey = (scope: { classId: string; subject: string }) => JSON.stringify([scope.classId, scope.subject]);
 const EXECUTION_STATUS = { queued: "已排队", claimed: "已领取", completed: "草稿已生成", failed: "生成失败", cancelled: "已取消" };
+const PENDING_DOMAIN_NAMES = { calendar_administration: "校历与行政", lesson_reflection: "课后复盘", parent_communication: "家长沟通" } as const;
 type FeedbackScope = EduPiProactivityState["scopes"][number];
 
 const FEEDBACK_DOMAINS: Array<{ value: TeacherFeedbackDomain; label: string }> = [
@@ -96,7 +97,9 @@ function EduPiMissedOpportunityFeedback({ scopes, enabled }: { scopes: FeedbackS
 
 export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, onSelect, onToggle }: ViewProps) {
   const studentFollowup = state.limits.domain === "student_followup";
-  const titleId = studentFollowup ? "edupi-student-followup-canary-title" : "edupi-proactivity-canary-title";
+  const pendingDomain = state.limits.domain in PENDING_DOMAIN_NAMES;
+  const titleId = studentFollowup ? "edupi-student-followup-canary-title" : pendingDomain
+    ? `edupi-${state.limits.domain}-canary-title` : "edupi-proactivity-canary-title";
   const blocked = Boolean(state.requiresSafeMode || state.activationBlocked);
   const active = state.activation.enabled;
   const recoveryPending = !active && state.activation.scope !== null;
@@ -111,13 +114,15 @@ export function EduPiProactivityCanaryView({ state, selectedKey, busy, message, 
   const currentLabel = current
     ? `${"className" in current && current.className ? current.className : current.classId} · ${current.subject}`
     : "没有可用范围";
-  const blockedLabel = state.activationBlocked === "windows_unavailable" ? "Windows 暂不可用" : state.activationBlocked ? "仅隔离试用" : null;
+  const blockedLabel = state.activationBlocked === "windows_unavailable" ? "Windows 暂不可用"
+    : state.activationBlocked === "activation_pending" ? "执行未开放" : state.activationBlocked ? "仅隔离试用" : null;
   return <section className="edupi-proactivity-canary" aria-labelledby={titleId}>
     <div>
-      <span><strong id={titleId}>{studentFollowup ? "学生跟进试用" : "课前准备试用"}</strong><small>{active && state.grant
+      <span><strong id={titleId}>{studentFollowup ? "学生跟进试用" : pendingDomain
+        ? PENDING_DOMAIN_NAMES[state.limits.domain as keyof typeof PENDING_DOMAIN_NAMES] : "课前准备试用"}</strong><small>{active && state.grant
         ? budget && !budget.usageUnverified ? `${currentLabel} · 剩余 ${budget.remainingCalls} 次`
           : `${currentLabel} · 最多 ${state.limits.maxModelCalls} 次 · 剩余未知`
-        : recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用`}</small></span>
+        : active || recoveryPending ? currentLabel : `${state.limits.durationDays} 天 · 最多 ${state.limits.maxModelCalls} 次模型调用`}</small></span>
       {active ? <em className={operational ? "is-ready" : undefined}>{blockedLabel || (state.requiresSafeMode ? "安全模式待启动" : budgetExhausted ? "额度已用完" : operational ? "已启用" : "需要恢复")}</em>
         : <em>{recoveryPending ? state.activation.configurationStatus === "legacy" ? "旧授权待停止" : "停止待恢复"
           : blockedLabel || (state.requiresSafeMode ? "安全模式可试用" : state.activation.configurationStatus === "legacy" ? "旧试用已关闭" : "默认关闭")}</em>}
@@ -183,7 +188,10 @@ export function EduPiProactivityCanary({ onChanged, feedbackEnabled = false, dom
   }, [domain]);
   const selected = useMemo(() => state?.scopes.find((scope) => scopeKey(scope) === selectedKey) || null, [selectedKey, state]);
   if (!isTauriDesktop()) return null;
-  if (!state || state.limits.domain !== domain) return <p className="edupi-proactivity-canary__loading" role={message ? "alert" : "status"}>{message || "正在读取主动运行…"}</p>;
+  const pendingDomain = domain in PENDING_DOMAIN_NAMES;
+  if (!state || state.limits.domain !== domain) return pendingDomain && !message ? null
+    : <p className="edupi-proactivity-canary__loading" role={message ? "alert" : "status"}>{message || "正在读取主动运行…"}</p>;
+  if (pendingDomain && !state.activation.enabled && state.activation.scope === null) return null;
   const toggle = async () => {
     if (busyRef.current) return;
     const recoveryPending = !state.activation.enabled && state.activation.scope !== null;

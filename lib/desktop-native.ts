@@ -69,6 +69,26 @@ export async function fetchDesktopApi(apiPath: string, init: RequestInit = {}): 
   return fetch(apiPath, { ...init, headers: await desktopApiHeaders(init.headers) });
 }
 
+export type AmbientCaptureIdentity = { sessionId: string; messageId: string; occurredAt: string };
+
+export async function readAmbientCaptureOutboxNative(): Promise<AmbientCaptureIdentity[]> {
+  if (!isTauriDesktop()) return [];
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<AmbientCaptureIdentity[]>("get_ambient_capture_outbox");
+}
+
+export async function rememberAmbientCaptureNative(entry: AmbientCaptureIdentity): Promise<void> {
+  if (!isTauriDesktop()) throw new Error("desktop_only");
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("remember_ambient_capture", { entry });
+}
+
+export async function clearAmbientCaptureNative(sessionId: string, messageId: string): Promise<void> {
+  if (!isTauriDesktop()) throw new Error("desktop_only");
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("clear_ambient_capture", { sessionId, messageId });
+}
+
 export async function showOpenConnectorConsole(port: number): Promise<void> {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("invalid_console_port");
   if (!isTauriDesktop()) throw new Error("desktop_only");

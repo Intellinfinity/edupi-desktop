@@ -87,6 +87,21 @@ test("a legacy grant remains visible until the teacher explicitly stops it", () 
   assert.doesNotMatch(html, /启用试用/);
 });
 
+test("a saved G3 configuration shows its fenced state and withdrawal action", () => {
+  const pending = { ...base, activationBlocked: "activation_pending", scopes: [],
+    limits: { durationDays: 7, maxModelCalls: 0, domain: "calendar_administration" },
+    activation: { ...base.activation, enabled: true, source: "desktop_canary", configurationStatus: "ready",
+      scope: { classId: "class-7-1", subject: "数学" }, updatedAt: "2026-10-08T00:00:00.000Z" } };
+  const html = renderToStaticMarkup(component.EduPiProactivityCanaryView({ state: pending,
+    selectedKey: "", busy: false, message: null, onSelect() {}, onToggle() {} }));
+  assert.match(html, /校历与行政/);
+  assert.match(html, /执行未开放/);
+  assert.match(html, /class-7-1 · 数学/);
+  assert.match(html, />停止主动运行</);
+  assert.doesNotMatch(html, /已启用|最多 0 次/);
+  assert.equal((html.match(/<button/g) || []).length, 1);
+});
+
 test("missed-opportunity feedback covers every L4 domain with one scoped report action", () => {
   const html = renderToStaticMarkup(component.EduPiMissedOpportunityFeedbackView({
     scopes: [scope],

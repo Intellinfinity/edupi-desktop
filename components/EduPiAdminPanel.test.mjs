@@ -34,6 +34,9 @@ test("management center is a full admin workspace with persistent navigation", a
   assert.match(admin, /<JevSettingsCard \/>/);
   for (const label of ["运行中", "待确认", "已完成", "主动运行", "待交付", "教师反馈", "最近自动运行"]) assert.match(admin, new RegExp(label));
   assert.match(admin, /formatCoreSchedulerStatus/);
+  for (const domain of ["calendar_administration", "lesson_reflection", "parent_communication"]) {
+    assert.match(admin, new RegExp(`<EduPiProactivityCanary domain="${domain}"`));
+  }
   assert.match(admin, /kernelRunTitle/);
   assert.match(admin, /kernelRunDetail/);
   assert.match(admin, /kernelRunAction/);

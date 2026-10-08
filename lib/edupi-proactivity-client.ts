@@ -8,7 +8,7 @@ export type EduPiProactivityState = {
   ok: true;
   degraded?: boolean;
   requiresSafeMode?: boolean;
-  activationBlocked?: "isolated_canary_required" | "windows_unavailable" | null;
+  activationBlocked?: "isolated_canary_required" | "windows_unavailable" | "activation_pending" | null;
   activation: { enabled: boolean; source: "default" | "desktop_canary" | "environment"; configurationStatus: "missing" | "ready" | "legacy" | "stop_pending" | "mismatched" | "invalid"; scope: { classId: string; subject: string } | null; updatedAt: string | null };
   scopes: Array<{ classId: string; className: string | null; subject: string; slotCount: number; materialCount: number; ready: boolean }>;
   grant: { status: "active" | "paused" | "revoked" | "expired"; grantVersion: number; endsAt: string;
@@ -42,17 +42,20 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
   if (state?.ok !== true || state.externalSend !== false || state.degraded !== undefined && typeof state.degraded !== "boolean"
     || state.requiresSafeMode !== undefined && typeof state.requiresSafeMode !== "boolean"
     || state.activationBlocked !== undefined && state.activationBlocked !== null
-      && !["isolated_canary_required", "windows_unavailable"].includes(String(state.activationBlocked))
+      && !["isolated_canary_required", "windows_unavailable", "activation_pending"].includes(String(state.activationBlocked))
     || !activation || typeof activation.enabled !== "boolean"
     || !["default", "desktop_canary", "environment"].includes(String(activation.source))
     || !["missing", "ready", "legacy", "stop_pending", "mismatched", "invalid"].includes(String(activation.configurationStatus))
     || activationScope !== null && (typeof activationScope?.classId !== "string" || !activationScope.classId
       || typeof activationScope?.subject !== "string" || !activationScope.subject)
     || activation.updatedAt !== null && typeof activation.updatedAt !== "string"
-    || !Array.isArray(scopes) || scopes.length > 50 || !limits || !["teaching_preparation", "student_followup"].includes(String(limits.domain))
+    || !Array.isArray(scopes) || scopes.length > 50 || !limits || !["teaching_preparation", "student_followup",
+      "calendar_administration", "lesson_reflection", "parent_communication"].includes(String(limits.domain))
     || !Number.isInteger(limits.durationDays) || Number(limits.durationDays) < 1 || Number(limits.durationDays) > 30
     || !Number.isInteger(limits.maxModelCalls) || Number(limits.maxModelCalls) < 0 || Number(limits.maxModelCalls) > 100
-    || limits.domain === "student_followup" && (limits.durationDays !== 7 || limits.maxModelCalls !== 4)) {
+    || limits.domain === "student_followup" && (limits.durationDays !== 7 || limits.maxModelCalls !== 4)
+    || ["calendar_administration", "lesson_reflection", "parent_communication"].includes(String(limits.domain))
+      && (limits.maxModelCalls !== 0 || state.activationBlocked !== "activation_pending")) {
     throw new EduPiProactivityClientError("主动运行状态无效");
   }
   for (const raw of scopes) {
@@ -63,9 +66,9 @@ export function parseEduPiProactivityState(value: unknown): EduPiProactivityStat
       throw new EduPiProactivityClientError("主动运行范围无效");
     }
   }
-  const budgetLimit = limits.domain === "student_followup" ? 4 : 12;
+  const budgetLimit = limits.domain === "student_followup" ? 4 : limits.domain === "teaching_preparation" ? 12 : 0;
   if (grant && (!Number.isInteger(grant.grantVersion) || !["active", "paused", "revoked", "expired"].includes(String(grant.status)) || typeof grant.endsAt !== "string"
-    || !(limits.domain === "student_followup" && grant.modelBudget === null) && (
+    || !(limits.domain !== "teaching_preparation" && grant.modelBudget === null) && (
     !modelBudget || !Number.isSafeInteger(modelBudget.usedCalls) || Number(modelBudget.usedCalls) < 0 || Number(modelBudget.usedCalls) > 1536
     || !Number.isSafeInteger(modelBudget.maxCalls) || Number(modelBudget.maxCalls) < 0 || Number(modelBudget.maxCalls) > budgetLimit
     || !Number.isSafeInteger(modelBudget.remainingCalls) || Number(modelBudget.remainingCalls) < 0 || Number(modelBudget.remainingCalls) > budgetLimit
@@ -124,8 +127,8 @@ async function responseState(response: Response, domain: EduPiProactivityDomain)
 }
 
 export async function readEduPiProactivity(signal?: AbortSignal, domain: EduPiProactivityDomain = "teaching_preparation"): Promise<EduPiProactivityState> {
-  const response = domain === "student_followup"
-    ? await fetch("/api/edupi/proactivity?domain=student_followup", { cache: "no-store", signal, headers: await desktopApiHeaders() })
+  const response = domain !== "teaching_preparation"
+    ? await fetch(`/api/edupi/proactivity?domain=${encodeURIComponent(domain)}`, { cache: "no-store", signal, headers: await desktopApiHeaders() })
     : await fetchDesktopApi("/api/edupi/proactivity", { cache: "no-store", signal });
   return responseState(response, domain);
 }

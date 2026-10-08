@@ -17,7 +17,7 @@ import {
 import { clearEduPiProactivityStopIntent, readEduPiProactivityActivation, writeEduPiProactivityConfig,
   writeEduPiProactivityStopIntent, type EduPiProactivityActivation, type EduPiProactivityDomain, type EduPiProactivityScope } from "@/lib/edupi-proactivity-config";
 import { EduPiProactivityRuntimeError, ensureProactivityGrant, inspectProactivityCatchUp, pauseProactivityGrant, proactivityRuntimeError, readProactivityGrantStatus, readProactivityRuntimeState } from "@/lib/edupi-proactivity-runtime";
-import { clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
+import { G3_DOMAINS, g3AllowedDomainsForActivations, clearEduPiRuntimeQuarantine, ensureEduPiRuntime,
   quarantineEduPiRuntime, restartEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
 
@@ -43,7 +43,12 @@ function exact(value: RawRecord, keys: string[]): boolean {
 
 function requestedDomain(value: unknown): EduPiProactivityDomain | null {
   return value === undefined ? "teaching_preparation"
-    : value === "teaching_preparation" || value === "student_followup" ? value : null;
+    : value === "teaching_preparation" || value === "student_followup" || value === "calendar_administration"
+      || value === "lesson_reflection" || value === "parent_communication" ? value : null;
+}
+
+function pendingCapability(domain: EduPiProactivityDomain): boolean {
+  return domain === "calendar_administration" || domain === "lesson_reflection" || domain === "parent_communication";
 }
 
 function runtimeHealth(value: RawRecord): { rootRef: string; capabilities: RawRecord } {
@@ -82,6 +87,9 @@ function publicActivation(activation: EduPiProactivityActivation) {
 async function currentState(roots: EduPiBridgeRoots, activation: EduPiProactivityActivation,
   domain: EduPiProactivityDomain,
   context?: Awaited<ReturnType<typeof readScopeContext>>, allowDegraded = false) {
+  if (pendingCapability(domain)) return { ok: true, degraded: false, activationBlocked: "activation_pending",
+    activation: publicActivation(activation), scopes: [], grant: null, capabilities: null,
+    limits: { durationDays: EDUPI_PROACTIVITY_DURATION_DAYS, maxModelCalls: 0, domain }, externalSend: false };
   let currentContext = context;
   let degraded = false;
   if (!currentContext) {
@@ -153,7 +161,8 @@ function sameScope(left: EduPiProactivityScope | null, right: EduPiProactivitySc
 }
 
 function requireActiveCapabilities(capabilities: RawRecord, domain: EduPiProactivityDomain): void {
-  for (const key of [domain === "student_followup" ? "g2_processor" : "g1_processor", "internal_timer", "ambient_planning", "owner_authorization", "owner_conversation", "owner_intent", "attention_delivery", "teacher_feedback"]) {
+  for (const key of [pendingCapability(domain) ? "g3_processor" : domain === "student_followup" ? "g2_processor" : "g1_processor",
+    "internal_timer", "ambient_planning", "owner_authorization", "owner_conversation", "owner_intent", "attention_delivery", "teacher_feedback"]) {
     if (capabilities[key] !== "active") throw new Error("proactivity_activation_incomplete");
   }
 }
@@ -271,7 +280,12 @@ async function disableCanary(roots: EduPiBridgeRoots, activation: EduPiProactivi
   try {
     const host = await restartEduPiRuntime(roots);
     const health = runtimeHealth(await host.call("health", null));
-    if (health.capabilities[domain === "student_followup" ? "g2_processor" : "g1_processor"] !== "activation_pending") {
+    const processor = pendingCapability(domain) ? "g3_processor" : domain === "student_followup" ? "g2_processor" : "g1_processor";
+    const otherG3Active = pendingCapability(domain) && g3AllowedDomainsForActivations(
+      G3_DOMAINS.filter(candidate => candidate !== domain).map(candidate => ({ domain: candidate,
+        activation: readEduPiProactivityActivation({ dataRoot: roots.dataRoot.root, domain: candidate }) })),
+      roots.runtime.coreCommit).length > 0;
+    if (health.capabilities[processor] !== (otherG3Active ? "active" : "activation_pending")) {
       throw new Error("proactivity_deactivation_incomplete");
     }
   } catch {
@@ -313,6 +327,10 @@ export async function POST(request: Request) {
     if (body.enabled && domain === "student_followup" && !canStartEduPiStudentFollowup()) {
       return NextResponse.json({ ok: false, code: "proactivity_isolated_canary_required",
         error: process.platform === "win32" ? "Windows 暂不支持学生跟进试用" : "学生跟进仅可在隔离数据目录试用", externalSend: false }, { status: 409 });
+    }
+    if (body.enabled && pendingCapability(domain)) {
+      return NextResponse.json({ ok: false, code: "proactivity_activation_pending",
+        error: "该领域的主动执行尚未开放", externalSend: false }, { status: 409 });
     }
     if (body.enabled && domain === "teaching_preparation" && !canStartEduPiProactivity()) {
       return NextResponse.json({ ok: false, code: "proactivity_safe_mode_required",

@@ -38,6 +38,7 @@ use tauri::{
 };
 
 mod computer_use;
+mod ambient_capture_outbox;
 mod foreground_prefs;
 mod reminder_notification;
 mod reminder_notification_gate;
@@ -2992,6 +2993,9 @@ pub fn run() {
             show_main_window_cmd,
             show_openconnector_console,
             set_ui_theme,
+            ambient_capture_outbox::get_ambient_capture_outbox,
+            ambient_capture_outbox::remember_ambient_capture,
+            ambient_capture_outbox::clear_ambient_capture,
             foreground_prefs::get_foreground_settings,
             foreground_prefs::set_foreground_settings,
             get_update_proxy,

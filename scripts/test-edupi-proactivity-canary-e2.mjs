@@ -162,7 +162,8 @@ try {
     proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", enableInput)),
     proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", enableInput)),
   ]);
-  assert.deepEqual(enableAttempts.map((item) => item.status).sort((left, right) => left - right), [200, 409]);
+  assert.deepEqual(enableAttempts.map((item) => item.status).sort((left, right) => left - right), [200, 409],
+    JSON.stringify(await Promise.all(enableAttempts.map((item) => item.clone().json()))));
   const enabled = enableAttempts.find((item) => item.status === 200);
   assert.ok(enabled);
   const enabledBody = await enabled.json();
@@ -187,11 +188,13 @@ try {
     const result = await response.json();
     assert.equal(response.status, 200, JSON.stringify({ domain, result }));
     assert.equal(result.status, "captured", JSON.stringify({ domain, result }));
-    assert.equal(result.reason, "domain_out_of_scope", JSON.stringify({ domain, result }));
+    assert.equal(result.resolutionStatus, "held", JSON.stringify({ domain, result }));
+    assert.equal(result.reason, "domain_not_authorized", JSON.stringify({ domain, result }));
+    assert.equal(result.routedDomain, domain.replaceAll("-", "_"), JSON.stringify({ domain, result }));
     assert.equal(result.externalSend, false);
     assert.equal(result.goalId == null, true);
     assert.equal(ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot })
-      .some((item) => item.messageId === messageId), false);
+      .some((item) => item.messageId === messageId), true);
   }
 
   const messageBody = { sessionId, messageId: "canary-message-1", text: "帮我准备明天的数学教案", occurredAt: new Date().toISOString() };
@@ -285,7 +288,7 @@ try {
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });
-  assert.equal(capturedBindings.length, 4);
+  assert.equal(capturedBindings.length, 9);
   ambientLedger.prepareEduPiAmbientMessageBinding({ sessionId, messageId: "canary-crash-before-capture",
     messageRef: `owner_message:${"f".repeat(64)}`, ownerId: capturedBindings[0].ownerId,
     grantId: capturedBindings[0].grantId, captureGrantVersion: capturedBindings[0].captureGrantVersion,

@@ -11,6 +11,7 @@ import { EduPiProactiveHub } from "./EduPiProactiveHub";
 import { EduPiRuntimeFlow } from "./EduPiRuntimeFlow";
 import { ConversationNavigator, type ConversationTurnLocation } from "./ConversationNavigator";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import { EduPiAmbientPendingBanner } from "./EduPiAmbientPendingBanner";
 import { useI18n } from "@/hooks/useI18n";
 import { useAgentSession, type AgentPhase, type EducationImportToolName, type NoticeItem } from "@/hooks/useAgentSession";
 import { useAudio } from "@/hooks/useAudio";
@@ -301,7 +302,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
     retryInfo, contextUsage, forkingEntryId,
     isCompacting, compactError, compactResult, displayModel: displayModelValue, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages, queueRecallBusy, queueRecoveryRequiresReview,
-    notices, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
+    notices, ambientPending, ambientPendingBusy, refreshAmbientPending,
+    extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection,
     agentPhase,
     addNotice,
@@ -1124,6 +1126,8 @@ export function ChatWindow({ session, newSessionCwd, onAgentEnd, onSessionCreate
         >
           <div style={{ maxWidth: 820, margin: "0 auto" }}>
             <ExtensionWidgets widgets={belowEditorWidgets} teacherMode={teacherMode} />
+            {teacherMode && <EduPiAmbientPendingBanner count={ambientPending.pending.length}
+              busy={ambientPendingBusy} onVerify={() => { void refreshAmbientPending(); }} />}
           </div>
         </div>
         {chatInputElement}

@@ -5,8 +5,10 @@ import crypto from "node:crypto";
 import test from "node:test";
 import ts from "typescript";
 
-function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Recorded=false}={}) {
-  const prepared=[],captured=[],confirmed=[];
+function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Recorded=false,lostG1Reply=false}={}) {
+  const prepared=[],captured=[],confirmed=[],uncertain=[];
+  let recoverG1=false;
+  let premarked=0;
   let bodyReads=0;
   class AmbientError extends Error {constructor(code){super(code);this.code=code;this.stage="owner";}}
   const modules={
@@ -25,12 +27,31 @@ function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Rec
       prepareEduPiAmbientMessageBinding:value=>prepared.push(value),
       confirmEduPiAmbientMessageBinding:(sessionId,messageId,messageRef)=>confirmed.push({sessionId,messageId,messageRef}),
       markEduPiAmbientMessageWithdrawn:()=>{},
+      markEduPiAmbientMessageOutcomeUnknown:(sessionId,messageRef)=>{
+        const matched=prepared.find(item=>item.sessionId===sessionId&&item.messageRef===messageRef);
+        assert.ok(matched);
+        if(!uncertain.some(item=>item.sessionId===sessionId&&item.messageRef===messageRef)) uncertain.push({...matched,status:"outcome_unknown"});
+      },
+      readUncertainEduPiAmbientMessages:sessionId=>uncertain.filter(item=>item.sessionId===sessionId),
+      markEduPiAmbientMessageOutcomeVerified:(sessionId,messageRef)=>{
+        const index=uncertain.findIndex(item=>item.sessionId===sessionId&&item.messageRef===messageRef);
+        assert.ok(index>=0);uncertain.splice(index,1);
+      },
     },
+    "@/lib/edupi-ambient-message-recovery":{readExactEduPiAmbientGoalBinding:async()=>recoverG1
+      ?{status:"applied",goalId:"goal-1",goalVersion:1,workCaseId:"work-1"}:{status:"outcome_unknown"}},
     "@/lib/edupi-ambient-message-runtime":{EduPiAmbientMessageError:AmbientError,captureAndApplyAmbientMessage:async(_host,input,callbacks)=>{
       captured.push(input);
       if(failG1&&input.domain==="teaching_preparation")throw new AmbientError("proactivity_grant_unavailable");
       const binding={messageRef:`owner_message:${(input.domain==="student_followup"?"b":"a").repeat(64)}`,ownerId:"owner-1",grantId:input.grantId,captureGrantVersion:1};
       await callbacks.onPrepared(binding);await callbacks.onCaptured(binding);
+      if(lostG1Reply&&input.domain==="teaching_preparation"){
+        assert.equal(typeof callbacks.onApplyPending,"function");
+        await callbacks.onApplyPending(binding);
+        premarked++;
+        assert.equal(uncertain.length,1,"the private marker is durable before Core route_apply");
+        throw new Error("synthetic_lost_reply");
+      }
       return {status:input.domain==="student_followup"?"queued":g1Recorded?"recorded":"captured",
         ...(g1Recorded&&input.domain==="teaching_preparation"?{goalId:"goal-synthetic",workCaseId:null,
           resolutionStatus:"needs_verification",reason:"work_case_unverified"}:{}),externalSend:false};
@@ -38,9 +59,10 @@ function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,g1Rec
   };
   const exports={};
   const code=ts.transpileModule(fs.readFileSync(new URL("./route.ts",import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-  vm.runInNewContext(code,{exports,require:name=>{assert.ok(modules[name],name);return modules[name];}});
+  vm.runInNewContext(code,{exports,URL,require:name=>{assert.ok(modules[name],name);return modules[name];}});
   const request=()=>new Request("http://localhost/api/edupi/proactivity/messages",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sessionId:"session-1",messageId:"message-1",text:"Synthetic teacher message",occurredAt:"2026-10-04T00:00:00.000Z"})});
-  return {route:exports,request,prepared,captured,confirmed,bodyReads:()=>bodyReads};
+  return {route:exports,request,prepared,captured,confirmed,uncertain,premarked:()=>premarked,
+    setRecoverG1:value=>{recoverG1=value;},bodyReads:()=>bodyReads};
 }
 
 test("one message keeps independent G1/G2 receipts under the same session withdrawal ledger",async()=>{
@@ -87,4 +109,44 @@ test("a persisted G1 receipt needing verification stops before a second-domain e
   assert.equal(f.captured.length,1);
   assert.equal(f.captured[0].domain,"teaching_preparation");
   assert.equal(Object.hasOwn(body,"domainResults"),false);
+});
+
+test("a lost Core reply stays durable, survives session reentry and never retries apply",async()=>{
+  const f=fixture({lostG1Reply:true});
+  const first=await f.route.POST(f.request());
+  assert.equal(first.status,200);
+  assert.equal((await first.json()).status,"outcome_unknown");
+  assert.equal(f.captured.length,1);
+  assert.equal(f.uncertain.length,1);
+  assert.equal(f.premarked(),1);
+  const reopened=await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1"));
+  const pending=await reopened.json();
+  assert.equal(reopened.status,200);
+  assert.equal(pending.status,"outcome_unknown");
+  assert.equal(pending.pending.length,1);
+  assert.equal(pending.pending[0].messageId,"message-1");
+  const replay=await f.route.POST(f.request());
+  assert.equal((await replay.json()).status,"outcome_unknown");
+  assert.equal(f.captured.length,1,"an exact repeated POST cannot issue a second Core route_apply");
+  const different=new Request("http://localhost/api/edupi/proactivity/messages",{method:"POST",
+    headers:{"content-type":"application/json"},body:JSON.stringify({sessionId:"session-1",messageId:"message-2",
+      text:"Synthetic teacher message",occurredAt:"2026-10-04T00:00:01.000Z"})});
+  const blocked=await f.route.POST(different);
+  assert.equal((await blocked.json()).status,"verification_pending");
+  assert.equal(f.captured.length,1,"a different message cannot create another Goal while the first result is unknown");
+});
+
+test("a read-only exact Core binding clears one durable unknown outcome after reentry",async()=>{
+  const f=fixture({lostG1Reply:true});
+  await f.route.POST(f.request());
+  const before=await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1&verify=1"));
+  assert.equal((await before.json()).status,"outcome_unknown");
+  f.setRecoverG1(true);
+  const after=await f.route.GET(new Request("http://localhost/api/edupi/proactivity/messages?sessionId=session-1&verify=1"));
+  const result=await after.json();
+  assert.equal(after.status,200);
+  assert.equal(result.status,"applied");
+  assert.equal(result.pending.length,0);
+  assert.equal(JSON.stringify(result.recovered),JSON.stringify([{messageId:"message-1",goalId:"goal-1",workCaseId:"work-1"}]));
+  assert.equal(f.captured.length,1,"read-only recovery must not repeat capture or route_apply");
 });

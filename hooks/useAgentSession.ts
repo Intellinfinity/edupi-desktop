@@ -20,7 +20,7 @@ import { rememberScrollPosition, sessionScrollTops } from "@/lib/scroll-memory";
 import { applyAssistantMessageEvent, type ClientAssistantMessageEvent } from "@/lib/streaming-message";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { EDUPI_STUDENT_RECORDS_UPDATED_EVENT } from "@/lib/edupi-ui-events";
-import { captureEduPiAmbientMessage } from "@/lib/edupi-ambient-message";
+import { captureEduPiAmbientMessage, readEduPiAmbientPending, type EduPiAmbientPendingState } from "@/lib/edupi-ambient-message";
 import { acknowledgeLocalQueueRecovery, completeStagedQueueRecovery, getDraft, markQueueRecoveryUncertain, restoreFailedMessageDraft } from "@/lib/draft-store";
 import { recallQueueWithBackup } from "@/lib/queue-recovery";
 import { emptyMessageHistory, messageHistoryReducer, type MessageHistoryAction } from "@/lib/agent-message-history";
@@ -439,6 +439,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessages>({ steering: [], followUp: [] });
   const [queueRecallBusy, setQueueRecallBusy] = useState(false);
   const [queueRecoveryRequiresReview, setQueueRecoveryRequiresReview] = useState(false);
+  const [ambientPending, setAmbientPending] = useState<EduPiAmbientPendingState>({ status: "clear", pending: [], recovered: [] });
+  const [ambientPendingBusy, setAmbientPendingBusy] = useState(false);
   const queueRecallInFlightRef = useRef(new Set<string>());
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -482,6 +484,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const permissionModeRef = useRef(permissionMode);
   const promptRunIdRef = useRef(0);
   const proactivityNoticeAtRef = useRef(0);
+  const ambientPendingLoadIdRef = useRef(0);
   const promptRequestIdRef = useRef<string | null>(null);
   const completedPromptRequestIdsRef = useRef(new Set<string>());
   const peerRequestProbeIdRef = useRef(0);
@@ -565,6 +568,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setQueuedMessages({ steering: [], followUp: [] });
       setQueueRecallBusy(false);
       setQueueRecoveryRequiresReview(false);
+      ambientPendingLoadIdRef.current += 1;
+      setAmbientPending({ status: "clear", pending: [], recovered: [] });
+      setAmbientPendingBusy(false);
       setSessionStatsOverride(null);
       setSlashCommands([]);
       setLoading(Boolean(session?.id));
@@ -578,6 +584,37 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }
 
   const currentModel = currentModelOverride ?? data?.context.model ?? pendingModel ?? null;
+
+  useEffect(() => {
+    const sid = session?.id;
+    const loadId = ++ambientPendingLoadIdRef.current;
+    if (!sid) return;
+    let cancelled = false;
+    void (async () => {
+      const pending = await readEduPiAmbientPending(sid);
+      if (cancelled || ambientPendingLoadIdRef.current !== loadId || sessionIdRef.current !== sid) return;
+      if (pending.status !== "unavailable") setAmbientPending(pending);
+      if (pending.pending.length === 0) return;
+      const checked = await readEduPiAmbientPending(sid, true);
+      if (!cancelled && ambientPendingLoadIdRef.current === loadId && sessionIdRef.current === sid
+        && checked.status !== "unavailable") setAmbientPending(checked);
+    })();
+    return () => { cancelled = true; };
+  }, [session?.id]);
+
+  const refreshAmbientPending = useCallback(async () => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const loadId = ++ambientPendingLoadIdRef.current;
+    setAmbientPendingBusy(true);
+    try {
+      const checked = await readEduPiAmbientPending(sid, true);
+      if (ambientPendingLoadIdRef.current === loadId && sessionIdRef.current === sid
+        && checked.status !== "unavailable") setAmbientPending(checked);
+    } finally {
+      if (ambientPendingLoadIdRef.current === loadId && sessionIdRef.current === sid) setAmbientPendingBusy(false);
+    }
+  }, []);
   const displayModel = isNew ? (newSessionModel ?? newSessionDefaultModel) : currentModel;
 
   const sessionStats = useMemo(() => {
@@ -1706,10 +1743,27 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           proactivityNoticeAtRef.current = now;
           addNotice({ type: "warning", message: "主动备课未记录，请到管理中心检查运行状态" });
         };
-        void captureEduPiAmbientMessage({ sessionId: sentSessionId, messageId: `prompt-${globalThis.crypto.randomUUID()}`, text: trimmedMessage,
+        const captureMessageId = `prompt-${clientRequestId}`;
+        const captureSessionId = sentSessionId;
+        void captureEduPiAmbientMessage({ sessionId: captureSessionId, messageId: captureMessageId, text: trimmedMessage,
           occurredAt: new Date(occurredAtMs).toISOString() }).then((result) => {
           if (result.status === "unavailable") reportCaptureFailure();
-          else if (result.status === "recorded") addNotice({ type: "warning", message: "请求已记录，任务关联待核对，请勿重复发送" });
+          else if (result.status === "recorded" || result.status === "outcome_unknown") {
+            if (sessionIdRef.current === captureSessionId) {
+              ambientPendingLoadIdRef.current += 1;
+              setAmbientPending(current => ({ status: "outcome_unknown",
+                pending: current.pending.some(item => item.messageId === captureMessageId) ? current.pending
+                  : [...current.pending, { messageId: captureMessageId, occurredAt: new Date(occurredAtMs).toISOString() }],
+                recovered: [] }));
+            }
+          } else if (result.status === "verification_pending") {
+            void readEduPiAmbientPending(captureSessionId).then(pending => {
+              if (sessionIdRef.current === captureSessionId && pending.status === "outcome_unknown") {
+                ambientPendingLoadIdRef.current += 1;
+                setAmbientPending(pending);
+              }
+            });
+          }
         }, reportCaptureFailure);
       }
       if (isSlashCommandPrompt && sentSessionId) {
@@ -2484,7 +2538,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     retryInfo, contextUsage, systemPrompt, forkingEntryId,
     isCompacting, compactError, compactResult, currentModel, displayModel, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages, queueRecallBusy, queueRecoveryRequiresReview,
-    notices: noticeState.visible, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
+    notices: noticeState.visible, ambientPending, ambientPendingBusy, refreshAmbientPending,
+    extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection: isNew && newSessionModel === null,
     agentPhase,
     isNew,

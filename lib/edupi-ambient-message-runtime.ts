@@ -14,7 +14,7 @@ const INTERPRETATIONS = new Set(["request", "commitment", "preference", "questio
 const DOMAINS = new Set(["teaching_preparation", "student_followup", "lesson_reflection", "calendar_administration", "parent_communication", "safety_privacy"]);
 
 type ControlBinding = { goalId: string; workCaseId: string; goalVersion: number; status: "active" | "paused" | "revoked" };
-type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed" | "recorded"; resolutionStatus: string; reason: string | null;
+type AmbientResult = { status: "applied" | "captured" | "cancelled" | "corrected" | "queued" | "replayed" | "recorded" | "outcome_unknown"; resolutionStatus: string; reason: string | null;
   goalId: string | null; workCaseId: string | null; followUpId?: string; executionId?: string; routedDomain?: string | null; externalSend: false };
 
 type CoreRoute = { domain: string | null; status: string; reason: string; ready: boolean; sourceBasisHash: string };
@@ -161,7 +161,8 @@ export async function captureAndApplyAmbientMessage(
   dependencies: { findAppliedGoal?: (workCaseId: string) => Promise<{ goalId: string } | null>;
     controlScope?: { classId: string; subject: string };
     onPrepared?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
-    onCaptured?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void> } = {},
+    onCaptured?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void>;
+    onApplyPending?: (binding: { messageRef: string; ownerId: string; grantId: string; captureGrantVersion: number }) => Promise<void> } = {},
 ): Promise<AmbientResult> {
   let canonicalOccurredAt = false;
   try { canonicalOccurredAt = new Date(input.occurredAt).toISOString() === input.occurredAt; } catch { canonicalOccurredAt = false; }
@@ -284,9 +285,19 @@ export async function captureAndApplyAmbientMessage(
       goalId: binding.goalId, workCaseId: binding.workCaseId, externalSend: false };
   }
   if (routed && domain === "teaching_preparation") {
-    const applied = result(await host.callOwnerControl("owner_intent_route_apply", {
-      root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
-    }), "apply");
+    if (dependencies.onApplyPending) {
+      try { await dependencies.onApplyPending(messageBinding); }
+      catch { fail("proactivity_runtime_unavailable", "apply"); }
+    }
+    let applied: Record<string, unknown>;
+    try {
+      applied = result(await host.callOwnerControl("owner_intent_route_apply", {
+        root_ref: input.rootRef, expected_owner_id: context.ownerId, message_ref: messageRef,
+      }), "apply");
+    } catch {
+      return { status: "outcome_unknown", resolutionStatus: "needs_verification", reason: "apply_outcome_unknown",
+        goalId: null, workCaseId: null, routedDomain: domain, externalSend: false };
+    }
     const appliedRoute = coreRoute({ ok: true, result: applied.route }, messageRef);
     if (applied.version !== 1 || appliedRoute.ready && appliedRoute.domain !== domain || applied.model_execute !== false
       || applied.notify !== false || applied.live_authority !== false || applied.external_send !== false

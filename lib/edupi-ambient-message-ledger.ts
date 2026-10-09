@@ -366,8 +366,9 @@ export function markEduPiAmbientPlanDomainUnavailable(sessionId: string, message
     plans: value.plans.map(item => item === plan ? updated : item) });
 }
 
-export function finishEduPiAmbientPlanDomain(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
-  messageRef: string, { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessagePlan {
+function finishPlanDomain(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
+  messageRef: string, stateDir: string | undefined, dataRoot: string,
+  unstartedAsUnavailable: boolean): EduPiAmbientMessagePlan {
   if (!MESSAGE_REF.test(messageRef)) fail();
   const { root, value } = readLedger(stateDir, dataRoot);
   const plan = findPlan(value, sessionId, messageId);
@@ -377,12 +378,24 @@ export function finishEduPiAmbientPlanDomain(sessionId: string, messageId: strin
   if (!plan || plan.status !== "pending" || !planned || planned.state !== "unknown" || !entry
     || !["pending", "captured", "outcome_unknown", "settled"].includes(entry.status)) fail();
   const domains: StoredPlanDomain[] = plan.domains.map(item => item === planned
-    ? { ...item, state: "terminal", message_ref: messageRef } : item);
+    ? { ...item, state: "terminal", message_ref: messageRef }
+    : unstartedAsUnavailable && item.state === "unattempted" ? { ...item, state: "unavailable" } : item);
   const updated: StoredPlan = { ...plan, status: domains.every(item => ["terminal", "sealed_absent"].includes(item.state)) ? "complete" : "pending", domains };
   writeLedger(root, { ...value, revision: value.revision + 1,
     plans: value.plans.map(item => item === plan ? updated : item),
     entries: value.entries.map(item => item === entry ? { ...item, status: "settled" as const } : item) });
   return publicPlan(updated);
+}
+
+export function finishEduPiAmbientPlanDomain(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
+  messageRef: string, { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessagePlan {
+  return finishPlanDomain(sessionId, messageId, domain, messageRef, stateDir, dataRoot, false);
+}
+
+export function finishEduPiAmbientPlanDomainCapturedNoAction(sessionId: string, messageId: string,
+  domain: EduPiProactivityDomain, messageRef: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessagePlan {
+  return finishPlanDomain(sessionId, messageId, domain, messageRef, stateDir, dataRoot, true);
 }
 
 export function sealEduPiAmbientPlanDomainAbsent(sessionId: string, messageId: string, domain: EduPiProactivityDomain,

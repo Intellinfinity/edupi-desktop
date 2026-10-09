@@ -4,14 +4,15 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
 import { captureAndApplyAmbientMessage, EduPiAmbientMessageError, predictEduPiOwnerMessageRef } from "@/lib/edupi-ambient-message-runtime";
 import { acknowledgeEduPiAmbientMessagePlan, armEduPiAmbientMessagePlan, cancelEduPiAmbientMessagePlan,
-  confirmEduPiAmbientMessageBinding, finishEduPiAmbientPlanDomain, markEduPiAmbientMessageOutcomeUnknown,
+  confirmEduPiAmbientMessageBinding, finishEduPiAmbientPlanDomain,
+  finishEduPiAmbientPlanDomainCapturedNoAction, markEduPiAmbientMessageOutcomeUnknown,
   markEduPiAmbientMessageOutcomeVerified, markEduPiAmbientPlanDomainUnavailable,
   prepareEduPiAmbientPlanDomainBinding, readCompletedEduPiAmbientMessages, readEduPiAmbientMessagePlan,
   readCancelledEduPiAmbientMessages, readPendingEduPiAmbientMessages,
   readLegacySettledEduPiAmbientMessages,
   readUnsettledEduPiAmbientMessages, sealEduPiAmbientPlanDomainAbsent } from "@/lib/edupi-ambient-message-ledger";
 import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution,
-  settleExactEduPiAmbientAbsentCapture } from "@/lib/edupi-ambient-message-recovery";
+  settleExactEduPiAmbientCaptureOutcome } from "@/lib/edupi-ambient-message-recovery";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { isCapabilityGrantBindingIdentity, type EduPiCapabilityDomain } from "@/lib/edupi-proactivity-control";
 import { readEduPiProactivityActivation, type EduPiProactivityDomain } from "@/lib/edupi-proactivity-config";
@@ -92,13 +93,18 @@ export async function GET(request: Request) {
                 // the process stopped before the local capture ACK was saved.
                 const proofEntry = entry.status === "outcome_unknown" ? entry : { ...entry, status: "outcome_unknown" as const };
                 const g2 = predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, "student_followup") === entry.messageRef;
+                const settleUnproved = async () => {
+                  if (!domain) return;
+                  const outcome = await settleExactEduPiAmbientCaptureOutcome(host, health, rootRef, entry, domain);
+                  if (outcome === "sealed_absent") sealEduPiAmbientPlanDomainAbsent(sessionId, entry.messageId, domain,
+                    entry.messageRef, { dataRoot: roots.dataRoot.root });
+                  else if (outcome === "captured_nonactionable") finishEduPiAmbientPlanDomainCapturedNoAction(sessionId,
+                    entry.messageId, domain, entry.messageRef, { dataRoot: roots.dataRoot.root });
+                };
                 if (g2) {
                   const proof = await readExactEduPiG2Execution(host, rootRef, proofEntry);
                   if (proof.status !== "applied") {
-                    if (domain && await settleExactEduPiAmbientAbsentCapture(host, health, rootRef, entry, domain) === "sealed_absent") {
-                      sealEduPiAmbientPlanDomainAbsent(sessionId, entry.messageId, domain, entry.messageRef,
-                        { dataRoot: roots.dataRoot.root });
-                    }
+                    await settleUnproved();
                     continue;
                   }
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
@@ -109,10 +115,7 @@ export async function GET(request: Request) {
                 } else {
                   const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, proofEntry);
                   if (proof.status !== "applied") {
-                    if (domain && await settleExactEduPiAmbientAbsentCapture(host, health, rootRef, entry, domain) === "sealed_absent") {
-                      sealEduPiAmbientPlanDomainAbsent(sessionId, entry.messageId, domain, entry.messageRef,
-                        { dataRoot: roots.dataRoot.root });
-                    }
+                    await settleUnproved();
                     continue;
                   }
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,

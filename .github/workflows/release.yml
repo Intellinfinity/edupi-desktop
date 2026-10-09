@@ -60,7 +60,7 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
           RELEASE_PHASE: ${{ inputs.phase }}
         run: |
           set -euo pipefail
@@ -181,7 +181,7 @@ jobs:
       - name: Check out the pinned EduPi Core runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: Intellinfinity/edupi
+          repository: PIGU-PPPgu/edupi
           ref: ${{ steps.core.outputs.commit }}
           path: .edupi-core-runtime
           fetch-depth: 0
@@ -356,7 +356,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NO_STRIP: ${{ runner.os == 'Linux' && 'true' || '' }}
         with:
-          owner: Intellinfinity
+          owner: PIGU-PPPgu
           repo: edupi-desktop
           releaseId: ${{ needs.release.outputs.release_id }}
           tagName: ${{ needs.release.outputs.tag }}
@@ -395,7 +395,7 @@ jobs:
           NOTARY_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARY_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           NOTARY_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
           RELEASE_ID: ${{ needs.release.outputs.release_id }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}
         run: |
@@ -455,7 +455,7 @@ jobs:
       - name: Record the successfully built draft asset identity
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
           RELEASE_ID: ${{ needs.release.outputs.release_id }}
           RELEASE_VERSION: ${{ needs.release.outputs.version }}
         run: |
@@ -485,7 +485,7 @@ jobs:
       - name: Verify accepted signed draft and unchanged assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
           RELEASE_ID: ${{ needs.release.outputs.release_id }}
           RELEASE_VERSION: ${{ needs.release.outputs.version }}
           DRAFT_RUN_ID: ${{ inputs.draft_run_id }}
@@ -505,7 +505,7 @@ jobs:
       - name: Upload component manifest to the release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_REPOSITORY: Intellinfinity/edupi-desktop
+          RELEASE_REPOSITORY: PIGU-PPPgu/edupi-desktop
           FEED_BRANCH: updater-feed
           RELEASE_ID: ${{ needs.release.outputs.release_id }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}

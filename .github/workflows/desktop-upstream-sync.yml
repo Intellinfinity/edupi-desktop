@@ -17,13 +17,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  EDUPI_SOURCE_REPOSITORY: Intellinfinity/edupi-desktop
+  EDUPI_SOURCE_REPOSITORY: PIGU-PPPgu/edupi-desktop
   UPSTREAM_DESKTOP_URL: https://github.com/abcwyc/pi-agent-desktop.git
   SYNC_BRANCH: sync/upstream-desktop
 
 jobs:
   detect:
-    if: github.repository == 'Intellinfinity/edupi-desktop'
+    if: github.repository == 'PIGU-PPPgu/edupi-desktop'
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -36,7 +36,7 @@ test("desktop upstream detection is scheduled, read-only, and source scoped", ()
   assert.doesNotMatch(workflow, /\n\s+(push|pull_request|pull_request_target|repository_dispatch|workflow_run):/);
   assert.ok(workflow.includes(`if: github.repository == '${EDUPI_RELEASE_REPOSITORY}'`));
   assert.ok(workflow.includes(`EDUPI_SOURCE_REPOSITORY: ${EDUPI_RELEASE_REPOSITORY}`));
-  assert.doesNotMatch(workflow, /PIGU-PPPgu\/edupi-desktop/);
+  assert.doesNotMatch(workflow, /Intellinfinity\/edupi-desktop/);
 
   const detect = workflow.slice(workflow.indexOf("\n  detect:"), workflow.indexOf("\n  prepare:"));
   assert.match(detect, /permissions:\s*\n\s*contents: read/);
@@ -197,8 +197,8 @@ test("desktop upstream automation cannot push main, sign, or release", () => {
 
 test("readmes use EduPi source and downloads while retaining upstream attribution", () => {
   for (const [path, source] of Object.entries(readmes)) {
-    assert.match(source, /https:\/\/github\.com\/Intellinfinity\/edupi-desktop/);
-    assert.match(source, /https:\/\/github\.com\/Intellinfinity\/edupi-desktop\/releases/);
+    assert.match(source, /https:\/\/github\.com\/PIGU-PPPgu\/edupi-desktop/);
+    assert.match(source, /https:\/\/github\.com\/PIGU-PPPgu\/edupi-desktop\/releases/);
     assert.match(source, /https:\/\/github\.com\/abcwyc\/pi-agent-desktop/);
     assert.doesNotMatch(
       source,
@@ -249,7 +249,7 @@ test("current release destinations pass the standalone sentinel", async () => {
 test("release destination sentinel rejects a different action owner", async () => {
   const files = await readReleaseDestinationFiles(root);
   files[".github/workflows/release.yml"] = files[".github/workflows/release.yml"].replace(
-    "owner: Intellinfinity",
+    "owner: PIGU-PPPgu",
     "owner: abcwyc",
   );
 

@@ -108,18 +108,18 @@ test("signed releases and updater metadata belong to the EduPi Desktop repositor
 
   assert.doesNotMatch(release, /EDUPI_RELEASE_TOKEN/);
   assert.match(release, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
-  assert.match(release, /owner:\s*Intellinfinity/);
+  assert.match(release, /owner:\s*PIGU-PPPgu/);
   assert.match(release, /repo:\s*edupi-desktop/);
-  assert.match(release, /RELEASE_REPOSITORY: Intellinfinity\/edupi-desktop/);
-  assert.match(release, /repository: Intellinfinity\/edupi/);
+  assert.match(release, /RELEASE_REPOSITORY: PIGU-PPPgu\/edupi-desktop/);
+  assert.match(release, /repository: PIGU-PPPgu\/edupi/);
   assert.match(release, /--arg target "\$GITHUB_SHA"/);
   assert.match(release, /target_commitish: \$target/);
   assert.match(release, /releaseId: \$\{\{ needs\.release\.outputs\.release_id \}\}/);
   assert.match(release, /repos\/\$RELEASE_REPOSITORY\/releases/);
   assert.doesNotMatch(release, /abcwyc\/pi-agent-desktop/);
   assert.deepEqual(tauriConfig.plugins.updater.endpoints, [
-    "https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json",
     "https://raw.githubusercontent.com/PIGU-PPPgu/edupi-desktop/updater-feed/latest.json",
+    "https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json",
     "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json",
   ]);
   assert.equal(tauriConfig.identifier, "com.abcwyc.pi-agent");
@@ -471,7 +471,7 @@ test("every packaged workflow checks out the exact pinned Core runtime", async (
   ]);
   for (const workflow of workflows) {
     assert.match(workflow, /contracts\/edupi-core-compat\.json/);
-    assert.match(workflow, /repository: Intellinfinity\/edupi/);
+    assert.match(workflow, /repository: PIGU-PPPgu\/edupi/);
     assert.match(workflow, /ref: \$\{\{ steps\.core\.outputs\.commit \}\}/);
     assert.match(workflow, /path: \.edupi-core-runtime\s+fetch-depth: 0/u,
       "native source ancestry requires the pinned Core history");

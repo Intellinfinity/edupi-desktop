@@ -107,7 +107,7 @@ export function verifyPinnedWindowsNativeAsset({ coreRoot, coreCommit, rawAssetB
 function downloadApprovedAsset(assetId, token, maxBuffer) {
   try {
     return execFileSync("gh", ["api", "-H", "Accept: application/octet-stream",
-      `repos/Intellinfinity/edupi/releases/assets/${assetId}`], {
+      `repos/PIGU-PPPgu/edupi/releases/assets/${assetId}`], {
       env: { ...process.env, GH_TOKEN: token }, stdio: ["ignore", "pipe", "pipe"], maxBuffer,
     });
   } catch {

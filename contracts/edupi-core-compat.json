@@ -3,11 +3,11 @@
   "core_repository": "edupi",
   "core_sdk": { "pi": "1.0.2", "pi_durable": "1.0.2" },
   "core_runtime": {
-    "core_commit": "b195512fb9a96ae04c35340ebdea78eddd816152",
+    "core_commit": "75d6d666ac9910166638c3ec6df2a03f1075bd43",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:e62be5ddc0ed1cde02a96c033aafcd09940a2fb46f76ecb73314638058a651a7",
-    "runtime_component_manifest_hash": "sha256:ca757d41bdb2c0d5e48162a42db58bce8b8ead25aead6e0a035268eb90b64d63",
-    "runtime_schema_hash": "sha256:4749a9e921e1a0537270f2b2a024018304e231d9029385fabdefbb2ae380f82f"
+    "component_manifest_hash": "sha256:48f27f14b2055a788a75840fdaa7976fe6a84050c643c479d0fe9e63ff959ada",
+    "runtime_component_manifest_hash": "sha256:a37fdeeb09133f3f1c27e531939b50525a4205b12b7d8649bda9273e819035e3",
+    "runtime_schema_hash": "sha256:c526ef4fc378b19891a78e44ace2f64f924250f715aa3684fec879bd0eb79684"
   },
   "contract_identities": [
     {
@@ -195,7 +195,10 @@
     "https://github.com/Intellinfinity/edupi/pull/238",
     "https://github.com/Intellinfinity/edupi/pull/239",
     "https://github.com/Intellinfinity/edupi/pull/240",
-    "https://github.com/Intellinfinity/edupi-desktop/pull/287"
+    "https://github.com/Intellinfinity/edupi-desktop/pull/287",
+    "https://github.com/PIGU-PPPgu/edupi/pull/233",
+    "https://github.com/PIGU-PPPgu/edupi/pull/259",
+    "https://github.com/PIGU-PPPgu/edupi/pull/260"
   ],
-  "change_note": "Desktop pairs merged Core main #223–#232 and #234–#240 at Pi/PiDurable 1.0.2. Runtime and Bridge schemas, both component manifests and reviewed closure are pinned together. Bridge v1.1, occurrence v1.2 and 12 public bridge commands remain unchanged. New G1 source-preview/review stays an explicit teacher-selected DOCX fragment workflow; a parsed fragment is not approval. Planning read views do not spend decision history and duplicate decision rows are omitted without rewriting history; selected material/source basis is strict and stale changes remain held. Core retains sole authority over Durable recovery, natural intake, material schedules and bounded method recall. G2/G3/G4 Live remain off by default; G5 and unverified guardian/material/term attribution are not promoted. external_send=false. Source pairing does not constitute installation verification."
+  "change_note": "Desktop pairs Core main #233 holiday source fences, #259 source-bound family observations and #260 owner-bound preparation execution read at Pi/PiDurable 1.0.2. Runtime schema and both component manifests are pinned together; Bridge v1.1, occurrence v1.2 and 12 public bridge commands are unchanged. G2/G3/G4 Live remain off by default; no guardian or relationship quality is inferred and external_send=false. Source pairing does not establish installed-app, real sleep or teacher-quality acceptance."
 }

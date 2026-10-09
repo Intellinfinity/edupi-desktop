@@ -1,5 +1,13 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-10 迁仓与 Core 主线配对待发布
+
+本节取代下方“Core 假期、家庭记录和备课阶段仍未合入”的当前状态，不追溯提升旧版本的安装证据。仓库已转至 `PIGU-PPPgu/edupi` 与 `PIGU-PPPgu/edupi-desktop`；Core [#233](https://github.com/PIGU-PPPgu/edupi/pull/233)、[#259](https://github.com/PIGU-PPPgu/edupi/pull/259)、[#260](https://github.com/PIGU-PPPgu/edupi/pull/260) 均在各自 Linux Core/Windows native CI 通过后合入，最终 `main` 为 `75d6d666ac9910166638c3ec6df2a03f1075bd43`，与 #260 受测头文件树相同。Durable retention stress 被跳过，不能算通过。
+
+- Desktop 源码提交 `c1b9241ba697111c95e180172631c670d80fe1c2` 已在原分支完成 Core `75d6d666`、Runtime schema `sha256:c526ef4f…`、Core 组件 `sha256:a37fdeeb…`、Desktop 组件 `sha256:48f27f14…` 的精确 compat pin 和 v0.3.57 版本文件。Bridge v1.1 的 12 个公开命令与 Pi/PiDurable 1.0.2 不变；家庭来源观察及备课真实阶段只在 Core 支持且授权时读取，不推断监护或子代理总数。当前状态为**源码已实现、PR #330 待审阅讨论解决与合并、安装未验**，不是“仍在写 pin”。
+- 临时分支 SHA `46d929e` 的同树隔离预检：Desktop `npm test` 2247 通过、11 跳过、0 失败；家庭实际 Core 读回 1/1，备课实际 Runtime 路由读/取消/worker 回收 5/5。最终 main SHA/版本元数据下无 Core 根的全量为 2225 通过、33 跳过、0 失败；类型、lint、发布目标、`cargo metadata --locked` 与组件版本校验通过。[PR #330 CI](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/37985942722) 的 audit/rust-audit 均通过。跳过项不计精确 Core 安装配对；签名 Draft 的私有 Core checkout、打包和运行验收仍待。
+- 迁仓后的 Release、Raw feed 与 API asset 路径已只读核对，公开仍是 v0.3.56 七平台键。`npm audit --audit-level=high` 在显式 7897 代理下通过，余 6 低/3 中；首次本机无代理审计因自签证书失败，不计通过。签名 Draft、三平台资产、安装/TCC/真实睡眠/真人教学质量及公开 feed 更新仍未完成；正式数据根、凭据和 `/Applications/EduPi.app` 未在本轮修改。
+
 ## 2026-10-08 R03 系统通知未知结果恢复
 
 本节取代下方“claim 落盘后异常会留下无法恢复的 attempt”作为当前 Desktop 源码状态，不改变安装验收结论。代码基于 Desktop main `c9c7c65`、精确 Core pin `b195512fb9a96ae04c35340ebdea78eddd816152`；正式 `/Applications/EduPi.app`、公开 `.56`、Release/feed 均未改。

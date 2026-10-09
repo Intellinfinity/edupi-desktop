@@ -50,7 +50,7 @@ if ($tag -notmatch '^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$') { throw "Invalid rele
 if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) { throw "GH_TOKEN is required for release lookup" }
 $releaseHeaders = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
 try {
-    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/Intellinfinity/edupi-desktop/releases/tags/$tag" -Headers $releaseHeaders
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/PIGU-PPPgu/edupi-desktop/releases/tags/$tag" -Headers $releaseHeaders
 } finally {
     Remove-Item Env:GH_TOKEN -ErrorAction Stop
     $releaseHeaders.Clear()

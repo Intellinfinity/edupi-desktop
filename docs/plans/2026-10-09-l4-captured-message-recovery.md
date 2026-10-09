@@ -1,6 +1,6 @@
 # L4 已捕获消息恢复实施计划
 
-状态：执行中。归属现有 R21/L4 任务账本；基线为 Core Draft #256 `a1f28c2` 与 Desktop Draft #328 `5e5cafd9`。本计划不改变六领域、安装、盲测和教师价值的验收状态。
+状态：R21.1/R21.2 本地实现与隔离验收通过，R21.3 待 Draft/CI；归属现有 R21/L4 任务账本。基线为 Core Draft #256 `a1f28c2` 与 Desktop Draft #328 `5e5cafd9`，实现提交 `87546fbb`。本计划不改变六领域、安装、盲测和教师价值的验收状态。
 
 ## 目标与选择
 
@@ -13,7 +13,7 @@ Core 已经持久捕获 owner message，但 Desktop 在收到后续 Goal 结果�
 ## 本轮合同
 
 1. Desktop 仅对已有 v2/v3 计划中 `unknown` 的精确领域执行核验。复用当前 health 的 root、fencing generation 和 instance nonce；校验 capture receipt 的 root/owner/grant/version/source/message/revision、时间及所有不执行/不外发位。
-2. 正向捕获后读取 `owner_intent_read`，要求同一 message ref、`status=current`、`action=abstain`、`candidate.evidence_ids=[message_ref]`、固定 policy version、`interpretation=question|quote` 与对应 reason。任何可执行/模糊/动态 held 路由均不得成为负工作证明。
+2. 正向捕获后读取 `owner_intent_read`，要求同一 message ref、`status=current`、`action=abstain`、`candidate.evidence_ids=[message_ref]`、固定 policy version、`interpretation=question|quote` 与对应 reason。任何可执行/模糊/动态 held 路由均不得成为负工作证明。这里证明的是当前规则下不需自动行动，不是证明旧 Core 请求从未写入。
 3. 单次私有账本原子写入把该领域记为已捕获且无自动工作；若后续领域尚未开始，将其标为 `unavailable` 并保留整条消息待核对但不硬挡新消息。只有所有领域都有真实完成或精确证明时，才能清原生 outbox；重复 POST 不能把无 Goal 说成 Goal 已应用。
 4. 旧 Core、错误根、换 owner/grant、来源修订、撤权、超时、重复请求、跨域同 ID、进程重启、账本满额和回退解析失败均保持 fail-closed。测试使用隔离根，不调用付费模型或外发。
 

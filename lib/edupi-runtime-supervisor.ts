@@ -25,7 +25,7 @@ export const G3_DOMAINS = ["calendar_administration", "lesson_reflection", "pare
 type G3Domain = typeof G3_DOMAINS[number];
 type G3Binding = { domain: G3Domain; grantId: string; scope: { class_id: string; subject: string } };
 // Exact G3 bindings require this paired Core commit and an explicit canary.
-const G3_EXACT_GRANT_SCOPE_CORE_COMMIT = "682ebbad9ade9494d9304b026207e659eb265d29";
+const G3_EXACT_GRANT_SCOPE_CORE_COMMIT = "a1f28c2a31d5ba426d940af295cbde1bd5843ff6";
 const shared = globalThis as typeof globalThis & {
   __edupiRuntimeSupervisors?: Map<string, Entry>;
   __edupiRuntimeRestartLocks?: Map<string, Promise<EduPiRuntimeHandle>>;

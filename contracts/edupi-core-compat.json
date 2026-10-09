@@ -3,11 +3,11 @@
   "core_repository": "edupi",
   "core_sdk": { "pi": "1.0.2", "pi_durable": "1.0.2" },
   "core_runtime": {
-    "core_commit": "682ebbad9ade9494d9304b026207e659eb265d29",
+    "core_commit": "a1f28c2a31d5ba426d940af295cbde1bd5843ff6",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:673514d291e58e54720607511abaa48478900e818bd51b5ae115005f917b7246",
-    "runtime_component_manifest_hash": "sha256:b07df6ddfa784fdc6df5f6f25a2ba7b06f84d4645e0be887b911cacd735c6f4a",
-    "runtime_schema_hash": "sha256:de4c8a8c60f8410bbbd9807dfba4cee6986eb1f2b7a0ded5bd1198783dbbb97c"
+    "component_manifest_hash": "sha256:26e25645a08269472a1c274912eaa3b971761c3b6f9d9877344d1d4cb753e2fc",
+    "runtime_component_manifest_hash": "sha256:bc6cfede084209bffe8994d5edd72f07575c0db7be24a5880597f94f278ff979",
+    "runtime_schema_hash": "sha256:4fa112d00ea4fffef53f9abf85ed20cf7634d6223ad52e2e4f4a72dcee82a43a"
   },
   "contract_identities": [
     {
@@ -197,7 +197,9 @@
     "https://github.com/Intellinfinity/edupi/pull/240",
     "https://github.com/Intellinfinity/edupi-desktop/pull/287",
     "https://github.com/Intellinfinity/edupi/pull/252",
-    "https://github.com/Intellinfinity/edupi-desktop/pull/325"
+    "https://github.com/Intellinfinity/edupi-desktop/pull/325",
+    "https://github.com/Intellinfinity/edupi/pull/256",
+    "https://github.com/Intellinfinity/edupi-desktop/pull/327"
   ],
-  "change_note": "Draft Desktop #325 pairs staged Core Draft #252 at exact commit 682ebbad, not merged Core main. G1 source revision, G2 lost-reply proof, exact G3–G5 grant scope and packaged isolated model worker are pinned with the Runtime and Desktop component manifests. Bridge v1.1, occurrence v1.2 and 12 public bridge commands remain unchanged. Core owns Goal, queue, model execution, review and feedback; every domain remains canary-off by default, parent messages remain internal drafts, and external_send=false. The local unsigned macOS bundle and synthetic workflow evidence do not establish signed installation, Windows/Linux continuity or teacher value."
+  "change_note": "Draft Desktop preview pairs Core Draft #256 at exact commit a1f28c2, not merged Core main. The Core owner-message reservation and conditional seal, G3–G5 inert evidence, G1 source revision, G2 lost-reply proof, exact G3–G5 grant scope and isolated model worker are pinned with the Runtime and Desktop component manifests. Bridge v1.1, occurrence v1.2 and 12 public bridge commands remain unchanged. Core owns Goal, queue, model execution, review and feedback; every domain remains canary-off by default, parent messages remain internal drafts, and external_send=false. The local preview and synthetic workflow evidence do not establish signed installation, Windows/Linux continuity or teacher value."
 }

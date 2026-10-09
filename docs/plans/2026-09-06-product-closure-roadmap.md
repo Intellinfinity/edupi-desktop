@@ -1,5 +1,7 @@
 # EduPi 产品闭环 PR 路线图
 
+2026-10-10 当前门：Core 假期 #233、家庭来源记录 #259、备课执行只读 #260 已在迁仓后的 `PIGU-PPPgu/edupi` 合 main `75d6d666`，三批精确 Linux/Windows CI 均通过；retention stress 跳过。Desktop 原分支正在一次性固定最终 Core SHA、Runtime schema 和双组件清单，并迁移发布地址到 `PIGU-PPPgu/edupi-desktop`；本地 2247 pass/11 skipped 与家庭/备课真实 Core 隔离路由已过，但 Desktop PR CI、v0.3.57 签名 Draft、安装/TCC/真实睡眠/真人质量仍待。公开 Release/feed 保持 `.56`，不以源码配对替代安装验收。详见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-10-迁仓与-core-主线配对待发布)。
+
 2026-10-08 R03 通知风险追补：原“claim 落盘后异常无法恢复”已在 Desktop 源码补原子 native-send、精确 UUID/租约、未知结果保留及教师明确再提醒；[PR #322](https://github.com/Intellinfinity/edupi-desktop/pull/322) 与精确质量检查已合 main `b88af212`，定向/全套/隔离实际页面证据见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-08-r03-系统通知未知结果恢复)。状态为**已实现待签名安装验收**，不是 TCC/真实通知/睡眠通过。Core 假期 #233 人审与家庭/阶段 main 合同仍为外部门；公开 `.56` 和 Core pin 不变。
 
 2026-10-08交付状态：Desktop [#320](https://github.com/Intellinfinity/edupi-desktop/pull/320)已用精确`b195512` Core身份通过CI37709332574并合main `ec856c1ccd033df0e04681f8e3a6ba11caf848a2`；原分支已快进。2225通过/12跳过/0失败、本机闭包15/15与暂存Core启动通过。此段取代下方“当前配对补丁未提交/CI待跑”的中间状态；`cbc145f`的DOCX实际页面证据仍不改名。Core #233人工审阅和新家庭/阶段合同未合，安装/TCC/原生采用/真实睡眠/真人质量仍未验。[证据](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-08-core-239240-追补)。

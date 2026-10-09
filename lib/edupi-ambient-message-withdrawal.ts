@@ -1,6 +1,6 @@
 import path from "node:path";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "./edupi-core-snapshot";
-import { markEduPiAmbientMessageAbandoned, markEduPiAmbientMessageWithdrawn, readWithdrawableEduPiAmbientMessages,
+import { markEduPiAmbientMessageWithdrawn, readWithdrawableEduPiAmbientMessages,
   type EduPiAmbientMessageBinding } from "./edupi-ambient-message-ledger";
 import { ensureEduPiRuntime, type EduPiRuntimeHandle } from "./edupi-runtime-supervisor";
 
@@ -18,8 +18,7 @@ type Dependencies = {
   host?: EduPiRuntimeHandle;
   stateDir?: string;
   read?: (sessionId: string) => EduPiAmbientMessageBinding[];
-  mark?: (sessionId: string, messageRef: string, at: string, outcome: "withdrawn" | "abandoned") => void;
-  now?: () => string;
+  mark?: (sessionId: string, messageRef: string, at: string, outcome: "withdrawn") => void;
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -39,11 +38,10 @@ export async function withdrawEduPiAmbientMessagesForSession(sessionId: string, 
   const healthResult = record(health?.result);
   const rootRef = healthResult?.data_root_fingerprint;
   if (health?.ok !== true || typeof rootRef !== "string" || !HASH.test(rootRef)) fail();
-  const mark = dependencies.mark ?? ((id: string, messageRef: string, at: string, outcome: "withdrawn" | "abandoned") => {
-    if (outcome === "withdrawn") markEduPiAmbientMessageWithdrawn(id, messageRef, at, { stateDir, dataRoot: roots.dataRoot.root });
-    else markEduPiAmbientMessageAbandoned(id, messageRef, at, { stateDir, dataRoot: roots.dataRoot.root });
+  const mark = dependencies.mark ?? ((id: string, messageRef: string, at: string) => {
+    markEduPiAmbientMessageWithdrawn(id, messageRef, at, { stateDir, dataRoot: roots.dataRoot.root });
   });
-  let withdrawn = 0, abandoned = 0;
+  let withdrawn = 0;
   for (const entry of entries) {
     const response = record(await host.callOwnerControl("owner_message", {
       action: "withdraw",
@@ -52,15 +50,6 @@ export async function withdrawEduPiAmbientMessagesForSession(sessionId: string, 
       message_ref: entry.messageRef,
       expected_revision: 1,
     }));
-    if (response?.ok !== true && entry.status === "pending" && response?.error_code === "owner_identity_mismatch") {
-      const at = dependencies.now?.() ?? new Date().toISOString();
-      let canonicalAt: string;
-      try { canonicalAt = new Date(at).toISOString(); } catch { fail(); }
-      if (canonicalAt !== at) fail();
-      mark(sessionId, entry.messageRef, canonicalAt, "abandoned");
-      abandoned += 1;
-      continue;
-    }
     const result = record(response?.result);
     const receipt = record(result?.receipt);
     if (response?.ok !== true || !receipt || receipt.action !== "withdraw" || receipt.message_ref !== entry.messageRef
@@ -73,5 +62,5 @@ export async function withdrawEduPiAmbientMessagesForSession(sessionId: string, 
     mark(sessionId, entry.messageRef, recordedAt, "withdrawn");
     withdrawn += 1;
   }
-  return { withdrawn, abandoned };
+  return { withdrawn, abandoned: 0 };
 }

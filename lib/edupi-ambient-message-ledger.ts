@@ -22,7 +22,7 @@ export type EduPiAmbientMessageBinding = {
   grantId: string;
   captureGrantVersion: number;
   occurredAt: string;
-  status: "pending" | "captured" | "outcome_unknown" | "settled" | "withdrawn" | "abandoned";
+  status: "pending" | "captured" | "outcome_unknown" | "settled" | "withdrawn" | "abandoned" | "sealed_absent";
   withdrawnAt: string | null;
 };
 
@@ -34,19 +34,19 @@ type StoredEntry = {
   grant_id: string;
   capture_grant_version: number;
   occurred_at: string;
-  status: "pending" | "captured" | "outcome_unknown" | "settled" | "withdrawn" | "abandoned";
+  status: "pending" | "captured" | "outcome_unknown" | "settled" | "withdrawn" | "abandoned" | "sealed_absent";
   withdrawn_at: string | null;
 };
 
 export type EduPiAmbientMessagePlan = { sessionId: string; messageId: string; occurredAt: string;
   status: "pending" | "complete" | "cancelled"; acknowledged: boolean;
   domains: Array<{ domain: EduPiProactivityDomain; grantId: string; scopeHash: string;
-    state: "unattempted" | "unknown" | "unavailable" | "terminal"; messageRef: string | null }> };
+    state: "unattempted" | "unknown" | "unavailable" | "terminal" | "sealed_absent"; messageRef: string | null }> };
 type StoredPlanDomain = { domain: EduPiProactivityDomain; grant_id: string; scope_hash: string;
   state: EduPiAmbientMessagePlan["domains"][number]["state"]; message_ref: string | null };
 type StoredPlan = { session_id: string; message_id: string; occurred_at: string;
   status: "pending" | "complete" | "cancelled"; acknowledged: boolean; domains: StoredPlanDomain[] };
-type StoredLedger = { version: 2; data_root_hash: string; revision: number; entries: StoredEntry[]; plans: StoredPlan[] };
+type StoredLedger = { version: 2 | 3; data_root_hash: string; revision: number; entries: StoredEntry[]; plans: StoredPlan[] };
 type LegacyLedger = Omit<StoredLedger, "version" | "plans"> & { version: 1 };
 
 export class EduPiAmbientMessageLedgerError extends Error {
@@ -69,8 +69,8 @@ function validEntry(value: unknown): value is StoredEntry {
     && ID.test(String(item.session_id || "")) && ID.test(String(item.message_id || ""))
     && MESSAGE_REF.test(String(item.message_ref || "")) && ID.test(String(item.owner_id || "")) && ID.test(String(item.grant_id || ""))
     && Number.isSafeInteger(item.capture_grant_version) && Number(item.capture_grant_version) > 0
-    && canonicalTime(item.occurred_at) && ["pending", "captured", "outcome_unknown", "settled", "withdrawn", "abandoned"].includes(String(item.status))
-    && (["pending", "captured", "outcome_unknown", "settled"].includes(String(item.status)) && item.withdrawn_at === null
+    && canonicalTime(item.occurred_at) && ["pending", "captured", "outcome_unknown", "settled", "withdrawn", "abandoned", "sealed_absent"].includes(String(item.status))
+    && (["pending", "captured", "outcome_unknown", "settled", "sealed_absent"].includes(String(item.status)) && item.withdrawn_at === null
       || ["withdrawn", "abandoned"].includes(String(item.status)) && canonicalTime(item.withdrawn_at));
 }
 
@@ -91,27 +91,30 @@ function validPlan(value: unknown): value is StoredPlan {
       .every(key => Object.hasOwn(item, key)) || !DOMAINS.includes(item.domain as EduPiProactivityDomain)
       || seen.has(String(item.domain)) || !ID.test(String(item.grant_id || ""))
       || !HASH.test(String(item.scope_hash || ""))
-      || !["unattempted", "unknown", "unavailable", "terminal"].includes(String(item.state))
-      || item.state === "terminal" && !MESSAGE_REF.test(String(item.message_ref || ""))
-      || item.state !== "terminal" && item.message_ref !== null) return false;
+      || !["unattempted", "unknown", "unavailable", "terminal", "sealed_absent"].includes(String(item.state))
+      || ["terminal", "sealed_absent"].includes(String(item.state)) && !MESSAGE_REF.test(String(item.message_ref || ""))
+      || !["terminal", "sealed_absent"].includes(String(item.state)) && item.message_ref !== null) return false;
     seen.add(String(item.domain));
   }
-  return (plan.status === "complete") === plan.domains.every(item => item.state === "terminal")
+  return (plan.status === "complete") === plan.domains.every(item => ["terminal", "sealed_absent"].includes(item.state))
     && (plan.status !== "cancelled" || plan.domains.every(item => item.state === "unattempted"));
 }
 
 function validLedger(value: unknown): value is StoredLedger | LegacyLedger {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const ledger = value as Record<string, unknown>;
-  if (ledger.version !== 1 && ledger.version !== 2
-    || Object.keys(ledger).length !== (ledger.version === 2 ? 5 : 4)
-    || !["version", "data_root_hash", "revision", "entries", ...(ledger.version === 2 ? ["plans"] : [])]
+  if (ledger.version !== 1 && ledger.version !== 2 && ledger.version !== 3
+    || Object.keys(ledger).length !== (ledger.version === 1 ? 4 : 5)
+    || !["version", "data_root_hash", "revision", "entries", ...(ledger.version === 1 ? [] : ["plans"])]
       .every((key) => Object.hasOwn(ledger, key))
     || !HASH.test(String(ledger.data_root_hash || ""))
     || !Number.isSafeInteger(ledger.revision) || Number(ledger.revision) < 0
     || !Array.isArray(ledger.entries) || ledger.entries.length > MAX_ENTRIES || !ledger.entries.every(validEntry)
-    || ledger.version === 2 && (!Array.isArray(ledger.plans) || ledger.plans.length > MAX_PLANS
+    || ledger.version !== 1 && (!Array.isArray(ledger.plans) || ledger.plans.length > MAX_PLANS
       || !ledger.plans.every(validPlan))) return false;
+  if (ledger.version !== 3 && ((ledger.entries as StoredEntry[]).some(entry => entry.status === "sealed_absent")
+    || ledger.version === 2 && (ledger.plans as StoredPlan[]).some(plan => plan.domains.some(domain =>
+      domain.state === "sealed_absent")))) return false;
   const keys = new Map<string, { occurredAt: string; ownerId: string }>(), refs = new Set<string>();
   for (const entry of ledger.entries as StoredEntry[]) {
     const key = `${entry.session_id}\0${entry.message_id}`;
@@ -121,7 +124,7 @@ function validLedger(value: unknown): value is StoredLedger | LegacyLedger {
     keys.set(key, { occurredAt: entry.occurred_at, ownerId: entry.owner_id });
     refs.add(entry.message_ref);
   }
-  if (ledger.version === 2) {
+  if (ledger.version !== 1) {
     const planKeys = new Set<string>();
     for (const plan of ledger.plans as StoredPlan[]) {
       const key = `${plan.session_id}\0${plan.message_id}`;
@@ -132,12 +135,16 @@ function validLedger(value: unknown): value is StoredLedger | LegacyLedger {
       if (matching.some(entry => entry.occurred_at !== plan.occurred_at)) return false;
       if (plan.status === "cancelled" && matching.length !== 0) return false;
       for (const domain of plan.domains) {
-        if (domain.state !== "terminal") continue;
+        if (!["terminal", "sealed_absent"].includes(domain.state)) continue;
         const receipt = matching.find(entry => entry.message_ref === domain.message_ref);
         if (!receipt || receipt.grant_id !== domain.grant_id
-          || !["settled", "withdrawn"].includes(receipt.status)) return false;
+          || domain.state === "terminal" && !["settled", "withdrawn"].includes(receipt.status)
+          || domain.state === "sealed_absent" && receipt.status !== "sealed_absent") return false;
       }
     }
+    if ((ledger.entries as StoredEntry[]).some(entry => entry.status === "sealed_absent" && !(ledger.plans as StoredPlan[])
+      .some(plan => plan.session_id === entry.session_id && plan.message_id === entry.message_id
+        && plan.domains.some(domain => domain.state === "sealed_absent" && domain.message_ref === entry.message_ref)))) return false;
   }
   return true;
 }
@@ -371,10 +378,32 @@ export function finishEduPiAmbientPlanDomain(sessionId: string, messageId: strin
     || !["pending", "captured", "outcome_unknown", "settled"].includes(entry.status)) fail();
   const domains: StoredPlanDomain[] = plan.domains.map(item => item === planned
     ? { ...item, state: "terminal", message_ref: messageRef } : item);
-  const updated: StoredPlan = { ...plan, status: domains.every(item => item.state === "terminal") ? "complete" : "pending", domains };
+  const updated: StoredPlan = { ...plan, status: domains.every(item => ["terminal", "sealed_absent"].includes(item.state)) ? "complete" : "pending", domains };
   writeLedger(root, { ...value, revision: value.revision + 1,
     plans: value.plans.map(item => item === plan ? updated : item),
     entries: value.entries.map(item => item === entry ? { ...item, status: "settled" as const } : item) });
+  return publicPlan(updated);
+}
+
+export function sealEduPiAmbientPlanDomainAbsent(sessionId: string, messageId: string, domain: EduPiProactivityDomain,
+  messageRef: string, { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessagePlan {
+  if (!MESSAGE_REF.test(messageRef)) fail();
+  const { root, value } = readLedger(stateDir, dataRoot);
+  const plan = findPlan(value, sessionId, messageId);
+  const planned = plan?.domains.find(item => item.domain === domain);
+  const entry = value.entries.find(item => item.session_id === sessionId && item.message_id === messageId
+    && item.message_ref === messageRef && item.grant_id === planned?.grant_id);
+  if (!plan || plan.status !== "pending" || !planned || planned.state !== "unknown" || !entry
+    || entry.occurred_at !== plan.occurred_at
+    || !["pending", "captured", "outcome_unknown"].includes(entry.status)) fail();
+  const domains: StoredPlanDomain[] = plan.domains.map(item => item === planned
+    ? { ...item, state: "sealed_absent", message_ref: messageRef }
+    : item.state === "unattempted" ? { ...item, state: "unavailable" } : item);
+  const updated: StoredPlan = { ...plan,
+    status: domains.every(item => ["terminal", "sealed_absent"].includes(item.state)) ? "complete" : "pending", domains };
+  writeLedger(root, { ...value, version: 3, revision: value.revision + 1,
+    plans: value.plans.map(item => item === plan ? updated : item),
+    entries: value.entries.map(item => item === entry ? { ...item, status: "sealed_absent" as const } : item) });
   return publicPlan(updated);
 }
 
@@ -429,7 +458,7 @@ export function confirmEduPiAmbientMessageBinding(sessionId: string, messageId: 
   if (!ID.test(sessionId) || !ID.test(messageId) || !MESSAGE_REF.test(messageRef)) fail();
   const { root, value } = readLedger(stateDir, dataRoot);
   const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_id === messageId && entry.message_ref === messageRef);
-  if (!prior || ["withdrawn", "abandoned"].includes(prior.status)) fail();
+  if (!prior || ["withdrawn", "abandoned", "sealed_absent"].includes(prior.status)) fail();
   if (prior.status === "captured" || prior.status === "outcome_unknown" || prior.status === "settled") return publicEntry(prior);
   const updated: StoredEntry = { ...prior, status: "captured" };
   writeLedger(root, { ...value, revision: value.revision + 1,
@@ -482,7 +511,7 @@ export function markEduPiAmbientMessageOutcomeUnknown(sessionId: string, message
   if (!ID.test(sessionId) || !MESSAGE_REF.test(messageRef)) fail();
   const { root, value } = readLedger(stateDir, dataRoot);
   const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_ref === messageRef);
-  if (!prior || ["settled", "withdrawn", "abandoned"].includes(prior.status)) fail();
+  if (!prior || ["settled", "withdrawn", "abandoned", "sealed_absent"].includes(prior.status)) fail();
   if (prior.status === "outcome_unknown") return publicEntry(prior);
   const updated: StoredEntry = { ...prior, status: "outcome_unknown" };
   writeLedger(root, { ...value, revision: value.revision + 1,
@@ -522,6 +551,7 @@ export function markEduPiAmbientMessageWithdrawn(sessionId: string, messageRef: 
   const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_ref === messageRef);
   if (!prior) fail();
   if (prior.status === "withdrawn") return publicEntry(prior);
+  if (prior.status === "sealed_absent") fail();
   const updated: StoredEntry = { ...prior, status: "withdrawn", withdrawn_at: withdrawnAt };
   const next = { ...value, revision: value.revision + 1,
     entries: value.entries.map((entry) => entry === prior ? updated : entry) };

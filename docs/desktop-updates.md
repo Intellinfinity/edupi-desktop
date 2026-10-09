@@ -12,14 +12,15 @@ EduPi Desktop v0.3.35 起使用 Tauri 的完整包更新。旧版 macOS 需要�
 
 ## 旧版 macOS 一次性迁移
 
-v0.3.29 没有可用的 updater 插件；v0.3.25–v0.3.28 固化了旧 Release 地址；v0.3.30–v0.3.34 的 macOS 包因签名 Node 缺 JIT 权限已撤回。这些已安装版本需要一次替换安装。退出 EduPi，从 [正式 Releases](https://github.com/Intellinfinity/edupi-desktop/releases) 下载最新 `aarch64.dmg`，替换 `/Applications/EduPi.app` 后重新打开。教师数据和模型配置位于应用包之外，替换时不要删除这些目录。
+v0.3.29 没有可用的 updater 插件；v0.3.25–v0.3.28 固化了旧 Release 地址；v0.3.30–v0.3.34 的 macOS 包因签名 Node 缺 JIT 权限已撤回。这些已安装版本需要一次替换安装。退出 EduPi，从 [正式 Releases](https://github.com/PIGU-PPPgu/edupi-desktop/releases) 下载最新 `aarch64.dmg`，替换 `/Applications/EduPi.app` 后重新打开。教师数据和模型配置位于应用包之外，替换时不要删除这些目录。
 
 安装版 v0.3.35 → v0.3.36 已完成清单检查、下载、签名验证、安装、重启和教师数据复核。正式构建缺 updater 公钥会停止，macOS 产物在公证前还会核对最终可执行文件内的公钥。
 
 ## 单仓库发布边界
 
-- 源码与公开二进制发布：`Intellinfinity/edupi-desktop`
-- 客户端首选清单：`https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json`
+- 源码与公开二进制发布：`PIGU-PPPgu/edupi-desktop`
+- 客户端首选清单：`https://raw.githubusercontent.com/PIGU-PPPgu/edupi-desktop/updater-feed/latest.json`
+- 迁移期回退清单：`https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json`
 
 同一个仓库保存源码、审阅记录和 GitHub Releases。DMG、Windows 安装程序、Linux 包、updater 压缩包/签名、`latest.json` 与组件版本清单都发布到该仓库的 Release；客户端可以匿名检查更新。清单位于专用 `updater-feed` 分支，资产 URL 使用 GitHub API Release Asset 端点。
 
@@ -27,7 +28,7 @@ v0.3.29 没有可用的 updater 插件；v0.3.25–v0.3.28 固化了旧 Release 
 
 ### 1. 启用源码仓库 Release
 
-保持 `Intellinfinity/edupi-desktop` 为公开仓库并启用 Actions。正式工作流先在当前仓库创建绑定提交的签名草稿；草稿安装安全检查后需再次手动运行 `publish` 阶段，核对成功构建记录与全部资产身份、更新 feed，最后公开为 Latest。构建成功本身不会发布；不需要额外的发布仓库或跨仓库令牌。
+保持 `PIGU-PPPgu/edupi-desktop` 为公开仓库并启用 Actions。正式工作流先在当前仓库创建绑定提交的签名草稿；草稿安装安全检查后需再次手动运行 `publish` 阶段，核对成功构建记录与全部资产身份、更新 feed，最后公开为 Latest。构建成功本身不会发布；不需要额外的发布仓库或跨仓库令牌。
 
 ### 2. 创建永久 updater 密钥
 
@@ -72,7 +73,7 @@ Tauri updater 签名负责应用内更新完整性，但不会消除系统安装
 5. 安全检查通过后，在**同一目标提交**再次运行工作流，选择 `phase=publish`，填入 `draft_run_id` 和验收时记录的 `accepted_assets_sha256`。它不重新构建，只接受三平台及公证均成功的 run，且当前资产 ID/大小/摘要与验收时完全一致；核对 7 个 updater 平台键、更新 feed 后才发布 Latest；
 6. 验证公开 Release 包含 `latest.json`、`.sig`、macOS、Windows、Linux 和 `component-versions.json`，再用上一正式版客户端完成下载、验签、安装、重启和版本/教师数据确认。路线 1 的六领域流程、通知点击、跨到期实睡和恢复以这一步的正式安装版证据为准，不能由 Draft 安全检查代替。
 
-当前 `pi 0.84.1` 与 `pi-web 0.8.7` 是显式锁定的发布组件。升级它们必须单独合并、验证并更新 `scripts/release-component-pins.json`，不能在桌面发布当天顺手漂移。
+当前 `pi 1.0.2` 与 `pi-web 0.8.7` 是显式锁定的发布组件。升级它们必须单独合并、验证并更新 `scripts/release-component-pins.json`，不能在桌面发布当天顺手漂移。
 
 ## 预览版与回滚
 

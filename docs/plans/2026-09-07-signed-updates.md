@@ -3,7 +3,7 @@
 ## 2026-10-10 v0.3.57 发布准备
 
 - 公开 v0.3.56、七键 feed 和已安装应用保持不变。迁仓后新 Raw feed 和 Release/API 路径可读；新客户端将新 Raw 地址置首位并保留旧地址为迁移回退。
-- v0.3.57 源码正在配对 Core `75d6d666ac9910166638c3ec6df2a03f1075bd43`。版本、Cargo 锁定文件、组件清单和发布说明已准备；Desktop PR CI、三平台签名 Draft、Apple 公证/装订、资产摘要及安装验收尚未取得结果，不发布 Release 或更新 feed。
+- v0.3.57 源码 `c1b9241b` 已配对 Core `75d6d666ac9910166638c3ec6df2a03f1075bd43`，版本、Cargo 锁定文件、组件清单和发布说明已准备；[PR #330 CI](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/37985942722) 的 audit/rust-audit 已通过，审阅讨论和合并待完成。三平台签名 Draft、Apple 公证/装订、资产摘要及安装验收尚未取得结果，不公开 Release 或更新 feed。
 - 本轮高危 npm 审计通过，仍有 6 低/3 中。真实通知/TCC、跨到期系统睡眠、真人教学质量与 Windows/Linux 安装不能由 Core 或 Desktop 源码测试代验。
 
 ## 2026-10-07 v0.3.56 正式发布

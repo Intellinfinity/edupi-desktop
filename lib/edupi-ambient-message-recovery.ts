@@ -7,12 +7,20 @@ import type { EduPiRuntimeHandle } from "./edupi-runtime-supervisor";
 const HASH = /^sha256:[a-f0-9]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,159}$/u;
 const MESSAGE_REF = /^owner_message:[a-f0-9]{64}$/u;
+const INTENT_ID = /^owner_intent:[a-f0-9]{64}$/u;
+
+type CaptureSettlement = { status: "sealed_absent" } | { status: "captured" } | { status: "outcome_unknown" };
+
+function canonicalTime(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try { return new Date(value).toISOString() === value; } catch { return false; }
+}
 
 /** Core may seal only a reservation it already owns. Missing records and old
  * runtimes are never interpreted as proof that a write did not happen. */
-export async function settleExactEduPiAmbientAbsentCapture(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
+async function settleExactEduPiAmbientCapture(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
   healthValue: unknown, rootRef: string, entry: EduPiAmbientMessageBinding,
-  domain: EduPiProactivityDomain): Promise<"sealed_absent" | "outcome_unknown"> {
+  domain: EduPiProactivityDomain): Promise<CaptureSettlement> {
   const health = record(healthValue);
   const capabilities = record(health?.capabilities);
   const operations = capabilities?.supported_operations;
@@ -23,13 +31,13 @@ export async function settleExactEduPiAmbientAbsentCapture(host: Pick<EduPiRunti
     || !Number.isSafeInteger(generation) || Number(generation) < 1 || typeof nonce !== "string" || !ID.test(nonce)
     || !ID.test(entry.ownerId) || !ID.test(entry.grantId) || !MESSAGE_REF.test(entry.messageRef)
     || !Number.isSafeInteger(entry.captureGrantVersion) || entry.captureGrantVersion < 1
-    || !["pending", "captured", "outcome_unknown"].includes(entry.status)) return "outcome_unknown";
+    || !["pending", "captured", "outcome_unknown"].includes(entry.status)) return UNKNOWN;
   let conversationId: string;
   try {
-    if (new Date(entry.occurredAt).toISOString() !== entry.occurredAt) return "outcome_unknown";
+    if (!canonicalTime(entry.occurredAt)) return UNKNOWN;
     conversationId = eduPiAmbientConversationId(domain);
-    if (predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, domain) !== entry.messageRef) return "outcome_unknown";
-  } catch { return "outcome_unknown"; }
+    if (predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, domain) !== entry.messageRef) return UNKNOWN;
+  } catch { return UNKNOWN; }
   const sourceRef = `conversation:${crypto.createHash("sha256").update(conversationId).digest("hex")}`;
   let response: Record<string, unknown> | null;
   try {
@@ -40,16 +48,64 @@ export async function settleExactEduPiAmbientAbsentCapture(host: Pick<EduPiRunti
       expected_message_ref: entry.messageRef, expected_fencing_generation: generation,
       expected_instance_nonce: nonce,
     }));
-  } catch { return "outcome_unknown"; }
+  } catch { return UNKNOWN; }
   const result = record(response?.result);
-  return response?.ok === true && result?.version === 1 && result.status === "sealed_absent"
-    && result.root_ref === rootRef && result.owner_id === entry.ownerId
-    && result.grant_id === entry.grantId && result.grant_version === entry.captureGrantVersion
-    && result.source_ref === sourceRef && result.message_ref === entry.messageRef
-    && result.occurred_at === entry.occurredAt && result.fencing_generation === generation
-    && result.instance_nonce === nonce && result.receipt === null && typeof result.replayed === "boolean"
-    && result.apply === false && result.live_authority === false && result.model_execute === false
-    && result.external_send === false ? "sealed_absent" : "outcome_unknown";
+  if (response?.ok !== true || result?.version !== 1 || result.root_ref !== rootRef || result.owner_id !== entry.ownerId
+    || result.grant_id !== entry.grantId || result.grant_version !== entry.captureGrantVersion
+    || result.source_ref !== sourceRef || result.message_ref !== entry.messageRef
+    || result.occurred_at !== entry.occurredAt || result.fencing_generation !== generation
+    || result.instance_nonce !== nonce || result.apply !== false || result.live_authority !== false
+    || result.model_execute !== false || result.external_send !== false) return UNKNOWN;
+  if (result.status === "sealed_absent" && result.receipt === null && typeof result.replayed === "boolean") {
+    return { status: "sealed_absent" };
+  }
+  const receipt = record(result.receipt);
+  if (result.status !== "captured" || result.replayed !== true || !receipt
+    || receipt.action !== "capture" || receipt.revision !== 1 || receipt.message_ref !== entry.messageRef
+    || receipt.owner_id !== entry.ownerId || receipt.root_ref !== rootRef || receipt.source_ref !== sourceRef
+    || receipt.capture_grant_version !== entry.captureGrantVersion || receipt.sender_kind !== "local_owner_authenticated"
+    || !canonicalTime(receipt.received_at) || !canonicalTime(receipt.recorded_at)
+    || receipt.apply !== false || receipt.live_authority !== false || receipt.external_send !== false) return UNKNOWN;
+  return { status: "captured" };
+}
+
+export async function settleExactEduPiAmbientAbsentCapture(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
+  healthValue: unknown, rootRef: string, entry: EduPiAmbientMessageBinding,
+  domain: EduPiProactivityDomain): Promise<"sealed_absent" | "outcome_unknown"> {
+  const result = await settleExactEduPiAmbientCapture(host, healthValue, rootRef, entry, domain);
+  return result.status === "sealed_absent" ? "sealed_absent" : "outcome_unknown";
+}
+
+/** A stable non-actionable interpretation is the only captured-without-Goal
+ * state that Desktop can finish without replaying the teacher's text. */
+export async function settleExactEduPiAmbientCaptureOutcome(host: Pick<EduPiRuntimeHandle, "callOwnerControl">,
+  healthValue: unknown, rootRef: string, entry: EduPiAmbientMessageBinding,
+  domain: EduPiProactivityDomain): Promise<"sealed_absent" | "captured_nonactionable" | "outcome_unknown"> {
+  const settled = await settleExactEduPiAmbientCapture(host, healthValue, rootRef, entry, domain);
+  if (settled.status === "sealed_absent") return "sealed_absent";
+  if (settled.status !== "captured") return "outcome_unknown";
+  const operations = record(record(healthValue)?.capabilities)?.supported_operations;
+  if (!Array.isArray(operations) || !operations.includes("owner_intent_read")) return "outcome_unknown";
+  let response: Record<string, unknown> | null;
+  try {
+    response = record(await host.callOwnerControl("owner_intent_read", {
+      root_ref: rootRef, expected_owner_id: entry.ownerId, message_ref: entry.messageRef,
+    }));
+  } catch { return "outcome_unknown"; }
+  const view = record(response?.result), candidate = record(view?.candidate);
+  const interpretation = candidate?.interpretation;
+  const expectedReason = interpretation === "question" ? "question_only"
+    : interpretation === "quote" ? "quoted_or_other_scope" : null;
+  return response?.ok === true && view?.version === 1 && INTENT_ID.test(String(view.intent_id || ""))
+    && view.message_ref === entry.messageRef && view.status === "current" && view.action === "abstain"
+    && expectedReason !== null && view.reason === expectedReason && canonicalTime(view.observed_at)
+    && view.apply === false && view.live_authority === false && view.model_execute === false && view.external_send === false
+    && candidate?.domain !== undefined && (candidate.domain === null || candidate.domain === domain)
+    && candidate.policy_version === "ambient-intent-rules-v1"
+    && HASH.test(String(candidate.basis_hash || ""))
+    && Array.isArray(candidate.evidence_ids) && candidate.evidence_ids.length === 1
+    && candidate.evidence_ids[0] === entry.messageRef
+    ? "captured_nonactionable" : "outcome_unknown";
 }
 
 type Recovery = { status: "outcome_unknown" } | { status: "applied"; goalId: string; goalVersion: number; workCaseId: string };

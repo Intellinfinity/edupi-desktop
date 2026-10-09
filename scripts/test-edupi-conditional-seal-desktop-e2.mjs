@@ -114,8 +114,37 @@ try {
   assert.equal(await recovery.settleExactEduPiAmbientAbsentCapture(host, restartedHealth, rootRef, pending,
     "teaching_preparation"), "sealed_absent");
   assert.equal(ledger.readCompletedEduPiAmbientMessages(sessionId, ledgerOptions).length, 1);
+  const questionId = "captured-question", questionAt = new Date().toISOString();
+  const questionRef = ambient.predictEduPiOwnerMessageRef(rootRef, ownerId, questionId, "teaching_preparation");
+  ledger.armEduPiAmbientMessagePlan({ sessionId, messageId: questionId, occurredAt: questionAt,
+    domains: [{ domain: "teaching_preparation", grantId, scopeHash: `sha256:${"b".repeat(64)}` }] }, ledgerOptions);
+  ledger.prepareEduPiAmbientPlanDomainBinding({ sessionId, messageId: questionId, occurredAt: questionAt,
+    domain: "teaching_preparation", messageRef: questionRef, ownerId, grantId,
+    captureGrantVersion: 1 }, ledgerOptions);
+  const questionCapture = await call("owner_message", { ...capture(questionId, "今天数学课几点开始？"),
+    occurred_at: questionAt });
+  assert.equal(questionCapture.ok, true, JSON.stringify(questionCapture));
+  assert.equal(questionCapture.result.receipt.message_ref, questionRef);
+  // Simulate losing the capture response before Desktop persists its ACK.
+  await daemon.close(); daemon = null;
+  daemon = await createCoreRuntimeDaemon({ ...options, supervisorSessionId: "desktop-question-restarted" });
+  const questionHealth = (await call("health", null, false)).result;
+  const questionPending = ledger.readUnsettledEduPiAmbientMessages(sessionId, ledgerOptions)
+    .find(item => item.messageId === questionId);
+  assert.ok(questionPending);
+  assert.equal(await recovery.settleExactEduPiAmbientCaptureOutcome(host, questionHealth,
+    rootRef, questionPending, "teaching_preparation"), "captured_nonactionable");
+  const goals = await call("owner_goal_bindings_read", { root_ref: rootRef,
+    expected_owner_id: ownerId, grant_id: grantId, expected_grant_version: 1 });
+  assert.equal(goals.ok, true, JSON.stringify(goals));
+  assert.equal(goals.result.bindings.some(item => item.message_ref === questionRef), false);
+  ledger.finishEduPiAmbientPlanDomainCapturedNoAction(sessionId, questionId,
+    "teaching_preparation", questionRef, ledgerOptions);
+  assert.equal(ledger.readEduPiAmbientMessagePlan(sessionId, questionId, ledgerOptions).status, "complete");
+  assert.equal(ledger.readWithdrawableEduPiAmbientMessages(sessionId, ledgerOptions)[0]?.messageRef, questionRef);
   console.log(JSON.stringify({ status: "passed", coreCommit: expectedCommit, syntheticRoot: true,
-    exactSealAcrossRestart: true, lateCaptureRejected: true, paidModelCalls: 0, externalSend: false }));
+    exactSealAcrossRestart: true, lateCaptureRejected: true,
+    capturedQuestionAcrossRestart: true, questionGoalCreated: false, paidModelCalls: 0, externalSend: false }));
 } finally {
   if (originalPlan && CoreRuntimeStore) CoreRuntimeStore.prototype.planOwnerMessageGate = originalPlan;
   if (daemon) await daemon.close();

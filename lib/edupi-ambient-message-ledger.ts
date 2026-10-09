@@ -290,7 +290,7 @@ export function readPendingEduPiAmbientMessages(sessionId: string,
   const plannedIds = new Set(value.plans.filter(plan => plan.session_id === sessionId).map(plan => plan.message_id));
   const pendingIds = new Set(pending.map(item => item.messageId));
   for (const entry of value.entries.filter(item => item.session_id === sessionId
-    && !plannedIds.has(item.message_id) && ["pending", "captured", "outcome_unknown"].includes(item.status))) {
+    && !plannedIds.has(item.message_id) && ["pending", "captured", "outcome_unknown", "abandoned"].includes(item.status))) {
     if (!pendingIds.has(entry.message_id)) {
       pending.push({ messageId: entry.message_id, occurredAt: entry.occurred_at,
         nonBlocking: false, partiallyHandled: false, unprocessed: false });
@@ -453,7 +453,7 @@ export function readWithdrawableEduPiAmbientMessages(sessionId: string,
   { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding[] {
   if (!ID.test(sessionId)) fail();
   return readLedger(stateDir, dataRoot).value.entries.filter((entry) => entry.session_id === sessionId
-    && ["pending", "captured", "outcome_unknown", "settled"].includes(entry.status)).map(publicEntry);
+    && ["pending", "captured", "outcome_unknown", "settled", "abandoned"].includes(entry.status)).map(publicEntry);
 }
 
 export function readUnsettledEduPiAmbientMessages(sessionId: string,
@@ -526,17 +526,5 @@ export function markEduPiAmbientMessageWithdrawn(sessionId: string, messageRef: 
   const next = { ...value, revision: value.revision + 1,
     entries: value.entries.map((entry) => entry === prior ? updated : entry) };
   writeLedger(root, next);
-  return publicEntry(updated);
-}
-
-export function markEduPiAmbientMessageAbandoned(sessionId: string, messageRef: string, abandonedAt: string,
-  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding {
-  if (!ID.test(sessionId) || !MESSAGE_REF.test(messageRef) || !canonicalTime(abandonedAt)) fail();
-  const { root, value } = readLedger(stateDir, dataRoot);
-  const prior = value.entries.find((entry) => entry.session_id === sessionId && entry.message_ref === messageRef);
-  if (!prior || prior.status !== "pending") fail();
-  const updated: StoredEntry = { ...prior, status: "abandoned", withdrawn_at: abandonedAt };
-  writeLedger(root, { ...value, revision: value.revision + 1,
-    entries: value.entries.map((entry) => entry === prior ? updated : entry) });
   return publicEntry(updated);
 }

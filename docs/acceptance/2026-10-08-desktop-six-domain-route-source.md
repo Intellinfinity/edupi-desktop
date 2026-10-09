@@ -137,3 +137,10 @@
 - 本节取代上段 Desktop 代码身份：正式 Draft #325 分支已到 `0512454a93e271b502f2d87ff70920ba28a74918`，仍精确固定 Core Draft #252 的 `682ebbad9ade9494d9304b026207e659eb265d29`。写前授权读取失败不再制造伪 unknown；明确 409 的原生身份清除失败可冷启动重试；计划域 unknown 与精确 pending 回执一次落盘。相关 Node 99/99、全套 Node 2,352 passed / 34 skipped / 0 failed、Rust 62/62、TypeScript 与 lint 通过；GitHub 源码已推送，未合并或签名发布。
 - 同一代码的独立 bundle ID 无签名 macOS `.app/.dmg` 再次构建成功，DMG 为 224,700,510 字节。实际 `.app` 资源读取 Core 与投影 ready、五领域默认关闭、外发关闭；从包内启动的 G1 四草稿/一次本地假模型/答案/审核/重启和反馈 bootstrap/范围拒绝/漏报/回读同时在两个合成根执行均 exit 0，合成反馈不计真人。这只是最新包的一轮并发回归，前述三轮属于上个消息提交，不能相加冒充本提交的六轮稳定性统计。
 - 仍缺权威负证明：Desktop 原子准备回执后、Core 首次写入前若退出，会保留 `unknown` 硬阻塞；Core 现有会话 JSON 的空读不能排除旧写入稍后到达或文件丢失。安全方案需 Core 新持久 intake gate 与同写入序列的 `sealed_absent` 证明，并配合 Desktop 精确恢复；本提交没有实现。正常发送的预 arm p95、真正原生窗口里的部分状态/取消 503 恢复、签名三平台安装、通知点击、真实睡眠和教师价值试用也仍未验。热根解析 p95 1.625 秒的目标差距继续开放。
+
+## 2026-10-09 会话删除负证明修复
+
+- 代码身份：Desktop 独立 `codex/desktop-owner-settlement-20261009` 的 `d3eb0395d762dc8d04ec37c186ee1748d63fbf1e`，基于 Draft #325 的 `a2cac635`；正式 Core pin 仍为 Draft #252 的 `682ebbad9ade9494d9304b026207e659eb265d29`，未把 Core #255 的条件性结算冒充配对完成，也未更改正式安装版。
+- RED 与修复：旧删除路径把本地 `pending` 加 Core `owner_identity_mismatch` 直接写成 `abandoned`，然后允许删会话；身份不匹配并不能证明 Core 从未捕获或旧写入不会到达。现在仅在精确 Core 撤回回执经身份、根、版本和禁止外发校验后写 `withdrawn`；其余结果返回 503，并在销毁运行时、重写子会话或 unlink 前停止。历史 `abandoned` 行仍可读，但重新列入待核验与待撤回集合，不再被当成安全删除凭据；不新增弱负证明。
+- 证据：局部账本/撤回测试 26/26；真实私有账本加实际 DELETE 处理函数的隔离 VM 测试证实身份不匹配时 503、原会话和子会话字节未改、账本仍 pending，后来收到精确撤回回执后重试才删除并重挂子会话，2/2。`npm test` 2,388 total / 2,354 passed / 34 skipped / 0 failed；`tsc --noEmit`、`npm run lint`、`git diff --check` 通过。全套 Node 测试先于一次无行为变化的未用参数清理运行，清理后相关测试、TypeScript 和 lint 已复跑通过；未触碰真实教师数据、付费模型或外发。
+- 保留边界：Core 对尚未注册、首次写入前崩溃或旧版本行的缺失响应仍不是负证明，删除会保守返回 503；Core #255 的 `sealed_absent` 仅适用于已持久保留且具认证锚的特定 gate reservation，Desktop 尚未消费。GitHub Actions 受账单问题未启动；真实 Tauri/WebView 删除、Windows/Linux、签名安装、通知点击、睡眠恢复和教师价值试用仍未由本节验证。

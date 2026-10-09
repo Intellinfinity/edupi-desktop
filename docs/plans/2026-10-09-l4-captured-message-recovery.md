@@ -1,6 +1,6 @@
 # L4 已捕获消息恢复实施计划
 
-状态：R21.1/R21.2 本地实现与隔离验收通过，R21.3 待 Draft/CI；归属现有 R21/L4 任务账本。基线为 Core Draft #256 `a1f28c2` 与 Desktop Draft #328 `5e5cafd9`，实现提交 `87546fbb`。本计划不改变六领域、安装、盲测和教师价值的验收状态。
+状态：R21.1/R21.2 本地实现与隔离验收通过，R21.3 已提交 Desktop [Draft #329](https://github.com/Intellinfinity/edupi-desktop/pull/329)，CI/安装仍待验；归属现有 R21/L4 任务账本。基线为 Core Draft #256 `a1f28c2` 与 Desktop Draft #328 `5e5cafd9`，实现提交 `87546fbb`。本计划不改变六领域、安装、盲测和教师价值的验收状态。
 
 ## 目标与选择
 

@@ -142,7 +142,7 @@ function safeControlResult(value: unknown, stage: EduPiAmbientMessageError["stag
   return applied;
 }
 
-function conversationId(domain: EduPiProactivityDomain): string {
+export function eduPiAmbientConversationId(domain: EduPiProactivityDomain): string {
   if (domain === "teaching_preparation") return EDUPI_PROACTIVITY_CONVERSATION_ID;
   if (domain === "student_followup") return EDUPI_STUDENT_FOLLOWUP_CONVERSATION_ID;
   if (domain === "calendar_administration") return EDUPI_CALENDAR_ADMINISTRATION_CONVERSATION_ID;
@@ -154,7 +154,7 @@ function conversationId(domain: EduPiProactivityDomain): string {
 export function predictEduPiOwnerMessageRef(rootRef: string, ownerId: string, messageId: string, domain: EduPiProactivityDomain = "teaching_preparation"): string {
   if (!HASH.test(rootRef) || !ID.test(ownerId) || !RAW_ID.test(messageId)) fail();
   const digest = (value: string) => crypto.createHash("sha256").update(value, "utf8").digest("hex");
-  const conversationHash = `sha256:${digest(conversationId(domain))}`;
+  const conversationHash = `sha256:${digest(eduPiAmbientConversationId(domain))}`;
   const sourceRef = `conversation:${conversationHash.slice(7)}`;
   const messageHash = `sha256:${digest(messageId)}`;
   return `owner_message:${crypto.createHash("sha256").update("edupi.owner.message.v1\0")
@@ -196,7 +196,7 @@ export async function captureAndApplyAmbientMessage(
     expected_owner_id: context.ownerId,
     grant_id: context.grantId,
     expected_grant_version: context.grantVersion,
-    conversation_id: conversationId(domain),
+    conversation_id: eduPiAmbientConversationId(domain),
     message_id: input.messageId,
     occurred_at: input.occurredAt,
     text: input.text,

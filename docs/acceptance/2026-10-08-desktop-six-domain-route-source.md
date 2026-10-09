@@ -144,3 +144,11 @@
 - RED 与修复：旧删除路径把本地 `pending` 加 Core `owner_identity_mismatch` 直接写成 `abandoned`，然后允许删会话；身份不匹配并不能证明 Core 从未捕获或旧写入不会到达。现在仅在精确 Core 撤回回执经身份、根、版本和禁止外发校验后写 `withdrawn`；其余结果返回 503，并在销毁运行时、重写子会话或 unlink 前停止。历史 `abandoned` 行仍可读，但重新列入待核验与待撤回集合，不再被当成安全删除凭据；不新增弱负证明。
 - 证据：局部账本/撤回测试 26/26；真实私有账本加实际 DELETE 处理函数的隔离 VM 测试证实身份不匹配时 503、原会话和子会话字节未改、账本仍 pending，后来收到精确撤回回执后重试才删除并重挂子会话，2/2。`npm test` 2,388 total / 2,354 passed / 34 skipped / 0 failed；`tsc --noEmit`、`npm run lint`、`git diff --check` 通过。全套 Node 测试先于一次无行为变化的未用参数清理运行，清理后相关测试、TypeScript 和 lint 已复跑通过；未触碰真实教师数据、付费模型或外发。
 - 保留边界：Core 对尚未注册、首次写入前崩溃或旧版本行的缺失响应仍不是负证明，删除会保守返回 503；Core #255 的 `sealed_absent` 仅适用于已持久保留且具认证锚的特定 gate reservation，Desktop 尚未消费。GitHub Actions 受账单问题未启动；真实 Tauri/WebView 删除、Windows/Linux、签名安装、通知点击、睡眠恢复和教师价值试用仍未由本节验证。
+
+## 2026-10-09 Core 条件性结算的 Desktop 消费
+
+- 代码身份：Desktop 独立 `codex/desktop-conditional-settle-20261009` 的 `ef4e662ffcb531bb814b441be409f93c914afef8`，叠在 #326；Core 试验身份为 Draft #255 的 `20649caf133109c55b7c9e5f343812d81fc41e59`。正式 Desktop pin 仍是 Core Draft #252 `682ebbad9ade9494d9304b026207e659eb265d29`，因此本节不把测试配对称为正式安装版可用。
+- 行为：仅对私有账本已原子准备、计划领域为 unknown 的精确消息请求 Core `owner_message_settle`。Desktop 从当前 health 取实例 nonce 与 fencing generation，核对 root、owner、grant/version、conversation/source、message/ref、发生时间及禁止执行/外发位；只有完整 `sealed_absent` 才原子记录该领域为未捕获，且仅整条计划 complete 后才开放精确 native outbox 清除。旧 Core、Core 未注册、正处写入中、字段不符或网络错误一律保持 unknown；已捕获但无 Goal 的状态也不擅自结清。若还有未启动的领域，则记为 unavailable 并保留整条消息待核对，但不再硬挡新消息。仅确证未捕获的完整计划在重复 POST 中返回 `sealed_absent`，不谎报 `captured`。
+- 格式与回退：私有账本平常继续写 v2；发生精确 seal 才升为 v3，v1/v2 仍可读且无自动完成。旧版 Desktop 回退时不能理解 v3，将保守拒读而非把 seal 当作 captured；正式升级/回退需安装版单独验证与版本化恢复流程。
+- 证据：API 隔离 VM + 实际账本验证错 nonce 留 pending、正确 seal 后冷读 complete、重复 POST 不冒充 capture；账本测试覆盖 v2 保留、v3 升级、旧版本拒绝伪 seal，以及多域部分未处理。`npm test` 2,393 total / 2,359 passed / 34 skipped / 0 failed；TypeScript、lint、`git diff --check` 通过。`test-edupi-conditional-seal-desktop-e2.mjs` 对 Core #255 真实 loopback daemon 和合成根制造写前中断，Desktop 结算、迟到 capture 被拒及真实 daemon 重启后的回执重放均通过；付费模型调用和外发均为 0。独立只读复核未见剩余 P0–P2 代码问题。
+- 未验：正式 pin 尚无 #255 与 #254 的合并配对；GitHub Actions 仍在 runner 前被账单状态阻断，Windows 原生、正式包与原生窗口未由本节验证。Core 已捕获但无 Goal 的安全终态仍待精确 route 证明；首次写入前尚未在 Core gate 注册的消息也不能凭空取得负证明。真实睡眠、通知点击、真人内容质量和教师价值仍是独立验收门。

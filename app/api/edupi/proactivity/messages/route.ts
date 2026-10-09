@@ -9,8 +9,9 @@ import { acknowledgeEduPiAmbientMessagePlan, armEduPiAmbientMessagePlan, cancelE
   prepareEduPiAmbientPlanDomainBinding, readCompletedEduPiAmbientMessages, readEduPiAmbientMessagePlan,
   readCancelledEduPiAmbientMessages, readPendingEduPiAmbientMessages,
   readLegacySettledEduPiAmbientMessages,
-  readUnsettledEduPiAmbientMessages } from "@/lib/edupi-ambient-message-ledger";
-import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution } from "@/lib/edupi-ambient-message-recovery";
+  readUnsettledEduPiAmbientMessages, sealEduPiAmbientPlanDomainAbsent } from "@/lib/edupi-ambient-message-ledger";
+import { readExactEduPiAmbientGoalBinding, readExactEduPiG2Execution,
+  settleExactEduPiAmbientAbsentCapture } from "@/lib/edupi-ambient-message-recovery";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "@/lib/edupi-core-snapshot";
 import { isCapabilityGrantBindingIdentity, type EduPiCapabilityDomain } from "@/lib/edupi-proactivity-control";
 import { readEduPiProactivityActivation, type EduPiProactivityDomain } from "@/lib/edupi-proactivity-config";
@@ -93,7 +94,13 @@ export async function GET(request: Request) {
                 const g2 = predictEduPiOwnerMessageRef(rootRef, entry.ownerId, entry.messageId, "student_followup") === entry.messageRef;
                 if (g2) {
                   const proof = await readExactEduPiG2Execution(host, rootRef, proofEntry);
-                  if (proof.status !== "applied") continue;
+                  if (proof.status !== "applied") {
+                    if (domain && await settleExactEduPiAmbientAbsentCapture(host, health, rootRef, entry, domain) === "sealed_absent") {
+                      sealEduPiAmbientPlanDomainAbsent(sessionId, entry.messageId, domain, entry.messageRef,
+                        { dataRoot: roots.dataRoot.root });
+                    }
+                    continue;
+                  }
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
                     { dataRoot: roots.dataRoot.root });
                   else markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
@@ -101,7 +108,13 @@ export async function GET(request: Request) {
                     followUpId: proof.followUpId, executionId: proof.executionId });
                 } else {
                   const proof = await readExactEduPiAmbientGoalBinding(host, rootRef, proofEntry);
-                  if (proof.status !== "applied") continue;
+                  if (proof.status !== "applied") {
+                    if (domain && await settleExactEduPiAmbientAbsentCapture(host, health, rootRef, entry, domain) === "sealed_absent") {
+                      sealEduPiAmbientPlanDomainAbsent(sessionId, entry.messageId, domain, entry.messageRef,
+                        { dataRoot: roots.dataRoot.root });
+                    }
+                    continue;
+                  }
                   if (domain) finishEduPiAmbientPlanDomain(sessionId, entry.messageId, domain, entry.messageRef,
                     { dataRoot: roots.dataRoot.root });
                   else markEduPiAmbientMessageOutcomeVerified(sessionId, entry.messageRef, { dataRoot: roots.dataRoot.root });
@@ -193,8 +206,12 @@ export async function POST(request: Request) {
           reason: "plan_missing", messageComplete: false, externalSend: false }, { status: 409 });
       }
       if (plan.occurredAt !== occurredAt) return NextResponse.json({ status: "identity_conflict", externalSend: false }, { status: 409 });
-      if (plan.status === "complete") return NextResponse.json({ status: "captured", resolutionStatus: "settled",
-        reason: null, messageComplete: true, messageId, occurredAt, externalSend: false });
+      if (plan.status === "complete") {
+        const captured = plan.domains.some(item => item.state === "terminal");
+        return NextResponse.json({ status: captured ? "captured" : "sealed_absent",
+          resolutionStatus: captured ? "settled" : "sealed_absent", reason: null,
+          messageComplete: true, messageId, occurredAt, externalSend: false });
+      }
       if (plan.status === "cancelled") return NextResponse.json({ status: "outcome_unknown", resolutionStatus: "needs_verification",
         reason: "plan_cancelled", messageComplete: false, externalSend: false }, { status: 409 });
       if (plan.domains.some(item => item.state !== "unattempted")) return NextResponse.json({ status: "outcome_unknown",

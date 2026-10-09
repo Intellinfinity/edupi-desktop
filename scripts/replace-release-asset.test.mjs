@@ -8,7 +8,7 @@ import {
   replaceReleaseAsset,
 } from "./replace-release-asset.mjs";
 
-const repository = "Intellinfinity/edupi-desktop";
+const repository = "PIGU-PPPgu/edupi-desktop";
 const releaseId = 731;
 const tag = "v0.3.32";
 const expectedTarget = "a".repeat(40);

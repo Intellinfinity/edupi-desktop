@@ -2,11 +2,11 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const EDUPI_RELEASE_REPOSITORY = "Intellinfinity/edupi-desktop";
-export const EDUPI_RELEASE_WRITE_REPOSITORY = "Intellinfinity/edupi-desktop";
+export const EDUPI_RELEASE_REPOSITORY = "PIGU-PPPgu/edupi-desktop";
+export const EDUPI_RELEASE_WRITE_REPOSITORY = "PIGU-PPPgu/edupi-desktop";
 export const EDUPI_UPDATER_ENDPOINTS = [
-  "https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json",
   "https://raw.githubusercontent.com/PIGU-PPPgu/edupi-desktop/updater-feed/latest.json",
+  "https://raw.githubusercontent.com/Intellinfinity/edupi-desktop/updater-feed/latest.json",
   "https://github.com/PIGU-PPPgu/edupi-desktop/releases/latest/download/latest.json",
 ];
 // Kept as a named compatibility export for older sentinel tests and scripts.
@@ -68,7 +68,7 @@ export function releaseDestinationErrors(files) {
   requireText(
     errors,
     releaseWorkflow,
-    "owner: Intellinfinity",
+    "owner: PIGU-PPPgu",
     "release workflow must target the EduPi release owner",
   );
   requireText(
@@ -83,7 +83,7 @@ export function releaseDestinationErrors(files) {
     `RELEASE_REPOSITORY: ${EDUPI_RELEASE_WRITE_REPOSITORY}`,
     "release manifest must publish to the EduPi release repository",
   );
-  if (JSON.stringify(exactYamlValues(releaseWorkflow, "owner")) !== '["Intellinfinity"]') {
+  if (JSON.stringify(exactYamlValues(releaseWorkflow, "owner")) !== '["PIGU-PPPgu"]') {
     errors.push("release workflow must have exactly one EduPi release owner");
   }
   if (JSON.stringify(exactYamlValues(releaseWorkflow, "repo")) !== '["edupi-desktop"]') {
@@ -166,7 +166,7 @@ export function verifyReleaseDestinations(files) {
 export async function main() {
   verifyReleaseDestinations(await readReleaseDestinationFiles());
   console.log(
-    `Release destinations verified: ${EDUPI_RELEASE_WRITE_REPOSITORY} (write), ${EDUPI_RELEASE_REPOSITORY} (legacy read) and ${EDUPI_UPDATER_ENDPOINTS.join(", ")}`,
+    `Release destinations verified: ${EDUPI_RELEASE_WRITE_REPOSITORY} (write/read) and ${EDUPI_UPDATER_ENDPOINTS.join(", ")}`,
   );
 }
 

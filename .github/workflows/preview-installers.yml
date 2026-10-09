@@ -92,7 +92,7 @@ jobs:
       - name: Check out the pinned EduPi Core runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: Intellinfinity/edupi
+          repository: PIGU-PPPgu/edupi
           ref: ${{ steps.core.outputs.commit }}
           path: .edupi-core-runtime
           fetch-depth: 0
@@ -219,7 +219,7 @@ jobs:
           asset="$RUNNER_TEMP/edupi-native-probe-$GITHUB_RUN_ID.node"
           trap 'rm -f "$asset"' EXIT
           gh api -H 'Accept: application/octet-stream' \
-            "repos/Intellinfinity/edupi/releases/assets/$PROBE_ASSET_ID" > "$asset"
+            "repos/PIGU-PPPgu/edupi/releases/assets/$PROBE_ASSET_ID" > "$asset"
           actual_size="$(wc -c < "$asset" | tr -d '[:space:]')"
           actual_sha256="sha256:$(sha256sum < "$asset" | cut -d ' ' -f 1)"
           magic="$(od -An -tx1 -N2 "$asset" | tr -d '[:space:]')"
@@ -244,7 +244,7 @@ jobs:
         if: inputs.native_asset_probe_core_commit != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: Intellinfinity/edupi
+          repository: PIGU-PPPgu/edupi
           ref: ${{ inputs.native_asset_probe_core_commit }}
           path: .edupi-core-runtime
           fetch-depth: 0
@@ -331,15 +331,15 @@ jobs:
           if ($env:PREVIEW_RUN_ID -notmatch '^[1-9][0-9]*$' -or $env:EXPECTED_SOURCE_SHA -notmatch '^[a-f0-9]{40}$') {
             throw "Preview run identity is invalid"
           }
-          $run = gh api "repos/Intellinfinity/edupi-desktop/actions/runs/$env:PREVIEW_RUN_ID" | ConvertFrom-Json
+          $run = gh api "repos/PIGU-PPPgu/edupi-desktop/actions/runs/$env:PREVIEW_RUN_ID" | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or $run.name -ne "Build preview installers" -or
               $run.conclusion -ne "success" -or $run.head_sha -ne $env:EXPECTED_SOURCE_SHA -or
-              $run.head_repository.full_name -ne "Intellinfinity/edupi-desktop") {
+              $run.head_repository.full_name -ne "PIGU-PPPgu/edupi-desktop") {
             throw "Preview run is not the accepted commit-bound build"
           }
           $target = Join-Path $env:RUNNER_TEMP "edupi-preview-smoke-$env:GITHUB_RUN_ID"
           New-Item -ItemType Directory -Path $target | Out-Null
-          gh run download "$env:PREVIEW_RUN_ID" --repo Intellinfinity/edupi-desktop --name EduPi-Windows-x64 --dir "$target"
+          gh run download "$env:PREVIEW_RUN_ID" --repo PIGU-PPPgu/edupi-desktop --name EduPi-Windows-x64 --dir "$target"
           if ($LASTEXITCODE -ne 0) { throw "Windows preview artifact download failed" }
           "Preview source commit: $($run.head_sha)" >> $env:GITHUB_STEP_SUMMARY
       - name: Install and verify the preview NSIS in isolation

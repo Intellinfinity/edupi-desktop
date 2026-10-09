@@ -4,7 +4,7 @@
   "components": [
     {
       "id": "pi-agent-desktop",
-      "repository": "Intellinfinity/edupi-desktop",
+      "repository": "PIGU-PPPgu/edupi-desktop",
       "version": "0.3.56"
     },
     {

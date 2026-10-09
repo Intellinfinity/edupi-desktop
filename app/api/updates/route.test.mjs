@@ -47,7 +47,7 @@ test("failed proxy discovery keeps the old cache retryable, then refresh recover
     await assert.rejects(readFile(stateFile), { code: "ENOENT" });
 
     await rm(path.join(config, "updater-proxy.json"));
-    globalThis.fetch = async () => new Response(JSON.stringify({ tag_name: `v${nextVersion}`, html_url: `https://github.com/Intellinfinity/edupi-desktop/releases/tag/v${nextVersion}` }), { status: 200, headers: { "content-type": "application/json" } });
+    globalThis.fetch = async () => new Response(JSON.stringify({ tag_name: `v${nextVersion}`, html_url: `https://github.com/PIGU-PPPgu/edupi-desktop/releases/tag/v${nextVersion}` }), { status: 200, headers: { "content-type": "application/json" } });
     const recovered = await (await GET(new Request(url))).json();
     assert.equal(recovered.updates.length, 1);
     assert.equal(recovered.errors, undefined);

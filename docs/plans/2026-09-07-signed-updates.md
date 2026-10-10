@@ -7,7 +7,12 @@
 
 ## 2026-10-10 新 Core pin 后的发布门
 
-只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` 源码检查通过，但 Draft 配对 canary 失败，`.59` 正在修复验收脚本。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。`.59` 须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` Draft 配对 canary 失败，`.59` Draft 上传校历旧断言失败，均未发布。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。`.60` 须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+
+## 2026-10-10 v0.3.59 Draft 校历检查失败
+
+- PR [#332](https://github.com/PIGU-PPPgu/edupi-desktop/pull/332) 已合并为 `7b2ce08f`；[Draft run 38063894602](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38063894602) 的 macOS 配对 Core canary 已通过，随后上传校历 E2 在 `calendarCommitted` 旧断言失败，Linux 同步失败，Windows 在继续打包前已请求取消以节省额度。该 Draft 不发布、不更新 feed，不能把 canary 通过当成全平台签名完成。
+- Core 当前合同把接收 ICS 文件与采用其中事项分开；旧 E2 要求首次上传自动写入，既与安全边界相悖也未覆盖 UI 采用路径。`.60` 在原分支增加桌面授权的预览指纹和教师明确确认，默认仅接入材料；本机精确 Core 的上传、错误指纹拒绝、首次导入、更新/撤回/重放及重启回读通过。源码和页面证据不替代新签名包安装。
 
 ## 2026-10-10 v0.3.57 Draft 构建阻塞
 

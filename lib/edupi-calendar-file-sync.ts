@@ -28,6 +28,15 @@ type CalendarSyncDependencies = {
   readDeletions?: (sourceRead: CoreCalendarSourceRead) => Promise<EntityDeletionLedger>;
 };
 
+export function calendarRecognitionFingerprint(recognition: MaterialRecognitionResult): string {
+  return stableScheduleSourceHash([
+    { calendar_mode: recognition.calendar_mode || "full_snapshot" },
+    ...recognition.events as unknown as Record<string, unknown>[],
+    ...(recognition.cancelled_occurrence_refs || []).map((source_occurrence_ref) => ({ cancelled_source_occurrence_ref: source_occurrence_ref })),
+    ...(recognition.affected_series_refs || []).map((source_series_ref) => ({ affected_source_series_ref: source_series_ref })),
+  ]);
+}
+
 function includesImportedEvidence(
   source: CoreCalendarSourceRead["sources"][number],
   expected: Array<{ sourceOccurrenceRef: string; eventId: string; contentFingerprint: string }>,
@@ -139,12 +148,7 @@ export async function syncCalendarFile(input: {
   if (recognition.events.some((event) => !event.source_occurrence_ref)) {
     throw new MaterialRecognitionError("invalid_output", "ICS 日历缺少稳定事项身份。");
   }
-  const semanticHash = stableScheduleSourceHash([
-    { calendar_mode: recognition.calendar_mode || "full_snapshot" },
-    ...recognition.events as unknown as Record<string, unknown>[],
-    ...(recognition.cancelled_occurrence_refs || []).map((source_occurrence_ref) => ({ cancelled_source_occurrence_ref: source_occurrence_ref })),
-    ...(recognition.affected_series_refs || []).map((source_series_ref) => ({ affected_source_series_ref: source_series_ref })),
-  ]);
+  const semanticHash = calendarRecognitionFingerprint(recognition);
   const derivedSourceId = `calendar-source-${semanticHash.slice("sha256:".length, "sha256:".length + 32)}`;
   const materialEvidenceId = `calendar-evidence-${input.descriptor.source_hash.slice("sha256:".length, "sha256:".length + 32)}`;
   const sourceRead = await (dependencies.readSources || (() => readCoreCalendarSources(input.signal)))();

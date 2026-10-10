@@ -6,12 +6,13 @@ import {
 } from "@/lib/edupi-education-intake";
 import { listStagedMaterials, settleStagedMaterial, type MaterialStagingDescriptor } from "@/lib/edupi-material-staging";
 import { intakeRecognizedMaterial } from "@/lib/edupi-material-intake-flow";
-import { MaterialRecognitionError } from "@/lib/edupi-material-recognition";
+import { MaterialRecognitionError, recognizeStagedMaterial } from "@/lib/edupi-material-recognition";
 import { MaterialRecognitionAdmissionError, withMaterialRecognitionLock } from "@/lib/edupi-material-recognition-lock";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
+import { isDesktopApiRequestAllowed } from "@/lib/desktop-api-auth";
 import { parseTimetableIntakeCommand } from "@/lib/edupi-timetable-intake";
 import { parseCalendarIntakeCommand } from "@/lib/edupi-calendar-intake-request";
-import { syncCalendarFile } from "@/lib/edupi-calendar-file-sync";
+import { calendarRecognitionFingerprint, syncCalendarFile } from "@/lib/edupi-calendar-file-sync";
 import { CalendarSourceError } from "@/lib/edupi-calendar-sources";
 import { syncDocumentScheduleFile } from "@/lib/edupi-document-schedule-sync";
 import type { DocumentPairingChoice } from "@/lib/edupi-document-pairing-contract";
@@ -44,8 +45,8 @@ function requiredText(value: unknown, max: number): string {
   return value.trim();
 }
 
-function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean; calendarSourceId: string | null; calendarSourceFingerprint: string | null; documentSourceId: string | null; documentSourceFingerprint: string | null; documentPairingFingerprint: string | null; documentPairings: DocumentPairingChoice[] | null } {
-  if (!exactKeys(body, ["kind", "stagingId", "title", "materialKind", "subject", "classId", "recognize", "calendarSourceId", "calendarSourceFingerprint", "documentSourceId", "documentSourceFingerprint", "documentPairingFingerprint", "documentPairings"])) throw new EducationIntakeError("invalid_envelope", "材料接入字段无效。");
+function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor; title: string; materialKind: "worksheet" | "lesson_note" | "assessment" | "classroom_record" | "other"; subject: string | null; classId: string | null; recognize: boolean; calendarSourceId: string | null; calendarSourceFingerprint: string | null; calendarImportConfirmed: boolean; calendarPreviewFingerprint: string | null; documentSourceId: string | null; documentSourceFingerprint: string | null; documentPairingFingerprint: string | null; documentPairings: DocumentPairingChoice[] | null } {
+  if (!exactKeys(body, ["kind", "stagingId", "title", "materialKind", "subject", "classId", "recognize", "calendarSourceId", "calendarSourceFingerprint", "calendarImportConfirmed", "calendarPreviewFingerprint", "documentSourceId", "documentSourceFingerprint", "documentPairingFingerprint", "documentPairings"])) throw new EducationIntakeError("invalid_envelope", "材料接入字段无效。");
   const stagingId = requiredText(body.stagingId, 160);
   const descriptor = listStagedMaterials().find((item) => item.staging_id === stagingId);
   if (!descriptor) throw new EducationIntakeError("staging_missing", "暂存材料不存在或已经处理。");
@@ -55,6 +56,9 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
   if (body.recognize !== undefined && typeof body.recognize !== "boolean") throw new EducationIntakeError("invalid_envelope", "材料识别选项无效。");
   const calendarSourceId = optionalText(body.calendarSourceId, 160) ?? null;
   const calendarSourceFingerprint = optionalText(body.calendarSourceFingerprint, 160) ?? null;
+  if (body.calendarImportConfirmed !== undefined && typeof body.calendarImportConfirmed !== "boolean") throw new EducationIntakeError("invalid_envelope", "日历确认字段无效。");
+  const calendarImportConfirmed = body.calendarImportConfirmed === true;
+  const calendarPreviewFingerprint = optionalText(body.calendarPreviewFingerprint, 160) ?? null;
   const documentSourceId = optionalText(body.documentSourceId, 160) ?? null;
   const documentSourceFingerprint = optionalText(body.documentSourceFingerprint, 160) ?? null;
   const documentPairingFingerprint = optionalText(body.documentPairingFingerprint, 160) ?? null;
@@ -79,6 +83,8 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
     if (body.recognize === false || calendarSourceId !== null && !/^(?:calendar|document)-source-[a-f0-9]{32}$/u.test(calendarSourceId)
       || calendarSourceFingerprint !== null && !/^sha256:[a-f0-9]{64}$/u.test(calendarSourceFingerprint)
       || (calendarSourceId === null) !== (calendarSourceFingerprint === null)
+      || calendarImportConfirmed && (calendarSourceId !== null || !/^sha256:[a-f0-9]{64}$/u.test(String(calendarPreviewFingerprint)))
+      || !calendarImportConfirmed && calendarPreviewFingerprint !== null
       || documentSourceId !== null || documentSourceFingerprint !== null
       || documentPairings !== null) {
       throw new EducationIntakeError("invalid_envelope", "日历来源字段无效。");
@@ -88,10 +94,11 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
       || documentSourceFingerprint !== null && !/^sha256:[a-f0-9]{64}$/u.test(documentSourceFingerprint)
       || (documentSourceId === null) !== (documentSourceFingerprint === null)
       || documentPairings !== null && documentSourceId === null
-      || calendarSourceId !== null || calendarSourceFingerprint !== null) {
+      || calendarSourceId !== null || calendarSourceFingerprint !== null
+      || calendarImportConfirmed || calendarPreviewFingerprint !== null) {
       throw new EducationIntakeError("invalid_envelope", "材料日程来源字段无效。");
     }
-  } else if (calendarSourceId !== null || calendarSourceFingerprint !== null || documentSourceId !== null || documentSourceFingerprint !== null || documentPairings !== null) {
+  } else if (calendarSourceId !== null || calendarSourceFingerprint !== null || calendarImportConfirmed || calendarPreviewFingerprint !== null || documentSourceId !== null || documentSourceFingerprint !== null || documentPairings !== null) {
     throw new EducationIntakeError("invalid_envelope", "这种材料不能指定日程来源。");
   }
   return {
@@ -103,6 +110,8 @@ function materialInput(body: RawRecord): { descriptor: MaterialStagingDescriptor
     recognize: body.recognize !== false,
     calendarSourceId,
     calendarSourceFingerprint,
+    calendarImportConfirmed,
+    calendarPreviewFingerprint,
     documentSourceId,
     documentSourceFingerprint,
     documentPairingFingerprint,
@@ -124,7 +133,10 @@ export async function POST(request: Request) {
     if (!body || typeof body.kind !== "string") throw new EducationIntakeError("invalid_envelope", "教育导入请求无效。");
     if (body.kind === "material") {
       const material = materialInput(body);
-      if (material.calendarSourceId === null && material.documentSourceId === null) {
+      if (material.calendarImportConfirmed && !isDesktopApiRequestAllowed(request)) {
+        return NextResponse.json({ error: "日历确认需要桌面授权", code: "forbidden" }, { status: 403 });
+      }
+      if (material.calendarSourceId === null && material.documentSourceId === null && !material.calendarImportConfirmed) {
         // Receiving new file bytes is separate from adopting their arrangements.
         // Core supplies the optional current read-only proposal after intake.
         const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => intakeRecognizedMaterial({ ...material, recognize: false }));
@@ -136,12 +148,17 @@ export async function POST(request: Request) {
           ...(result.materialLessonProposal ? { materialLessonProposal: result.materialLessonProposal } : {}), staged: listStagedMaterials() });
       }
       if (material.descriptor.kind === "calendar") {
-        const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => syncCalendarFile({
-          descriptor: material.descriptor,
-          requestedSourceId: material.calendarSourceId,
-          expectedSourceFingerprint: material.calendarSourceFingerprint,
-          signal: request.signal,
-        }));
+        const result = await withMaterialRecognitionLock(material.descriptor.staging_id, async () => {
+          const recognition = material.calendarImportConfirmed ? await recognizeStagedMaterial(material.descriptor) : null;
+          if (recognition && calendarRecognitionFingerprint(recognition) !== material.calendarPreviewFingerprint) {
+            throw new EducationIntakeError("stale_snapshot", "日历预览已变化，请重新核对。");
+          }
+          return syncCalendarFile({ descriptor: material.descriptor,
+            requestedSourceId: material.calendarSourceId,
+            expectedSourceFingerprint: material.calendarSourceFingerprint,
+            signal: request.signal,
+          }, recognition ? { recognize: async () => recognition } : {});
+        });
         const receipt = result.receipts[0] ?? null;
         if (result.committed) settleStagedMaterial(material.descriptor.staging_id, "accepted_receipt");
         return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition,

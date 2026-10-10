@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EducationContract, EducationEntityDeleteKind, TeacherTask } from "@/lib/edupi-education-contract";
 import { MATERIAL_CATEGORIES, materialCategoryRoute, materialItemRoute, materialObjectId } from "@/lib/edupi-domain-navigation";
 import type { MaterialStagingDescriptor } from "@/lib/edupi-material-staging-client";
@@ -20,8 +20,12 @@ import { hasUnboundSameNameClass, materialClassOptions } from "@/lib/edupi-mater
 import { materialScheduleUploadProposal } from "@/lib/edupi-material-schedule";
 import type { EduPiMaterialLessonProposal as UploadLessonProposal, EduPiMaterialScheduleProposal as UploadScheduleProposal } from "@/lib/edupi-core-process-client";
 import { EduPiMaterialScheduleProposal } from "./EduPiMaterialScheduleProposal";
+import { fetchDesktopApi } from "@/lib/desktop-native";
 
 const PAGE_SIZE = 8;
+type CalendarPreview = { stagingId: string; sourceHash: string; fingerprint: string;
+  events: Array<{ id: string; date: string; name: string; time: string | null; location: string | null }>;
+  cancelledCount: number; affectedSeriesCount: number };
 
 function documentScheduleSource(item: MaterialStagingDescriptor): boolean {
   const path = item.staging_path.toLowerCase();
@@ -87,7 +91,7 @@ export function EduPiReceivedLessonProposal({ title, proposal, data, onTask }: {
 }
 
 
-export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId, onObject, stagedMaterials, stagingBusy, stagingMessage, onTask, onUpload, onIntakeMaterial, onRemoveStagedMaterial, onOpenFile, onStartAgent, onEducation, onDeleteEntity }: { data: EducationContract; context: TeacherContextSnapshot | null; query: string; selectedObjectId: string | null; onObject: (id: string) => void; stagedMaterials: MaterialStagingDescriptor[]; stagingBusy: boolean; stagingMessage: { text: string; tone: "success" | "error" } | null; onTask: (task: TeacherTask) => void; onUpload: () => void; onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: ScheduleSourceOption | null, pairing?: DocumentPairingSubmission | null) => Promise<unknown>; onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>; onOpenFile: (path: string) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onEducation: (data: EducationContract) => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
+export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId, onObject, stagedMaterials, stagingBusy, stagingMessage, onTask, onUpload, onIntakeMaterial, onRemoveStagedMaterial, onOpenFile, onStartAgent, onEducation, onDeleteEntity }: { data: EducationContract; context: TeacherContextSnapshot | null; query: string; selectedObjectId: string | null; onObject: (id: string) => void; stagedMaterials: MaterialStagingDescriptor[]; stagingBusy: boolean; stagingMessage: { text: string; tone: "success" | "error" } | null; onTask: (task: TeacherTask) => void; onUpload: () => void; onIntakeMaterial: (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: ScheduleSourceOption | null, pairing?: DocumentPairingSubmission | null, calendarPreviewFingerprint?: string | null) => Promise<unknown>; onRemoveStagedMaterial: (item: MaterialStagingDescriptor) => Promise<void>; onOpenFile: (path: string) => void; onStartAgent: (prompt: string, mode?: "insert" | "replace") => void; onEducation: (data: EducationContract) => void; onDeleteEntity: (kind: EducationEntityDeleteKind, id: string, label: string) => Promise<boolean> }) {
   const category = materialCategoryRoute(selectedObjectId);
   const focusedMaterialId = materialItemRoute(selectedObjectId);
   const categoryLabel = MATERIAL_CATEGORIES.find((item) => item.id === category)?.label || "全部材料";
@@ -114,6 +118,8 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   const [pairingChoices, setPairingChoices] = useState<Record<string, string>>({});
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pairingError, setPairingError] = useState("");
+  const [calendarPreview, setCalendarPreview] = useState<CalendarPreview | null>(null);
+  const [calendarPreviewBusy, setCalendarPreviewBusy] = useState(false);
   const [receivedProposals, setReceivedProposals] = useState<Record<string, { title: string; proposal: UploadScheduleProposal }>>({});
   const [receivedLessonProposals, setReceivedLessonProposals] = useState<Record<string, { title: string; proposal: UploadLessonProposal }>>({});
   const classOptions = useMemo(() => materialClassOptions(data.timetable, context?.classes || []), [context?.classes, data.timetable]);
@@ -144,6 +150,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
       setIntakeDraft(null);
       setPairingPreview(null);
       setPairingChoices({});
+      setCalendarPreview(null);
     }
   }, [intakeDraft, stagedMaterials]);
   const loadScheduleSources = useCallback(async () => {
@@ -230,6 +237,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
     setPairingPreview(null);
     setPairingChoices({});
     setPairingError("");
+    setCalendarPreview(null);
     if (item.kind === "calendar" || documentScheduleSource(item)) void loadScheduleSources();
     const defaults = defaultMaterialIntakeMetadata(item.original_name, context);
     setIntakeDraft({ stagingId: item.staging_id, scheduleSourceId: "", ...defaults,
@@ -263,8 +271,28 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
       setPairingBusy(false);
     }
   };
-  const submitIntake = async (event: FormEvent, item: MaterialStagingDescriptor) => {
-    event.preventDefault();
+  const previewCalendar = async (item: MaterialStagingDescriptor) => {
+    setCalendarPreviewBusy(true);
+    setCalendarPreview(null);
+    setOperationError("");
+    try {
+      const response = await fetchDesktopApi("/api/edupi/calendar-preview", { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ stagingId: item.staging_id }) });
+      const value = await response.json() as Record<string, unknown>;
+      if (!response.ok) throw new Error(typeof value.error === "string" ? value.error : "日历预览失败");
+      const events = value.events;
+      if (value.stagingId !== item.staging_id || value.sourceHash !== item.source_hash || value.externalSend !== false
+        || typeof value.fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(value.fingerprint)
+        || !Array.isArray(events) || events.length > 200 || events.some(entry => !entry || typeof entry !== "object"
+          || typeof entry.id !== "string" || typeof entry.date !== "string" || typeof entry.name !== "string")
+        || !Number.isSafeInteger(value.cancelledCount) || !Number.isSafeInteger(value.affectedSeriesCount)) {
+        throw new Error("日历预览结果无效");
+      }
+      setCalendarPreview(value as CalendarPreview);
+    } catch (error) { setOperationError(error instanceof Error ? error.message : "日历预览失败"); }
+    finally { setCalendarPreviewBusy(false); }
+  };
+  const submitIntake = async (item: MaterialStagingDescriptor, importCalendar = false) => {
     if (!intakeDraft || intakeDraft.stagingId !== item.staging_id
       || item.kind !== "calendar" && (!intakeDraft.title.trim() || !intakeDraft.subject.trim() || !intakeDraft.classId.trim())) {
       setOperationError("请填写材料名称、学科和班级");
@@ -272,6 +300,12 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
     }
     setOperationError("");
     try {
+      if (importCalendar && (item.kind !== "calendar" || intakeDraft.scheduleSourceId
+        || calendarPreview?.stagingId !== item.staging_id || calendarPreview.sourceHash !== item.source_hash
+        || !calendarPreview.events.length)) {
+        setOperationError("先核对这份日历的事项");
+        return;
+      }
       if (intakeDraft.scheduleSourceId && (item.kind === "calendar" && sourceUnavailable.calendar
         || documentScheduleSource(item) && (sourceUnavailable.calendar || sourceUnavailable.timetable))) {
         setOperationError("来源读取失败，请重试。");
@@ -302,8 +336,9 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
         }
       }
       const received = await onIntakeMaterial(item, { ...intakeDraft, title: intakeDraft.title.trim(), subject: intakeDraft.subject.trim(), classId: intakeDraft.classId.trim() },
-        item.kind === "calendar" || documentScheduleSource(item) ? sourceSelection.source : null, pairing);
-      if (received && typeof received === "object" && "materialScheduleProposal" in received && received.materialScheduleProposal) {
+        item.kind === "calendar" || documentScheduleSource(item) ? sourceSelection.source : null, pairing,
+        importCalendar ? calendarPreview!.fingerprint : null);
+      if (item.kind !== "calendar" && received && typeof received === "object" && "materialScheduleProposal" in received && received.materialScheduleProposal) {
         try {
           const proposal = materialScheduleUploadProposal(received.materialScheduleProposal);
           setReceivedProposals(current => ({ ...current, [proposal.material_id]: { title: item.original_name, proposal } }));
@@ -320,6 +355,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
       setIntakeDraft(null);
       setPairingPreview(null);
       setPairingChoices({});
+      setCalendarPreview(null);
     } catch {
       if (item.kind === "calendar" || documentScheduleSource(item)) void loadScheduleSources();
       /* Parent surface reports the bounded intake error. */
@@ -340,19 +376,35 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
             <strong>{item.original_name}</strong><span>{Math.ceil(item.expected_size_bytes / 1024)} KB</span>
             <button type="button" disabled={stagingBusy || !itemReady} title={!itemReady ? data.capabilities.materialIntake.reason : undefined} onClick={() => {
               if (intakeDraft?.stagingId === item.staging_id) {
-                setIntakeDraft(null); setPairingPreview(null); setPairingChoices({}); setPairingError("");
+                setIntakeDraft(null); setPairingPreview(null); setPairingChoices({}); setPairingError(""); setCalendarPreview(null);
               } else beginIntake(item);
             }}>{intakeDraft?.stagingId === item.staging_id ? "取消" : "接入 EduPi"}</button>
             <button type="button" disabled={stagingBusy} onClick={() => void onRemoveStagedMaterial(item)}>移除</button>
           </div>
-          {intakeDraft?.stagingId === item.staging_id ? <form className="edupi-material-intake-form" onSubmit={(event) => void submitIntake(event, item)}>
+          {intakeDraft?.stagingId === item.staging_id ? <form className="edupi-material-intake-form" onSubmit={(event) => { event.preventDefault(); void submitIntake(item); }}>
             {calendar ? <>
-              <label>材料来源<select value={intakeDraft.scheduleSourceId} onChange={(event) => setIntakeDraft({ ...intakeDraft, scheduleSourceId: event.target.value })}>
-                <option value="">作为新材料</option>
+              <label>材料来源<select value={intakeDraft.scheduleSourceId} onChange={(event) => { setIntakeDraft({ ...intakeDraft, scheduleSourceId: event.target.value }); setCalendarPreview(null); }}>
+                <option value="">新日历</option>
                 {sourceOptions.map((source) => <option value={source.selectionKey || source.sourceId} key={source.selectionKey || source.sourceId}>更新{source.sourceKind === "calendar" ? "日历" : "材料"}：{source.label}</option>)}
               </select></label>
               {intakeDraft.scheduleSourceId ? <p>更新可能撤回该来源的旧安排，请确认来源。</p> : null}
-              <button type="submit" className="is-primary" disabled={stagingBusy || Boolean(intakeDraft.scheduleSourceId && (sourceUnavailable.calendar || !calendarIntakeReady))}>{intakeDraft.scheduleSourceId ? "确认更新" : "确认接入"}</button>
+              {intakeDraft.scheduleSourceId ? <button type="submit" className="is-primary" disabled={stagingBusy || sourceUnavailable.calendar || !calendarIntakeReady}>确认更新</button>
+                : <>
+                  {calendarPreview?.stagingId === item.staging_id ? <section aria-label="待确认日程" className="edupi-material-pairing__current">
+                    <strong>{calendarPreview.events.length} 项日程</strong>
+                    <ul>{calendarPreview.events.slice(0, 10).map(entry => <li key={entry.id}>{[entry.date, entry.name, entry.time, entry.location].filter(Boolean).join(" · ")}</li>)}</ul>
+                    {calendarPreview.events.length > 10 ? <details><summary>查看其余 {calendarPreview.events.length - 10} 项</summary><ul>{calendarPreview.events.slice(10).map(entry => <li key={entry.id}>{[entry.date, entry.name, entry.time, entry.location].filter(Boolean).join(" · ")}</li>)}</ul></details> : null}
+                    {!calendarPreview.events.length ? <p>{calendarPreview.cancelledCount || calendarPreview.affectedSeriesCount
+                      ? "这份文件只包含撤回事项，请选择原日历来源。" : "没有可导入的事项，请核对原文件。"}</p> : null}
+                  </section> : null}
+                  <div className="edupi-material-inbox__row">
+                    <button type="button" className={calendarPreview ? undefined : "is-primary"} disabled={stagingBusy || calendarPreviewBusy || !isTauriDesktop()}
+                      onClick={() => void previewCalendar(item)}>{calendarPreviewBusy ? "读取中…" : "预览日程"}</button>
+                    <button type="submit" disabled={stagingBusy || calendarPreviewBusy}>仅接入材料</button>
+                    {calendarPreview ? <button type="button" className="is-primary" disabled={stagingBusy || calendarPreviewBusy || !calendarPreview.events.length}
+                      onClick={() => void submitIntake(item, true)}>确认导入</button> : null}
+                  </div>
+                </>}
             </> : <>
               <label>材料名称<input required maxLength={240} value={intakeDraft.title} onChange={(event) => setIntakeDraft({ ...intakeDraft, title: event.target.value })} /></label>
               <label>材料类型<select value={intakeDraft.materialKind} onChange={(event) => setIntakeDraft({ ...intakeDraft, materialKind: event.target.value as MaterialIntakeMetadata["materialKind"] })}><option value="worksheet">学案 / 练习</option><option value="lesson_note">教案 / 备课</option><option value="assessment">测验 / 作业</option><option value="classroom_record">课堂记录</option><option value="other">其他</option></select></label>

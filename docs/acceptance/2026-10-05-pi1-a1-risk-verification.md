@@ -1,5 +1,11 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-10 v0.3.60 校历明确采用待发布
+
+- `.59` 源码 PR [#332](https://github.com/PIGU-PPPgu/edupi-desktop/pull/332) 经 CI 合并为 `7b2ce08f`；[签名 Draft 38063894602](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38063894602) 中修复后的注册消息 E2 在 macOS 通过，但后续上传校历 E2 在首次 `calendarCommitted` 旧断言失败，Linux 同项失败，Windows job 已取消。失败资产未进入发布门，公开 `.56` 与唯一已安装应用保持不变。
+- 本机固定 Core `57093b` 复现：首次 ICS 接入返回 `materialReceivedOnly:true`，不自动写日程。新 `.60` 路径先预览暂存 ICS 中的事项与语义指纹，再要求教师明确确认；服务端重读并比对指纹，且只接受本进程桌面 token。隔离 E2 逐项通过：默认接收不采用、无 token 为 403、错误指纹为 409、首次采用 2 项、精确重放不重复、连续来源更新、周期例外/撤回、重启回读。该 E2 为源码服务端与固定 Core，实际桌面按钮和安装版另验。
+- 三平台 PR/CI、签名、公证、资产摘要、实际安装尚未取得；自然改期/取消规范化审核、真实系统睡眠、TCC 与教学质量仍为未验/未闭环，不随版本号升级而变成通过。
+
 ## 2026-10-10 v0.3.58 Draft 失败及 v0.3.59 修复
 
 - PR [#331](https://github.com/PIGU-PPPgu/edupi-desktop/pull/331) 已合并为 `e7d8fa0a`，其质量/审计 CI 已通过，但 [签名 Draft run 38058904150](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38058904150) 的 macOS/Linux 配对 Core canary 返回失败，不能把源码检查计作三平台签名构建。`.58` Draft `408993261` 继续保留为未发布检查点。

@@ -235,8 +235,8 @@ try {
   assert.equal((await legacyMessage.json()).status, "registered_prompt_required");
   assert.deepEqual(ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot }), []);
 
-  // Paired Core must acknowledge registration before capture. The actual Pi
-  // dispatch/outbox route has its own tests; this canary never sends to Pi.
+  // Paired Core must acknowledge registration before capture. Below, this
+  // canary also exercises one complete production outbox and Pi dispatch.
   const activeHost = await supervisor.ensureEduPiRuntime(roots);
   const activeHealth = await activeHost.call("health", null);
   const activeRootRef = activeHealth.result.data_root_fingerprint;

@@ -3,7 +3,7 @@
 ## 2026-10-10 v0.3.58 Draft 失败及 v0.3.59 修复
 
 - PR [#331](https://github.com/PIGU-PPPgu/edupi-desktop/pull/331) 已合并为 `e7d8fa0a`，其质量/审计 CI 已通过，但 [签名 Draft run 38058904150](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38058904150) 的 macOS/Linux 配对 Core canary 返回失败，不能把源码检查计作三平台签名构建。`.58` Draft `408993261` 继续保留为未发布检查点。
-- 失败在本机隔离数据根重现：测试夹具没有模型配置，`g1_processor` 未激活；补上回环合成模型配置后，旧 `/proactivity/messages` 写入被新 Core 的 `owner_message_registration` 按设计拒绝。现将 canary 改为精确 Core 注册与肯定捕获、重放去重、越界不生成 Goal、合成反馈、会话删除撤回及停用失败围栏；`EDUPI_CORE_ROOT=/private/tmp/edupi-core-pair-jC8yCi npm run test:edupi-proactivity-canary-e2` 退出 0。该检查不派发 Pi，不代替安装版聊天、模型教学质量或真人验收。
+- 失败在本机隔离数据根重现：测试夹具没有模型配置，`g1_processor` 未激活；补上回环合成模型配置后，旧 `/proactivity/messages` 写入被新 Core 的 `owner_message_registration` 按设计拒绝。现将 canary 改为精确 Core 注册与肯定捕获、重放去重、越界不生成 Goal、合成反馈、会话删除撤回及停用失败围栏；`EDUPI_CORE_ROOT=/private/tmp/edupi-core-pair-jC8yCi npm run test:edupi-proactivity-canary-e2` 退出 0。该检查还通过生产路由派发一条合成消息到 Pi，详见下条；不代替安装版聊天、模型教学质量或真人验收。
 - 配对检查还观察到：Core 的静默续接仅自动采用 `request/commitment`；单纯肯定捕获“改期”或“取消”不会改写原 Goal。旧路由曾在可判定目标时执行规范化修订/取消，新注册路径目前没有对应自动调用，故这两条不能继续标成“自然修订/取消已通过”；它们作为待审/待产品收口，不随 `.59` Draft 自动发布。
 - 为覆盖真正接口边界，隔离脚本还使用生产 `/api/edupi/proactivity/prompt/intent` 与 `/prompt` 路由、同一精确 Core 和真实 Pi 会话发出一条消息；outbox 回读为 `pi_accepted`，Pi 文件中的 dispatch marker 与唯一 user entry 父链精确匹配，重复 POST 不增加用户消息，本机合成回环模型恰好调用 1 次。此证据证明源码服务端集成，不冒充签名 App 或真人教学质量。
 - 新源码版本标记为 `.59`，配对 Core pin 和三个合同 hash 不变。三平台 CI、资产摘要、签名公证、macOS/Windows 安装及用户流程均待新候选实际结果；公开 `.56`、feed、唯一 `/Applications/EduPi.app` 未改变。

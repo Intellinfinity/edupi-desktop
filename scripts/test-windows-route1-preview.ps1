@@ -141,8 +141,13 @@ $canary = Start-Process -FilePath $executable -ArgumentList "--safe-mode" -PassT
 try {
     $verified = $false
     $lastStatus = "no Core status response"
+    $identityStatus = "not probed"
     $nodeListenerCount = 0
-    for ($attempt = 0; $attempt -lt 45; $attempt++) {
+    $statusAttempts = 0
+    $attempt = 0
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(120)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $attempt++
         $canary.Refresh()
         if ($canary.HasExited) { throw "Installed Safe Mode canary exited before Core became ready" }
         $logs = @($logRoots | Where-Object { Test-Path $_ } |
@@ -167,10 +172,26 @@ try {
             }
         } catch { }
         $nodeListenerCount = $nodeListeners.Count
-        foreach ($listener in $nodeListeners) { $origins += "http://127.0.0.1:$($listener.LocalPort)" }
+        if ($nodeListenerCount -gt 0) {
+            $origins = @($nodeListeners | ForEach-Object { "http://127.0.0.1:$($_.LocalPort)" })
+        }
         foreach ($origin in @($origins | Sort-Object -Unique)) {
             try {
-                $status = Invoke-RestMethod "$origin/api/edupi/status?summary=1" -Headers @{ Origin = $origin } -TimeoutSec 5
+                $identity = Invoke-WebRequest "$origin/api/desktop/identity" -Headers @{ Origin = $origin } -TimeoutSec 3
+                $identityStatus = "http=$([int]$identity.StatusCode)"
+            } catch {
+                $identityStatus = "request=$($_.Exception.GetType().Name)"
+                continue
+            }
+            if ($identity.StatusCode -ne 204) { continue }
+            if ($statusAttempts -ge 2) { break }
+            $statusAttempts++
+            $statusTimeoutSec = [math]::Min(60, [math]::Max(1, [math]::Ceiling(($deadline - [DateTimeOffset]::UtcNow).TotalSeconds)))
+            try {
+                # Cold status reads may start Core and three Bridge projections.
+                # Give each read a real completion window instead of issuing
+                # many short client timeouts against the same server startup.
+                $status = Invoke-RestMethod "$origin/api/edupi/status?summary=1" -Headers @{ Origin = $origin } -TimeoutSec $statusTimeoutSec
                 $lastStatus = "core=$($status.core.status) projection=$($status.projection.status) g1=$($status.core.capabilities.g1_processor)"
                 if ($status.core.status -eq "ready" -and $status.projection.status -eq "ready" -and
                     $status.compatibility.actual.coreCommit -eq $compat.core_runtime.core_commit -and
@@ -179,10 +200,13 @@ try {
             } catch {
                 if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
                     $lastStatus = "http=$([int]$_.Exception.Response.StatusCode)"
+                } else {
+                    $lastStatus = "request=$($_.Exception.GetType().Name)"
                 }
             }
         }
         if ($verified) { break }
+        if ($statusAttempts -ge 2) { break }
         Start-Sleep -Seconds 2
     }
     if (!$verified) {
@@ -203,7 +227,7 @@ try {
         $advancedLog = @($logs | Where-Object { !$baselineLogSizes.ContainsKey($_.FullName) -or $_.Length -gt $baselineLogSizes[$_.FullName] }).Count -gt 0
         $codes = if ($diagnosticCodes.Count) { ($diagnosticCodes | Select-Object -Unique) -join ";" } else { "none" }
         $nodeChildren = if ($null -eq $nodeProcesses) { -1 } else { @($nodeProcesses).Count }
-        throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus; native=$codes; serverLogAdvanced=$advancedLog; nodeChildren=$nodeChildren; nodeListeners=$nodeListenerCount"
+        throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus; identity=$identityStatus; native=$codes; serverLogAdvanced=$advancedLog; nodeChildren=$nodeChildren; nodeListeners=$nodeListenerCount; probes=$attempt; statusAttempts=$statusAttempts"
     }
     Write-Output "Windows installed preview Safe Mode canary: Core/projection ready, exact pin, G1 pending, external send off."
 } finally {

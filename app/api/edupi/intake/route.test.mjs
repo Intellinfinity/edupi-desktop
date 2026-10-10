@@ -192,14 +192,16 @@ async function materialRouteFixture(kind, proposal, oldSource = false, lessonPro
       return { receipts: [receipt], data: {}, materialScheduleProposal: proposal,
         ...(lessonProposal ? { materialLessonProposal: lessonProposal } : {}), recognition: { eventCount: 0, slotCount: 0 }, scheduleNeedsReview: false };
     } },
-    "@/lib/edupi-material-recognition": { MaterialRecognitionError: class extends Error {} },
+    "@/lib/edupi-material-recognition": { MaterialRecognitionError: class extends Error {},
+      recognizeStagedMaterial: async () => { throw new Error("unexpected recognition"); } },
     "@/lib/edupi-material-recognition-lock": { MaterialRecognitionAdmissionError: class extends Error {}, withMaterialRecognitionLock: async (_id, work) => work() },
     "@/lib/request-security": await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/request-security.ts"),
+    "@/lib/desktop-api-auth": { isDesktopApiRequestAllowed: () => true },
     "@/lib/bounded-form-data": await createJiti(import.meta.url, { tsconfigPaths: true }).import("../../../../lib/bounded-form-data.ts"),
     "@/lib/edupi-timetable-intake": { parseTimetableIntakeCommand },
     "@/lib/edupi-calendar-intake-request": { parseCalendarIntakeCommand },
     "@/lib/edupi-calendar-sources": { CalendarSourceError: class extends Error {} },
-    "@/lib/edupi-calendar-file-sync": { syncCalendarFile: async () => {
+    "@/lib/edupi-calendar-file-sync": { calendarRecognitionFingerprint: () => { throw new Error("unexpected fingerprint"); }, syncCalendarFile: async () => {
       assert.equal(oldSource, true, "new intake must not call the old automatic calendar import");
       calls.push(["explicit-calendar-update"]); return { receipts: [receipt], committed: true, recognition: { eventCount: 1, slotCount: 0 }, scheduleNeedsReview: false, sourceId: "old-calendar", removedEventIds: [] };
     } },

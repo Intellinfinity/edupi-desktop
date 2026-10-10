@@ -116,6 +116,7 @@ try {
   const intakeRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/intake/route.ts"));
   const educationRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/education/route.ts"));
   const sourceRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/calendar-sources/route.ts"));
+  const previewRoute = staged ? null : await jiti.import(path.join(desktopRoot, "app/api/edupi/calendar-preview/route.ts"));
   const snapshot = staged ? null : await jiti.import(path.join(desktopRoot, "lib/edupi-core-snapshot.ts"));
   runtimeSupervisor = staged ? null : await jiti.import(path.join(desktopRoot, "lib/edupi-runtime-supervisor.ts"));
   if (staged) stagedServer = await startStagedServer();
@@ -133,10 +134,22 @@ try {
     assert.equal(body.staged[0].kind, "calendar");
     return body.staged[0];
   };
-  const intake = async (stagingId, calendarSourceId = null, calendarSourceFingerprint = null) => {
+  const preview = async (stagingId) => {
+    const request = new Request(`${baseUrl()}/api/edupi/calendar-preview`, { method: "POST",
+      headers: { ...headers(), "content-type": "application/json" }, body: JSON.stringify({ stagingId }) });
+    const response = stagedServer ? await fetch(request, { signal: AbortSignal.timeout(15_000) }) : await previewRoute.POST(request);
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.stagingId, stagingId);
+    assert.equal(body.externalSend, false);
+    assert.match(body.fingerprint, /^sha256:[a-f0-9]{64}$/u);
+    return body;
+  };
+  const intake = async (stagingId, calendarSourceId = null, calendarSourceFingerprint = null, calendarPreviewFingerprint = null) => {
     const request = new Request(`${baseUrl()}/api/edupi/intake`, { method: "POST", headers: { ...headers(), "content-type": "application/json" },
       body: JSON.stringify({ kind: "material", stagingId, title: "官方校历", materialKind: "other", subject: null, classId: null,
-        recognize: true, calendarSourceId, calendarSourceFingerprint }) });
+        recognize: true, calendarSourceId, calendarSourceFingerprint,
+        calendarImportConfirmed: calendarPreviewFingerprint !== null, calendarPreviewFingerprint }) });
     const response = stagedServer ? await fetch(request, { signal: AbortSignal.timeout(30_000) }) : await intakeRoute.POST(request);
     return { response, body: await response.json() };
   };
@@ -159,7 +172,6 @@ try {
     const response = stagedServer ? await fetch(request, { signal: AbortSignal.timeout(15_000) }) : await sourceRoute.GET(request);
     return { response, body: await response.json() };
   };
-
   const manual = await intakeManualOccurrence();
   assert.equal(manual.response.status, 200, JSON.stringify(manual.body));
   let sourceList = await listSources();
@@ -171,8 +183,36 @@ try {
     timed("upload-b", "20261002", "14", "备课组会", "西楼 401"),
   ]);
   let stagedFile = await stage(firstBytes);
+  const received = await intake(stagedFile.staging_id);
+  assert.equal(received.response.status, 200, JSON.stringify(received.body));
+  assert.equal(received.body.materialReceivedOnly, true);
+  assert.equal(received.body.calendarCommitted, undefined);
+  assert.equal(received.body.staged.length, 0);
+  assert.equal(received.body.receipt.external_send, false);
+  assert.deepEqual((await listSources()).body.sources, [], "receiving bytes must not adopt calendar events");
+  stagedFile = await stage(firstBytes, "官方校历-确认导入.ics");
   const firstEvidenceId = `calendar-evidence-${stagedFile.source_hash.slice("sha256:".length, "sha256:".length + 32)}`;
-  const first = await intake(stagedFile.staging_id);
+  const unauthenticatedPreview = new Request(`${baseUrl()}/api/edupi/calendar-preview`, { method: "POST",
+    headers: { host: new URL(baseUrl()).host, origin: baseUrl(), "content-type": "application/json" },
+    body: JSON.stringify({ stagingId: stagedFile.staging_id }) });
+  const previewDenied = stagedServer ? await fetch(unauthenticatedPreview) : await previewRoute.POST(unauthenticatedPreview);
+  assert.equal(previewDenied.status, 403);
+  const firstPreview = await preview(stagedFile.staging_id);
+  assert.equal(firstPreview.events.length, 2);
+  assert.equal(firstPreview.events.every(item => item.type === "meeting"
+    && Object.hasOwn(item, "endDate") && Object.hasOwn(item, "notes")), true);
+  const unauthenticatedImport = new Request(`${baseUrl()}/api/edupi/intake`, { method: "POST",
+    headers: { host: new URL(baseUrl()).host, origin: baseUrl(), "content-type": "application/json" },
+    body: JSON.stringify({ kind: "material", stagingId: stagedFile.staging_id, title: "官方校历", materialKind: "other",
+      subject: null, classId: null, recognize: true, calendarSourceId: null, calendarSourceFingerprint: null,
+      calendarImportConfirmed: true, calendarPreviewFingerprint: firstPreview.fingerprint }) });
+  const importDenied = stagedServer ? await fetch(unauthenticatedImport) : await intakeRoute.POST(unauthenticatedImport);
+  assert.equal(importDenied.status, 403);
+  const stalePreview = await intake(stagedFile.staging_id, null, null, `sha256:${"0".repeat(64)}`);
+  assert.equal(stalePreview.response.status, 409, JSON.stringify(stalePreview.body));
+  assert.equal(stalePreview.body.code, "stale_snapshot");
+  assert.deepEqual((await listSources()).body.sources, [], "stale preview must not create calendar events");
+  const first = await intake(stagedFile.staging_id, null, null, firstPreview.fingerprint);
   assert.equal(first.response.status, 200, JSON.stringify(first.body));
   assert.equal(first.body.calendarCommitted, true);
   assert.equal(first.body.recognition.eventCount, 2);
@@ -194,7 +234,7 @@ try {
   assert.equal(read.body.calendar.find((item) => item.occurrenceRef === "upload-a").startsAt, "2026-10-01T09:00+08:00");
 
   stagedFile = await stage(firstBytes, "校历副本.ics");
-  const replay = await intake(stagedFile.staging_id);
+  const replay = await intake(stagedFile.staging_id, null, null, (await preview(stagedFile.staging_id)).fingerprint);
   assert.equal(replay.response.status, 200, JSON.stringify(replay.body));
   assert.equal(replay.body.calendarSourceId, sourceId);
   assert.equal(replay.body.calendarCommitted, true);
@@ -251,7 +291,7 @@ try {
   const recurringFamily = seriesFamily("upload-recurring");
   const recurringUnrelated = timed("upload-recurring-keep", "20261022", "12", "同来源保留事项", "教研室");
   stagedFile = await stage(calendar([recurringEvent(false), recurringUnrelated]), "循环教研日历.ics");
-  const recurringInitial = await intake(stagedFile.staging_id);
+  const recurringInitial = await intake(stagedFile.staging_id, null, null, (await preview(stagedFile.staging_id)).fingerprint);
   assert.equal(recurringInitial.response.status, 200, JSON.stringify(recurringInitial.body));
   assert.equal(recurringInitial.body.calendarCommitted, true);
   assert.equal(recurringInitial.body.recognition.eventCount, 4);
@@ -289,7 +329,7 @@ try {
     "RRULE:FREQ=WEEKLY;COUNT=3", "SUMMARY:循环教研会改时", "STATUS:CONFIRMED", "END:VEVENT",
   ];
   stagedFile = await stage(calendar([shiftedSeries], "REQUEST"), "循环教研日历-改时.ics");
-  const implicitShift = await intake(stagedFile.staging_id);
+  const implicitShift = await intake(stagedFile.staging_id, null, null, (await preview(stagedFile.staging_id)).fingerprint);
   assert.equal(implicitShift.response.status, 409, JSON.stringify(implicitShift.body));
   assert.equal(implicitShift.body.code, "calendar_source_selection_required");
   const shifted = await intake(stagedFile.staging_id, recurringSourceId, recurrenceAfterCancel.fingerprint);
@@ -338,7 +378,7 @@ try {
     "SUMMARY:首次导入即排除", "STATUS:CONFIRMED", "END:VEVENT",
   ];
   stagedFile = await stage(calendar([firstImportExdate], "PUBLISH"), "首次导入含排除日历.ics");
-  const firstExdate = await intake(stagedFile.staging_id);
+  const firstExdate = await intake(stagedFile.staging_id, null, null, (await preview(stagedFile.staging_id)).fingerprint);
   assert.equal(firstExdate.response.status, 200, JSON.stringify(firstExdate.body));
   assert.equal(firstExdate.body.calendarCommitted, true);
   assert.equal(firstExdate.body.recognition.eventCount, 2);
@@ -368,6 +408,7 @@ try {
   assert.equal(deletionState.history.some((item) => item.action === "delete" && item.note === deletionNote(sourceId, secondUpdateEvidenceId)), true,
     "a later revision must preserve its own withdrawal evidence after earlier tombstones");
   console.log(JSON.stringify({ status: "passed", staged_server: staged, deterministic_ics: true, exact_replay: true,
+    default_material_only: true, privileged_preview_confirm: true, stale_preview_rejected: true,
     explicit_update: true, consecutive_update: true, exdate_delta: true, exdate_first_import: true,
     recurrence_cancel: true, recurrence_series_replace: true, recurrence_series_cancel: true,
     recurrence_series_cancel_replay: true, implicit_series_update_held: true,

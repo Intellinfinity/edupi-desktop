@@ -45,7 +45,7 @@ import { useDragDrop } from "@/hooks/useDragDrop";
 import { createActivationRequestTracker } from "@/lib/edupi-activation-request";
 import { shouldShowBlockingEducationLoad } from "@/lib/edupi-workspace-load-state";
 import { isTauriDesktop } from "@/lib/desktop-updater";
-import { listDesktopStagedMaterials, removeDesktopStagedMaterial, selectFilesNative, stageDesktopMaterialFiles, stageDesktopMaterialPaths } from "@/lib/desktop-native";
+import { desktopApiHeaders, listDesktopStagedMaterials, removeDesktopStagedMaterial, selectFilesNative, stageDesktopMaterialFiles, stageDesktopMaterialPaths } from "@/lib/desktop-native";
 import { loadStagedMaterials, removeStagedMaterial, stageBrowserMaterialFiles, type MaterialStagingDescriptor } from "@/lib/edupi-material-staging-client";
 import type { TaskBoardLaneId } from "@/lib/edupi-task-board";
 import { calendarQuickEntryKey, calendarQuickEntryStatusLabel, type EduPiQuickEntryItem } from "@/lib/edupi-quick-entry";
@@ -353,7 +353,9 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     try {
       const response = await fetch("/api/edupi/intake", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: body.calendarImportConfirmed === true
+          ? await desktopApiHeaders({ "Content-Type": "application/json" })
+          : { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const result = await response.json() as EducationIntakeApiResult;
@@ -370,7 +372,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
     }
   }, [educationIntakeBusy, loadWorkspace]);
 
-  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" | "timetable" } | null, pairing?: DocumentPairingSubmission | null) => {
+  const intakeStagedMaterial = useCallback(async (item: MaterialStagingDescriptor, metadata: MaterialIntakeMetadata, scheduleSource: { sourceId: string; fingerprint: string; sourceKind: "calendar" | "document" | "timetable" } | null, pairing?: DocumentPairingSubmission | null, calendarPreviewFingerprint?: string | null) => {
     const calendarSource = item.kind === "calendar" ? scheduleSource : null;
     const documentSource = item.kind !== "calendar" ? scheduleSource : null;
     const result = await submitEducationIntake({
@@ -383,6 +385,7 @@ export function EduPiEducationPanel({ initialModule = "home", refreshKey, active
       recognize: true,
       calendarSourceId: calendarSource?.sourceId ?? null,
       calendarSourceFingerprint: calendarSource?.fingerprint ?? null,
+      ...(calendarPreviewFingerprint ? { calendarImportConfirmed: true, calendarPreviewFingerprint } : {}),
       documentSourceId: documentSource?.sourceId ?? null,
       documentSourceFingerprint: documentSource?.fingerprint ?? null,
       documentPairingFingerprint: pairing?.recognitionFingerprint ?? null,

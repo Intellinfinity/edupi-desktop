@@ -184,6 +184,20 @@ test("disabled proactive capture still sends a long Desktop prompt directly to P
   assert.equal(f.cold(f.draftKey)?.pendingPrompt, undefined);
 });
 
+test("an extension slash command is captured before Pi while active and runs directly when disabled", async () => {
+  for (const delivery of ["accepted", "disabled"]) {
+    const f = startupHarness({ desktop: true, desktopDelivery: delivery });
+    f.store.setDraft(f.draftKey, { value: "/synthetic-skill", images: [] });
+    assert.equal(f.store.flushDraftNow(f.draftKey), true);
+    const sent = f.send("/synthetic-skill");
+    await flush();
+    f.sources[0].connected();
+    assert.equal(await sent, true);
+    assert.equal(f.desktopPrompts.length, 1);
+    assert.equal(f.commands.filter(item => item.type === "prompt").length, delivery === "disabled" ? 1 : 0);
+  }
+});
+
 test("complete startup failure keeps text, all references and images durable without a UI ref", async () => {
   const f = startupHarness({ input: false });
   await failAllConnections(f);

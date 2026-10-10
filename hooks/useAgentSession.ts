@@ -1613,7 +1613,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const originDraftKey = sessionIdentity;
     const isSlashCommandPrompt = !images?.length && trimmedMessage.startsWith("/");
     const priorPrompt = originDraftKey ? getDraft(originDraftKey)?.pendingPrompt : undefined;
-    if (priorPrompt && (priorPrompt.message !== message || images?.length || isSlashCommandPrompt)) {
+    if (priorPrompt && (priorPrompt.message !== message || images?.length)) {
       const status = await reconcileEduPiCapturedPrompt(priorPrompt.sessionId, priorPrompt.clientRequestId)
         .catch(() => "unavailable");
       if (["accepted", "cancelled"].includes(status)) {
@@ -1633,7 +1633,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       return false;
     }
     if (priorPrompt && isNew && !sessionIdRef.current) sessionIdRef.current = priorPrompt.sessionId;
-    const durableSend = isTauriDesktop() && !isSlashCommandPrompt && !images?.length;
+    const durableSend = isTauriDesktop() && !images?.length;
 
     const isBashCommand = !images?.length && trimmedMessage.startsWith("!");
     if (isBashCommand) {
@@ -1703,7 +1703,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           return true;
         }
       }
-      if (isSlashCommandPrompt) {
+      if (isSlashCommandPrompt && !durableSend) {
         promptRequestStarted = true;
         await sendAgentCommand(sid, { ...command, awaitUserPersistence: true });
         return true;

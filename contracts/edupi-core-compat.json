@@ -3,11 +3,11 @@
   "core_repository": "edupi",
   "core_sdk": { "pi": "1.0.2", "pi_durable": "1.0.2" },
   "core_runtime": {
-    "core_commit": "75d6d666ac9910166638c3ec6df2a03f1075bd43",
+    "core_commit": "57093b176ac029b84edb4f1697bf61b1e6854642",
     "component_manifest_path": "contracts/edupi-desktop-component-manifest.json",
-    "component_manifest_hash": "sha256:48f27f14b2055a788a75840fdaa7976fe6a84050c643c479d0fe9e63ff959ada",
-    "runtime_component_manifest_hash": "sha256:a37fdeeb09133f3f1c27e531939b50525a4205b12b7d8649bda9273e819035e3",
-    "runtime_schema_hash": "sha256:c526ef4fc378b19891a78e44ace2f64f924250f715aa3684fec879bd0eb79684"
+    "component_manifest_hash": "sha256:5c4dfe47b8e1b0172d2d1aa2f72a6f1b6fa0e7d39c27daa5ebb7a15d46d0ad2a",
+    "runtime_component_manifest_hash": "sha256:20659a6f543f5b0b5a28472a0b466abbcc8d429c03deb2025f06ae05dfa13d01",
+    "runtime_schema_hash": "sha256:9d74537d188ba93d602f53076156bc42e0304acbc8bdedacf541b7ffc25546b4"
   },
   "contract_identities": [
     {
@@ -198,7 +198,11 @@
     "https://github.com/Intellinfinity/edupi-desktop/pull/287",
     "https://github.com/PIGU-PPPgu/edupi/pull/233",
     "https://github.com/PIGU-PPPgu/edupi/pull/259",
-    "https://github.com/PIGU-PPPgu/edupi/pull/260"
+    "https://github.com/PIGU-PPPgu/edupi/pull/260",
+    "https://github.com/PIGU-PPPgu/edupi/pull/270",
+    "https://github.com/PIGU-PPPgu/edupi/pull/274",
+    "https://github.com/PIGU-PPPgu/edupi/pull/275",
+    "https://github.com/PIGU-PPPgu/edupi/pull/276"
   ],
-  "change_note": "Desktop pairs Core main #233 holiday source fences, #259 source-bound family observations and #260 owner-bound preparation execution read at Pi/PiDurable 1.0.2. Runtime schema and both component manifests are pinned together; Bridge v1.1, occurrence v1.2 and 12 public bridge commands are unchanged. G2/G3/G4 Live remain off by default; no guardian or relationship quality is inferred and external_send=false. Source pairing does not establish installed-app, real sleep or teacher-quality acceptance."
+  "change_note": "Desktop pins Core main 57093b after R03 owner gate settlement, isolated G2 adapter requirement and accepted DOCX lesson proposals. Runtime schema and both component manifests are paired; Bridge v1.1, occurrence v1.2 and 12 public bridge commands remain unchanged. Desktop outbox and Core affirmative capture gating require separate implementation and runtime proof. G2/G3/G4 Live remain off by default; DOCX proposals stay pending teacher review and external_send=false. Source pairing does not establish installed-app, real sleep or teacher-quality acceptance."
 }

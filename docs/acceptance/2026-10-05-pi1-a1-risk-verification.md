@@ -1,10 +1,18 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-10 v0.3.58 Draft 失败及 v0.3.59 修复
+
+- PR [#331](https://github.com/PIGU-PPPgu/edupi-desktop/pull/331) 已合并为 `e7d8fa0a`，其质量/审计 CI 已通过，但 [签名 Draft run 38058904150](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38058904150) 的 macOS/Linux 配对 Core canary 返回失败，不能把源码检查计作三平台签名构建。`.58` Draft `408993261` 继续保留为未发布检查点。
+- 失败在本机隔离数据根重现：测试夹具没有模型配置，`g1_processor` 未激活；补上回环合成模型配置后，旧 `/proactivity/messages` 写入被新 Core 的 `owner_message_registration` 按设计拒绝。现将 canary 改为精确 Core 注册与肯定捕获、重放去重、越界不生成 Goal、合成反馈、会话删除撤回及停用失败围栏；`EDUPI_CORE_ROOT=/private/tmp/edupi-core-pair-jC8yCi npm run test:edupi-proactivity-canary-e2` 退出 0。该检查还通过生产路由派发一条合成消息到 Pi，详见下条；不代替安装版聊天、模型教学质量或真人验收。
+- 配对检查还观察到：Core 的静默续接仅自动采用 `request/commitment`；单纯肯定捕获“改期”或“取消”不会改写原 Goal。旧路由曾在可判定目标时执行规范化修订/取消，新注册路径目前没有对应自动调用，故这两条不能继续标成“自然修订/取消已通过”；它们作为待审/待产品收口，不随 `.59` Draft 自动发布。
+- 为覆盖真正接口边界，隔离脚本还使用生产 `/api/edupi/proactivity/prompt/intent` 与 `/prompt` 路由、同一精确 Core 和真实 Pi 会话发出一条消息；outbox 回读为 `pi_accepted`，Pi 文件中的 dispatch marker 与唯一 user entry 父链精确匹配，重复 POST 不增加用户消息，本机合成回环模型恰好调用 1 次。此证据证明源码服务端集成，不冒充签名 App 或真人教学质量。
+- 新源码版本标记为 `.59`，配对 Core pin 和三个合同 hash 不变。三平台 CI、资产摘要、签名公证、macOS/Windows 安装及用户流程均待新候选实际结果；公开 `.56`、feed、唯一 `/Applications/EduPi.app` 未改变。
+
 ## 2026-10-10 Core 57093b 消费与消息可靠性源码门
 
-本节取代下方“新只读令牌未到位”和“应重试 .57 Draft”的当前行动，不改写 .57 失败记录。`EDUPI_CORE_READ_TOKEN` 已用用户剪贴板中的新凭据更新到 `PIGU-PPPgu/edupi-desktop` 的 Actions Secret；未打印或提交令牌。原 `.57` Draft `408319110` 仍是 0 资产，不重试旧 Core pin 的候选。下一候选版本已定为 `.58`，公开 `.56`/唯一安装应用不动。
+本节取代下方“新只读令牌未到位”和“应重试 .57 Draft”的当前行动，不改写 .57 失败记录。`EDUPI_CORE_READ_TOKEN` 已用用户剪贴板中的新凭据更新到 `PIGU-PPPgu/edupi-desktop` 的 Actions Secret；未打印或提交令牌。原 `.57` Draft `408319110` 仍是 0 资产，不重试旧 Core pin 的候选。`.58` 配对检查失败后改以 `.59` 为下一候选，公开 `.56`/唯一安装应用不动。
 
-- Desktop 当前工作树源码已固定 Core main `57093b176ac029b84edb4f1697bf61b1e6854642`，Runtime schema `sha256:9d74537d188ba93d602f53076156bc42e0304acbc8bdedacf541b7ffc25546b4`、Core component `sha256:20659a6f543f5b0b5a28472a0b466abbcc8d429c03deb2025f06ae05dfa13d01`、Desktop component `sha256:5c4dfe47b8e1b0172d2d1aa2f72a6f1b6fa0e7d39c27daa5ebb7a15d46d0ad2a`，Desktop 清单文件 SHA-256 `9de04e5b33567c01b3725bf247e135a7ec5401633bb8ba44afbd73e70455b1a9`；代码提交 `ff8e60e8` 已并入当前分支头 `749b4de8`，已推送 [Desktop PR #331](https://github.com/PIGU-PPPgu/edupi-desktop/pull/331)，合并/签名安装另计。
+- Desktop 固定 Core main `57093b176ac029b84edb4f1697bf61b1e6854642`，Runtime schema `sha256:9d74537d188ba93d602f53076156bc42e0304acbc8bdedacf541b7ffc25546b4`、Core component `sha256:20659a6f543f5b0b5a28472a0b466abbcc8d429c03deb2025f06ae05dfa13d01`、Desktop component `sha256:5c4dfe47b8e1b0172d2d1aa2f72a6f1b6fa0e7d39c27daa5ebb7a15d46d0ad2a`，Desktop 清单文件 SHA-256 `9de04e5b33567c01b3725bf247e135a7ec5401633bb8ba44afbd73e70455b1a9`；[Desktop PR #331](https://github.com/PIGU-PPPgu/edupi-desktop/pull/331) 已合并为 `e7d8fa0a`。`.58` 签名构建结果见上节，安装状态另计。
 - 发送链路先落盘原 Pi 会话 ID、当前 WebView 草稿请求号和私有的跨端口 intent，再落完整请求 outbox → Core owner register → 肯定 capture receipt → Pi dispatch；G1/G2 分别捕获后才派发。Pi RPC 调度不是成功，只有会话文件中的 marker 精确父链与用户消息对应才标 `pi_accepted`；网络/异步失败保留原请求号，不盲目重发。新 ID 无法绕开同会话未结消息；主动运行时直达 Pi 的新/旧会话、排队、steer、follow-up 与手机消息在服务端拒绝，Pi 最后派发边界也检查门禁。流式 steer/follow-up 在该状态下不提供入口，老师可在当前回复结束后继续发送；Core 关闭时入口恢复。图片附件在主动运行时须先独立核对材料。Core 品牌 G1/G2 runner 存在时启用 capture continuation。
 - 自动运行页按 20 条分页展示可读取的 intent/outbox，两个账本独立加载；原文只在教师点击后以本机 token 读取。pre-Pi 项可手动续送或根据 Core 的封存/撤回证明取消；Pi 未知项只能查会话或显式撤回 Core 来源，撤回不冒充 Pi 未收到，精确 Pi 用户消息核实后才结案。无 outbox 的 intent 可由教师分别确认已在会话收到、或承担可能重复的风险明确放弃；从不自动重试。会话删除先撤回 Core 来源，未知 Pi 结果仍阻止删除；只有 Pi 已核实或 Core 安全取消的终态才清精确 outbox。旧 pending 未经版本化迁移仍按未知处理。
 - G2 仅隔离 canary 使用 Core 原生有品牌的隔离模型适配器、4 次/120 秒预算与精确班科 grant，默认关闭；DOCX `material_lesson_proposal` 只作为本次上传的待核对建议显示，未自动建 Goal、排 G1、改日程或外发。重进后缺精确重放/刷新入口，旧建议不冒充当前许可。`intake_material` 本机调用预算按 Core 交接改为 37/38 秒。

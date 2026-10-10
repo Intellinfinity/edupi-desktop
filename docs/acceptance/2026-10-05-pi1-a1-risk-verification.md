@@ -1,5 +1,11 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-11 v0.3.61 DOCX 配对检查待签名
+
+- `.60` 源码 [#333](https://github.com/PIGU-PPPgu/edupi-desktop/pull/333) 经 CI 合入 `main` `8096141f`；[Draft run 38067260599](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38067260599) 的 macOS/Linux 配对 Core 注册消息、校历、日程冲突/课次、文本/OCR 等检查通过，但 DOCX 修订 E2 在首次路由接入的旧 `documentCommitted:true` 断言失败。Windows job 已取消，Draft `409060125` 0 资产、不公开。
+- 本机固定 Core `57093b` 的 DOCX E2 改为：首次路由只接入材料并返回待审提案；无明确时区的提案保持 held；有明确时区的合成文档由教师私有 `material_schedule_read/apply` 明确采用，回读一项日程；已有来源继续用来源指纹显式修订、重放、删除/恢复，同名配对仍保持冲突核对。`EDUPI_CORE_ROOT=/private/tmp/edupi-core-pair-jC8yCi npm run test:edupi-document-revision-e2` 退出 0；其余 Release 配对 Core 脚本及包闭包测试本机逐项通过。该验证不等于安装版真实 DOCX 质量或教师采用。
+- `.61` 版本、PR/CI 和签名安装仍分别待结果；公开 `.56`、唯一 `/Applications/EduPi.app`、真实教师数据根与 feed 不变。自然改期/取消、TCC、真实睡眠及真人教学质量继续未验或待产品闭环。
+
 ## 2026-10-10 v0.3.60 校历明确采用待发布
 
 - `.59` 源码 PR [#332](https://github.com/PIGU-PPPgu/edupi-desktop/pull/332) 经 CI 合并为 `7b2ce08f`；[签名 Draft 38063894602](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38063894602) 中修复后的注册消息 E2 在 macOS 通过，但后续上传校历 E2 在首次 `calendarCommitted` 旧断言失败，Linux 同项失败，Windows job 已取消。失败资产未进入发布门，公开 `.56` 与唯一已安装应用保持不变。

@@ -21,13 +21,15 @@ const temporaryRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "edu
 const dataRoot = path.join(temporaryRoot, "data");
 const stateDir = path.join(temporaryRoot, "desktop-state");
 const home = path.join(dataRoot, ".edupi");
+const desktopToken = "document-revision-canary-token-0123456789012345";
 for (const directory of [stateDir, path.join(home, "memory"), path.join(home, "output"), path.join(home, "locks")]) {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
 }
 
 const keys = ["EDUPI_PROJECT_ROOT", "EDUPI_DATA_ROOT", "EDUPI_DATA_ALLOWED_ROOT", "EDUPI_CORE_ROOT", "EDUPI_CORE_ALLOWED_ROOT",
-  "EDUPI_HOME", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR", "EDUPI_CORE_COMMIT", "PI_DESKTOP_STATE_DIR"];
+  "EDUPI_HOME", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR", "EDUPI_CORE_COMMIT", "PI_DESKTOP_STATE_DIR", "PI_DESKTOP_API_TOKEN"];
 const previous = new Map(keys.map((key) => [key, process.env[key]]));
+let runtimeSupervisor;
 Object.assign(process.env, {
   EDUPI_PROJECT_ROOT: dataRoot,
   EDUPI_DATA_ROOT: dataRoot,
@@ -40,6 +42,7 @@ Object.assign(process.env, {
   EDUPI_LOCK_DIR: path.join(home, "locks"),
   EDUPI_CORE_COMMIT: compat.core_runtime.core_commit,
   PI_DESKTOP_STATE_DIR: stateDir,
+  PI_DESKTOP_API_TOKEN: desktopToken,
 });
 
 function xml(value) {
@@ -88,6 +91,9 @@ try {
   const entityDelete = await jiti.import("../lib/edupi-entity-delete.ts");
   const intakeRoute = await jiti.import("../app/api/edupi/intake/route.ts");
   const pairingRoute = await jiti.import("../app/api/edupi/document-pairings/route.ts");
+  const feedbackRoute = await jiti.import("../app/api/edupi/teacher-feedback/route.ts");
+  const materialScheduleRoute = await jiti.import("../app/api/edupi/material-schedule/route.ts");
+  runtimeSupervisor = await jiti.import("../lib/edupi-runtime-supervisor.ts");
 
   async function stageAndRecognize(name, text, events, exactBytes = null, cache = false) {
     const bytes = exactBytes || await docx(text);
@@ -305,7 +311,7 @@ try {
   async function postDocument(descriptor, source = null, pairing = null) {
     const response = await intakeRoute.POST(new Request("http://localhost/api/edupi/intake", {
       method: "POST",
-      headers: { host: "localhost", "content-type": "application/json" },
+      headers: { host: "localhost", "content-type": "application/json", "x-pi-desktop-token": desktopToken },
       body: JSON.stringify({
         kind: "material",
         stagingId: descriptor.staging_id,
@@ -325,33 +331,80 @@ try {
     return { response, body: await response.json() };
   }
 
-  const routeQuote = "通知：2026年10月28日 13:00-14:00（北京时间）在一号会议室举行路由合同会议。";
+  const bootstrapped = await feedbackRoute.POST(new Request("http://localhost/api/edupi/teacher-feedback", {
+    method: "POST", headers: { host: "localhost", "content-type": "application/json", "x-pi-desktop-token": desktopToken },
+    body: JSON.stringify({ action: "bootstrap" }),
+  }));
+  assert.equal(bootstrapped.status, 200);
+  assert.equal((await bootstrapped.json()).ok, true);
+  const noZoneQuote = "通知：2026年10月27日 12:00-13:00（北京时间）在一号会议室举行待核对会议。";
+  const noZoneDocument = await stageAndRecognize("待核对会议.docx", noZoneQuote, [
+    modelEvent({ date: "2026-10-27", name: "待核对会议", start: "12:00", end: "13:00", location: "一号会议室", quote: noZoneQuote, notes: null }),
+  ], null, true);
+  const noZoneReceived = await postDocument(noZoneDocument.descriptor);
+  assert.equal(noZoneReceived.response.status, 200, JSON.stringify(noZoneReceived.body));
+  assert.equal(noZoneReceived.body.materialReceivedOnly, true);
+  assert.equal(noZoneReceived.body.documentCommitted, undefined);
+  assert.equal(noZoneReceived.body.materialScheduleProposal?.status, "held");
+  assert.equal(noZoneReceived.body.materialScheduleProposal?.read_result?.issues?.some(issue => issue.code === "missing_time_zone"), true);
+  const routeQuote = "2026年10月28日 13:00-14:00 路由合同会议 时区：Asia/Shanghai 地点：一号会议室";
   const routeDocument = await stageAndRecognize("路由合同会议.docx", routeQuote, [
     modelEvent({ date: "2026-10-28", name: "路由合同会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeQuote, notes: null }),
   ], null, true);
   const routeFirst = await postDocument(routeDocument.descriptor);
   assert.equal(routeFirst.response.status, 200, JSON.stringify(routeFirst.body));
-  assert.equal(routeFirst.body.documentCommitted, true);
-  assert.match(routeFirst.body.documentSourceId, /^document-source-[a-f0-9]{32}$/u);
+  assert.equal(routeFirst.body.materialReceivedOnly, true);
+  assert.equal(routeFirst.body.documentCommitted, undefined);
+  assert.equal(routeFirst.body.materialScheduleProposal?.status, "proposed", JSON.stringify({ proposal: routeFirst.body.materialScheduleProposal }));
   assert.equal(routeFirst.body.staged.some((item) => item.staging_id === routeDocument.descriptor.staging_id), false);
+  const materialId = routeFirst.body.materialScheduleProposal.material_id;
+  const scheduleRead = await materialScheduleRoute.GET(new Request(`http://localhost/api/edupi/material-schedule?materialId=${materialId}`, {
+    headers: { host: "localhost", "x-pi-desktop-token": desktopToken },
+  }));
+  const scheduleReadBody = await scheduleRead.json();
+  assert.equal(scheduleRead.status, 200, JSON.stringify(scheduleReadBody));
+  assert.equal(scheduleReadBody.result.status, "ready");
+  assert.equal(scheduleReadBody.result.events.length, 1);
+  const source = scheduleReadBody.result.source;
+  const scheduleApply = await materialScheduleRoute.POST(new Request("http://localhost/api/edupi/material-schedule", {
+    method: "POST", headers: { host: "localhost", "content-type": "application/json", "x-pi-desktop-token": desktopToken },
+    body: JSON.stringify({ action: "apply", materialId, expectedSourceHash: source.source_hash,
+      expectedMetadataRevision: source.metadata_revision, expectedParseFingerprint: scheduleReadBody.result.parse_fingerprint,
+      commandId: "synthetic-route-document-adoption", confirm: true }),
+  }));
+  const scheduleApplied = await scheduleApply.json();
+  assert.equal(scheduleApply.status, 200, JSON.stringify(scheduleApplied));
+  assert.equal(scheduleApplied.result.status, "accepted");
+  assert.equal(scheduleApplied.result.applied_ids.length, 1);
   read = await sourceProjection.readCoreCalendarSources();
-  const routeSource = read.sources.find((source) => source.sourceId === routeFirst.body.documentSourceId);
-  const routeRevisionQuote = "通知：2026年10月28日 13:00-14:00（北京时间）在一号会议室举行路由合同会议，议程已确认。";
+  assert.equal(read.snapshot.payload.education_workspace.calendar.some(item => item.name === "路由合同会议"), true);
+
+  const routeBaselineQuote = "通知：2026年11月01日 13:00-14:00（北京时间）在一号会议室举行路由来源更新会议。";
+  const routeBaseline = await stageAndRecognize("路由来源基线.docx", routeBaselineQuote, [
+    modelEvent({ date: "2026-11-01", name: "路由来源更新会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeBaselineQuote, notes: null }),
+  ]);
+  const seededSource = await importDocument(routeBaseline.descriptor, routeBaseline.result);
+  assert.equal(seededSource.committed, true);
+  read = await sourceProjection.readCoreCalendarSources();
+  const routeSource = read.sources.find((item) => item.sourceId === seededSource.sourceId);
+  assert.ok(routeSource);
+  const routeRevisionQuote = "通知：2026年11月01日 13:00-14:00（北京时间）在一号会议室举行路由来源更新会议，议程已确认。";
   const routeRevision = await stageAndRecognize("路由合同会议-修订.docx", routeRevisionQuote, [
-    modelEvent({ date: "2026-10-28", name: "路由合同会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
+    modelEvent({ date: "2026-11-01", name: "路由来源更新会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
   ], null, true);
   const routeUpdated = await postDocument(routeRevision.descriptor, routeSource);
   assert.equal(routeUpdated.response.status, 200, JSON.stringify(routeUpdated.body));
   assert.equal(routeUpdated.body.documentCommitted, true);
   assert.equal(routeUpdated.body.documentSourceId, routeSource.sourceId);
+  read = await sourceProjection.readCoreCalendarSources();
+  const routeSourceAfterUpdate = read.sources.find((item) => item.sourceId === routeSource.sourceId);
   const routeRevisionReplay = await stageAndRecognize("改名后的路由合同会议-修订.docx", routeRevisionQuote, [
-    modelEvent({ date: "2026-10-28", name: "路由合同会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
+    modelEvent({ date: "2026-11-01", name: "路由来源更新会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
   ], routeRevision.bytes, true);
-  const routeReplayed = await postDocument(routeRevisionReplay.descriptor);
+  const routeReplayed = await postDocument(routeRevisionReplay.descriptor, routeSourceAfterUpdate);
   assert.equal(routeReplayed.response.status, 200, JSON.stringify(routeReplayed.body));
   assert.equal(routeReplayed.body.documentCommitted, true);
-  assert.equal(routeReplayed.body.documentSourceId, routeSource.sourceId,
-    "Core schedule evidence must recover the explicit H2-to-H source binding without another selection");
+  assert.equal(routeReplayed.body.documentSourceId, routeSource.sourceId);
   const routeRevisionMaterialId = `material-${routeRevision.descriptor.staging_id.slice("stg_".length)}`;
   const routeReplayMaterialId = `material-${routeRevisionReplay.descriptor.staging_id.slice("stg_".length)}`;
   await entityDelete.issueEntityDelete({ kind: "material", id: routeRevisionMaterialId, note: "同字节副本删除测试" });
@@ -371,9 +424,10 @@ try {
   assert.equal(read.sources.some((source) => source.sourceId === routeSource.sourceId), true,
     "restoring any exact material copy must restore its document schedule source");
   const routeAfterRestoreReplay = await stageAndRecognize("恢复后的路由合同会议-修订.docx", routeRevisionQuote, [
-    modelEvent({ date: "2026-10-28", name: "路由合同会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
+    modelEvent({ date: "2026-11-01", name: "路由来源更新会议", start: "13:00", end: "14:00", location: "一号会议室", quote: routeRevisionQuote, notes: "议程已确认" }),
   ], routeRevision.bytes, true);
-  const routeAfterRestore = await postDocument(routeAfterRestoreReplay.descriptor);
+  const restoredRouteSource = read.sources.find((item) => item.sourceId === routeSource.sourceId);
+  const routeAfterRestore = await postDocument(routeAfterRestoreReplay.descriptor, restoredRouteSource);
   assert.equal(routeAfterRestore.response.status, 200, JSON.stringify(routeAfterRestore.body));
   assert.equal(routeAfterRestore.body.documentCommitted, true);
   assert.equal(routeAfterRestore.body.documentSourceId, routeSource.sourceId,
@@ -430,11 +484,14 @@ try {
     modelEvent({ date: "2026-11-11", name: "同名配对会", start: "14:00", end: "15:00", location: "西楼 302", quote: pairOldQuotes[1], notes: null }),
   ];
   const pairOld = await stageAndRecognize("同名配对会.docx", pairOldQuotes.join("\n"), pairOldEvents, null, true);
+  const pairSeed = await importDocument(pairOld.descriptor, pairOld.result);
+  assert.equal(pairSeed.committed, true);
   const pairFirst = await postDocument(pairOld.descriptor);
   assert.equal(pairFirst.response.status, 200, JSON.stringify(pairFirst.body));
-  assert.equal(pairFirst.body.documentCommitted, true);
+  assert.equal(pairFirst.body.materialReceivedOnly, true);
+  assert.equal(pairFirst.body.documentCommitted, undefined);
   read = await sourceProjection.readCoreCalendarSources();
-  const pairSource = read.sources.find(source => source.sourceId === pairFirst.body.documentSourceId);
+  const pairSource = read.sources.find(source => source.sourceId === pairSeed.sourceId);
   assert.equal(pairSource.eventCount, 2);
   const pairOriginalIds = pairSource.occurrences.map(occurrence => occurrence.eventId).sort();
   const pairNewQuotes = duplicateLabelFixture ? [
@@ -491,11 +548,13 @@ try {
     stale_cas_rejected: true, moved_candidate_held: true, cross_format_dedupe: true, legacy_adoption_held: true,
     filename_issuer_adoption: true,
     repeated_name_occurrences: true, exact_in_document_dedupe: true,
-    route_post: true, route_source_update: true, evidence_alias_replay: true, material_delete_restore_propagation: true,
+    route_material_only: true, route_proposal_adoption: true, route_source_update: true,
+    explicit_source_replay: true, material_delete_restore_propagation: true,
     deletion_reupload_blocked: true, explicit_restore: true, multi_item_pairing_preview: true,
       current_occurrences: documentSource.eventCount, external_send: false }));
   }
 } finally {
+  await runtimeSupervisor?.closeAllEduPiRuntimes();
   if (keepArtifacts) console.log(JSON.stringify({ status: "retained", temporary_root: temporaryRoot, data_root: dataRoot, state_dir: stateDir }));
   else fs.rmSync(temporaryRoot, { recursive: true, force: true });
   for (const [key, value] of previous) {

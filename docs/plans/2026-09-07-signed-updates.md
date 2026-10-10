@@ -5,6 +5,7 @@
 - `.61` [Draft run 38070153404](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38070153404) 仅有一次同源码重试：macOS 先后在暂存日程 GET 的 `ECONNRESET`、教师上下文 POST 的 15 秒超时失败；Windows 安装烟测普通模式通过，隔离 Safe Mode 未在 90 秒内取得 Core ready；Linux 取消。Draft `409082688` 只留精确 Windows NSIS 与 `.sig` 两项资产，未形成七平台 manifest 或 Apple 公证，不发布、不更新 feed。
 - `.62` 沿用固定 Core `57093b` 与原权限门，只给失败处加脱敏诊断，并把单次写入请求截止从 15 秒调为 45 秒，不自动重试未知写入结果。完成新提交、CI 与三平台签名门后才核对资产和安装；源代码本机 staged 通过不替代上次失败或新安装证据。公开 `.56`、唯一已安装 App 保持。
 - 先使用手动只读 Windows Draft 烟测重查 `.61` 的已上传 NSIS：固定 Release/源码 SHA/资产 ID/摘要且安装到隔离 runner，不重建、不发布。该重查仅用于定位 Safe Mode 失败；通过也不补齐 `.61` 的 macOS/Linux 资产与发布门。
+- 首次重查 run `38075606044` 在读取 Draft 元数据时被仓库只读 `GITHUB_TOKEN` 以 403 拒绝，未下载安装器。GitHub 对 Draft 可见性要求推送身份，现将该手动工作流的内置 token 限于 `contents: write`，代码仍只读并核对精确身份；用户剪贴板令牌试读为 401，未保存。后续重查结果另记，不能把 403 当成 Windows 安装失败或成功。
 
 ## 2026-10-10 v0.3.58 Draft 配对检查失败
 

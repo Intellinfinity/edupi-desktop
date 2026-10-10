@@ -629,13 +629,14 @@ test("a preview installer can be rechecked on Windows without rebuilding or publ
   assert.doesNotMatch(workflow, /tauri build|release upload|contents: write|EDUPI_CORE_READ_TOKEN/u);
 });
 
-test("a signed Draft Windows asset can be diagnosed without rebuilding or publishing", async () => {
+test("a signed Draft Windows asset is read with push-capable credentials but never mutated", async () => {
   const source = await readFile(join(root, ".github", "workflows", "draft-windows-smoke.yml"), "utf8");
   assert.match(source, /workflow_dispatch:/u);
-  assert.match(source, /contents: read/u);
+  assert.match(source, /contents: write/u);
+  assert.match(source, /persist-credentials: false/u);
   assert.match(source, /release\.target_commitish -ne \$env:SOURCE_SHA/u);
   assert.match(source, /asset\.digest -ne "sha256:\$env:ASSET_SHA256"/u);
   assert.match(source, /Get-FileHash \$file -Algorithm SHA256/u);
   assert.match(source, /test-windows-route1-preview\.ps1/u);
-  assert.doesNotMatch(source, /tauri build|release upload|contents: write|EDUPI_CORE_READ_TOKEN/u);
+  assert.doesNotMatch(source, /tauri build|release upload|gh api --method|gh release (create|edit|upload)|EDUPI_CORE_READ_TOKEN/u);
 });

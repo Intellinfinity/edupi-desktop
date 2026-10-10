@@ -88,6 +88,18 @@ test("the send action is icon-only with an accessible name", () => {
   assert.doesNotMatch(html, />Send<\/button>/);
 });
 
+test("installed streaming controls stay hidden until Core confirms queueing is allowed", () => {
+  const previous = globalThis.window;
+  globalThis.window = { __TAURI_INTERNALS__: {} };
+  try {
+    const html = renderWithI18n(React.createElement(ChatInput, {
+      onSend() {}, onAbort() {}, onSteer() {}, onFollowUp() {}, isStreaming: true,
+    }));
+    assert.doesNotMatch(html, /aria-label="More streaming actions"/);
+    assert.doesNotMatch(html, /role="menuitem"[^>]*>.*(Steer|Follow-up)/);
+  } finally { globalThis.window = previous; }
+});
+
 test("an unresolved prompt exposes its held identity before allowing a deliberate new send", () => {
   const draftKey = "edupi-prompt-identity-render";
   setDraft(draftKey, { value: "合成消息", images: [], pendingPrompt: {
@@ -258,7 +270,7 @@ test("an asynchronous failed prompt remains recoverable in its original draft", 
 
 test("a pending teacher choice disables streaming queue actions", async () => {
   const source = await (await import("node:fs/promises")).readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-  assert.match(source, /canQueueStreamingMessage = hasInputText && attachedImages\.length === 0 && !pendingTeacherText && !bashMode && !queueSubmitting/);
+  assert.match(source, /canQueueStreamingMessage = streamingQueueAllowed && hasInputText && attachedImages\.length === 0 && !pendingTeacherText && !bashMode && !queueSubmitting/);
   const sendQueued = source.slice(source.indexOf("const sendQueued = useCallback"), source.indexOf("const applyPendingQueue"));
   assert.match(sendQueued, /await onFollowUp\(message\)/);
   assert.ok(sendQueued.indexOf("await onFollowUp(message)") < sendQueued.indexOf("clearInput(msg.startsWith"));

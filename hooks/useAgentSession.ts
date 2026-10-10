@@ -291,6 +291,7 @@ export interface ChatInputHandle {
   markQueueRecoveryUncertain: (sessionId: string, recoveryId: string) => boolean;
   refreshPendingFailedMessages: (draftKey: string) => void;
   isHoldingSubmission: (draftKey: string) => boolean;
+  acknowledgeSubmittedMessage: (draftKey: string, value: string, preserveContext: boolean) => boolean;
   insertIfEmpty: (content: string) => void;
   replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => boolean;
   prependText: (text: string) => void;
@@ -1673,6 +1674,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
     let sentSessionId: string | null = null;
     let promptRequestStarted = false;
+    let previouslyResolved = false;
     const assertCurrentSend = (sid?: string | null) => {
       if (sendGeneration !== sessionGenerationRef.current || promptRunIdRef.current !== promptRunId
         || (sid !== undefined && sessionIdRef.current !== sid)) {
@@ -1699,7 +1701,22 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         if (!cwd) throw new Error("工作区未确认，消息未发送");
         const intent = await persistEduPiPromptIntent({ ...pending, cwd });
         if (intent === "resolved") {
+          previouslyResolved = true;
+          chatInputRef?.current?.acknowledgeSubmittedMessage?.(originDraftKey, pending.draftValue, message.startsWith("/"));
           acknowledgePendingPrompt(originDraftKey, clientRequestId);
+          if (sendGeneration === sessionGenerationRef.current && promptRunIdRef.current === promptRunId
+            && sessionIdRef.current === sid) {
+            dispatchMessageHistory({ type: "remove_optimistic", requestId: clientRequestId });
+            rpcPromptPendingRef.current = false;
+            settleUiStage();
+            pendingScrollToUserRef.current = false;
+            setPromptAnchorActive(false);
+            void loadSession(sid).then(loaded => {
+              if (!loaded && sessionIdRef.current === sid) addNotice({ type: "warning", message: "消息已在会话中，历史暂未刷新" });
+            }).catch(() => {
+              if (sessionIdRef.current === sid) addNotice({ type: "warning", message: "消息已在会话中，历史暂未刷新" });
+            });
+          }
           return true;
         }
       }
@@ -1791,11 +1808,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         confirmed = await submitPrompt(session.id);
         assertCurrentSend(session.id);
       }
-      if (isSlashCommandPrompt && sentSessionId) {
+      if (isSlashCommandPrompt && sentSessionId && !previouslyResolved) {
         void waitForPromptSettlement(sentSessionId, promptRunId);
       }
       return confirmed;
     } catch (e) {
+      if (previouslyResolved) return true;
       console.error("Failed to send message:", e);
       const held = Boolean(originDraftKey && chatInputRef?.current?.isHoldingSubmission?.(originDraftKey));
       if (sendGeneration !== sessionGenerationRef.current || promptRunIdRef.current !== promptRunId) {
@@ -1839,7 +1857,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       dispatch({ type: "end" });
       return false;
     }
-  }, [isNew, newSessionCwd, newSessionModel, session, sessionIdentity, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, dispatch, dispatchMessageHistory, chatInputRef]);
+  }, [isNew, newSessionCwd, newSessionModel, session, sessionIdentity, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, dispatch, dispatchMessageHistory, chatInputRef, settleUiStage, loadSession]);
 
   const executeBash = useCallback(async (command: string, excludeFromContext: boolean) => {
     if (agentRunningRef.current || bashRunningRef.current) return;

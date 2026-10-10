@@ -22,6 +22,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
 import { appendSpeechTranscript, useSpeechDictation } from "@/hooks/useSpeechDictation";
 import {
+  fetchDesktopApi,
   isTauriDesktop,
   readDesktopImageAttachments,
   selectFilesNative,
@@ -110,6 +111,7 @@ export interface ChatInputHandle {
   markQueueRecoveryUncertain: (sessionId: string, recoveryId: string) => boolean;
   refreshPendingFailedMessages: (draftKey: string) => void;
   isHoldingSubmission: (draftKey: string) => boolean;
+  acknowledgeSubmittedMessage: (draftKey: string, value: string, preserveContext: boolean) => boolean;
   replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => boolean;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
@@ -439,7 +441,24 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     draftKey ? draftImagesToAttachedImages(getDraft(draftKey)?.images) : []
   ));
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [streamingQueueAllowed, setStreamingQueueAllowed] = useState(() => !isTauriDesktop());
   const pendingPrompt = draftKey ? getDraft(draftKey)?.pendingPrompt : undefined;
+  useEffect(() => {
+    if (!isTauriDesktop()) { setStreamingQueueAllowed(true); return; }
+    if (!isStreaming) { setStreamingQueueAllowed(false); return; }
+    let active = true;
+    const check = async () => {
+      try {
+        const response = await fetchDesktopApi("/api/edupi/proactivity/messages", { cache: "no-store" });
+        const data = await response.json().catch(() => null) as { status?: unknown } | null;
+        if (active) setStreamingQueueAllowed(response.ok && data?.status === "disabled");
+      } catch { if (active) setStreamingQueueAllowed(false); }
+    };
+    void check();
+    const timer = setInterval(() => { void check(); }, 5_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [isStreaming]);
+  useEffect(() => { if (!streamingQueueAllowed) setQueueMenuOpen(false); }, [streamingQueueAllowed]);
   const trimmedValue = value.trimStart();
   const bashMode = attachedImages.length === 0 && trimmedValue.startsWith("!");
   const bashExcluded = bashMode && trimmedValue.startsWith("!!");
@@ -534,6 +553,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
   useImperativeHandle(ref, () => ({
     isHoldingSubmission(key: string) { return submittingRef.current && draftKeyRef.current === key; },
+    acknowledgeSubmittedMessage(key: string, expectedValue: string, preserveContext: boolean) {
+      if (!submittingRef.current || draftKeyRef.current !== key || valueRef.current !== expectedValue
+        || attachedImagesRef.current.length > 0) return false;
+      valueRef.current = "";
+      setValue("");
+      if (!preserveContext) { contextRef.current = null; setContext(null); }
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      return true;
+    },
     offerContext(next: EduPiComposerContext) {
       const current = (textareaRef.current?.value ?? valueRef.current).trim();
       if (pendingTeacherTextRef.current || pendingQueueMessagesRef.current.length || pendingFailedMessagesRef.current.length) {
@@ -1062,7 +1090,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     ? t(slashQuery ? "chat.match" : "chat.command")
     : t(slashQuery ? "chat.matches" : "chat.commands", { count: filteredSlashCommands.length });
   const hasInputText = Boolean(value.trim());
-  const canQueueStreamingMessage = hasInputText && attachedImages.length === 0 && !pendingTeacherText && !bashMode && !queueSubmitting && !queueRecoveryId && !queueUncertain;
+  const canQueueStreamingMessage = streamingQueueAllowed && hasInputText && attachedImages.length === 0 && !pendingTeacherText && !bashMode && !queueSubmitting && !queueRecoveryId && !queueUncertain;
+  const hasStreamingQueueActions = streamingQueueAllowed && Boolean(onSteer || onFollowUp);
   const canSendMessage = Boolean(hasInputText || attachedImages.length) && (!context || hasInputText) && !pendingTeacherText && !queueRecoveryId;
 
   // ── @ file autocomplete ──────────────────────────────────────────────────
@@ -1249,6 +1278,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
   const sendQueued = useCallback(async (mode: "steer" | "followup") => {
     if (queueSubmittingRef.current) return;
+    if (!streamingQueueAllowed) { setAttachError("主动运行期间，请等当前回复结束再发送"); return; }
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
@@ -1286,7 +1316,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
       queueSubmittingRef.current = false;
       setQueueSubmitting(false);
     }
-  }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
+  }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock, streamingQueueAllowed]);
 
   const applyPendingQueue = useCallback((replace: boolean) => {
     if (!pendingQueueMessages.length || pendingFailedMessages.length || queueRecoveryId) return;
@@ -1521,7 +1551,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        if (isStreaming && (onSteer || onFollowUp)) {
+        if (isStreaming && hasStreamingQueueActions) {
           // Enter defaults to the non-interrupting follow-up; steering (which
           // aborts the current run) must be an explicit button click.
           sendQueued(onFollowUp ? "followup" : "steer");
@@ -1530,7 +1560,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         }
       }
     },
-    [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, queueMenuOpen, attachmentMenuOpen]
+    [isStreaming, hasStreamingQueueActions, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, queueMenuOpen, attachmentMenuOpen]
   );
 
   const handleInput = useCallback(() => {
@@ -2330,7 +2360,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               gap: 8,
               alignItems: "center",
               background: "var(--bg)",
-              border: `1px solid ${bashMode ? "var(--tool-bg)" : isStreaming && (onSteer || onFollowUp)
+              border: `1px solid ${bashMode ? "var(--tool-bg)" : isStreaming && hasStreamingQueueActions
                 ? "rgba(234,179,8,0.4)"
                 : "color-mix(in srgb, var(--border) 70%, transparent)"}`,
               borderRadius: 14,
@@ -2364,7 +2394,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             onInput={handleInput}
             onPaste={handlePaste}
             placeholder={
-              isStreaming && (onSteer || onFollowUp)
+              isStreaming && hasStreamingQueueActions
                 ? "继续补充教学任务，EduPi 会接着处理…"
                 : isStreaming ? "EduPi 正在处理任务…"
                 : context ? "说说你希望 EduPi 做什么…" : "描述教学目标，或继续当前任务…"
@@ -2415,7 +2445,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" /></svg>
           </button> : null}
 
-          {isStreaming ? (onSteer || onFollowUp ? (
+          {isStreaming ? (hasStreamingQueueActions ? (
             <div ref={queueMenuRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, alignSelf: "flex-end" }}>
               <button
                 type="button"

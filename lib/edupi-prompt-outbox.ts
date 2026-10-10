@@ -22,6 +22,9 @@ const MAX_SUMMARY_BYTES = 4 * 1024;
 
 export type EduPiPromptOutboxStage = "prepared" | "registered" | "captured" | "pi_dispatching" | "pi_accepted"
   | "pi_unknown" | "cancelled" | "pi_unverified_withdrawn" | "pi_accepted_withdrawn";
+export function consumesEduPiPromptOutboxQuota(stage: EduPiPromptOutboxStage): boolean {
+  return !["pi_accepted", "pi_accepted_withdrawn", "cancelled"].includes(stage);
+}
 export type EduPiPromptOutboxImage = { type: "image"; data: string; mimeType: string };
 export type EduPiPromptOutboxPrompt = {
   type: "prompt";
@@ -434,12 +437,14 @@ export function prepareEduPiPromptOutbox(input: EduPiPromptOutboxInput, options:
     if (JSON.stringify(existing.payload) !== JSON.stringify(payload)) conflict();
     return entry(existing.payload, existing.state);
   }
-  const entries = fs.readdirSync(dir).filter((name) => /^[a-f0-9]{64}\.entry$/u.test(name));
-  if (entries.length >= MAX_ENTRIES) capacity();
-  const total = entries.reduce((sum, name) => {
-    const directory = path.join(dir, name);
-    if (secureDirectory(directory) !== directory) unavailable();
-    return sum + fs.lstatSync(path.join(directory, "payload.json")).size;
+  // Terminal requests retain their exact ID for safe late retries. They do
+  // not consume the quota reserved for prompts that still need recovery.
+  const pending = listEduPiPromptOutbox(options).filter((item) => consumesEduPiPromptOutboxQuota(item.stage));
+  if (pending.length >= MAX_ENTRIES) capacity();
+  const total = pending.reduce((sum, item) => {
+    const files = paths(dir, hash, item.sessionId, item.clientRequestId);
+    if (secureDirectory(files.directory) !== files.directory) unavailable();
+    return sum + fs.lstatSync(files.payload).size;
   }, 0);
   if (total + bytes.length > MAX_OUTBOX_BYTES) capacity();
   const digest = `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;

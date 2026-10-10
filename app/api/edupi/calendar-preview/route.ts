@@ -24,8 +24,10 @@ export async function POST(request: Request) {
     const recognition = await withMaterialRecognitionLock(descriptor.staging_id, () => recognizeStagedMaterial(descriptor));
     return NextResponse.json({ stagingId: descriptor.staging_id, sourceHash: descriptor.source_hash,
       fingerprint: calendarRecognitionFingerprint(recognition), mode: recognition.calendar_mode || "full_snapshot",
-      events: recognition.events.map(item => ({ id: item.event_id, date: item.date, name: item.name,
-        time: item.time_interval?.start ?? null, location: item.location ?? null })),
+      events: recognition.events.map(item => ({ id: item.event_id, date: item.date, endDate: item.end_date,
+        type: item.type, name: item.name, time: item.time_interval
+          ? `${item.time_interval.start}—${item.time_interval.end}` : null,
+        location: item.location ?? null, notes: item.notes })),
       cancelledCount: recognition.cancelled_occurrence_refs?.length || 0,
       affectedSeriesCount: recognition.affected_series_refs?.length || 0, externalSend: false },
     { headers: { "Cache-Control": "no-store" } });

@@ -24,8 +24,16 @@ import { fetchDesktopApi } from "@/lib/desktop-native";
 
 const PAGE_SIZE = 8;
 type CalendarPreview = { stagingId: string; sourceHash: string; fingerprint: string;
-  events: Array<{ id: string; date: string; name: string; time: string | null; location: string | null }>;
+  events: Array<{ id: string; date: string; endDate: string | null; type: string; name: string;
+    time: string | null; location: string | null; notes: string | null }>;
   cancelledCount: number; affectedSeriesCount: number };
+const CALENDAR_TYPE_LABEL: Record<string, string> = { exam: "考试", activity: "活动", meeting: "会议",
+  holiday: "假期", festival: "节日", teaching: "教学", custom: "事项" };
+
+function calendarPreviewLine(item: CalendarPreview["events"][number]): string {
+  return [item.endDate && item.endDate !== item.date ? `${item.date}—${item.endDate}` : item.date,
+    CALENDAR_TYPE_LABEL[item.type] || item.type, item.name, item.time, item.location, item.notes].filter(Boolean).join(" · ");
+}
 
 function documentScheduleSource(item: MaterialStagingDescriptor): boolean {
   const path = item.staging_path.toLowerCase();
@@ -284,7 +292,9 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
       if (value.stagingId !== item.staging_id || value.sourceHash !== item.source_hash || value.externalSend !== false
         || typeof value.fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(value.fingerprint)
         || !Array.isArray(events) || events.length > 200 || events.some(entry => !entry || typeof entry !== "object"
-          || typeof entry.id !== "string" || typeof entry.date !== "string" || typeof entry.name !== "string")
+          || typeof entry.id !== "string" || typeof entry.date !== "string" || typeof entry.name !== "string"
+          || typeof entry.type !== "string" || !CALENDAR_TYPE_LABEL[entry.type]
+          || [entry.endDate, entry.time, entry.location, entry.notes].some(value => value !== null && typeof value !== "string"))
         || !Number.isSafeInteger(value.cancelledCount) || !Number.isSafeInteger(value.affectedSeriesCount)) {
         throw new Error("日历预览结果无效");
       }
@@ -392,8 +402,8 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
                 : <>
                   {calendarPreview?.stagingId === item.staging_id ? <section aria-label="待确认日程" className="edupi-material-pairing__current">
                     <strong>{calendarPreview.events.length} 项日程</strong>
-                    <ul>{calendarPreview.events.slice(0, 10).map(entry => <li key={entry.id}>{[entry.date, entry.name, entry.time, entry.location].filter(Boolean).join(" · ")}</li>)}</ul>
-                    {calendarPreview.events.length > 10 ? <details><summary>查看其余 {calendarPreview.events.length - 10} 项</summary><ul>{calendarPreview.events.slice(10).map(entry => <li key={entry.id}>{[entry.date, entry.name, entry.time, entry.location].filter(Boolean).join(" · ")}</li>)}</ul></details> : null}
+                    <ul>{calendarPreview.events.slice(0, 10).map(entry => <li key={entry.id}>{calendarPreviewLine(entry)}</li>)}</ul>
+                    {calendarPreview.events.length > 10 ? <details><summary>查看其余 {calendarPreview.events.length - 10} 项</summary><ul>{calendarPreview.events.slice(10).map(entry => <li key={entry.id}>{calendarPreviewLine(entry)}</li>)}</ul></details> : null}
                     {!calendarPreview.events.length ? <p>{calendarPreview.cancelledCount || calendarPreview.affectedSeriesCount
                       ? "这份文件只包含撤回事项，请选择原日历来源。" : "没有可导入的事项，请核对原文件。"}</p> : null}
                   </section> : null}

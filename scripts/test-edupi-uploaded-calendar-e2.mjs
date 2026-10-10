@@ -199,6 +199,8 @@ try {
   assert.equal(previewDenied.status, 403);
   const firstPreview = await preview(stagedFile.staging_id);
   assert.equal(firstPreview.events.length, 2);
+  assert.equal(firstPreview.events.every(item => item.type === "meeting"
+    && Object.hasOwn(item, "endDate") && Object.hasOwn(item, "notes")), true);
   const unauthenticatedImport = new Request(`${baseUrl()}/api/edupi/intake`, { method: "POST",
     headers: { host: new URL(baseUrl()).host, origin: baseUrl(), "content-type": "application/json" },
     body: JSON.stringify({ kind: "material", stagingId: stagedFile.staging_id, title: "官方校历", materialKind: "other",

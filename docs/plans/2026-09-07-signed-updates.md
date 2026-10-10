@@ -7,7 +7,12 @@
 
 ## 2026-10-10 新 Core pin 后的发布门
 
-只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` Draft 配对 canary 失败，`.59` Draft 上传校历旧断言失败，均未发布。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。`.60` 须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` Draft 配对 canary、`.59` 上传校历、`.60` DOCX 旧断言均失败并未发布。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。`.61` 须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+
+## 2026-10-11 v0.3.60 Draft DOCX 检查失败
+
+- [run 38067260599](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38067260599) 绑定合并源码 `8096141f`；macOS/Linux 的注册消息与新校历 E2 已通过，随后 `test-edupi-document-revision-e2.mjs:334` 仍要求首次 DOCX 接入自动返回 `documentCommitted:true`，与 Core 的“文件接入、待审提案、明确采用”合同不符。Windows job 和后续证明步骤已取消，Draft `409060125` 为 0 资产，未签名发布或更新 feed。
+- 本机固定 Core `57093b` 的脚本已改为验证首次材料只接入、时区缺失保持待审、明确时区材料经私有 `material_schedule_read/apply` 采用、已有来源的显式修订/重放和删除恢复；原失败处及整脚本退出 0。随后完整执行 Release 的剩余配对 Core 脚本和包闭包测试，均通过。修复进入新的 `.61`，不重试旧 `.60` 提交。
 
 ## 2026-10-10 v0.3.59 Draft 校历检查失败
 

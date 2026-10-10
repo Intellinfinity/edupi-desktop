@@ -1,23 +1,27 @@
 # 自动下载安装
 
-## 2026-10-11 v0.3.61 未过门，v0.3.62 待构建
+## 2026-10-11 v0.3.62 新 Core 配对待签名
+
+- `.61` 旧 Core 安装器的精确 Windows 重查 run `38078453311` 已在隔离 runner 通过普通模式拒绝和 Safe Mode Core/投影 ready、G1 默认关闭、外发关闭；它不修复原三平台 Draft run 的 macOS 暂存请求失败，也不生成缺少的 Mac/Linux 资产。Release `409082688` 仍 Draft、公开 `.56` 与 feed 不变。
+- `.62` 在原 Desktop 分支消费 Core `main` `2ecf3465` 的 R03 Stage 1 静止准入证明和双组件清单；Runtime schema、Bridge/课次合同和 Pi/PiDurable 1.0.2 不变。精确 Core 配对的全量测试、主动消息 canary、DOCX/日程/ICS 及暂存包服务均通过，证据见唯一账本；Core retention stress skipped、正式 App/三平台签名和教师流程不能据此勾选。下一步必须以新提交创建新 `.62` Draft，核对七键 manifest、摘要、Apple 公证/签名和隔离安装，再决定发布。
+
+## 2026-10-11 v0.3.61 失败追查历史
 
 - `.61` [Draft run 38070153404](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38070153404) 仅有一次同源码重试：macOS 先后在暂存日程 GET 的 `ECONNRESET`、教师上下文 POST 的 15 秒超时失败；Windows 安装烟测普通模式通过，隔离 Safe Mode 未在 90 秒内取得 Core ready；Linux 取消。Draft `409082688` 只留精确 Windows NSIS 与 `.sig` 两项资产，未形成七平台 manifest 或 Apple 公证，不发布、不更新 feed。
-- `.62` 沿用固定 Core `57093b` 与原权限门，只给失败处加脱敏诊断，并把单次写入请求截止从 15 秒调为 45 秒，不自动重试未知写入结果。完成新提交、CI 与三平台签名门后才核对资产和安装；源代码本机 staged 通过不替代上次失败或新安装证据。公开 `.56`、唯一已安装 App 保持。
-- 先使用手动只读 Windows Draft 烟测重查 `.61` 的已上传 NSIS：固定 Release/源码 SHA/资产 ID/摘要且安装到隔离 runner，不重建、不发布。该重查仅用于定位 Safe Mode 失败；通过也不补齐 `.61` 的 macOS/Linux 资产与发布门。
-- 首次重查 run `38075606044` 在读取 Draft 元数据时被仓库只读 `GITHUB_TOKEN` 以 403 拒绝，未下载安装器。GitHub 对 Draft 可见性要求推送身份，现将该手动工作流的内置 token 限于 `contents: write`，代码仍只读并核对精确身份；用户剪贴板令牌试读为 401，未保存。后续重查结果另记，不能把 403 当成 Windows 安装失败或成功。
-- 第二次重查 run `38076259913` 已核对 `.61` 安装器并进入 Safe Mode，失败安全码精确解出 `native_source_acl_untrusted`。这是验收安装路径位于 runner 共享临时目录导致的源码链 ACL 门，而非放宽 Core 的理由。改为在 runner 用户目录先建立私有安装根再静默安装，同一 `.61` 资产正向复测后才决定新的三平台候选；目前仍未通过。
-- 第三次重查 run `38076862511` 的原生 ACL 错误已消失，Safe Mode 仍未取得 Core ready；Node 子进程存在，日志没有显示新端口。下一次诊断只探测该子进程持有的回环监听 socket，分辨“服务未监听”和“日志端口发现遗漏”，并输出脱敏状态；不把 ACL 修复记成安装通过。
-- 第四次重查 run `38077495232` 已证实该 Node 子进程有回环监听 socket，但 Core 状态仍无应答。探测改为 120 秒总时限、仅受测子进程端口并分别记录服务身份接口与 Core 状态请求的安全状态/异常类型；此前脚本每次请求最长 5 秒，不能以长达约 6 分钟的重复请求判定服务健康。
+- 在 Core #277 合入前，`.62` 的诊断草案曾沿用旧 Core `57093b`，只给失败处加脱敏诊断并把单次写入请求截止从 15 秒调为 45 秒，不重试未知写入。该旧 pin 草案已被上节精确 `2ecf3465` 配对取代，不能据此构建 `.62`。
+- 随后以手动 Windows Draft 烟测重查 `.61` 已上传的精确 NSIS，先核对 Release/源码 SHA/资产 ID/摘要；该测试不重建、不发布，不补齐 `.61` 的 macOS/Linux 资产与发布门。
+- 首次重查 run `38075606044` 读取 Draft 元数据被仓库只读 `GITHUB_TOKEN` 以 403 拒绝，未下载安装器。GitHub Draft 需要推送身份；后续工作流仅在 GET/download 步骤使用 `contents: write` 内置令牌，checkout 禁止持久化凭据。用户剪贴板令牌试读为 401，未保存。
+- 第二次 run `38076259913` 核对安装器后，Safe Mode 被原生源码链 `native_source_acl_untrusted` 拒绝；当时验收安装根位于 runner 共享临时目录。脚本随后改为在用户目录先创建私有 ACL 安装根，未放宽原生守卫。
+- 第三次 run `38076862511` 的 ACL 错误消失，Node 子进程存在但未取得 Core ready；第四次 run `38077495232` 确认该子进程有回环监听 socket，短超时状态请求仍无应答。脚本最终改为 120 秒有界观察、先读服务身份、最多两次充分等待的 Core 状态请求；其正向结果只见上节 run `38078453311`，不能追认这些失败 run。
 
 ## 2026-10-10 v0.3.58 Draft 配对检查失败
 
 - 源码 `e7d8fa0a` 的 [Draft run 38058904150](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38058904150) 在 macOS/Linux 的配对 Core canary 失败：隔离夹具缺少模型配置，G1 激活返回 503；补齐合成模型后，旧消息入口又按新注册回执合同返回 `registered_prompt_required`。Core 的权限门没有放宽。该 Draft 已确定无法过门，已请求取消尚在运行的 Windows job，避免继续消耗 Actions 时长；取消请求不算 Windows 验收结果。
 - canary 已在原工作分支改为注册后捕获、旧入口拒写、去重、越界不生成任务的配对检查；本机固定 Core `57093b` 验证通过。`.58` Draft `408993261` 保持草稿，失败资产不发布、feed 不变。修复进入新的 `.59` 候选，签名和安装结果另记，不沿用 `.58` 构建身份。
 
-## 2026-10-10 新 Core pin 后的发布门
+## 2026-10-10 Core 57093b 迁仓阶段记录
 
-只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58`–`.61` 的 Draft 均未过门，最后一次结果见本文顶部。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。后续候选须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当时开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；现行 `.62` 固定 `2ecf3465`，见本文顶部。`.58`–`.61` Draft 均未过发布门。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。新候选仍须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
 
 ## 2026-10-11 v0.3.60 Draft DOCX 检查失败
 

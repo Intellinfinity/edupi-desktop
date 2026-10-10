@@ -141,16 +141,34 @@ $canary = Start-Process -FilePath $executable -ArgumentList "--safe-mode" -PassT
 try {
     $verified = $false
     $lastStatus = "no Core status response"
+    $nodeListenerCount = 0
     for ($attempt = 0; $attempt -lt 45; $attempt++) {
         $canary.Refresh()
         if ($canary.HasExited) { throw "Installed Safe Mode canary exited before Core became ready" }
         $logs = @($logRoots | Where-Object { Test-Path $_ } |
             ForEach-Object { Get-ChildItem $_ -Filter "server.log" -Recurse -ErrorAction SilentlyContinue })
+        $origins = @()
         foreach ($log in $logs) {
             if ($baselineLogSizes.ContainsKey($log.FullName) -and $log.Length -le $baselineLogSizes[$log.FullName]) { continue }
             $ports = [regex]::Matches((Get-Content $log.FullName -Raw), 'http://127\.0\.0\.1:(\d+)')
             if ($ports.Count -eq 0) { continue }
-            $origin = "http://127.0.0.1:$($ports[$ports.Count - 1].Groups[1].Value)"
+            $origins += "http://127.0.0.1:$($ports[$ports.Count - 1].Groups[1].Value)"
+        }
+        # The installed server can listen before its startup line reaches the
+        # log. Only probe loopback listeners owned by this canary's Node child.
+        $nodeListeners = @()
+        $nodeProcesses = $null
+        try {
+            $nodeProcesses = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $($canary.Id)" -ErrorAction Stop |
+                Where-Object { $_.Name -eq "node.exe" })
+            foreach ($node in $nodeProcesses) {
+                $nodeListeners += @(Get-NetTCPConnection -State Listen -OwningProcess $node.ProcessId -ErrorAction SilentlyContinue |
+                    Where-Object { $_.LocalAddress -eq "127.0.0.1" })
+            }
+        } catch { }
+        $nodeListenerCount = $nodeListeners.Count
+        foreach ($listener in $nodeListeners) { $origins += "http://127.0.0.1:$($listener.LocalPort)" }
+        foreach ($origin in @($origins | Sort-Object -Unique)) {
             try {
                 $status = Invoke-RestMethod "$origin/api/edupi/status?summary=1" -Headers @{ Origin = $origin } -TimeoutSec 5
                 $lastStatus = "core=$($status.core.status) projection=$($status.projection.status) g1=$($status.core.capabilities.g1_processor)"
@@ -184,10 +202,8 @@ try {
         }
         $advancedLog = @($logs | Where-Object { !$baselineLogSizes.ContainsKey($_.FullName) -or $_.Length -gt $baselineLogSizes[$_.FullName] }).Count -gt 0
         $codes = if ($diagnosticCodes.Count) { ($diagnosticCodes | Select-Object -Unique) -join ";" } else { "none" }
-        $nodeChildren = -1
-        try { $nodeChildren = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $($canary.Id)" -ErrorAction Stop |
-            Where-Object { $_.Name -eq "node.exe" }).Count } catch { }
-        throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus; native=$codes; serverLogAdvanced=$advancedLog; nodeChildren=$nodeChildren"
+        $nodeChildren = if ($null -eq $nodeProcesses) { -1 } else { @($nodeProcesses).Count }
+        throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus; native=$codes; serverLogAdvanced=$advancedLog; nodeChildren=$nodeChildren; nodeListeners=$nodeListenerCount"
     }
     Write-Output "Windows installed preview Safe Mode canary: Core/projection ready, exact pin, G1 pending, external send off."
 } finally {

@@ -609,6 +609,8 @@ test("Windows preview checks native bytes, normal refusal and isolated Safe Mode
   assert.match(smoke, /EDUPI_ROUTE1_ISOLATED_CANARY = "1"/u);
   assert.match(smoke, /ArgumentList "--safe-mode"/u);
   assert.match(smoke, /api\/edupi\/status\?summary=1/u);
+  assert.match(smoke, /Get-NetTCPConnection -State Listen -OwningProcess \$node\.ProcessId/u);
+  assert.match(smoke, /LocalAddress -eq "127\.0\.0\.1"/u);
   assert.match(smoke, /g1_processor -eq "activation_pending"/u);
 });
 

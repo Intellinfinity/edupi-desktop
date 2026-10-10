@@ -1,0 +1,78 @@
+name: Recheck signed Draft Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Existing Draft Release ID in this repository
+        required: true
+        type: string
+      asset_id:
+        description: Exact Windows NSIS asset ID in the Draft
+        required: true
+        type: string
+      source_sha:
+        description: Commit bound to the Draft Release
+        required: true
+        type: string
+      asset_sha256:
+        description: Expected installer SHA-256 without a prefix
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  installed-smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Check out current verification script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download and verify the exact Draft installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          ASSET_ID: ${{ inputs.asset_id }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          ASSET_SHA256: ${{ inputs.asset_sha256 }}
+        run: |
+          if ($env:RELEASE_ID -notmatch '^[1-9][0-9]*$' -or $env:ASSET_ID -notmatch '^[1-9][0-9]*$' -or
+              $env:SOURCE_SHA -notmatch '^[a-f0-9]{40}$' -or $env:ASSET_SHA256 -notmatch '^[a-f0-9]{64}$') {
+            throw "Draft installer identity is invalid"
+          }
+          $release = gh api "repos/PIGU-PPPgu/edupi-desktop/releases/$env:RELEASE_ID" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or !$release.draft -or $release.target_commitish -ne $env:SOURCE_SHA -or
+              $release.tag_name -notmatch '^v0\.3\.[0-9]+$') { throw "Draft Release is not bound to the expected commit" }
+          $assets = @($release.assets | Where-Object { [string]$_.id -eq $env:ASSET_ID })
+          if ($assets.Count -ne 1) { throw "Expected one installer asset in the Draft" }
+          $asset = $assets[0]
+          if ($asset.name -notmatch '^EduPi_0\.3\.[0-9]+_x64-setup\.exe$' -or
+              $asset.name -ne "EduPi_$($release.tag_name.Substring(1))_x64-setup.exe" -or
+              $asset.size -le 0 -or $asset.digest -ne "sha256:$env:ASSET_SHA256") {
+            throw "Draft installer metadata differs from the expected identity"
+          }
+          $target = Join-Path $env:RUNNER_TEMP "edupi-draft-smoke-$env:GITHUB_RUN_ID"
+          New-Item -ItemType Directory -Path $target | Out-Null
+          gh release download $release.tag_name --repo PIGU-PPPgu/edupi-desktop --pattern $asset.name --dir $target
+          if ($LASTEXITCODE -ne 0) { throw "Draft installer download failed" }
+          $file = Join-Path $target $asset.name
+          if (!(Test-Path $file -PathType Leaf) -or (Get-Item $file).Length -ne $asset.size -or
+              (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:ASSET_SHA256) {
+            throw "Downloaded installer differs from the Draft asset digest"
+          }
+          "Draft asset source: $($release.target_commitish); verifier: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
+      - name: Install and verify in isolation
+        shell: pwsh
+        env:
+          EDUPI_PREVIEW_INSTALLER_DIR: ${{ runner.temp }}/edupi-draft-smoke-${{ github.run_id }}
+        run: ./scripts/test-windows-route1-preview.ps1
+      - name: Remove downloaded runner copy
+        if: always()
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP "edupi-draft-smoke-$env:GITHUB_RUN_ID"
+          if ((Test-Path $target) -and $target.StartsWith((Join-Path $env:RUNNER_TEMP "edupi-draft-smoke-"))) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+          }

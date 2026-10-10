@@ -1,10 +1,18 @@
 # Pi 1 与暂缓草稿风险验收
 
-## 2026-10-11 v0.3.61 DOCX 配对检查待签名
+## 2026-10-11 v0.3.61 Draft 双次失败与 v0.3.62 诊断候选
+
+- `.61` 源码 [#334](https://github.com/PIGU-PPPgu/edupi-desktop/pull/334) 经 CI 合入 `main` `86ab2b75`，固定 Core `57093b`。[签名 Draft run 38070153404](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38070153404) 第一次在 macOS 暂存日程冲突第二次 GET 发生 `ECONNRESET`；同一源码仅重试一次，第二次 macOS 通过该项，却在日程课次的教师上下文 POST 到 15 秒时超时。Windows 第二次已构建并上传 NSIS 与签名，但安装烟测普通模式通过后，隔离 Safe Mode 90 秒内没有取得 Core ready 状态；Linux 在构建中取消。两个失败不能归因为 Core 正常，也不能归因为已知的单一根因。
+- Draft Release `409082688` 仍为草稿，仅有 Windows 安装器 `628621923`（136781499 字节，GitHub 摘要 `sha256:67238f802f5f249a5ce235659b7ea5ae446c3c06725d2287add88280bd145c57`）及其签名 `628622118`；没有 macOS/Linux 完整资产或 all-platform 证明，不发布、不更新 feed，也不把 Windows 构建成功写成 Safe Mode 安装通过。
+- 本机按 CI 顺序以已暂存的同一 Core/服务器运行九个 staged 集成检查，含两项 CI 失败处，均退出 0；这只排除本机可稳定复现，不能覆盖 Actions 失败。下一候选 `.62` 保留同一 Core/合同，日程脚本在失败时只记录子进程退出码、已知错误码和日志末尾摘要，单次有写入效果的教师上下文请求期限由 15 秒调至 45 秒，不自动重试。Windows Safe Mode 失败时仅输出 HTTP 状态、原生阶段/安全错误码、日志是否增长和 Node 子进程数，不输出令牌或完整路径。`.62` 是诊断与验收脚本修正，三平台 Draft、签名公证及安装结果仍待独立取得。
+- 为不重建 136 MB 安装器就重查 Windows，新增手动只读 Draft 烟测：先验 Release 为本库草稿、源码提交与精确资产 ID/摘要，再下载到临时 runner、复验大小与 SHA-256，运行同一隔离安装脚本；不上传、不签名、不发布。该工作流本机 YAML 解析与结构回归 39/39 通过，尚未在 Windows runner 执行。最终源码 `npm test` 2321 通过、34 跳过、0 失败（新增工作流断言前）；新增断言定向通过，TypeScript/lint、版本校验和 locked Cargo metadata 通过，高危 npm 审计 0 高/严重、另 6 低/3 中。上述源码门不是 `.62` 签名资产或 Windows 正向安装验收。
+- 公开 `.56` 和唯一 `/Applications/EduPi.app` 未被替换；未碰真实教师根、launchd、TCC 或外发。自然改期/取消产品审核闭环、真实睡眠、真人质量、六领域 Live 与双系统完整流程仍缺证。
+
+## 2026-10-11 v0.3.61 DOCX 配对检查准备记录
 
 - `.60` 源码 [#333](https://github.com/PIGU-PPPgu/edupi-desktop/pull/333) 经 CI 合入 `main` `8096141f`；[Draft run 38067260599](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38067260599) 的 macOS/Linux 配对 Core 注册消息、校历、日程冲突/课次、文本/OCR 等检查通过，但 DOCX 修订 E2 在首次路由接入的旧 `documentCommitted:true` 断言失败。Windows job 已取消，Draft `409060125` 0 资产、不公开。
 - 本机固定 Core `57093b` 的 DOCX E2 改为：首次路由只接入材料并返回待审提案；无明确时区的提案保持 held；有明确时区的合成文档由教师私有 `material_schedule_read/apply` 明确采用，回读一项日程；已有来源继续用来源指纹显式修订、重放、删除/恢复，同名配对仍保持冲突核对。`EDUPI_CORE_ROOT=/private/tmp/edupi-core-pair-jC8yCi npm run test:edupi-document-revision-e2` 退出 0；其余 Release 配对 Core 脚本及包闭包测试本机逐项通过。该验证不等于安装版真实 DOCX 质量或教师采用。
-- `.61` 版本、PR/CI 和签名安装仍分别待结果；公开 `.56`、唯一 `/Applications/EduPi.app`、真实教师数据根与 feed 不变。自然改期/取消、TCC、真实睡眠及真人教学质量继续未验或待产品闭环。
+- 此段记录 `.61` 构建前的配对准备；PR/CI 与 Draft 的最终失败结果以上节为准。公开 `.56`、唯一 `/Applications/EduPi.app`、真实教师数据根与 feed 不变。自然改期/取消、TCC、真实睡眠及真人教学质量继续未验或待产品闭环。
 
 ## 2026-10-10 v0.3.60 校历明确采用待发布
 

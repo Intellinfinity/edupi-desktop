@@ -133,6 +133,7 @@ foreach ($log in @($logRoots | Where-Object { Test-Path $_ } |
     ForEach-Object { Get-ChildItem $_ -Filter "server.log" -Recurse -ErrorAction SilentlyContinue })) {
     $baselineLogSizes[$log.FullName] = $log.Length
 }
+$canaryStartedAt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $canary = Start-Process -FilePath $executable -ArgumentList "--safe-mode" -PassThru
 try {
     $verified = $false
@@ -154,12 +155,37 @@ try {
                     $status.compatibility.actual.coreCommit -eq $compat.core_runtime.core_commit -and
                     $status.core.capabilities.g1_processor -eq "activation_pending" -and
                     $status.externalSend -eq $false) { $verified = $true; break }
-            } catch { }
+            } catch {
+                if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                    $lastStatus = "http=$([int]$_.Exception.Response.StatusCode)"
+                }
+            }
         }
         if ($verified) { break }
         Start-Sleep -Seconds 2
     }
-    if (!$verified) { throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus" }
+    if (!$verified) {
+        $diagnosticCodes = @()
+        foreach ($root in $logRoots) {
+            if (!(Test-Path $root)) { continue }
+            foreach ($file in @(Get-ChildItem $root -Filter "startup-diagnostics.jsonl" -Recurse -File -ErrorAction SilentlyContinue)) {
+                foreach ($line in @(Get-Content $file.FullName -Tail 20 -ErrorAction SilentlyContinue)) {
+                    try {
+                        $entry = $line | ConvertFrom-Json -ErrorAction Stop
+                        if ([long]$entry.at -ge $canaryStartedAt) {
+                            $diagnosticCodes += "$($entry.stage)/$($entry.component)/$($entry.errorCode)"
+                        }
+                    } catch { }
+                }
+            }
+        }
+        $advancedLog = @($logs | Where-Object { !$baselineLogSizes.ContainsKey($_.FullName) -or $_.Length -gt $baselineLogSizes[$_.FullName] }).Count -gt 0
+        $codes = if ($diagnosticCodes.Count) { ($diagnosticCodes | Select-Object -Unique) -join ";" } else { "none" }
+        $nodeChildren = -1
+        try { $nodeChildren = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $($canary.Id)" -ErrorAction Stop |
+            Where-Object { $_.Name -eq "node.exe" }).Count } catch { }
+        throw "Installed Safe Mode canary did not prove a ready Core with G1 default-off: $lastStatus; native=$codes; serverLogAdvanced=$advancedLog; nodeChildren=$nodeChildren"
+    }
     Write-Output "Windows installed preview Safe Mode canary: Core/projection ready, exact pin, G1 pending, external send off."
 } finally {
     Stop-InstalledPreviewProcesses

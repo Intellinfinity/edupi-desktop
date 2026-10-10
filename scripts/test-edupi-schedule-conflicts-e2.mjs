@@ -75,7 +75,14 @@ async function startStagedServer() {
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error(`staged server exited: ${logs}`);
       try {
-        if ((await fetch(`${url}/api/desktop/identity`, { signal: AbortSignal.timeout(2000) })).status === 204) return { url, stop };
+        if ((await fetch(`${url}/api/desktop/identity`, { signal: AbortSignal.timeout(2000) })).status === 204) return {
+          url, stop, diagnostics: () => ({
+            exitCode: child.exitCode,
+            signalCode: child.signalCode,
+            logTailSha256: crypto.createHash("sha256").update(logs.slice(-1500)).digest("hex"),
+            errorCodes: [...new Set(logs.slice(-1500).match(/\b(?:ECONNRESET|EADDRINUSE|EACCES|EPIPE|ERR_[A-Z0-9_]+)\b/gu) || [])],
+          }),
+        };
       } catch { /* cold start */ }
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
@@ -122,9 +129,16 @@ try {
   const url = "http://localhost:30141/api/edupi/schedule-conflicts";
   const token = process.env.PI_DESKTOP_API_TOKEN;
   const headers = { host: "localhost:30141", origin: "http://localhost:30141", "x-pi-desktop-token": token };
-  const get = async (authorized = true) => stagedServer
-    ? fetch(`${stagedServer.url}/api/edupi/schedule-conflicts?limit=50`, { headers: { origin: stagedServer.url, ...(authorized ? { "x-pi-desktop-token": token } : {}) }, signal: AbortSignal.timeout(15000) })
-    : route.GET(new Request(`${url}?limit=50`, { headers: authorized ? headers : { host: headers.host, origin: headers.origin } }));
+  const get = async (authorized = true) => {
+    if (!stagedServer) return route.GET(new Request(`${url}?limit=50`, { headers: authorized ? headers : { host: headers.host, origin: headers.origin } }));
+    try {
+      return await fetch(`${stagedServer.url}/api/edupi/schedule-conflicts?limit=50`, {
+        headers: { origin: stagedServer.url, ...(authorized ? { "x-pi-desktop-token": token } : {}) }, signal: AbortSignal.timeout(15000),
+      });
+    } catch (error) {
+      throw new Error(`staged_schedule_get_failed:${error?.cause?.code || "request"}:${JSON.stringify(stagedServer.diagnostics())}`);
+    }
+  };
   const post = async (body) => stagedServer
     ? fetch(`${stagedServer.url}/api/edupi/schedule-conflicts`, { method: "POST", headers: { origin: stagedServer.url, "x-pi-desktop-token": token, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) })
     : route.POST(new Request(url, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body) }));

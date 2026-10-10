@@ -255,6 +255,16 @@ try {
   assert.equal(feedbackReadBody.result.summary.real_teacher_current, 0);
   assert.equal(feedbackReadBody.result.summary.synthetic_excluded, 1);
 
+  const correctedProof = await capture("canary-message-2", `改到${correctedDay.date}的数学课`);
+  const correctedBindings = await bindings();
+  assert.equal(correctedBindings.find(item => item.message_ref === firstProof.messageRef)?.goal_status, "active");
+  assert.equal(correctedBindings.some(item => item.message_ref === correctedProof.messageRef), false,
+    "captured correction alone must not rewrite an existing goal");
+  const cancellationProof = await capture("canary-message-3", "取消这节数学备课");
+  const cancelledBindings = await bindings();
+  assert.equal(cancelledBindings.find(item => item.message_ref === firstProof.messageRef)?.goal_status, "active");
+  assert.equal(cancelledBindings.some(item => item.message_ref === cancellationProof.messageRef), false);
+
   const planningFile = path.join(home, "output", "ambient-planning-v1.json");
   const deletionProof = await capture("canary-message-4", `帮我准备${deletionDay.date}的数学教案`);
   const deletionBinding = (await bindings()).find(item => item.message_ref === deletionProof.messageRef);
@@ -280,7 +290,7 @@ try {
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });
-  assert.equal(capturedBindings.length, 3);
+  assert.equal(capturedBindings.length, 5);
   ambientLedger.prepareEduPiAmbientMessageBinding({ sessionId, messageId: "canary-crash-before-capture",
     messageRef: `owner_message:${"f".repeat(64)}`, ownerId: capturedBindings[0].ownerId,
     grantId: capturedBindings[0].grantId, captureGrantVersion: capturedBindings[0].captureGrantVersion,
@@ -343,7 +353,7 @@ await closeAllEduPiRuntimes();`;
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity-stop.json")), false);
   console.log(JSON.stringify({ status: "passed", explicit_opt_in: true, scope_bound: true, registered_message_goal: true,
     concurrent_activation_cas: true, legacy_capture_rejected: true, out_of_scope_not_applied: true,
-    replay_no_duplicate: true, restart_persistent: true,
+    correction_not_auto_applied: true, cancellation_not_auto_applied: true, replay_no_duplicate: true, restart_persistent: true,
     feedback_channel: true, synthetic_feedback_excluded: true, explicit_stop: true, session_delete_withdrawal: true,
     active_goal_delete_propagation: true, capture_crash_recovery: true, stop_durability_failure_fenced: true,
     external_send: false }));

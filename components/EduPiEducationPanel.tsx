@@ -66,7 +66,7 @@ import { useModalDismiss } from "@/hooks/useModalDismiss";
 import type { CreateTeacherTaskInput, CreateTeacherTaskOutcome } from "@/lib/edupi-task-board-command";
 import { hasEveryTrackedTask, refreshUntilTaskVisible } from "@/lib/edupi-task-refresh";
 import { isTerminalPreparationRead, workspaceHasReadyPreparation } from "@/lib/edupi-preparation-status";
-import type { EduPiMaterialScheduleProposal } from "@/lib/edupi-core-process-client";
+import type { EduPiMaterialLessonProposal, EduPiMaterialScheduleProposal } from "@/lib/edupi-core-process-client";
 
 function RetryWorkspaceIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></svg>;
@@ -115,6 +115,7 @@ type EducationIntakeApiResult = {
   removedEventCount?: number;
   materialReceivedOnly?: boolean;
   materialScheduleProposal?: EduPiMaterialScheduleProposal;
+  materialLessonProposal?: EduPiMaterialLessonProposal;
 };
 
 type BoardPreparationStatus = { taskId?: string | null; state?: "idle" | "running" | "ready" | "error"; error?: string | null; retryable?: boolean };

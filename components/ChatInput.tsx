@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect, useImperativeHandle, f
 import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
-import { clearDraft, flushDraftNow, getDraft, markQueueRecoveryUncertain, setDraft, subscribeDraftPersistence, type ChatDraft, type ChatDraftImage, type FailedDraftMessage } from "@/lib/draft-store";
+import { clearDraft, flushDraftNow, getDraft, markQueueRecoveryUncertain, releasePendingPromptForNewMessage, setDraft, subscribeDraftPersistence, type ChatDraft, type ChatDraftImage, type FailedDraftMessage } from "@/lib/draft-store";
 import { appendComposerResource, removeComposerResource, composerReferenceText, composeComposerMessage, contextHandoffMode, parseTeacherMessage, prepareQueueRecall, readableQueueBackup, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import { CHAT_RESOURCE_KINDS, type ChatResourceKind } from "@/lib/edupi-chat-resources";
 import { EduPiResourcePicker } from "./EduPiResourcePicker";
@@ -44,7 +44,7 @@ interface ModelOption {
 
 interface Props {
   teacherMode?: boolean;
-  onSend: (message: string, images?: AttachedImage[]) => void;
+  onSend: (message: string, images?: AttachedImage[]) => boolean | void | Promise<boolean | void>;
   onAbort: () => void;
   onSteer?: (message: string, images?: AttachedImage[]) => void | Promise<void>;
   onFollowUp?: (message: string, images?: AttachedImage[]) => void | Promise<void>;
@@ -109,6 +109,7 @@ export interface ChatInputHandle {
   refreshQueueRecoveryStatus: (draftKey: string) => void;
   markQueueRecoveryUncertain: (sessionId: string, recoveryId: string) => boolean;
   refreshPendingFailedMessages: (draftKey: string) => void;
+  isHoldingSubmission: (draftKey: string) => boolean;
   replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => boolean;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
@@ -421,6 +422,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [queueUncertain, setQueueUncertain] = useState(() => (draftKey ? getDraft(draftKey)?.pendingQueueUncertain ?? false : false));
   const [pendingFailedMessages, setPendingFailedMessages] = useState<FailedDraftMessage[]>(() => (draftKey ? getDraft(draftKey)?.pendingFailedMessages ?? [] : []));
   const [draftSaveFailed, setDraftSaveFailed] = useState(false);
+  const submittingRef = useRef(false);
   const [queueCopyStatus, setQueueCopyStatus] = useState("");
   const [failedCopyStatus, setFailedCopyStatus] = useState("");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
@@ -437,6 +439,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     draftKey ? draftImagesToAttachedImages(getDraft(draftKey)?.images) : []
   ));
   const [attachError, setAttachError] = useState<string | null>(null);
+  const pendingPrompt = draftKey ? getDraft(draftKey)?.pendingPrompt : undefined;
   const trimmedValue = value.trimStart();
   const bashMode = attachedImages.length === 0 && trimmedValue.startsWith("!");
   const bashExcluded = bashMode && trimmedValue.startsWith("!!");
@@ -530,6 +533,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const abortDictation = dictation.abort;
 
   useImperativeHandle(ref, () => ({
+    isHoldingSubmission(key: string) { return submittingRef.current && draftKeyRef.current === key; },
     offerContext(next: EduPiComposerContext) {
       const current = (textareaRef.current?.value ?? valueRef.current).trim();
       if (pendingTeacherTextRef.current || pendingQueueMessagesRef.current.length || pendingFailedMessagesRef.current.length) {
@@ -989,6 +993,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, []);
 
   const handleSend = useCallback(async () => {
+    if (submittingRef.current) return;
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
@@ -1003,8 +1008,28 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         return;
       }
     }
-    onSend(composeComposerMessage(context, msg, attachedImages.length > 0), attachedImages.length ? attachedImages : undefined);
-    clearInput((msg.startsWith("!") || msg.startsWith("/")) && attachedImages.length === 0);
+    const originKey = draftKeyRef.current;
+    if (!originKey) { setAttachError("草稿尚未就绪，消息未发送"); return; }
+    const previous = getDraft(originKey) ?? { value: "", images: [] };
+    const pending = { ...previous, value: valueRef.current, images: attachedImagesRef.current.map(imageToDraftImage),
+      ...(contextRef.current ? { context: contextRef.current } : {}) };
+    if (!contextRef.current && "context" in pending) delete pending.context;
+    setDraft(originKey, pending);
+    if (!flushDraftNow(originKey)) { setAttachError("草稿未能保存，消息未发送"); return; }
+    const sentImages = attachedImagesRef.current;
+    submittingRef.current = true;
+    try {
+      const accepted = await onSend(composeComposerMessage(context, msg, attachedImages.length > 0),
+        attachedImages.length ? attachedImages : undefined);
+      if (accepted === false) { setAttachError("消息尚未确认，草稿已保留"); return; }
+      if (draftKeyRef.current === originKey && valueRef.current.trim() === msg && attachedImagesRef.current === sentImages) {
+        clearInput((msg.startsWith("!") || msg.startsWith("/")) && attachedImages.length === 0);
+      } else if (draftKeyRef.current !== originKey) {
+        const original = getDraft(originKey);
+        if (original?.value.trim() === msg && original.images.length === sentImages.length) clearDraft(originKey);
+      }
+    } catch { setAttachError("消息未发送，草稿已保留"); }
+    finally { submittingRef.current = false; }
   }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
 
   const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1))
@@ -1254,7 +1279,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         }
       }
     } catch (error) {
-      if (draftKeyRef.current === originKey) setAttachError("后续消息未入队，草稿已保留。");
+      if (draftKeyRef.current === originKey) setAttachError(error instanceof Error && error.message.includes("主动运行期间")
+        ? `${error.message}；草稿已保留` : "后续消息未入队，草稿已保留。");
       console.error("Failed to queue message:", error);
     } finally {
       queueSubmittingRef.current = false;
@@ -2242,6 +2268,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           })()}
           <div className="chat-composer">
           {draftSaveFailed ? <div className="chat-composer-save-error" role="alert">草稿暂未保存到本机，刷新前请复制内容。</div> : null}
+          {pendingPrompt && !isStreaming ? <div className="chat-composer-teacher-offer" role="status">
+            <span>上一条消息待核对</span>
+            <button type="button" onClick={() => {
+              if (!draftKey || !window.confirm("请先核对会话和管理中心的待核对消息。重置发送标识后再次发送，可能产生重复消息。")) return;
+              releasePendingPromptForNewMessage(draftKey, pendingPrompt.clientRequestId);
+              setAttachError("发送标识已重置；再次发送将作为新消息");
+            }}>已核对，作为新消息发送</button>
+          </div> : null}
           {pendingFailedMessages.length ? <div className="chat-composer-teacher-offer" role="status">
             <span>发送未完成 · {pendingFailedMessages.length} 条待恢复</span>
             <details><summary>查看消息</summary><ol>{pendingFailedMessages.map((message, index) => <li key={index}>{message.sourceLabel ? `${message.sourceLabel} · ` : ""}{message.value}{message.context ? ` · ${message.context.title}` : ""}{message.images.length ? ` · ${message.images.length} 张图片` : ""}</li>)}</ol></details>

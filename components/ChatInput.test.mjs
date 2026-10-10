@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createJiti } from "jiti";
@@ -9,9 +10,17 @@ const jiti = createJiti(import.meta.url, {
   tsconfigPaths: true,
 });
 const { ChatInput, ModelErrorBanner, ModelScopeWarningBanner, canRestoreUserMessage, filterModelOptions, getUserMessageText, getUserMessageDraftImages } = await jiti.import("./ChatInput.tsx");
-const { setDraft, clearDraft } = await jiti.import("../lib/draft-store.ts");
+const { acknowledgePendingPrompt, setDraft, clearDraft } = await jiti.import("../lib/draft-store.ts");
 const { createComposerContext, composeTeacherMessage } = await jiti.import("../lib/edupi-composer-context.ts");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
+
+test("composer persists before submission and clears only after a confirmed send", async () => {
+  const source = await readFile(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+  const send = source.slice(source.indexOf("  const handleSend = useCallback"), source.indexOf("  const slashQuery ="));
+  assert.ok(send.indexOf("flushDraftNow(originKey)") < send.indexOf("await onSend("));
+  assert.ok(send.indexOf("await onSend(") < send.lastIndexOf("clearInput("));
+  assert.match(send, /accepted === false/);
+});
 
 /** The banner reads its title through useI18n, so it needs the provider. */
 function renderWithI18n(element) {
@@ -77,6 +86,22 @@ test("the send action is icon-only with an accessible name", () => {
   assert.match(html, /aria-label="Send"/);
   assert.match(html, /title="Send"/);
   assert.doesNotMatch(html, />Send<\/button>/);
+});
+
+test("an unresolved prompt exposes its held identity before allowing a deliberate new send", () => {
+  const draftKey = "edupi-prompt-identity-render";
+  setDraft(draftKey, { value: "合成消息", images: [], pendingPrompt: {
+    sessionId: "session-1", clientRequestId: "66666666-6666-4666-8666-666666666666",
+    occurredAt: "2026-10-10T00:00:00.000Z", message: "合成消息", draftValue: "合成消息",
+  } });
+  try {
+    const html = renderWithI18n(React.createElement(ChatInput, { onSend() {}, onAbort() {}, isStreaming: false, draftKey }));
+    assert.match(html, /上一条消息待核对/);
+    assert.match(html, /已核对，作为新消息发送/);
+  } finally {
+    acknowledgePendingPrompt(draftKey, "66666666-6666-4666-8666-666666666666");
+    clearDraft(draftKey);
+  }
 });
 
 test("shows a compact removable page reference while leaving the teacher input empty", () => {

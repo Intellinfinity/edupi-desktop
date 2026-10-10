@@ -13,6 +13,7 @@ const MAX_STDOUT_BYTES = 2 * 1024 * 1024;
 const MAX_STDERR_BYTES = 64 * 1024;
 const CORE_READ_TIMEOUT_MS = 15_000;
 const MAX_MATERIAL_PROPOSAL_BYTES = 640 * 1024 + 4096;
+const MAX_LESSON_PROPOSAL_BYTES = 16 * 1024;
 
 export type EduPiMaterialScheduleReadResult = {
   version: 1; root_ref: string; owner_id: string;
@@ -35,13 +36,23 @@ export type EduPiMaterialScheduleProposal = { material_id: string; read_only: tr
   | { status: "unavailable"; read_result: null; reason_code: "owner_control_disabled" | "owner_identity_mismatch" | "material_schedule_invalid"
     | "material_schedule_unavailable" | "material_schedule_source_unavailable" | "material_schedule_stale" | "material_schedule_proposal_capacity" }
 );
-export type EduPiCoreProcessResult<T> = { response: T; bridgeFrame: string; runtimeMetadata: { materialScheduleProposal?: EduPiMaterialScheduleProposal } };
+export type EduPiMaterialLessonProposal = { material_id: string; read_only: true; automatic_prepare: false; external_send: false } & (
+  | { status: "proposed"; source_hash: string; metadata_revision: number; lesson_date: string; lesson_date_path: string;
+    lesson: { slot_id: string; task_id: string; source_event_date: string; starts_at: string; time_zone: string };
+    basis_hash: string; reason_code: null }
+  | { status: "held" | "unavailable"; lesson: null; reason_code: string }
+);
+export type EduPiCoreProcessResult<T> = { response: T; bridgeFrame: string; runtimeMetadata: {
+  materialScheduleProposal?: EduPiMaterialScheduleProposal;
+  materialLessonProposal?: EduPiMaterialLessonProposal;
+} };
 
 function record(value: unknown): Record<string, unknown> | null { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
 
 async function runtimeMetadata(runtime: ResolvedEduPiCore, request: unknown, response: unknown, outer: unknown): Promise<EduPiCoreProcessResult<unknown>["runtimeMetadata"]> {
   const proposal = record(outer)?.material_schedule_proposal;
-  if (proposal === undefined) return {};
+  const lesson = record(outer)?.material_lesson_proposal;
+  if (proposal === undefined && lesson === undefined) return {};
   const frame = record(request), envelope = record(frame?.envelope), command = record(envelope?.command);
   const receiptEnvelope = record(record(response)?.receipt), receipt = record(receiptEnvelope?.payload);
   const id = Array.isArray(receipt?.applied_ids) && receipt.applied_ids.length === 1 ? receipt.applied_ids[0] : undefined;
@@ -52,18 +63,41 @@ async function runtimeMetadata(runtime: ResolvedEduPiCore, request: unknown, res
     || receiptEnvelope?.request_id !== envelope?.request_id || receipt.receipt_phase !== "mutation"
     || !["accepted", "modified"].includes(String(receipt.status)) || !Array.isArray(receipt.rejected_ids) || receipt.rejected_ids.length
     || record(receipt.target)?.target_kind !== "material_intake" || typeof id !== "string" || !id || id.length > 160) return {};
-  const unavailable = (reason_code: "material_schedule_invalid" | "material_schedule_proposal_capacity"): EduPiCoreProcessResult<unknown>["runtimeMetadata"] => ({
-    materialScheduleProposal: { status: "unavailable", material_id: id, read_result: null, reason_code, read_only: true, automatic_import: false, external_send: false },
-  });
+  const metadata: EduPiCoreProcessResult<unknown>["runtimeMetadata"] = {};
   try {
-    if (Buffer.byteLength(JSON.stringify(proposal)) > MAX_MATERIAL_PROPOSAL_BYTES) return unavailable("material_schedule_proposal_capacity");
     const protocol = await import(/* webpackIgnore: true */ pathToFileURL(resolve(runtime.root, "scripts/core_runtime_protocol.mjs")).href);
-    if (!protocol.MaterialScheduleProposalSchema || !Value.Check(protocol.MaterialScheduleProposalSchema as TSchema, proposal)
-      || record(proposal)?.material_id !== id) return unavailable("material_schedule_invalid");
-    const read = record(record(proposal)?.read_result), source = record(read?.source);
-    if (read && (source?.material_id !== id || source.source_hash !== record(command.material)?.source_hash)) return unavailable("material_schedule_invalid");
-    return { materialScheduleProposal: structuredClone(proposal) as EduPiMaterialScheduleProposal };
-  } catch { return unavailable("material_schedule_invalid"); }
+    if (proposal !== undefined) {
+      const oversized = Buffer.byteLength(JSON.stringify(proposal)) > MAX_MATERIAL_PROPOSAL_BYTES;
+      const read = record(record(proposal)?.read_result), source = record(read?.source);
+      const valid = !oversized && protocol.MaterialScheduleProposalSchema
+        && Value.Check(protocol.MaterialScheduleProposalSchema as TSchema, proposal)
+        && record(proposal)?.material_id === id
+        && (!read || source?.material_id === id && source.source_hash === record(command.material)?.source_hash);
+      metadata.materialScheduleProposal = valid ? structuredClone(proposal) as EduPiMaterialScheduleProposal
+        : { status: "unavailable", material_id: id, read_result: null,
+          reason_code: oversized ? "material_schedule_proposal_capacity" : "material_schedule_invalid",
+          read_only: true, automatic_import: false, external_send: false };
+    }
+    if (lesson !== undefined) {
+      const oversized = Buffer.byteLength(JSON.stringify(lesson)) > MAX_LESSON_PROPOSAL_BYTES;
+      const valid = !oversized && protocol.MaterialLessonProposalSchema
+        && Value.Check(protocol.MaterialLessonProposalSchema as TSchema, lesson)
+        && record(lesson)?.material_id === id
+        && (record(lesson)?.status !== "proposed" || record(lesson)?.source_hash === record(command.material)?.source_hash);
+      metadata.materialLessonProposal = valid ? structuredClone(lesson) as EduPiMaterialLessonProposal
+        : { status: "unavailable", material_id: id, lesson: null,
+          reason_code: oversized ? "lesson_proposal_capacity" : "lesson_source_unavailable",
+          read_only: true, automatic_prepare: false, external_send: false };
+    }
+    return metadata;
+  } catch {
+    return {
+      ...(proposal === undefined ? {} : { materialScheduleProposal: { status: "unavailable", material_id: id, read_result: null,
+        reason_code: "material_schedule_invalid", read_only: true, automatic_import: false, external_send: false } as const }),
+      ...(lesson === undefined ? {} : { materialLessonProposal: { status: "unavailable", material_id: id, lesson: null,
+        reason_code: "lesson_source_unavailable", read_only: true, automatic_prepare: false, external_send: false } as const }),
+    };
+  }
 }
 const CORE_WRITER_DENIAL_CODES = new Set([
   "writer_admission_unavailable", "writer_admission_layout_mismatch", "writer_admission_invalid_root",

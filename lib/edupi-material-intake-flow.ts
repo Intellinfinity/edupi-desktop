@@ -1,5 +1,5 @@
 import { issueEducationIntake, type EducationIntakeCommand, type MaterialIntake } from "./edupi-education-intake";
-import type { EduPiMaterialScheduleProposal } from "./edupi-core-process-client";
+import type { EduPiMaterialLessonProposal, EduPiMaterialScheduleProposal } from "./edupi-core-process-client";
 import { MaterialRecognitionError, recognizeStagedMaterial, type MaterialRecognitionResult } from "./edupi-material-recognition";
 import type { MaterialStagingDescriptor } from "./edupi-material-staging";
 import { markRecognizedTimetableNote } from "./edupi-recognition-markers";
@@ -18,7 +18,8 @@ type FlowInput = {
   recognize?: boolean;
 };
 
-type IssueResult = { receipt: RawRecord; data: unknown; materialScheduleProposal?: EduPiMaterialScheduleProposal };
+type IssueResult = { receipt: RawRecord; data: unknown; materialScheduleProposal?: EduPiMaterialScheduleProposal;
+  materialLessonProposal?: EduPiMaterialLessonProposal };
 
 function distinctRecognized<T>(items: T[], idOf: (item: T) => string): T[] {
   const seen = new Map<string, string>();
@@ -47,6 +48,7 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   calendarOccurrences: Array<{ sourceOccurrenceRef: string; eventId: string }>;
   cancelledOccurrenceRefs: string[];
   materialScheduleProposal?: EduPiMaterialScheduleProposal;
+  materialLessonProposal?: EduPiMaterialLessonProposal;
 }> {
   const recognize = dependencies.recognize || ((descriptor: MaterialStagingDescriptor) => {
     let index = 0;
@@ -122,11 +124,15 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
   const receipts: RawRecord[] = [];
   let data: unknown = null;
   let materialScheduleProposal: EduPiMaterialScheduleProposal | undefined;
+  let materialLessonProposal: EduPiMaterialLessonProposal | undefined;
   for (const command of commands) {
     const result = await issue(command);
     receipts.push(result.receipt);
     data = result.data;
-    if (command.command_type === "intake_material") materialScheduleProposal = result.materialScheduleProposal;
+    if (command.command_type === "intake_material") {
+      materialScheduleProposal = result.materialScheduleProposal;
+      materialLessonProposal = result.materialLessonProposal;
+    }
   }
   return {
     receipts,
@@ -140,5 +146,6 @@ export async function intakeRecognizedMaterial(input: FlowInput, dependencies: F
       : []),
     cancelledOccurrenceRefs: [...(recognized.cancelled_occurrence_refs || [])],
     ...(materialScheduleProposal ? { materialScheduleProposal } : {}),
+    ...(materialLessonProposal ? { materialLessonProposal } : {}),
   };
 }

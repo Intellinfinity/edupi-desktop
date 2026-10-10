@@ -16,7 +16,7 @@ export function eduPiBridgeRequestBudget(request: unknown): { processingMs: numb
   const envelope = frame?.envelope && typeof frame.envelope === "object" ? frame.envelope as Record<string, unknown> : null;
   const command = envelope?.command && typeof envelope.command === "object" ? envelope.command as Record<string, unknown> : null;
   const intake = frame?.operation === "command" && command?.command_type === "intake_material";
-  return intake ? { processingMs: 26_000, transportMs: 27_000 } : { processingMs: 15_000, transportMs: 15_000 };
+  return intake ? { processingMs: 37_000, transportMs: 38_000 } : { processingMs: 15_000, transportMs: 15_000 };
 }
 type Entry = { identity: string; startup: Promise<EduPiRuntimeHandle>; handle?: EduPiRuntimeHandle; kill?: () => void };
 const shared = globalThis as typeof globalThis & {
@@ -166,7 +166,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
       // A caller timeout/cancel does not reap Core's FIFO-delayed extraction.
       // Core closes its admission and owns actual completion; allow the full
       // bounded completion window from shutdown, not the caller's start.
-      const timer = setTimeout(() => child.kill("SIGKILL"), hasMaterialCompletion ? 27_000 : 5000);
+      const timer = setTimeout(() => child.kill("SIGKILL"), hasMaterialCompletion ? 38_000 : 5000);
       try {
         if (!exited) { if (child.connected) child.send({ type: "runtime-stop" }, () => {}); else child.kill("SIGTERM"); }
         await Promise.all([exit, modelHost.close()]);
@@ -201,6 +201,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
         dataRoot: dataRoot.root, token, supervisorSessionId, coreCommit: runtime.coreCommit,
         componentManifestHash: manifest.component_manifest_hash, port: 0,
         ...(ambientPlanning ? { ambientPlanning: true } : {}),
+        ...(ambientPlanning ? { ownerMessageRegistration: true } : {}),
         ...(ownerControlToken ? { ownerControlToken } : {}),
         ...(g1Scope ? { g1Scope } : {}),
         ...(g2Scope ? { g2Scope } : {}),
@@ -237,7 +238,7 @@ async function start(runtime: ResolvedEduPiCore, dataRoot: ResolvedEduPiDataRoot
       const kind = protocol.classifyCoreRuntimeBridgeRequest(request);
       if (kind !== "read" && kind !== "call") throw Object.assign(new Error("Invalid runtime bridge request."), { code: "invalid_request" });
       const budget = eduPiBridgeRequestBudget(request);
-      if (budget.processingMs === 26_000 && !signal?.aborted) hasMaterialCompletion = true;
+      if (budget.processingMs === 37_000 && !signal?.aborted) hasMaterialCompletion = true;
       return callRuntime(kind === "read" ? "bridge_read" : "bridge_call", { bridge_frame: JSON.stringify(request) }, signal, false, budget.transportMs);
     },
     call: (operation, payload, signal) => callRuntime(operation, payload, signal, false),

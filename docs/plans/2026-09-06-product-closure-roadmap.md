@@ -1,6 +1,10 @@
 # EduPi 产品闭环 PR 路线图
 
-2026-10-10 当前门：Core 假期 #233、家庭来源记录 #259、备课执行只读 #260 已在迁仓后的 `PIGU-PPPgu/edupi` 合 main `75d6d666`，三批精确 Linux/Windows CI 均通过；retention stress 跳过。Desktop 原分支 `c1b9241b` 已固定最终 Core SHA、Runtime schema 和双组件清单，并迁移发布地址到 `PIGU-PPPgu/edupi-desktop`；本地 2247 pass/11 skipped 与家庭/备课真实 Core 隔离路由通过，[PR #330 CI](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/37985942722) 双绿，审阅讨论和合并仍待。v0.3.57 签名 Draft、安装/TCC/真实睡眠/真人质量未验；公开 Release/feed 保持 `.56`。详见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-10-迁仓与-core-主线配对待发布)。
+2026-10-10 当前开发门：新 Core main `57093b` 的 schema/双组件精确 pin 已在原 Desktop 分支；持久 outbox、Core 肯定捕获及 Pi 会话落盘后确认、G2 隔离品牌和 DOCX 待审建议已有源码与配对测试，状态仍是**已实现待安装验收与 PR/CI**。原 `.57` 私有 Core 403 的只读令牌已更新，但旧 Draft 保持 0 资产；新源码版本为 `.58`。真实双系统安装、DOCX 重进刷新、主动模式图片材料身份、TCC/真实睡眠/真人质量仍缺证，详见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-10-core-57093b-消费与消息可靠性源码门)。
+
+2026-10-10 历史 `.57` 失败记录：Desktop #330 已合 `main` `7faa74fd`，但 `.57` 三平台 Draft [run 37987228603](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/37987228603) 全部在私有 Core checkout HTTPS 403 停止，Release `408319110` 为 Draft/0 资产；签名、公证、安装及 feed 都未发生。当时要求更新新 Core 仓库只读凭据并重试；该行动已由上方新 pin 状态取代。公开 `.56` 与已安装应用保持，详见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-10-v0357-draft-私有-core-检出阻塞)。
+
+2026-10-10 历史 `.57` Core 配对记录：Core 假期 #233、家庭来源记录 #259、备课执行只读 #260 已在迁仓后的 `PIGU-PPPgu/edupi` 合 main `75d6d666`，三批精确 Linux/Windows CI 均通过；retention stress 跳过。Desktop 原分支 `c1b9241b` 已固定当时 Core SHA、Runtime schema 和双组件清单，并迁移发布地址到 `PIGU-PPPgu/edupi-desktop`；本地 2247 pass/11 skipped 与家庭/备课真实 Core 隔离路由通过，[PR #330 CI](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/37985942722) 双绿。此段为当时状态，后续合并及新 pin 以上方记录为准；安装/TCC/真实睡眠/真人质量仍缺独立证据，公开 Release/feed 保持 `.56`。[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-10-迁仓与-core-主线配对待发布)。
 
 2026-10-08 R03 通知风险追补：原“claim 落盘后异常无法恢复”已在 Desktop 源码补原子 native-send、精确 UUID/租约、未知结果保留及教师明确再提醒；[PR #322](https://github.com/Intellinfinity/edupi-desktop/pull/322) 与精确质量检查已合 main `b88af212`，定向/全套/隔离实际页面证据见[唯一验收](../acceptance/2026-10-05-pi1-a1-risk-verification.md#2026-10-08-r03-系统通知未知结果恢复)。状态为**已实现待签名安装验收**，不是 TCC/真实通知/睡眠通过。Core 假期 #233 人审与家庭/阶段 main 合同仍为外部门；公开 `.56` 和 Core pin 不变。
 

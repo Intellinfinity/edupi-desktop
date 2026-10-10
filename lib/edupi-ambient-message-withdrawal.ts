@@ -1,7 +1,9 @@
 import path from "node:path";
 import { resolveEduPiBridgeRoots, type EduPiBridgeRoots } from "./edupi-core-snapshot";
-import { markEduPiAmbientMessageAbandoned, markEduPiAmbientMessageWithdrawn, readWithdrawableEduPiAmbientMessages,
+import { markEduPiAmbientMessageAbandoned, markEduPiAmbientMessageWithdrawn, readEduPiAmbientMessagesForSession,
+  readWithdrawableEduPiAmbientMessages,
   type EduPiAmbientMessageBinding } from "./edupi-ambient-message-ledger";
+import { listEduPiPromptOutbox, readEduPiPromptOutbox, removeEduPiPromptOutboxForSession } from "./edupi-prompt-outbox";
 import { ensureEduPiRuntime, type EduPiRuntimeHandle } from "./edupi-runtime-supervisor";
 
 const HASH = /^sha256:[a-f0-9]{64}$/u;
@@ -30,10 +32,42 @@ export async function withdrawEduPiAmbientMessagesForSession(sessionId: string, 
   const stateDir = dependencies.stateDir ?? process.env.PI_DESKTOP_STATE_DIR;
   if (!dependencies.read && (!stateDir || !path.isAbsolute(stateDir))) return { withdrawn: 0, abandoned: 0 };
   const roots = dependencies.roots ?? resolveEduPiBridgeRoots();
+  let terminalOutboxCount = 0;
+  const capturedOutboxRefs = !dependencies.read && stateDir && path.isAbsolute(stateDir)
+    ? (() => {
+      try {
+        const options = { stateDir, dataRoot: roots.dataRoot.root };
+        const rows = listEduPiPromptOutbox(options).filter(item => item.sessionId === sessionId);
+        if (rows.some(item => !["pi_accepted", "pi_accepted_withdrawn", "cancelled"].includes(item.stage))) fail();
+        terminalOutboxCount = rows.length;
+        const refs = rows.filter(item => ["pi_accepted", "pi_accepted_withdrawn"].includes(item.stage)).flatMap(item => {
+          const saved = readEduPiPromptOutbox(item.sessionId, item.clientRequestId, options);
+          if (!saved) fail();
+          return saved.bindings.map(binding => binding.messageRef);
+        });
+        const ledger = readEduPiAmbientMessagesForSession(sessionId, options);
+        if (refs.some(ref => !ref || !ledger.some(item => item.messageRef === ref
+          && ["captured", "withdrawn"].includes(item.status)))) fail();
+        return refs;
+      } catch { fail(); }
+    })() : [];
   const read = dependencies.read ?? ((id: string) => readWithdrawableEduPiAmbientMessages(id,
     { stateDir, dataRoot: roots.dataRoot.root }));
   const entries = read(sessionId);
-  if (entries.length === 0) return { withdrawn: 0, abandoned: 0 };
+  const removeSettledOutbox = () => {
+    if (terminalOutboxCount && !dependencies.read) {
+      try { removeEduPiPromptOutboxForSession(sessionId, { stateDir, dataRoot: roots.dataRoot.root }); }
+      catch { fail(); }
+    }
+  };
+  if (entries.length === 0) {
+    if (capturedOutboxRefs.length && !dependencies.read) {
+      const ledger = readEduPiAmbientMessagesForSession(sessionId, { stateDir, dataRoot: roots.dataRoot.root });
+      if (capturedOutboxRefs.some(ref => !ledger.some(item => item.messageRef === ref && item.status === "withdrawn"))) fail();
+    }
+    removeSettledOutbox();
+    return { withdrawn: 0, abandoned: 0 };
+  }
   const host = dependencies.host ?? await ensureEduPiRuntime(roots);
   const health = record(await host.call("health", null));
   const healthResult = record(health?.result);
@@ -73,5 +107,10 @@ export async function withdrawEduPiAmbientMessagesForSession(sessionId: string, 
     mark(sessionId, entry.messageRef, recordedAt, "withdrawn");
     withdrawn += 1;
   }
+  if (capturedOutboxRefs.length && !dependencies.read) {
+    const ledger = readEduPiAmbientMessagesForSession(sessionId, { stateDir, dataRoot: roots.dataRoot.root });
+    if (capturedOutboxRefs.some(ref => !ledger.some(item => item.messageRef === ref && item.status === "withdrawn"))) fail();
+  }
+  removeSettledOutbox();
   return { withdrawn, abandoned };
 }

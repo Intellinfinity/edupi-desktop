@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { getRpcSession } from "@/lib/rpc-manager";
 import { startHarnessSession } from "@/lib/harness/runtime";
+import { eduPiDirectPromptGate } from "@/lib/edupi-direct-prompt-gate";
 
 // POST /api/agent/[id] - Send a command to an existing session
 export async function POST(
@@ -12,6 +13,11 @@ export async function POST(
 
   try {
     const body = await req.json() as { type: string; [key: string]: unknown };
+    if (["prompt", "steer", "follow_up", "mobile_prompt"].includes(body.type)) {
+      const gate = eduPiDirectPromptGate();
+      if (gate !== "allowed") return NextResponse.json({ error: gate === "core_first_required"
+        ? "主动运行期间请先停止当前回复，再发送新消息" : "Core 状态暂不可用，消息未发送" }, { status: gate === "core_first_required" ? 409 : 503 });
+    }
 
     // Fast path: already-running session
     const existing = getRpcSession(id);
@@ -26,6 +32,11 @@ export async function POST(
     }
 
     const { session } = await startHarnessSession(id, filePath, undefined);
+    if (["prompt", "steer", "follow_up", "mobile_prompt"].includes(body.type)) {
+      const gate = eduPiDirectPromptGate();
+      if (gate !== "allowed") return NextResponse.json({ error: gate === "core_first_required"
+        ? "主动运行期间请先停止当前回复，再发送新消息" : "Core 状态暂不可用，消息未发送" }, { status: gate === "core_first_required" ? 409 : 503 });
+    }
     const result = await session.send(body);
 
     return NextResponse.json({ success: true, data: result });

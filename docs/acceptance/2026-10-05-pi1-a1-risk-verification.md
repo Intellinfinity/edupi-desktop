@@ -1,5 +1,22 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-10 Core 57093b 消费与消息可靠性源码门
+
+本节取代下方“新只读令牌未到位”和“应重试 .57 Draft”的当前行动，不改写 .57 失败记录。`EDUPI_CORE_READ_TOKEN` 已用用户剪贴板中的新凭据更新到 `PIGU-PPPgu/edupi-desktop` 的 Actions Secret；未打印或提交令牌。原 `.57` Draft `408319110` 仍是 0 资产，不重试旧 Core pin 的候选。下一候选版本已定为 `.58`，公开 `.56`/唯一安装应用不动。
+
+- Desktop 当前工作树源码已固定 Core main `57093b176ac029b84edb4f1697bf61b1e6854642`，Runtime schema `sha256:9d74537d188ba93d602f53076156bc42e0304acbc8bdedacf541b7ffc25546b4`、Core component `sha256:20659a6f543f5b0b5a28472a0b466abbcc8d429c03deb2025f06ae05dfa13d01`、Desktop component `sha256:5c4dfe47b8e1b0172d2d1aa2f72a6f1b6fa0e7d39c27daa5ebb7a15d46d0ad2a`，Desktop 清单文件 SHA-256 `9de04e5b33567c01b3725bf247e135a7ec5401633bb8ba44afbd73e70455b1a9`；pin 提交 `5c43eddb` 只在原分支，本节后续实现尚未提交/推送。
+- 发送链路先落盘原 Pi 会话 ID、当前 WebView 草稿请求号和私有的跨端口 intent，再落完整请求 outbox → Core owner register → 肯定 capture receipt → Pi dispatch；G1/G2 分别捕获后才派发。Pi RPC 调度不是成功，只有会话文件中的 marker 精确父链与用户消息对应才标 `pi_accepted`；网络/异步失败保留原请求号，不盲目重发。新 ID 无法绕开同会话未结消息；主动运行时直达 Pi 的新/旧会话、排队、steer、follow-up 与手机消息在服务端拒绝，Pi 最后派发边界也检查门禁。图片附件在主动运行时须先独立核对材料。Core 品牌 G1/G2 runner 存在时启用 capture continuation。
+- 自动运行页按 20 条分页展示可读取的 intent/outbox，两个账本独立加载；原文只在教师点击后以本机 token 读取。pre-Pi 项可手动续送或根据 Core 的封存/撤回证明取消；Pi 未知项只能查会话或显式撤回 Core 来源，撤回不冒充 Pi 未收到，精确 Pi 用户消息核实后才结案。无 outbox 的 intent 可由教师分别确认已在会话收到、或承担可能重复的风险明确放弃；从不自动重试。会话删除先撤回 Core 来源，未知 Pi 结果仍阻止删除；只有 Pi 已核实或 Core 安全取消的终态才清精确 outbox。旧 pending 未经版本化迁移仍按未知处理。
+- G2 仅隔离 canary 使用 Core 原生有品牌的隔离模型适配器、4 次/120 秒预算与精确班科 grant，默认关闭；DOCX `material_lesson_proposal` 只作为本次上传的待核对建议显示，未自动建 Goal、排 G1、改日程或外发。重进后缺精确重放/刷新入口，旧建议不冒充当前许可。`intake_material` 本机调用预算按 Core 交接改为 37/38 秒。
+- 源码证据：精确 Core checkout `/private/tmp/edupi-core-pair-jC8yCi` 的 `npm run test:core-runtime-daemon` 退出 0，另以真实 Core 测试核对捕获后 G1/G2 continuation、重启不重复；Desktop `EDUPI_CORE_ROOT=<该根> npm test` 为 2335 pass、11 skipped、0 fail。定向 intent/outbox、Core-first 路由、失联重试、首个 Pi 会话文件原子写入、分根隔离与 DOCX/G2 测试通过。`tsc --noEmit`、lint、`npm audit --audit-level=high`、`cargo metadata --locked` 与 `release:verify` 本轮通过，审计余 6 低/3 中、0 高/严重；`npm run build` 通过，仍有原 `sessions/export` 动态依赖警告；生成的 `.next` 在确认未跟踪、无服务占用后按仓库规则清理。上述不是签名安装或真人证据。
+- 风险/未验：点击发送后、跨端口 intent 尚未落盘之前，如 App 瞬时崩溃且下次端口改变，只有旧 WebView origin 的未发送草稿，不能声称全程零丢失；一旦私有 intent 落盘，其原文可从管理中心恢复。outbox 上限 10,000 项/2 GiB，满额拒绝新主动消息；intent 最多 10,000 项，30 天以上的已结案 tombstone 仅在满额时清理。Windows 正式配置根 ACL 与隔离 canary 原生保护不同，G1 Windows 仍只在隔离安全模式 canary；主动能力开启时图片消息明确拒绝，未做 OCR 内容身份绑定。Core 登记前授权若撤销且无法取得可封存的 Core 证明，未结记录安全保留、会话删除受阻。DOCX 重进刷新/正式采用、实际 macOS/Windows 签名安装、TCC、真实跨到期睡眠、真人教学质量、六领域 Live 继续未验。Windows 签名 Draft 构建新增安装烟测门但尚未运行；未满足发布门不发布 .57/.58、不更新 feed。
+
+## 2026-10-10 v0.3.57 Draft 私有 Core 检出阻塞
+
+- 绑定 Desktop `main` `7faa74fd8ee98a46d455c9b59cf3880df5525550` 的[签名 Draft run 37987228603](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/37987228603) 已结束失败；Release `408319110` 保持 Draft、0 资产，目标提交未改变。macOS、Windows、Linux 三个 build job 都在 `Check out the pinned EduPi Core runtime` 收到 `https://github.com/PIGU-PPPgu/edupi/` 403“Write access to repository not granted”；均未进入打包、Apple 签名或公证。成功的 release 准备 job 不是构建通过，`draft-proof` 与 manifest job 均 skipped。
+- 根因边界：迁仓后的旧 `EDUPI_CORE_READ_TOKEN` 非空，使 workflow 选 HTTPS 而非仓库仍已登记的只读 Deploy Key；该令牌对新私有 Core 仓库无读取权限。`actions/checkout@v7` 按输入 `ssh-key` 是否非空选择 SSH/HTTPS；当前三平台日志均证实走 HTTPS。需要作用域仅为 `PIGU-PPPgu/edupi` 的新 `Contents: Read-only` 凭据，再在同一精确源码和 Draft 上有界重试失败 job。不得改用公开 Core、禁用身份门或把本机宽权限登录令牌写入 Actions。
+- 公开 Latest/feed 仍 v0.3.56、7 平台键，`/Applications/EduPi.app` 仍为 v0.3.56 且未运行；本轮没有安装、更换应用、动教师数据根或外发。新凭据、三平台资产、签名/公证、Draft 隔离安装及后续发布/真实睡眠/真人质量分别标未验。Mac 当前经原生工具实测锁屏，不能代为解锁；已向用户请求新只读 PAT 复制到剪贴板，令牌不得贴进对话。
+
 ## 2026-10-10 迁仓与 Core 主线配对待发布
 
 本节取代下方“Core 假期、家庭记录和备课阶段仍未合入”的当前状态，不追溯提升旧版本的安装证据。仓库已转至 `PIGU-PPPgu/edupi` 与 `PIGU-PPPgu/edupi-desktop`；Core [#233](https://github.com/PIGU-PPPgu/edupi/pull/233)、[#259](https://github.com/PIGU-PPPgu/edupi/pull/259)、[#260](https://github.com/PIGU-PPPgu/edupi/pull/260) 均在各自 Linux Core/Windows native CI 通过后合入，最终 `main` 为 `75d6d666ac9910166638c3ec6df2a03f1075bd43`，与 #260 受测头文件树相同。Durable retention stress 被跳过，不能算通过。

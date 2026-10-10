@@ -132,7 +132,8 @@ export async function POST(request: Request) {
         if (receipt && ["accepted", "modified"].includes(String(receipt.status))) settleStagedMaterial(material.descriptor.staging_id, "accepted_receipt");
         return NextResponse.json({ receipt, receipts: result.receipts, recognition: result.recognition,
           scheduleNeedsReview: result.scheduleNeedsReview, materialReceivedOnly: true,
-          ...(result.materialScheduleProposal ? { materialScheduleProposal: result.materialScheduleProposal } : {}), staged: listStagedMaterials() });
+          ...(result.materialScheduleProposal ? { materialScheduleProposal: result.materialScheduleProposal } : {}),
+          ...(result.materialLessonProposal ? { materialLessonProposal: result.materialLessonProposal } : {}), staged: listStagedMaterials() });
       }
       if (material.descriptor.kind === "calendar") {
         const result = await withMaterialRecognitionLock(material.descriptor.staging_id, () => syncCalendarFile({

@@ -26,6 +26,7 @@ export interface ChatDraft {
   pendingQueueReadyToAck?: boolean;
   pendingQueueUncertain?: boolean;
   pendingFailedMessages?: FailedDraftMessage[];
+  pendingPrompt?: { sessionId: string; clientRequestId: string; occurredAt: string; message: string; draftValue: string };
 }
 
 const drafts = new Map<string, ChatDraft>();
@@ -62,11 +63,12 @@ function cloneDraft(draft: ChatDraft): ChatDraft {
       ...(item.context ? { context: cloneContext(item.context) } : {}),
       ...(item.sourceLabel ? { sourceLabel: item.sourceLabel } : {}),
     })) } : {}),
+    ...(draft.pendingPrompt ? { pendingPrompt: { ...draft.pendingPrompt } } : {}),
   };
 }
 
 function isEmptyDraft(draft: ChatDraft): boolean {
-  return !draft.value && draft.images.length === 0 && !draft.context && !draft.offeredContext && !draft.pendingTeacherText && !draft.pendingQueueMessages?.length && !draft.pendingQueueRecoveryId && !draft.pendingFailedMessages?.length;
+  return !draft.value && draft.images.length === 0 && !draft.context && !draft.offeredContext && !draft.pendingTeacherText && !draft.pendingQueueMessages?.length && !draft.pendingQueueRecoveryId && !draft.pendingFailedMessages?.length && !draft.pendingPrompt;
 }
 
 function validContext(value: unknown): value is EduPiComposerContext {
@@ -91,6 +93,7 @@ function persistableDraft(draft: ChatDraft): ChatDraft {
     ...(draft.pendingQueueReadyToAck ? { pendingQueueReadyToAck: true } : {}),
     ...(draft.pendingQueueUncertain ? { pendingQueueUncertain: true } : {}),
     ...(draft.pendingFailedMessages?.length ? { pendingFailedMessages: draft.pendingFailedMessages } : {}),
+    ...(draft.pendingPrompt ? { pendingPrompt: draft.pendingPrompt } : {}),
   };
 }
 
@@ -109,7 +112,18 @@ function persistableWithoutLoss(draft: ChatDraft): boolean {
     && (!draft.pendingFailedMessages || (draft.pendingFailedMessages.length <= 20
       && draft.pendingFailedMessages.every(item => item.value.length <= 500_000
         && item.images.every(imagePersistable) && (!item.context || validContext(item.context))
-        && (!item.sourceLabel || item.sourceLabel.length <= 60))));
+        && (!item.sourceLabel || item.sourceLabel.length <= 60))))
+    && (!draft.pendingPrompt || validPendingPrompt(draft.pendingPrompt));
+}
+
+function validPendingPrompt(value: unknown): value is NonNullable<ChatDraft["pendingPrompt"]> {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.sessionId === "string" && item.sessionId.length > 0 && item.sessionId.length <= 256
+    && typeof item.clientRequestId === "string" && /^[0-9a-f-]{36}$/iu.test(item.clientRequestId)
+    && typeof item.occurredAt === "string" && !Number.isNaN(Date.parse(item.occurredAt))
+    && typeof item.message === "string" && item.message.length > 0 && item.message.length <= 500_000
+    && typeof item.draftValue === "string" && item.draftValue.length <= 500_000;
 }
 
 function hydrateFromStorage(): void {
@@ -148,6 +162,7 @@ function hydrateFromStorage(): void {
           ...(typeof item.sourceLabel === "string" && item.sourceLabel.length <= 60 ? { sourceLabel: item.sourceLabel } : {}),
           })),
       } : {}),
+      ...(validPendingPrompt(draft.pendingPrompt) ? { pendingPrompt: { ...draft.pendingPrompt } } : {}),
     };
     if (!isEmptyDraft(normalized)) drafts.set(key, normalized);
   }
@@ -157,7 +172,11 @@ function persistDirtyDrafts(): Map<string, boolean> {
   const results = new Map<string, boolean>();
   const changed = [...dirtyKeys];
   dirtyKeys.clear();
-  const eligible = new Set([...drafts.keys()].slice(-MAX_PERSISTED_DRAFTS));
+  const keys = [...drafts.keys()];
+  const pendingKeys = keys.filter(key => Boolean(drafts.get(key)?.pendingPrompt));
+  const ordinarySlots = Math.max(0, MAX_PERSISTED_DRAFTS - pendingKeys.length);
+  const eligible = new Set([...pendingKeys, ...(ordinarySlots
+    ? keys.filter(key => !drafts.get(key)?.pendingPrompt).slice(-ordinarySlots) : [])]);
   const previous = getPrefJson<Record<string, ChatDraft>>(APP_PREF_KEYS.chatDrafts) ?? {};
   let retained = Object.fromEntries(Object.entries(previous)
     .filter(([key]) => eligible.has(key) && drafts.has(key)));
@@ -229,6 +248,8 @@ export function getDraft(key: string): ChatDraft | null {
 
 export function setDraft(key: string, draft: ChatDraft): void {
   hydrateFromStorage();
+  const pendingPrompt = drafts.get(key)?.pendingPrompt;
+  if (pendingPrompt && !draft.pendingPrompt) draft = { ...draft, pendingPrompt };
   if (isEmptyDraft(draft)) {
     drafts.delete(key);
     dirtyKeys.add(key);
@@ -245,15 +266,75 @@ export function setDraft(key: string, draft: ChatDraft): void {
 
 export function clearDraft(key: string): void {
   hydrateFromStorage();
+  const pendingPrompt = drafts.get(key)?.pendingPrompt;
+  if (pendingPrompt) {
+    setDraft(key, { value: "", images: [], pendingPrompt });
+    return;
+  }
   drafts.delete(key);
   dirtyKeys.add(key);
   schedulePersist();
 }
 
-export function resetNewSessionDraft(key: string): void {
-  const recovery = getDraft(key)?.pendingFailedMessages;
+/** Keep the retry identity on disk before the request can reach Core or Pi. */
+export function stagePendingPrompt(key: string, pendingPrompt: NonNullable<ChatDraft["pendingPrompt"]>): boolean {
+  if (!validPendingPrompt(pendingPrompt)) return false;
+  const current = getDraft(key);
+  if (!current) return false;
+  if (current.pendingPrompt && JSON.stringify(current.pendingPrompt) !== JSON.stringify(pendingPrompt)) return false;
+  setDraft(key, { ...current, pendingPrompt });
+  return flushDraftNow(key);
+}
+
+function clearPendingPrompt(key: string, clientRequestId: string, clearSubmittedText: boolean): void {
+  const current = getDraft(key);
+  if (current?.pendingPrompt?.clientRequestId !== clientRequestId) return;
+  for (const [draftKey, draft] of [...drafts]) {
+    if (draft.pendingPrompt?.clientRequestId !== clientRequestId
+      || draft.pendingPrompt.sessionId !== current.pendingPrompt.sessionId) continue;
+    const next = { ...draft };
+    if (clearSubmittedText && next.value === draft.pendingPrompt.draftValue && next.images.length === 0) next.value = "";
+    delete next.pendingPrompt;
+    // Bypass setDraft's preservation rule only for this explicit acknowledgement.
+    drafts.delete(draftKey);
+    setDraft(draftKey, next);
+  }
+  flushDraftNow(key);
+}
+
+/** Only an affirmative server result may clear text from the submitted draft. */
+export function acknowledgePendingPrompt(key: string, clientRequestId: string): void {
+  clearPendingPrompt(key, clientRequestId, true);
+}
+
+/** Explicit teacher override after independently checking the uncertain Pi result. */
+export function releasePendingPromptForNewMessage(key: string, clientRequestId: string): void {
+  clearPendingPrompt(key, clientRequestId, false);
+}
+
+export function resetNewSessionDraft(key: string): boolean {
+  const prior = getDraft(key);
+  const pending = prior?.pendingPrompt;
+  if (pending) {
+    const target = getDraft(pending.sessionId);
+    if (target?.pendingPrompt && JSON.stringify(target.pendingPrompt) !== JSON.stringify(pending)) return false;
+    setDraft(pending.sessionId, target
+      ? { ...target, pendingPrompt: pending }
+      : { ...prior, value: prior.value || pending.draftValue, pendingPrompt: pending });
+    if (!flushDraftNow(pending.sessionId)) return false;
+    // The unresolved identity is now durable under its real session. The
+    // cwd-based blank-chat key may be reset without redirecting a new chat.
+    drafts.delete(key);
+  }
+  const recovery = prior?.pendingFailedMessages;
   if (recovery?.length) setDraft(key, { value: "", images: [], pendingFailedMessages: recovery });
   else clearDraft(key);
+  if (pending && !flushDraftNow(key)) {
+    setDraft(key, prior);
+    flushDraftNow(key);
+    return false;
+  }
+  return true;
 }
 
 export function completeStagedQueueRecovery(key: string, previous: string[], messages: string[], recoveryId: string): boolean {

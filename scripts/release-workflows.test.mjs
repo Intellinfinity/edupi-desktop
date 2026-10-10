@@ -609,6 +609,15 @@ test("Windows preview checks native bytes, normal refusal and isolated Safe Mode
   assert.match(smoke, /g1_processor -eq "activation_pending"/u);
 });
 
+test("signed Draft build installs the Windows candidate before draft proof succeeds", async () => {
+  const release = await readFile(join(root, ".github", "workflows", "release.yml"), "utf8");
+  const signed = release.indexOf("name: Build, sign, and upload updater artifacts");
+  const installed = release.indexOf("name: Install signed Windows candidate with isolated Core data");
+  const proof = release.indexOf("  draft-proof:");
+  assert.ok(signed >= 0 && installed > signed && proof > installed);
+  assert.match(release.slice(installed, proof), /if: runner\.os == 'Windows'[\s\S]*run: \.\/scripts\/test-windows-route1-preview\.ps1/u);
+});
+
 test("a preview installer can be rechecked on Windows without rebuilding or publishing", async () => {
   const source = await readFile(join(root, ".github", "workflows", "preview-installers.yml"), "utf8");
   const workflow = source.slice(source.indexOf("  installed-preview-smoke:"));

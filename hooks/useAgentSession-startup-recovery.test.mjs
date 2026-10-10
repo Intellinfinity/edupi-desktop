@@ -38,10 +38,12 @@ function draftHarness() {
   return { store, cold: key => plain(coldStore().getDraft(key)), writable: value => { writable = value; } };
 }
 
-function startupHarness({ input = true, acceptRestore = false, promptError = null, creationGate = null, modelGate = null, initialSid = null, selectedModel = null } = {}) {
+function startupHarness({ input = true, acceptRestore = false, promptError = null, desktopPromptError = null,
+  desktopDelivery = "disabled", desktopPromptSequence = null, desktop = false,
+  holdingSubmission = false, creationGate = null, modelGate = null, initialSid = null, selectedModel = null } = {}) {
   const drafts = draftHarness();
   const draftKey = "new:/synthetic/startup";
-  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [];
+  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [], desktopPrompts = [];
   let timerId = 0, creates = 0, active = false, history = emptyMessageHistory();
   class FakeEventSource {
     static CONNECTING = 0;
@@ -59,6 +61,11 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     clearTimeout: id => timers.delete(id),
     console: { error: noop },
     sessionIdentity: draftKey, isNew: true, newSessionCwd: "/synthetic/startup", newSessionModel: selectedModel, session: null,
+    getDraft: drafts.store.getDraft, setDraft: drafts.store.setDraft,
+    stagePendingPrompt: drafts.store.stagePendingPrompt, acknowledgePendingPrompt: drafts.store.acknowledgePendingPrompt,
+    isTauriDesktop: () => desktop, reconcileEduPiCapturedPrompt: async () => "uncertain",
+    persistEduPiPromptIntent: async () => "ready", resolveEduPiPromptIntentClient: async () => {},
+    releasePendingPromptForNewMessage: drafts.store.releasePendingPromptForNewMessage,
     sessionIdRef: { current: initialSid }, sessionGenerationRef: { current: 0 },
     ensuringNewSessionRef: { current: null }, newSessionPromotedRef: { current: false },
     newSessionModelOverrideRef: { current: null }, thinkingLevelOverrideRef: { current: null },
@@ -75,9 +82,16 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     eventStreamGraceGenerationRef: { current: 0 }, eventStreamGraceActiveRef: { current: false }, eventStreamGraceTimerRef: { current: null },
     eventSourceRef: { current: null }, eventSourceSessionIdRef: { current: null }, eventConnectionAttemptRef: { current: null },
     handleAgentEventRef: { current: event => events.push(event) }, waitForPromptSettlement: (sid, runId) => settlements.push({ sid, runId }),
-    proactivityNoticeAtRef: { current: 0 }, captureEduPiAmbientMessage: async () => ({ status: "unavailable" }),
+    sendEduPiCapturedPrompt: async request => {
+      desktopPrompts.push(plain(request));
+      if (desktopPromptError) throw desktopPromptError;
+      const next = desktopPromptSequence?.shift() ?? desktopDelivery;
+      if (next instanceof Error) throw next;
+      return next;
+    },
     addNotice: notice => notices.push(notice), restoreFailedMessageDraft: drafts.store.restoreFailedMessageDraft,
     chatInputRef: { current: input ? {
+      isHoldingSubmission: () => holdingSubmission,
       preserveContextForSession: noop,
       replaceMessage: message => { recoveries.push({ type: "replace", message: plain(message), durableBeforeRestore: drafts.cold(draftKey) }); return acceptRestore; },
       refreshPendingFailedMessages: key => recoveries.push({ type: "pending", key, messages: plain(drafts.store.getDraft(key)?.pendingFailedMessages) }),
@@ -89,7 +103,7 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
   const connection = source.slice(source.indexOf("  const cancelEventStreamGrace = useCallback"), source.indexOf("  const respondToExtensionUi = useCallback"));
   const sending = source.slice(source.indexOf("  const handleSend = useCallback"), source.indexOf("  const executeBash = useCallback"));
   const api = new Function(...Object.keys(context), compile(`${constants}\n${connectionError}\n${creation}\n${connection}\n${sending}\nreturn { handleSend, ensureEventsConnected };`))(...Object.values(context));
-  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events,
+  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events, desktopPrompts,
     send: api.handleSend, state: () => ({ creates, active, history }),
     expire: async ms => { const timer = [...timers.entries()].find(([, timer]) => timer.ms === ms); assert.ok(timer, `expected ${ms}ms deadline`); timers.delete(timer[0]); timer[1].callback(); await flush(); },
     timerDelays: () => [...timers.values()].map(timer => timer.ms),
@@ -130,6 +144,28 @@ test("a cold SSE deadline retries only the connection once and posts the origina
   assert.deepEqual(f.commands[0].images, [{ type: "image", data: "AQID", mimeType: "image/png" }]);
   assert.equal(f.promoted.length, 1);
   assert.equal(f.state().history.messages.length, 1);
+});
+
+test("a lost Desktop response reuses the durable Core request identity instead of sending a new prompt", async () => {
+  const f = startupHarness({ desktop: true, desktopPromptSequence: [new Error("synthetic lost response"), "accepted"] });
+  f.store.setDraft(f.draftKey, { value: "合成消息", images: [] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const first = f.send("合成消息");
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await first, false);
+  const pending = f.cold(f.draftKey)?.pendingPrompt;
+  assert.ok(pending);
+  assert.equal(f.cold("created-session")?.pendingPrompt?.clientRequestId, pending.clientRequestId);
+  f.context.agentRunningRef.current = false;
+  const second = f.send("合成消息");
+  assert.equal(await second, true);
+  assert.equal(f.desktopPrompts.length, 2);
+  assert.equal(f.desktopPrompts[0].command.clientRequestId, f.desktopPrompts[1].command.clientRequestId);
+  assert.equal(f.desktopPrompts[0].messageId, f.desktopPrompts[1].messageId);
+  assert.equal(f.desktopPrompts[0].occurredAt, f.desktopPrompts[1].occurredAt);
+  assert.equal(f.state().creates, 1);
+  assert.equal(f.cold(f.draftKey)?.pendingPrompt, undefined);
 });
 
 test("complete startup failure keeps text, all references and images durable without a UI ref", async () => {
@@ -298,6 +334,33 @@ test("an ambiguous prompt response is never reposted or labeled as safely unsent
   assert.equal(f.state().history.messages.length, 1);
   assert.equal(f.cold(f.draftKey), null, "a possibly accepted POST must not offer an automatic resend draft");
   assert.equal(f.settlements.length, 1);
+});
+
+test("a connection failure before the Desktop outbox is created keeps the persisted composer draft", async () => {
+  const f = startupHarness({ desktopPromptError: new Error("synthetic pre-server connection failure"), holdingSubmission: true });
+  f.store.setDraft(f.draftKey, { value: teacherText, context: selectedContext,
+    images: [{ data: "AQID", mimeType: "image/png" }] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const pending = f.send(message, images);
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await pending, false);
+  assert.equal(f.commands.filter(item => item.type === "prompt").length, 0);
+  assert.equal(f.cold(f.draftKey)?.value, teacherText);
+  assert.equal(f.cold(f.draftKey)?.pendingFailedMessages?.length ?? 0, 0);
+});
+
+test("a Core-first uncertain result keeps the draft and starts idle reconciliation without resubmitting Pi", async () => {
+  const f = startupHarness({ desktopDelivery: "uncertain", holdingSubmission: true });
+  f.store.setDraft(f.draftKey, { value: teacherText, images: [] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const pending = f.send(teacherText);
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await pending, false);
+  assert.equal(f.settlements.length, 1);
+  assert.equal(f.commands.filter(item => item.type === "prompt").length, 0);
+  assert.equal(f.cold(f.draftKey)?.value, teacherText);
 });
 
 test("late packets from a replaced SSE connection are ignored without affecting the warm stream", async () => {

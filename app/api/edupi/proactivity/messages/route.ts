@@ -11,7 +11,7 @@ import { readProactivityOwnerContext } from "@/lib/edupi-proactivity-runtime";
 import { ensureEduPiRuntime } from "@/lib/edupi-runtime-supervisor";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { withEduPiAmbientSessionLock } from "@/lib/edupi-ambient-session-lock";
-import { canStartEduPiStudentFollowup } from "@/lib/safe-mode";
+import { canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,8 +22,10 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 function activeBindings(dataRoot: string) {
-  const domains: EduPiProactivityDomain[] = canStartEduPiStudentFollowup()
-    ? ["teaching_preparation", "student_followup"] : ["teaching_preparation"];
+  const domains: EduPiProactivityDomain[] = [
+    ...(canStartEduPiProactivity() ? ["teaching_preparation" as const] : []),
+    ...(canStartEduPiStudentFollowup() ? ["student_followup" as const] : []),
+  ];
   return domains.map(domain => ({ domain, activation: readEduPiProactivityActivation({ dataRoot, domain }) }))
     .filter(binding => binding.activation.enabled);
 }
@@ -84,6 +86,9 @@ export async function POST(request: Request) {
       if (typeof rootRef !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(rootRef)
         || capabilities?.ambient_planning !== "active" || capabilities?.owner_intent !== "active") {
         throw new EduPiAmbientMessageError("proactivity_runtime_unavailable");
+      }
+      if (capabilities.owner_message_registration === "active") {
+        return NextResponse.json({ status: "registered_prompt_required", externalSend: false }, { status: 409 });
       }
       const results: Array<Record<string, unknown> & { status: string }> = [];
       for (const { domain, activation } of bindings) {

@@ -2,7 +2,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashToolDefinition, defineTool, getAgentDir, initTheme, SessionManager, Theme, type AgentSessionRuntime, type CreateAgentSessionRuntimeFactory } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
-import { existsSync, realpathSync, writeFileSync } from "fs";
+import { existsSync, realpathSync } from "fs";
 import { resolve } from "path";
 import { validateAgentImages } from "./image-attachments";
 import { invalidateModelsCache } from "./models-cache";
@@ -42,6 +42,10 @@ import { ensureLoopbackModelAuth } from "./loopback-model-auth";
 import type { PermissionMode } from "./tool-presets";
 import { createRpcResourceLoader, rpcResourceOptions, type RpcToolMode } from "./rpc-resource-loader";
 import { readSessionToolNames, saveSessionToolNames } from "./session-tool-preferences";
+import { persistInitialPiSessionFile } from "./pi-session-first-file";
+import { eduPiDirectPromptGate } from "./edupi-direct-prompt-gate";
+
+const CORE_CAPTURED_PROMPT = Symbol("edupi-core-captured-prompt");
 
 // The legacy HTTP adapter is intentionally not a production authority. Until
 // Core owns one-shot grants and receipts, do not retain connector credentials in
@@ -264,6 +268,19 @@ export class AgentSessionWrapper {
 
   isRunning(): boolean {
     return this._alive && (this.promptRunning || this.inner.isStreaming || this.inner.isCompacting || this.inner.isBashRunning);
+  }
+
+  recordEduPiPromptDispatch(clientRequestId: string, commandHash: string): void {
+    if (!this._alive || this.isRunning() || !/^[A-Za-z0-9_.:-]{1,128}$/u.test(clientRequestId)
+      || !/^sha256:[a-f0-9]{64}$/u.test(commandHash)) throw new Error("edupi_prompt_dispatch_unavailable");
+    // This silent Pi session entry binds the later user message to the
+    // durable outbox identity. It contains no teacher text or image bytes.
+    this.inner.sessionManager.appendCustomEntry("edupi_prompt_dispatch_v1", { clientRequestId, commandHash });
+  }
+
+  /** Only the server's Core-first route can use this non-JSON dispatch path. */
+  sendCoreCapturedPrompt(command: { type: "prompt"; message: string; clientRequestId: string }): Promise<unknown> {
+    return this.send({ ...command, [CORE_CAPTURED_PROMPT]: true });
   }
 
   /**
@@ -501,15 +518,9 @@ export class AgentSessionWrapper {
   private persistBashOnlySession(): void {
     const manager = this.inner.sessionManager;
     const sessionFile = manager.getSessionFile();
-    if (!sessionFile || existsSync(sessionFile)) return;
-
-    const header = manager.getHeader();
-    if (!header) return;
-
-    const content = [header, ...manager.getEntries()]
-      .map((entry) => JSON.stringify(entry))
-      .join("\n") + "\n";
-    writeFileSync(sessionFile, content, { encoding: "utf8", flag: "wx" });
+    if (!sessionFile) throw new Error("session_persist_unavailable");
+    if (existsSync(sessionFile) && (manager as unknown as { flushed: boolean }).flushed) return;
+    persistInitialPiSessionFile(manager, this.inner.sessionId);
 
     // Pi normally delays the first flush until an assistant message exists.
     // A leading shell command has no assistant message, so mark this SDK
@@ -559,9 +570,17 @@ export class AgentSessionWrapper {
   async send(command: Record<string, unknown>): Promise<unknown> {
     this.resetIdleTimer();
     const type = command.type as string;
+    if (type === "persist_session") {
+      if (!this._alive || this.isRunning()) throw new Error("session_persist_unavailable");
+      this.ensureSessionPersisted();
+      return null;
+    }
     if (this.shouldWaitForExtensions(type)) await this.waitForExtensionsBound();
 
     if (type === "prompt" || type === "steer" || type === "follow_up") {
+      if (Reflect.get(command, CORE_CAPTURED_PROMPT) !== true && eduPiDirectPromptGate() !== "allowed") {
+        throw new Error("core_first_required");
+      }
       const imageError = validateAgentImages(command.images);
       if (imageError) throw new Error(imageError);
     }
@@ -573,6 +592,7 @@ export class AgentSessionWrapper {
         }
         const message = typeof command.message === "string" ? command.message.trim() : "";
         if (!message) throw new Error("Mobile prompt cannot be empty");
+        if (eduPiDirectPromptGate() !== "allowed") throw new Error("core_first_required");
         const activeTools = this.inner.getActiveToolNames();
         this.inner.setActiveToolsByName([]);
         this.promptRunning = true;
@@ -598,8 +618,13 @@ export class AgentSessionWrapper {
         const streamingBehavior = command.streamingBehavior as "steer" | "followUp" | undefined;
         const clientRequestId = typeof command.clientRequestId === "string" && command.clientRequestId.length <= 128
           ? command.clientRequestId : undefined;
+        const awaitUserPersistence = command.awaitUserPersistence === true;
+        if (awaitUserPersistence && (!clientRequestId || streamingBehavior)) throw new Error("Invalid prompt persistence request");
         if (!streamingBehavior) {
-          if (clientRequestId && this.acceptedPromptRequestIds.has(clientRequestId)) return null;
+          if (clientRequestId && this.acceptedPromptRequestIds.has(clientRequestId)) {
+            if (awaitUserPersistence) throw new Error("Prompt request already submitted; verify the session");
+            return null;
+          }
           if (this.promptRunning || this.inner.isStreaming) throw new Error("Agent is already processing");
           this.promptRequestId = clientRequestId ?? null;
           this.promptRunning = true;
@@ -608,6 +633,22 @@ export class AgentSessionWrapper {
             if (this.acceptedPromptRequestIds.size > 256) this.acceptedPromptRequestIds.delete(this.acceptedPromptRequestIds.values().next().value!);
           }
         }
+        let finishPersistence: ((value: boolean) => void) | null = null;
+        const persistence = awaitUserPersistence ? new Promise<boolean>(resolve => { finishPersistence = resolve; }) : null;
+        const unsubscribePersistence = awaitUserPersistence ? this.onEvent(event => {
+          if (event.clientRequestId !== clientRequestId) return;
+          const userMessage = event.message as { role?: unknown } | undefined;
+          if (event.type === "message_end" && userMessage?.role === "user" && typeof event.entryId === "string") {
+            const file = this.inner.sessionManager.getSessionFile();
+            let saved = false;
+            try { saved = Boolean(file && existsSync(file) && SessionManager.open(file).getEntries()
+              .some(entry => entry.type === "message" && entry.id === event.entryId && entry.message.role === "user")); }
+            catch { saved = false; }
+            finishPersistence?.(saved);
+          }
+          if (event.type === "prompt_error" || event.type === "prompt_done") queueMicrotask(() => finishPersistence?.(false));
+        }) : null;
+        const persistenceTimer = awaitUserPersistence ? setTimeout(() => finishPersistence?.(false), 20_000) : null;
         notifyRunningChange();
         withEducationModel(this.inner, () => this.inner.prompt(command.message as string, {
           ...(promptImages?.length ? { images: promptImages } : {}),
@@ -637,6 +678,10 @@ export class AgentSessionWrapper {
           if (!streamingBehavior) this.emit({ type: "prompt_done", ...(clientRequestId ? { clientRequestId } : {}) });
           notifyRunningChange();
         });
+        if (persistence) {
+          try { if (!await persistence) throw new Error("Pi user message was not durably recorded"); }
+          finally { if (persistenceTimer) clearTimeout(persistenceTimer); unsubscribePersistence?.(); }
+        }
         return null;
       }
 

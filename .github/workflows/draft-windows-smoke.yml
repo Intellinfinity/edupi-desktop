@@ -21,7 +21,9 @@ on:
         type: string
 
 permissions:
-  contents: read
+  # GitHub hides Draft Releases from identities without repository push access.
+  # The job uses this token only for GET/download, after validating exact IDs.
+  contents: write
 
 jobs:
   installed-smoke:

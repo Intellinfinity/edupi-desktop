@@ -1,5 +1,11 @@
 # 自动下载安装
 
+## 2026-10-11 v0.3.61 未过门，v0.3.62 待构建
+
+- `.61` [Draft run 38070153404](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38070153404) 仅有一次同源码重试：macOS 先后在暂存日程 GET 的 `ECONNRESET`、教师上下文 POST 的 15 秒超时失败；Windows 安装烟测普通模式通过，隔离 Safe Mode 未在 90 秒内取得 Core ready；Linux 取消。Draft `409082688` 只留精确 Windows NSIS 与 `.sig` 两项资产，未形成七平台 manifest 或 Apple 公证，不发布、不更新 feed。
+- `.62` 沿用固定 Core `57093b` 与原权限门，只给失败处加脱敏诊断，并把单次写入请求截止从 15 秒调为 45 秒，不自动重试未知写入结果。完成新提交、CI 与三平台签名门后才核对资产和安装；源代码本机 staged 通过不替代上次失败或新安装证据。公开 `.56`、唯一已安装 App 保持。
+- 先使用手动只读 Windows Draft 烟测重查 `.61` 的已上传 NSIS：固定 Release/源码 SHA/资产 ID/摘要且安装到隔离 runner，不重建、不发布。该重查仅用于定位 Safe Mode 失败；通过也不补齐 `.61` 的 macOS/Linux 资产与发布门。
+
 ## 2026-10-10 v0.3.58 Draft 配对检查失败
 
 - 源码 `e7d8fa0a` 的 [Draft run 38058904150](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38058904150) 在 macOS/Linux 的配对 Core canary 失败：隔离夹具缺少模型配置，G1 激活返回 503；补齐合成模型后，旧消息入口又按新注册回执合同返回 `registered_prompt_required`。Core 的权限门没有放宽。该 Draft 已确定无法过门，已请求取消尚在运行的 Windows job，避免继续消耗 Actions 时长；取消请求不算 Windows 验收结果。
@@ -7,7 +13,7 @@
 
 ## 2026-10-10 新 Core pin 后的发布门
 
-只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` Draft 配对 canary、`.59` 上传校历、`.60` DOCX 旧断言均失败并未发布。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。`.61` 须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58`–`.61` 的 Draft 均未过门，最后一次结果见本文顶部。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。后续候选须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
 
 ## 2026-10-11 v0.3.60 Draft DOCX 检查失败
 

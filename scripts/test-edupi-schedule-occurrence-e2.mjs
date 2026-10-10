@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -65,7 +66,14 @@ async function startStagedServer() {
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error(`staged server exited: ${logs}`);
-      try { if ((await fetch(`${url}/api/desktop/identity`, { signal: AbortSignal.timeout(2000) })).status === 204) return { url, stop }; }
+      try { if ((await fetch(`${url}/api/desktop/identity`, { signal: AbortSignal.timeout(2000) })).status === 204) return {
+        url, stop, diagnostics: () => ({
+          exitCode: child.exitCode,
+          signalCode: child.signalCode,
+          logTailSha256: crypto.createHash("sha256").update(logs.slice(-1500)).digest("hex"),
+          errorCodes: [...new Set(logs.slice(-1500).match(/\b(?:ECONNRESET|EADDRINUSE|EACCES|EPIPE|ERR_[A-Z0-9_]+)\b/gu) || [])],
+        }),
+      }; }
       catch { /* cold start */ }
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
@@ -109,7 +117,9 @@ try {
       body: JSON.stringify(body),
     });
     const response = stagedServer
-      ? await fetch(request, { signal: AbortSignal.timeout(15000) })
+      ? await fetch(request, { signal: AbortSignal.timeout(45000) }).catch((error) => {
+        throw new Error(`staged_onboarding_failed:${error?.cause?.code || error?.name || "request"}:${JSON.stringify(stagedServer.diagnostics())}`);
+      })
       : await onboardingRoute.POST(request);
     return { response, body: await response.json() };
   };

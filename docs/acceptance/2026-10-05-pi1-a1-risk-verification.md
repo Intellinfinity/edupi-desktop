@@ -1,5 +1,13 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-11 Windows 同资产安装烟测与 Core 2ecf346 配对
+
+- [Windows Draft 重查 run 38078453311](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38078453311) 以 `.61` Draft `409082688` 的原安装器资产 `628621923` 校验 136781499 字节及 SHA-256 `67238f802f5f249a5ce235659b7ea5ae446c3c06725d2287add88280bd145c57`，在临时 Windows runner 安装并运行。普通模式包内批准的原生资产保持原字节，未证明的 Core 根返回 `native_attestation_required`；隔离 Safe Mode 启动后 Core/教育投影 ready、固定旧 pin 匹配、G1 `activation_pending`、`externalSend=false`。此项只通过 `.61` 的 Windows 安装/默认关闭烟测，不是完整 Windows 教师流程，也不补齐 `.61` 失败的 macOS/Linux 签名资产、manifest 或发布门。
+- 先前失败由两处测试设施造成：共享临时目录的 ACL 被原生源码守卫拒绝；随后 5 秒客户端超时反复取消冷启动状态读。修复是私有 runner 安装根、只探受测 Node 回环监听、身份接口先确认、最多两次充分等待的 Core 状态读；原生守卫、Core 准入与生产默认值没有放宽。Windows 正向结果绑定新诊断脚本 `main` `dc61a0f4`，不能倒写为 `.61` 原失败 run 成功。
+- Core 新 [#277](https://github.com/PIGU-PPPgu/edupi/pull/277) 已在 Core quality/Windows native 通过后合入 `main` `2ecf34650cc6018195d34c171c715e25acbd78cc`；Durable retention stress 为 skipped，不计通过。Desktop `.62` 当前将精确 pin 改到该提交：Runtime schema 仍 `sha256:9d74537d188ba93d602f53076156bc42e0304acbc8bdedacf541b7ffc25546b4`，Core 组件 `sha256:b7af88e68321bf90f9173dcdd2f4b8668d6b49c930f0f178ef22e7f6743faf2a`，Desktop 组件 `sha256:1cdb84958989f632237b4595d5c121cce4b81a25c98297e09f05e44a409dc7a7`，后者文件 SHA-256 `e2345c7ddea207f3ff3a844f0ac74f568e44391702f6389fe38774e0391c8cfa`。Bridge v1.1/课次 v1.2 与 12 个公开命令不扩展，R03 Stage 1 静止证明由 Core 所有。
+- 新 Core 的 Desktop 合同 12/12 通过；完整 `EDUPI_CORE_ROOT=<精确新 checkout> npm test` 为 2345 通过、11 跳过、0 失败。隔离生产消息路由 canary 通过 Core 肯定捕获后 Pi 唯一发送/重放去重/范围/停止，合成模型仅 1 次、无外发；DOCX 首次材料接入/明确采用、日程冲突/课次/ICS 修订和重启读回脚本逐项退出 0。`desktop:prepare` 暂存 13298 个该 Core 文件，包内 Core/投影 ready、G1/G2/共享能力仍 `activation_pending`、外发关闭；暂存日程冲突、课次、ICS 和 DOCX 检查通过。TypeScript、lint、版本校验、locked Cargo metadata 与高危 npm 审计通过；审计仍 6 低/3 中。暂存生成资源在测试退出且确认未跟踪后按规则清理，约 1.8 GiB。以上属于源码/包内服务配对，不替代 `.62` 签名安装、TCC、真实睡眠、真人教学质量或六领域 Live。
+- 公开 `.56`、唯一 `/Applications/EduPi.app`、七键 feed、真实教师数据根及 launchd 均未更改；`.62` PR/CI 与三平台签名 Draft 结果仍分别待记录，未发布或外发。
+
 ## 2026-10-11 v0.3.61 Draft 双次失败与 v0.3.62 诊断候选
 
 - `.61` 源码 [#334](https://github.com/PIGU-PPPgu/edupi-desktop/pull/334) 经 CI 合入 `main` `86ab2b75`，固定 Core `57093b`。[签名 Draft run 38070153404](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38070153404) 第一次在 macOS 暂存日程冲突第二次 GET 发生 `ECONNRESET`；同一源码仅重试一次，第二次 macOS 通过该项，却在日程课次的教师上下文 POST 到 15 秒时超时。Windows 第二次已构建并上传 NSIS 与签名，但安装烟测普通模式通过后，隔离 Safe Mode 90 秒内没有取得 Core ready 状态；Linux 在构建中取消。两个失败不能归因为 Core 正常，也不能归因为已知的单一根因。

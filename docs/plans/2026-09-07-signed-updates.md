@@ -1,5 +1,10 @@
 # 自动下载安装
 
+## 2026-10-11 v0.3.62 新 Core 配对待签名
+
+- `.61` 旧 Core 安装器的精确 Windows 重查 run `38078453311` 已在隔离 runner 通过普通模式拒绝和 Safe Mode Core/投影 ready、G1 默认关闭、外发关闭；它不修复原三平台 Draft run 的 macOS 暂存请求失败，也不生成缺少的 Mac/Linux 资产。Release `409082688` 仍 Draft、公开 `.56` 与 feed 不变。
+- `.62` 在原 Desktop 分支消费 Core `main` `2ecf3465` 的 R03 Stage 1 静止准入证明和双组件清单；Runtime schema、Bridge/课次合同和 Pi/PiDurable 1.0.2 不变。精确 Core 配对的全量测试、主动消息 canary、DOCX/日程/ICS 及暂存包服务均通过，证据见唯一账本；Core retention stress skipped、正式 App/三平台签名和教师流程不能据此勾选。下一步必须以新提交创建新 `.62` Draft，核对七键 manifest、摘要、Apple 公证/签名和隔离安装，再决定发布。
+
 ## 2026-10-11 v0.3.61 未过门，v0.3.62 待构建
 
 - `.61` [Draft run 38070153404](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38070153404) 仅有一次同源码重试：macOS 先后在暂存日程 GET 的 `ECONNRESET`、教师上下文 POST 的 15 秒超时失败；Windows 安装烟测普通模式通过，隔离 Safe Mode 未在 90 秒内取得 Core ready；Linux 取消。Draft `409082688` 只留精确 Windows NSIS 与 `.sig` 两项资产，未形成七平台 manifest 或 Apple 公证，不发布、不更新 feed。

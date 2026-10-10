@@ -2,7 +2,7 @@ EduPi Desktop 0.3.62 签名候选。
 
 - 暂存集成与 Windows 隔离安装烟测增加脱敏失败诊断，教师上下文的单次写入等待上限延至 45 秒；不自动重试未知结果，不放宽 Core 或 Safe Mode 准入。
 
-- Core 固定为 `57093b176ac029b84edb4f1697bf61b1e6854642`，Pi 与 PiDurable 仍为 1.0.2。Runtime schema、Core 与 Desktop 组件清单一同校验；Bridge v1.1 的 12 个公开命令未扩大。
+- Core 固定为 `2ecf34650cc6018195d34c171c715e25acbd78cc`，Pi 与 PiDurable 仍为 1.0.2。Runtime schema 未变，Core 与 Desktop 组件清单已重算并一同校验；Bridge v1.1 的 12 个公开命令未扩大。
 - Core 在法定假期和未映射的调休工作日不推断课次；已核实的教师手动课次继续保留。旧草稿与审核历史不会因来源失效被当作可执行的新任务。
 - 家校观察仅展示明确学生身份、来源和修订历史。未核实的监护身份、关系好坏与 G5 授权不会由一条记录推断。
 - 备课任务读取 Core 的真实阶段、attempt、历史和取消/重试权限；未知子代理数量和总步骤不编造。来源变化后旧任务 revision 拒绝继续操作。

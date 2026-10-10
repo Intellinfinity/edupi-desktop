@@ -227,9 +227,17 @@ try {
   assert.ok(firstBinding, "registered capture should create one Core-owned teaching goal");
   await capture("canary-message-1", `帮我准备${tomorrow.date}的数学教案`, firstOccurredAt);
   assert.equal((await bindings()).filter(item => item.message_ref === firstProof.messageRef).length, 1);
-  const outsideProof = await capture("canary-outside-g1", "请跟进学生张三的课堂观察");
-  assert.equal((await bindings()).some(item => item.message_ref === outsideProof.messageRef), false,
-    "a G1-only grant must not turn student follow-up into a teaching goal");
+  for (const [domain, text] of [
+    ["student-followup", "请跟进学生张三的课堂观察"],
+    ["lesson-reflection", "请做这节课的课后复盘"],
+    ["calendar-administration", "请整理校历行政截止事项"],
+    ["parent-communication", "请起草给家长的沟通草稿"],
+    ["safety-privacy", "请核对学生隐私和安全风险"],
+  ]) {
+    const outsideProof = await capture(`canary-outside-${domain}`, text);
+    assert.equal((await bindings()).some(item => item.message_ref === outsideProof.messageRef), false,
+      `a G1-only grant must not turn ${domain} into a teaching goal`);
+  }
   const feedbackTargetResponse = await feedbackRoute.POST(request("http://localhost/api/edupi/teacher-feedback", "POST",
     { action: "target_read", target: { kind: "goal", target_id: firstBinding.goal_id } }));
   const feedbackTargetBody = await feedbackTargetResponse.json();
@@ -255,17 +263,22 @@ try {
   assert.equal(feedbackReadBody.result.summary.real_teacher_current, 0);
   assert.equal(feedbackReadBody.result.summary.synthetic_excluded, 1);
 
+  const planningFile = path.join(home, "output", "ambient-planning-v1.json");
+  const readFirstGoal = () => JSON.parse(fs.readFileSync(planningFile, "utf8")).state.goals.find(item => item.id === firstBinding.goal_id);
+  const firstGoalBeforeControl = readFirstGoal();
+  assert.ok(firstGoalBeforeControl);
   const correctedProof = await capture("canary-message-2", `改到${correctedDay.date}的数学课`);
   const correctedBindings = await bindings();
   assert.equal(correctedBindings.find(item => item.message_ref === firstProof.messageRef)?.goal_status, "active");
   assert.equal(correctedBindings.some(item => item.message_ref === correctedProof.messageRef), false,
     "captured correction alone must not rewrite an existing goal");
+  assert.deepEqual(readFirstGoal(), firstGoalBeforeControl, "correction capture must not silently change the original goal");
   const cancellationProof = await capture("canary-message-3", "取消这节数学备课");
   const cancelledBindings = await bindings();
   assert.equal(cancelledBindings.find(item => item.message_ref === firstProof.messageRef)?.goal_status, "active");
   assert.equal(cancelledBindings.some(item => item.message_ref === cancellationProof.messageRef), false);
+  assert.deepEqual(readFirstGoal(), firstGoalBeforeControl, "cancellation capture must not silently change the original goal");
 
-  const planningFile = path.join(home, "output", "ambient-planning-v1.json");
   const deletionProof = await capture("canary-message-4", `帮我准备${deletionDay.date}的数学教案`);
   const deletionBinding = (await bindings()).find(item => item.message_ref === deletionProof.messageRef);
   assert.ok(deletionBinding);
@@ -290,7 +303,7 @@ try {
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });
-  assert.equal(capturedBindings.length, 5);
+  assert.equal(capturedBindings.length, 9);
   ambientLedger.prepareEduPiAmbientMessageBinding({ sessionId, messageId: "canary-crash-before-capture",
     messageRef: `owner_message:${"f".repeat(64)}`, ownerId: capturedBindings[0].ownerId,
     grantId: capturedBindings[0].grantId, captureGrantVersion: capturedBindings[0].captureGrantVersion,

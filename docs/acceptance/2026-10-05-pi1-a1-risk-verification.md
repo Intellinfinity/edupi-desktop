@@ -1,5 +1,12 @@
 # Pi 1 与暂缓草稿风险验收
 
+## 2026-10-11 v0.3.62 三平台签名 Draft 与安装门
+
+- Desktop [#340](https://github.com/PIGU-PPPgu/edupi-desktop/pull/340) 已合并为 `7848c1128a57d55d4f291f4a63b60a0f97790fe0`。精确 Core pin 为 `2ecf34650cc6018195d34c171c715e25acbd78cc`；[三平台签名 Draft run 38080377311](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38080377311) 的 release、macOS、Windows、Linux 和 `draft-proof` 均成功，manifest/publish 因仍为 Draft 按设计跳过。Release `409161380` 保持草稿、9 项资产，候选资产指纹 `sha256:e61bc0aca3bb3720e683f876a4cfa91d80fbe339ad2dee4536bf92bd0cb03da7`；这是构建身份，不是教师已接受安装的指纹。Windows job 用本次 `.62` 安装器通过普通模式拒绝和隔离 Safe Mode Core/投影 ready、G1 默认关闭、外发关闭；Linux 构建成功但完整桌面流程未验。
+- Apple 公证提交 `b8c9996b-93c6-4d14-9af4-b91ea9440842` 返回 `Accepted`，CI 装订/验证、最终 App/DMG 严格签名与 Gatekeeper 通过。公证后 DMG 资产 `628932191` 为 234076625 字节、SHA-256 `46e364f39c10094311336ef637dfcaf93dcfaeb38b151543b09845fdad19c132`；本机完整下载摘要、镜像 CRC、App/DMG 签名与 Gatekeeper 独立通过。只读挂载核对 App `0.3.62`、Core `2ecf3465`、Runtime schema 与两个组件清单精确匹配后已卸载；保留的唯一候选包为 `~/edupi-install-checkpoints/v0.3.62/EduPi_0.3.62_aarch64.dmg`。首次本机 DMG `spctl` 未带 `context:primary-signature` 得到 `Insufficient Context`；按发布脚本正确上下文重测为 `accepted`，没有降低系统策略。
+- 本机从公开已安装 `.56` 客户端提取原 updater 公钥，独立下载并核对四种 updater 载荷及 `.sig` 的全部 SHA-256，用离线 `minisign-verify 0.2.5` 对 macOS archive、Linux AppImage/deb、Windows NSIS 均验签成功，四项单字节内存篡改均拒绝；`.62` 压缩包内嵌公钥与 `.56` 相同。用实际 9 资产/4 签名运行本地 manifest 生成器得到 7 平台键，资产 URL 均为 GitHub API。临时下载与校验器约 890 MiB 已清理，仅保留 DMG；验签不等于旧客户端原位升级成功。
+- Codex 原生桌面工具在安装前实际返回 Mac 锁屏，已一次请求用户手动解锁；不能绕过或沿用之前“已解锁”的旧状态。故本轮没有替换唯一 `/Applications/EduPi.app`、没有实际 `.62` macOS 教师流程/TCC/通知点击或真实跨到期睡眠验收，也未写真实数据根/模型凭据/launchd/系统权限。当前 App 与公开 feed 均仍 `.56`，feed 保持 7 键。缺安装/教师质量门时不发布 Draft、不更新 feed。完整可恢复入口为 `~/edupi-install-checkpoints/v0.3.62/RESUME.md`。
+
 ## 2026-10-11 Windows 同资产安装烟测与 Core 2ecf346 配对
 
 - [Windows Draft 重查 run 38078453311](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38078453311) 以 `.61` Draft `409082688` 的原安装器资产 `628621923` 校验 136781499 字节及 SHA-256 `67238f802f5f249a5ce235659b7ea5ae446c3c06725d2287add88280bd145c57`，在临时 Windows runner 安装并运行。普通模式包内批准的原生资产保持原字节，未证明的 Core 根返回 `native_attestation_required`；隔离 Safe Mode 启动后 Core/教育投影 ready、固定旧 pin 匹配、G1 `activation_pending`、`externalSend=false`。此项只通过 `.61` 的 Windows 安装/默认关闭烟测，不是完整 Windows 教师流程，也不补齐 `.61` 失败的 macOS/Linux 签名资产、manifest 或发布门。

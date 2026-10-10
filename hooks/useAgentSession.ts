@@ -1741,10 +1741,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           return false;
         }
         await sendAgentCommand(sid, { ...command, awaitUserPersistence: true });
-        try { await resolveEduPiPromptIntentClient(sid, clientRequestId); }
-        catch {
-          addNotice({ type: "warning", message: "Pi 已收到，恢复记录仍待核对" });
-          return false;
+        if (durableSend) {
+          try { await resolveEduPiPromptIntentClient(sid, clientRequestId); }
+          catch {
+            addNotice({ type: "warning", message: "Pi 已收到，恢复记录仍待核对" });
+            return false;
+          }
         }
       }
       if (delivery === "uncertain") {

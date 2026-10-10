@@ -4,7 +4,7 @@ import path from "node:path";
 
 const DIRECTORY = "edupi-prompt-intent-v1";
 const NOFOLLOW = fs.constants.O_NOFOLLOW ?? 0;
-const MAX_BYTES = 150_000;
+const MAX_BYTES = 1_200_000;
 const MAX_ENTRIES = 10_000;
 const RESOLVED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u;
@@ -41,8 +41,8 @@ function valid(value: unknown, rootHash: string): value is StoredIntent {
     && ID.test(String(row.sessionId)) && REQUEST_ID.test(String(row.clientRequestId))
     && typeof row.occurredAt === "string" && Number.isFinite(Date.parse(row.occurredAt))
     && new Date(row.occurredAt).toISOString() === row.occurredAt
-    && typeof row.message === "string" && row.message.length <= 50_000
-    && typeof row.draftValue === "string" && row.draftValue.length <= 50_000
+    && typeof row.message === "string" && row.message.length <= 500_000
+    && typeof row.draftValue === "string" && row.draftValue.length <= 500_000
     && (row.status !== "pending" || row.message.length > 0)
     && (row.status !== "pending" || row.requestDigest === digest(row as EduPiPromptIntent))
     && typeof row.cwd === "string" && path.isAbsolute(row.cwd) && row.cwd.length <= 1024

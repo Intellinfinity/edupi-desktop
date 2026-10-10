@@ -10,7 +10,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: {
 const input = { sessionId: "session-1", clientRequestId: "66666666-6666-4666-8666-666666666666",
   occurredAt: "2026-10-10T00:00:00.000Z", message: "合成私有消息", draftValue: "合成私有消息", cwd: "/synthetic/cwd" };
 
-function fixture(authorized) {
+function fixture(authorized, outboxStage = null) {
   const calls = [];
   let status = "pending";
   const modules = {
@@ -20,7 +20,7 @@ function fixture(authorized) {
     "@/lib/desktop-api-auth": { isDesktopApiRequestAllowed: () => authorized },
     "@/lib/edupi-core-snapshot": { resolveEduPiBridgeRoots: () => ({ dataRoot: { root: "/isolated" } }) },
     "@/lib/edupi-ambient-session-lock": { withEduPiAmbientSessionLock: async (_id, action) => action() },
-    "@/lib/edupi-prompt-outbox": { readEduPiPromptOutbox: () => null },
+    "@/lib/edupi-prompt-outbox": { readEduPiPromptOutbox: () => outboxStage ? { stage: outboxStage } : null },
     "@/lib/edupi-prompt-intent": {
       listEduPiPromptIntents: () => [{ ...input, status }],
       prepareEduPiPromptIntent: () => { calls.push("persist"); return { ...input, status }; },
@@ -70,4 +70,10 @@ test("discarding an unbound intent requires a separate explicit teacher decision
   assert.equal((await f.delete({ ...id, confirmedManualDiscard: true })).status, 200);
   assert.equal((await (await f.get()).json()).entries.length, 0);
   assert.equal(f.calls.includes("discard"), true);
+});
+
+test("a Core-proven cancelled outbox can settle a stranded intent, but an uncertain Pi outbox cannot", async () => {
+  const id = { sessionId: input.sessionId, clientRequestId: input.clientRequestId, confirmedManualDiscard: true };
+  assert.equal((await fixture(true, "cancelled").delete(id)).status, 200);
+  assert.equal((await fixture(true, "pi_unknown").delete(id)).status, 409);
 });

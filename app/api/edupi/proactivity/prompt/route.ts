@@ -17,7 +17,7 @@ import { inspectEduPiPromptSession } from "@/lib/edupi-prompt-reconciliation";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { startHarnessSession } from "@/lib/harness/runtime";
 import { canStartEduPiProactivity, canStartEduPiStudentFollowup } from "@/lib/safe-mode";
-import { listEduPiPromptIntents, readEduPiPromptIntent, resolveEduPiPromptIntent } from "@/lib/edupi-prompt-intent";
+import { discardEduPiPromptIntent, listEduPiPromptIntents, readEduPiPromptIntent, resolveEduPiPromptIntent } from "@/lib/edupi-prompt-intent";
 import { validateAgentImages } from "@/lib/image-attachments";
 import { prepareEduPiPromptOutbox, readEduPiPromptOutbox, listEduPiPromptOutbox, markEduPiPromptOutboxCancelled,
   markEduPiPromptOutboxSourceWithdrawn,
@@ -27,7 +27,7 @@ import { prepareEduPiPromptOutbox, readEduPiPromptOutbox, listEduPiPromptOutbox,
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const MAX_BODY_BYTES = 64 * 1024;
+const MAX_BODY_BYTES = 1_200_000;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,127}$/u;
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/+~=-]{0,255}$/u;
 const ROOT_REF = /^sha256:[a-f0-9]{64}$/u;
@@ -58,6 +58,13 @@ function resolveIntentIfPresent(sessionId: string, clientRequestId: string, data
   const options = { dataRoot };
   if (readEduPiPromptIntent(sessionId, clientRequestId, options)) {
     resolveEduPiPromptIntent(sessionId, clientRequestId, options);
+  }
+}
+
+function discardIntentIfPresent(sessionId: string, clientRequestId: string, dataRoot: string): void {
+  const options = { dataRoot };
+  if (readEduPiPromptIntent(sessionId, clientRequestId, options)) {
+    discardEduPiPromptIntent(sessionId, clientRequestId, options);
   }
 }
 
@@ -143,7 +150,10 @@ export async function DELETE(request: Request) {
       const options = { dataRoot: roots.dataRoot.root };
       let saved = readEduPiPromptOutbox(sessionId, clientRequestId, options);
       if (!saved) return response("not_found", 404);
-      if (saved.stage === "cancelled") return response("cancelled");
+      if (saved.stage === "cancelled") {
+        discardIntentIfPresent(sessionId, clientRequestId, roots.dataRoot.root);
+        return response("cancelled");
+      }
       if (saved.stage === "pi_unverified_withdrawn") return response("source_withdrawn");
       const piOutcomeUnknown = ["pi_dispatching", "pi_unknown"].includes(saved.stage);
       if (!["prepared", "registered", "captured", "pi_dispatching", "pi_unknown"].includes(saved.stage)) return response("cannot_cancel", 409);
@@ -187,6 +197,7 @@ export async function DELETE(request: Request) {
         return response("source_withdrawn");
       }
       markEduPiPromptOutboxCancelled(sessionId, clientRequestId, proofs, options);
+      discardIntentIfPresent(sessionId, clientRequestId, roots.dataRoot.root);
       return response("cancelled");
     });
   } catch (error) {
@@ -206,7 +217,8 @@ export async function POST(request: Request) {
       || !ID.test(String(body.messageId || "")) || !canonicalTime(body.occurredAt)
       || !command || command.type !== "prompt" || typeof command.clientRequestId !== "string"
       || !ID.test(command.clientRequestId) || typeof command.message !== "string"
-      || command.message.length > 4000 || Object.keys(command).some(key => !["type", "message", "clientRequestId", "images"].includes(key))
+      || (enabled.length > 0 && command.message.length > 4000)
+      || Object.keys(command).some(key => !["type", "message", "clientRequestId", "images"].includes(key))
       || validateAgentImages(command.images) !== null
       || (!command.message.trim() && (!Array.isArray(command.images) || command.images.length === 0))) {
       return response("invalid", 400);
@@ -224,12 +236,6 @@ export async function POST(request: Request) {
         && !["pi_accepted", "pi_accepted_withdrawn", "cancelled"].includes(item.stage))) {
         return response("prior_unresolved", 409);
       }
-      const intent = readEduPiPromptIntent(sessionId, clientRequestId, options);
-      if (!prior && (!intent || intent.status === "resolved" || intent.message !== promptCommand.message
-        || intent.occurredAt !== occurredAt)) return response("intent_unavailable", 409);
-      if (!prior && listEduPiPromptIntents(options).some(item => item.status === "pending"
-        && item.clientRequestId !== clientRequestId && (item.sessionId === sessionId
-          || item.cwd === intent!.cwd && item.message === promptCommand.message))) return response("prior_unresolved", 409);
       if (prior && (prior.messageId !== messageId || prior.occurredAt !== occurredAt
         || !isDeepStrictEqual(prior.command, promptCommand))) return response("conflict", 409);
       if (prior && ["pi_dispatching", "pi_unknown"].includes(prior.stage)) return response("uncertain", 202);
@@ -240,6 +246,12 @@ export async function POST(request: Request) {
       if (prior?.stage === "cancelled") return response("cancelled", 409);
       if (prior?.stage === "pi_unverified_withdrawn") return response("source_withdrawn", 409);
       if (enabled.length === 0) return response(prior ? "uncertain" : "disabled", 202);
+      const intent = readEduPiPromptIntent(sessionId, clientRequestId, options);
+      if (!prior && (!intent || intent.status === "resolved" || intent.message !== promptCommand.message
+        || intent.occurredAt !== occurredAt)) return response("intent_unavailable", 409);
+      if (!prior && listEduPiPromptIntents(options).some(item => item.status === "pending"
+        && item.clientRequestId !== clientRequestId && (item.sessionId === sessionId
+          || item.cwd === intent!.cwd && item.message === promptCommand.message))) return response("prior_unresolved", 409);
       if (enabled.some(({ activation }) => !activation.grantId || !activation.scope)) return response("unconfigured", 409);
       if (prior && (prior.bindings.length !== enabled.length || prior.bindings.some(binding =>
         !enabled.some(item => item.domain === binding.domain && item.activation.grantId === binding.grantId)))) {

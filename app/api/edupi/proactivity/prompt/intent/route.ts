@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!isDesktopApiRequestAllowed(request)) return response("rejected", 403);
   try {
-    const body = await parseJsonWithinLimit(request, 140_000) as Record<string, unknown>;
+    const body = await parseJsonWithinLimit(request, 1_200_000) as Record<string, unknown>;
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 6
       || typeof body.sessionId !== "string" || !ID.test(body.sessionId)
       || typeof body.clientRequestId !== "string" || !REQUEST_ID.test(body.clientRequestId)
@@ -93,7 +93,8 @@ export async function DELETE(request: Request) {
     const roots = resolveEduPiBridgeRoots();
     return await withEduPiAmbientSessionLock(id.sessionId, async () => {
       const options = { dataRoot: roots.dataRoot.root };
-      if (readEduPiPromptOutbox(id.sessionId, id.clientRequestId, options)) return response("outbox_exists", 409);
+      const outbox = readEduPiPromptOutbox(id.sessionId, id.clientRequestId, options);
+      if (outbox && outbox.stage !== "cancelled") return response("outbox_exists", 409);
       const saved = discardEduPiPromptIntent(id.sessionId, id.clientRequestId, options);
       return response(saved.status === "resolved" ? "resolved" : "discarded");
     });

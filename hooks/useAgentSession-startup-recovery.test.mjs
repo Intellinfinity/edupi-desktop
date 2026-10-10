@@ -64,7 +64,9 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     getDraft: drafts.store.getDraft, setDraft: drafts.store.setDraft,
     stagePendingPrompt: drafts.store.stagePendingPrompt, acknowledgePendingPrompt: drafts.store.acknowledgePendingPrompt,
     isTauriDesktop: () => desktop, reconcileEduPiCapturedPrompt: async () => "uncertain",
-    persistEduPiPromptIntent: async () => "ready", resolveEduPiPromptIntentClient: async () => {},
+    persistEduPiPromptIntent: async () => "ready", resolveEduPiPromptIntentClient: async () => {
+      if (!desktop) throw new Error("desktop_only_intent_resolution");
+    },
     releasePendingPromptForNewMessage: drafts.store.releasePendingPromptForNewMessage,
     sessionIdRef: { current: initialSid }, sessionGenerationRef: { current: 0 },
     ensuringNewSessionRef: { current: null }, newSessionPromotedRef: { current: false },
@@ -165,6 +167,20 @@ test("a lost Desktop response reuses the durable Core request identity instead o
   assert.equal(f.desktopPrompts[0].messageId, f.desktopPrompts[1].messageId);
   assert.equal(f.desktopPrompts[0].occurredAt, f.desktopPrompts[1].occurredAt);
   assert.equal(f.state().creates, 1);
+  assert.equal(f.cold(f.draftKey)?.pendingPrompt, undefined);
+});
+
+test("disabled proactive capture still sends a long Desktop prompt directly to Pi once", async () => {
+  const f = startupHarness({ desktop: true, desktopDelivery: "disabled" });
+  const text = "合成上下文".repeat(900);
+  f.store.setDraft(f.draftKey, { value: text, images: [] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const sent = f.send(text);
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await sent, true);
+  assert.equal(f.desktopPrompts.length, 1);
+  assert.equal(f.commands.filter(item => item.type === "prompt").length, 1);
   assert.equal(f.cold(f.draftKey)?.pendingPrompt, undefined);
 });
 

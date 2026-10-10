@@ -62,6 +62,7 @@ function fixture({ authorized = true, g2 = false, registrationFailure = null,
       readEduPiPromptIntent: (sessionId, clientRequestId) => sessionId === "session-1" && clientRequestId === "request-1"
         ? { sessionId, clientRequestId, occurredAt, message: "请准备数学课", cwd: "/synthetic", status: "pending" } : null,
       resolveEduPiPromptIntent: () => events.push("intent_resolved"),
+      discardEduPiPromptIntent: () => events.push("intent_discarded"),
     },
     "@/lib/edupi-proactivity-config": { readEduPiProactivityActivation: ({ domain }) => ({
       enabled: domains.includes(domain), grantId: `grant-${domain}`, scope: { classId: "703", subject: "数学" },
@@ -249,6 +250,22 @@ test("a later disabled grant never replays a prepared Core source as plain Pi ch
   assert.equal(f.events.includes("pi_send"), false);
 });
 
+test("long desktop text still falls back to direct Pi when proactive Core capture is off", async () => {
+  const longMessage = "合成教学上下文".repeat(700);
+  const disabled = fixture();
+  disabled.deactivate();
+  const response = await disabled.post({ ...disabled.body,
+    command: { ...disabled.body.command, message: longMessage } });
+  assert.equal(response.status, 202);
+  assert.equal((await response.json()).status, "disabled");
+  assert.equal(disabled.entry(), null);
+  const active = fixture();
+  const refused = await active.post({ ...active.body,
+    command: { ...active.body.command, message: longMessage } });
+  assert.equal(refused.status, 400);
+  assert.equal(active.events.includes("pi_send"), false);
+});
+
 test("Pi error is uncertain and a repeated request never blindly replays it", async () => {
   const f = fixture({ piError: true });
   const first = await f.post();
@@ -337,6 +354,8 @@ test("explicit cancellation seals a pre-Pi registration; unknown settlement pres
   assert.equal(cancelled.status, 200);
   assert.equal((await cancelled.json()).status, "cancelled");
   assert.equal(sealed.entry().stage, "cancelled");
+  assert.equal(sealed.events.includes("intent_discarded"), true);
+  assert.equal((await sealed.cancel()).status, 200, "repeated cancellation repairs any missed intent settlement");
   assert.equal(sealed.events.includes("pi_send"), false);
   const uncertain = fixture({ registrationFailure: G1, settleFailure: true });
   assert.equal((await uncertain.post()).status, 202);

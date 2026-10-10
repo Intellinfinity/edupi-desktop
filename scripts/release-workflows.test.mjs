@@ -633,6 +633,7 @@ test("a signed Draft Windows asset is read with push-capable credentials but nev
   const source = await readFile(join(root, ".github", "workflows", "draft-windows-smoke.yml"), "utf8");
   assert.match(source, /workflow_dispatch:/u);
   assert.match(source, /contents: write/u);
+  assert.match(source, /persist-credentials: false/u);
   assert.match(source, /release\.target_commitish -ne \$env:SOURCE_SHA/u);
   assert.match(source, /asset\.digest -ne "sha256:\$env:ASSET_SHA256"/u);
   assert.match(source, /Get-FileHash \$file -Algorithm SHA256/u);

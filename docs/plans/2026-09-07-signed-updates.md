@@ -1,8 +1,13 @@
 # 自动下载安装
 
+## 2026-10-10 v0.3.58 Draft 配对检查失败
+
+- 源码 `e7d8fa0a` 的 [Draft run 38058904150](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/38058904150) 在 macOS/Linux 的配对 Core canary 失败：隔离夹具缺少模型配置，G1 激活返回 503；补齐合成模型后，旧消息入口又按新注册回执合同返回 `registered_prompt_required`。Core 的权限门没有放宽。该 Draft 已确定无法过门，已请求取消尚在运行的 Windows job，避免继续消耗 Actions 时长；取消请求不算 Windows 验收结果。
+- canary 已在原工作分支改为注册后捕获、旧入口拒写、去重、越界不生成任务的配对检查；本机固定 Core `57093b` 验证通过。`.58` Draft `408993261` 保持草稿，失败资产不发布、feed 不变。修复进入新的 `.59` 候选，签名和安装结果另记，不沿用 `.58` 构建身份。
+
 ## 2026-10-10 新 Core pin 后的发布门
 
-只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` 源码构建通过，三平台签名包和安装尚未验。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。下一签名候选须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` 源码检查通过，但 Draft 配对 canary 失败，`.59` 正在修复验收脚本。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。`.59` 须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
 
 ## 2026-10-10 v0.3.57 Draft 构建阻塞
 

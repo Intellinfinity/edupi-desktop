@@ -22,6 +22,15 @@ const home = path.join(dataRoot, ".edupi");
 for (const directory of [stateDir, agentDir, path.join(home, "memory"), path.join(home, "output"), path.join(home, "locks")]) {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
 }
+// G1 can only become active with a private model configuration. Keep this
+// canary entirely on loopback with a synthetic key and no external provider.
+fs.writeFileSync(path.join(agentDir, "models.json"), JSON.stringify({ providers: { local: {
+  api: "openai-completions", apiKey: "synthetic-local-placeholder", baseUrl: "http://127.0.0.1:9/v1",
+  models: [{ id: "local", name: "Synthetic local", input: ["text"], reasoning: false,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 32000, maxTokens: 2048 }],
+} } }), { mode: 0o600 });
+fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "local", defaultModel: "local",
+  extensions: [], packages: [], skills: [] }), { mode: 0o600 });
 const token = "proactivity-canary-test-token-012345678901234567890123";
 const keys = ["EDUPI_PROJECT_ROOT", "EDUPI_DATA_ROOT", "EDUPI_DATA_ALLOWED_ROOT", "EDUPI_CORE_ROOT", "EDUPI_CORE_ALLOWED_ROOT",
   "EDUPI_HOME", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR", "EDUPI_CORE_COMMIT", "EDUPI_AMBIENT_PLANNING",
@@ -72,6 +81,7 @@ try {
   const supervisor = await jiti.import("../lib/edupi-runtime-supervisor.ts");
   const snapshotRoots = await jiti.import("../lib/edupi-core-snapshot.ts");
   const grantRuntime = await jiti.import("../lib/edupi-proactivity-runtime.ts");
+  const registeredPrompt = await jiti.import("../lib/edupi-registered-prompt.ts");
   const sessionReader = await jiti.import("../lib/session-reader.ts");
   const sessionRoute = await jiti.import("../app/api/sessions/[id]/route.ts");
   const ambientLedger = await jiti.import("../lib/edupi-ambient-message-ledger.ts");
@@ -162,7 +172,11 @@ try {
     proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", enableInput)),
     proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", enableInput)),
   ]);
-  assert.deepEqual(enableAttempts.map((item) => item.status).sort((left, right) => left - right), [200, 409]);
+  const enableCodes = await Promise.all(enableAttempts.map(async (item) => {
+    const body = await item.clone().json();
+    return { status: item.status, code: body?.code ?? null, error: body?.error ?? null };
+  }));
+  assert.deepEqual(enableAttempts.map((item) => item.status).sort((left, right) => left - right), [200, 409], JSON.stringify(enableCodes));
   const enabled = enableAttempts.find((item) => item.status === 200);
   assert.ok(enabled);
   const enabledBody = await enabled.json();
@@ -173,40 +187,51 @@ try {
   assert.equal(enabledBody.externalSend, false);
   assert.equal((await (await messageRoute.GET(request("http://localhost/api/edupi/proactivity/messages"))).json()).status, "enabled");
 
-  for (const [domain, text] of [
-    ["student-followup", "请跟进学生张三的课堂观察"],
-    ["lesson-reflection", "请做这节课的课后复盘"],
-    ["calendar-administration", "请整理校历行政截止事项"],
-    ["parent-communication", "请起草给家长的沟通草稿"],
-    ["safety-privacy", "请核对学生隐私和安全风险"],
-  ]) {
-    const messageId = `canary-held-${domain}`;
-    const response = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
-      sessionId, messageId, text, occurredAt: new Date().toISOString(),
-    }));
-    const result = await response.json();
-    assert.equal(response.status, 200, JSON.stringify({ domain, result }));
-    assert.equal(result.status, "captured", JSON.stringify({ domain, result }));
-    assert.equal(result.reason, "domain_out_of_scope", JSON.stringify({ domain, result }));
-    assert.equal(result.externalSend, false);
-    assert.equal(result.goalId == null, true);
-    assert.equal(ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot })
-      .some((item) => item.messageId === messageId), false);
-  }
+  const legacyMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
+    sessionId, messageId: "legacy-message", text: "帮我准备明天的数学教案", occurredAt: new Date().toISOString(),
+  }));
+  assert.equal(legacyMessage.status, 409);
+  assert.equal((await legacyMessage.json()).status, "registered_prompt_required");
+  assert.deepEqual(ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot }), []);
 
-  const messageBody = { sessionId, messageId: "canary-message-1", text: "帮我准备明天的数学教案", occurredAt: new Date().toISOString() };
-  const firstMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));
-  const firstMessageBody = await firstMessage.json();
-  assert.equal(firstMessage.status, 200, JSON.stringify(firstMessageBody));
-  assert.equal(firstMessageBody.status, "applied");
-  assert.equal(firstMessageBody.externalSend, false);
-  const replayMessage = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", messageBody));
-  const replayMessageBody = await replayMessage.json();
-  assert.equal(replayMessage.status, 200, JSON.stringify(replayMessageBody));
-  assert.equal(replayMessageBody.goalId, firstMessageBody.goalId);
-
+  // Paired Core must acknowledge registration before capture. The actual Pi
+  // dispatch/outbox route has its own tests; this canary never sends to Pi.
+  const activeHost = await supervisor.ensureEduPiRuntime(roots);
+  const activeHealth = await activeHost.call("health", null);
+  const activeRootRef = activeHealth.result.data_root_fingerprint;
+  const activeGrantId = JSON.parse(fs.readFileSync(path.join(stateDir, "edupi-proactivity.json"), "utf8")).grant_id;
+  assert.equal(typeof activeGrantId, "string");
+  const activeOwner = await grantRuntime.readProactivityOwnerContext(activeHost, activeRootRef, activeGrantId);
+  assert.equal(activeOwner.status, "active");
+  const capture = async (messageId, text, occurredAt = new Date().toISOString()) => registeredPrompt.registerAndCapturePrompt(activeHost, {
+    rootRef: activeRootRef, grantId: activeGrantId, sessionId, messageId, text, occurredAt,
+    domain: "teaching_preparation", carrierId: "edupi.desktop.canary", planId: `canary.${messageId}`,
+  }, {
+    onBound: () => {},
+    onRegistered: proof => ambientLedger.prepareEduPiAmbientMessageBinding({ sessionId, messageId,
+      messageRef: proof.messageRef, ownerId: proof.binding.ownerId, grantId: proof.binding.grantId,
+      captureGrantVersion: proof.binding.grantVersion, occurredAt }, { stateDir, dataRoot }),
+    onCaptured: proof => ambientLedger.confirmEduPiAmbientMessageBinding(sessionId, messageId, proof.messageRef, { stateDir, dataRoot }),
+  });
+  const firstOccurredAt = new Date().toISOString();
+  const firstProof = await capture("canary-message-1", `帮我准备${tomorrow.date}的数学教案`, firstOccurredAt);
+  const bindings = async () => {
+    const reply = await activeHost.callOwnerControl("owner_goal_bindings_read", { root_ref: activeRootRef,
+      expected_owner_id: activeOwner.ownerId, grant_id: activeGrantId,
+      expected_grant_version: activeOwner.grantVersion });
+    assert.equal(reply.ok, true, JSON.stringify(reply));
+    assert.equal(reply.result.external_send, false);
+    return reply.result.bindings;
+  };
+  const firstBinding = (await bindings()).find(item => item.message_ref === firstProof.messageRef);
+  assert.ok(firstBinding, "registered capture should create one Core-owned teaching goal");
+  await capture("canary-message-1", `帮我准备${tomorrow.date}的数学教案`, firstOccurredAt);
+  assert.equal((await bindings()).filter(item => item.message_ref === firstProof.messageRef).length, 1);
+  const outsideProof = await capture("canary-outside-g1", "请跟进学生张三的课堂观察");
+  assert.equal((await bindings()).some(item => item.message_ref === outsideProof.messageRef), false,
+    "a G1-only grant must not turn student follow-up into a teaching goal");
   const feedbackTargetResponse = await feedbackRoute.POST(request("http://localhost/api/edupi/teacher-feedback", "POST",
-    { action: "target_read", target: { kind: "goal", target_id: firstMessageBody.goalId } }));
+    { action: "target_read", target: { kind: "goal", target_id: firstBinding.goal_id } }));
   const feedbackTargetBody = await feedbackTargetResponse.json();
   assert.equal(feedbackTargetResponse.status, 200, JSON.stringify(feedbackTargetBody));
   assert.equal(feedbackTargetBody.ok, true, JSON.stringify(feedbackTargetBody));
@@ -214,7 +239,7 @@ try {
   const feedbackRecord = {
     command_id: "canary-feedback-record-1", session_id: "canary-synthetic-e2", evidence_level: "synthetic",
     domain: "teaching_preparation", scope: { class_id: "class-7-1", subject: "数学" }, signal: "surfaced",
-    target: { kind: "goal", target_id: firstMessageBody.goalId, expected_revision: feedbackTarget.revision, expected_fingerprint: feedbackTarget.fingerprint },
+    target: { kind: "goal", target_id: firstBinding.goal_id, expected_revision: feedbackTarget.revision, expected_fingerprint: feedbackTarget.fingerprint },
     decision: "hold", usefulness: "not_observed", used: false, would_use_again: null, baseline_minutes: null, review_minutes: null,
     issue_codes: [], note: "自动化反馈通道验证，不计入真实教师价值", evidence_ids: feedbackTarget.evidence_ids,
     occurred_at: new Date().toISOString(), supersedes_feedback_id: null,
@@ -230,40 +255,10 @@ try {
   assert.equal(feedbackReadBody.result.summary.real_teacher_current, 0);
   assert.equal(feedbackReadBody.result.summary.synthetic_excluded, 1);
 
-  const correctionBody = { sessionId, messageId: "canary-message-2", text: `改到${correctedDay.date}的数学课`, occurredAt: new Date().toISOString() };
-  const correction = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", correctionBody));
-  const correctionResult = await correction.json();
-  assert.equal(correction.status, 200, JSON.stringify(correctionResult));
-  assert.equal(correctionResult.status, "corrected", JSON.stringify(correctionResult));
-  assert.notEqual(correctionResult.goalId, firstMessageBody.goalId);
-  assert.equal(correctionResult.externalSend, false);
-  const correctionReplay = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", correctionBody));
-  const correctionReplayResult = await correctionReplay.json();
-  assert.equal(correctionReplay.status, 200, JSON.stringify(correctionReplayResult));
-  assert.equal(correctionReplayResult.status, "corrected", JSON.stringify(correctionReplayResult));
-  assert.equal(correctionReplayResult.goalId, correctionResult.goalId);
-
-  const cancellationBody = { sessionId, messageId: "canary-message-3", text: "取消这节数学备课", occurredAt: new Date().toISOString() };
-  const cancellation = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", cancellationBody));
-  const cancellationResult = await cancellation.json();
-  assert.equal(cancellation.status, 200, JSON.stringify(cancellationResult));
-  assert.equal(cancellationResult.status, "cancelled", JSON.stringify(cancellationResult));
-  assert.equal(cancellationResult.goalId, correctionResult.goalId);
-  assert.equal(cancellationResult.externalSend, false);
   const planningFile = path.join(home, "output", "ambient-planning-v1.json");
-  const controlEventsBeforeReplay = JSON.parse(fs.readFileSync(planningFile, "utf8")).state.events.filter((item) => item.kind === "goal_control").length;
-  const cancellationReplay = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", cancellationBody));
-  const cancellationReplayResult = await cancellationReplay.json();
-  assert.equal(cancellationReplay.status, 200, JSON.stringify(cancellationReplayResult));
-  assert.ok(["cancelled", "captured"].includes(cancellationReplayResult.status));
-  const controlEventsAfterReplay = JSON.parse(fs.readFileSync(planningFile, "utf8")).state.events.filter((item) => item.kind === "goal_control").length;
-  assert.equal(controlEventsAfterReplay, controlEventsBeforeReplay);
-  const deletionSource = await messageRoute.POST(request("http://localhost/api/edupi/proactivity/messages", "POST", {
-    sessionId, messageId: "canary-message-4", text: `帮我准备${deletionDay.date}的数学教案`, occurredAt: new Date().toISOString(),
-  }));
-  const deletionSourceResult = await deletionSource.json();
-  assert.equal(deletionSource.status, 200, JSON.stringify(deletionSourceResult));
-  assert.equal(deletionSourceResult.status, "applied");
+  const deletionProof = await capture("canary-message-4", `帮我准备${deletionDay.date}的数学教案`);
+  const deletionBinding = (await bindings()).find(item => item.message_ref === deletionProof.messageRef);
+  assert.ok(deletionBinding);
 
   await supervisor.closeAllEduPiRuntimes();
   const restarted = await statusRoute.GET(new Request("http://localhost/api/edupi/status?summary=1", { headers: { host: "localhost" } }));
@@ -285,7 +280,7 @@ try {
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });
-  assert.equal(capturedBindings.length, 4);
+  assert.equal(capturedBindings.length, 3);
   ambientLedger.prepareEduPiAmbientMessageBinding({ sessionId, messageId: "canary-crash-before-capture",
     messageRef: `owner_message:${"f".repeat(64)}`, ownerId: capturedBindings[0].ownerId,
     grantId: capturedBindings[0].grantId, captureGrantVersion: capturedBindings[0].captureGrantVersion,
@@ -296,7 +291,7 @@ try {
   assert.equal(fs.existsSync(sessionFile), false);
   assert.deepEqual(ambientLedger.readCapturedEduPiAmbientMessages(sessionId, { stateDir, dataRoot }), []);
   const afterDeletePlanning = JSON.parse(fs.readFileSync(planningFile, "utf8")).state;
-  assert.equal(afterDeletePlanning.goals.find((item) => item.id === deletionSourceResult.goalId).status, "revoked");
+  assert.equal(afterDeletePlanning.goals.find((item) => item.id === deletionBinding.goal_id).status, "revoked");
   const beforeStopFailure = await proactivityRoute.GET(request("http://localhost/api/edupi/proactivity"));
   const beforeStopFailureState = await beforeStopFailure.json();
   const enabledForStopFailure = await proactivityRoute.POST(request("http://localhost/api/edupi/proactivity", "POST", {
@@ -346,11 +341,12 @@ await closeAllEduPiRuntimes();`;
   assert.equal(recoveredStop.status, 200, JSON.stringify(recoveredStopState));
   assert.equal(recoveredStopState.grantPaused, true);
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity-stop.json")), false);
-  console.log(JSON.stringify({ status: "passed", explicit_opt_in: true, scope_bound: true, ordinary_message_goal: true,
-    concurrent_activation_cas: true, out_of_scope_tombstoned: true, natural_correction: true, natural_cancellation: true, replay_no_duplicate: true, restart_persistent: true,
+  console.log(JSON.stringify({ status: "passed", explicit_opt_in: true, scope_bound: true, registered_message_goal: true,
+    concurrent_activation_cas: true, legacy_capture_rejected: true, out_of_scope_not_applied: true,
+    replay_no_duplicate: true, restart_persistent: true,
     feedback_channel: true, synthetic_feedback_excluded: true, explicit_stop: true, session_delete_withdrawal: true,
     active_goal_delete_propagation: true, capture_crash_recovery: true, stop_durability_failure_fenced: true,
-    model_provider_calls: 0, external_send: false }));
+    external_send: false }));
 } finally {
   try {
     const jiti = createJiti(import.meta.url, { tsconfigPaths: true });

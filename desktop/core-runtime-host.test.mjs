@@ -103,9 +103,11 @@ test("runtime host leaves G1 Live off without an exact scoped grant and forwards
 
   const scope = { classId: "class-7-1", subject: "数学", grantId: "desktop_canary_class_7_math" };
   const scoped = await startCoreRuntimeHost({ coreRoot: root,
-    options: { ...options, ownerControlToken: "owner-control-test", g1Scope: scope } }, channel);
+    options: { ...options, ownerControlToken: "owner-control-test", ownerMessageRegistration: true, g1Scope: scope } }, channel);
+  assert.equal(lastOptions().ownerMessageRegistration, true);
   assert.deepEqual(lastOptions().g1Live.scope, { classId: scope.classId, subject: scope.subject });
   assert.equal(lastOptions().g1Live.grantId, scope.grantId);
+  assert.equal(lastOptions().ownerMessageContinuation, true);
   assert.equal(lastOptions().g1Live.durableTeachingPreparation, undefined);
   const { isIsolatedG1ModelRunner } = await import(path.join(root, "scripts/core_runtime_isolated_model.mjs"));
   assert.equal(isIsolatedG1ModelRunner(lastOptions().g1Live.modelRunner), true);
@@ -119,6 +121,8 @@ test("runtime host leaves G1 Live off without an exact scoped grant and forwards
   }
   await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
     options: { ...options, ambientPlanning: false, g1Scope: scope } }, channel), /Invalid runtime bootstrap/);
+  await assert.rejects(startCoreRuntimeHost({ coreRoot: root,
+    options: { ...options, ownerMessageRegistration: true } }, channel), /Invalid runtime bootstrap/);
 });
 
 function syntheticConfiguration() {
@@ -182,7 +186,7 @@ test("unavailable G1 configuration leaves the daemon readable and never falls ba
   await host.close();
 });
 
-test("G2 bootstrap uses the Core factory and a bounded private model envelope", async t => {
+test("G2 bootstrap uses Core's isolated factory and exact grant binding", async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-g2-host-unit-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, "scripts"));
@@ -193,12 +197,18 @@ test("G2 bootstrap uses the Core factory and a bounded private model envelope", 
     export function lastOptions() { return received; }
   `);
   fs.writeFileSync(path.join(root, "scripts/student_followup_model_adapter.mjs"), `
-    export function createStudentFollowUpModelAdapter({runModel}) {
-      return { branded: true, run: (_input, options) => runModel({prompt:'Core-built synthetic prompt', signal:options.signal}) };
+    export function createIsolatedStudentFollowUpModelAdapter(config) {
+      if (config.maxCalls !== 4 || config.timeoutMs !== 120000 || config.apiKey !== 'synthetic-key') throw new Error('unbounded G2 model');
+      return { isolated: true, waitForIdle: async () => {} };
     }
   `);
   const channel = new EventEmitter(); channel.connected = true;
-  const sent = []; channel.send = (value, callback) => { sent.push(value); callback?.(); };
+  const sent = []; channel.send = (value, callback) => {
+    sent.push(value); callback?.();
+    if (value.type === "model-config-request") queueMicrotask(() => channel.emit("message", {
+      type: "model-config-result", id: value.id, configuration: { ...syntheticConfiguration(), apiKey: "synthetic-key" },
+    }));
+  };
   const options = { dataRoot: root, token: "test", supervisorSessionId: "test", coreCommit: "a".repeat(40),
     componentManifestHash: `sha256:${"b".repeat(64)}`, port: 0, ambientPlanning: true, ownerControlToken: "owner-test",
     g2Scope: { classId: "class-1", subject: "数学", grantId: "g2-test" } };
@@ -206,16 +216,46 @@ test("G2 bootstrap uses the Core factory and a bounded private model envelope", 
   const {lastOptions} = await import(path.join(root, "scripts/core_runtime_daemon.mjs"));
   try {
     assert.equal(lastOptions().g1Live, undefined);
-    assert.equal(lastOptions().g2Live.modelAdapter.branded, true);
-    const running = lastOptions().g2Live.modelAdapter.run({}, {signal:new AbortController().signal});
-    const request = sent[0].request;
-    assert.equal(request.model_kind, "student_followup");
-    assert.equal(request.prompt, "Core-built synthetic prompt");
-    assert.ok(Date.parse(request.deadline_at) > Date.now());
-    channel.emit("message", {type:"model-result", id:sent[0].id, result:{output:"synthetic result"}});
-    assert.deepEqual(await running, {output:"synthetic result"});
+    assert.equal(lastOptions().g2Live.modelAdapter.isolated, true);
+    assert.deepEqual(lastOptions().g2Live.binding, { grantId: "g2-test", classId: "class-1", subject: "数学" });
+    assert.equal(lastOptions().g2Live.leaseMs, 120000);
+    assert.equal(lastOptions().ownerMessageContinuation, true);
+    assert.deepEqual(sent.map(item => item.type), ["model-config-request"]);
   } finally { await host.close(); }
   await assert.rejects(startCoreRuntimeHost({coreRoot:root, options:{...options, ownerControlToken:undefined}}, channel), /Invalid runtime bootstrap/);
+});
+
+test("G2 without private model configuration remains inactive", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "edupi-g2-unavailable-unit-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "scripts"));
+  fs.writeFileSync(path.join(root, "package.json"), '{"type":"module"}');
+  fs.writeFileSync(path.join(root, "scripts/core_runtime_daemon.mjs"), `
+    let received;
+    export async function createCoreRuntimeDaemon(options) { received = options; return { async close() {} }; }
+    export function lastOptions() { return received; }
+  `);
+  const channel = new EventEmitter(); channel.connected = true;
+  channel.send = (value, callback) => { callback?.(); queueMicrotask(() => channel.emit("message", { type: "model-config-error", id: value.id })); };
+  const host = await startCoreRuntimeHost({ coreRoot: root, options: { dataRoot: root, token: "test", supervisorSessionId: "test",
+    coreCommit: "a".repeat(40), componentManifestHash: `sha256:${"b".repeat(64)}`, port: 0, ambientPlanning: true,
+    ownerControlToken: "owner-test", g2Scope: { classId: "class-1", subject: "数学", grantId: "g2-test" } } }, channel);
+  const { lastOptions } = await import(path.join(root, "scripts/core_runtime_daemon.mjs"));
+  assert.equal(lastOptions().g2Live, undefined);
+  assert.equal(lastOptions().ownerMessageContinuation, undefined);
+  await host.close();
+});
+
+test("paired Core accepts only the real isolated G2 adapter brand", { skip: !process.env.EDUPI_CORE_ROOT }, async () => {
+  const coreRoot = fs.realpathSync(process.env.EDUPI_CORE_ROOT);
+  const { createIsolatedStudentFollowUpModelAdapter, createStudentFollowUpModelAdapter } = await import(pathToFileURL(path.join(coreRoot, "scripts/student_followup_model_adapter.mjs")).href);
+  const { validateStudentFollowUpExecutionLiveOptions } = await import(pathToFileURL(path.join(coreRoot, "scripts/student_followup_execution_runtime.mjs")).href);
+  const configuration = { ...syntheticConfiguration(), apiKey: "synthetic-key", maxCalls: 4, timeoutMs: 120000 };
+  const isolated = createIsolatedStudentFollowUpModelAdapter(configuration);
+  assert.equal(validateStudentFollowUpExecutionLiveOptions({ modelAdapter: isolated, binding: { grantId: "g2-test", classId: "class-1", subject: "数学" } }).modelAdapter, isolated);
+  const generic = createStudentFollowUpModelAdapter({ runModel: async () => ({ output: "{}" }) });
+  assert.throws(() => validateStudentFollowUpExecutionLiveOptions({ modelAdapter: generic }), /invalid G2 live options/);
+  await isolated.waitForIdle();
 });
 
 test("real Core host uses private configuration for default Durable math, preserves reserves on restart and reaps on disconnect", { skip: !process.env.EDUPI_CORE_ROOT, timeout: 60_000 }, async () => {

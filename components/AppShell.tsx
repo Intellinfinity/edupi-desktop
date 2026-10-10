@@ -673,7 +673,10 @@ export function AppShell() {
     setPendingTeacherDraft(null);
     // "New task" is an explicit reset. A cwd-based blank-task draft would
     // otherwise be reloaded immediately when the composer remounts.
-    resetNewSessionDraft(`new:${cwd}`);
+    if (!resetNewSessionDraft(`new:${cwd}`)) {
+      window.alert("上一条消息尚未安全保存到原会话，新任务未创建");
+      return;
+    }
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setEduPiEducationModule(null);
@@ -695,7 +698,10 @@ export function AppShell() {
     window.dispatchEvent(new Event("edupi-session-navigated"));
     setPendingEduPiContext(null);
     setPendingTeacherDraft(null);
-    resetNewSessionDraft(`new:${cwd}`);
+    if (!resetNewSessionDraft(`new:${cwd}`)) {
+      window.alert("上一条消息尚未安全保存到原会话，新任务未创建");
+      return;
+    }
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setSessionKey((key) => key + 1);

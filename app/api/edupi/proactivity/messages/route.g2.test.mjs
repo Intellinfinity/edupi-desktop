@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import test from "node:test";
 import ts from "typescript";
 
-function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false}={}) {
+function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false,registeredPrompt=false}={}) {
   const prepared=[],captured=[],confirmed=[];
   let bodyReads=0;
   class AmbientError extends Error {constructor(code){super(code);this.code=code;this.stage="owner";}}
@@ -15,12 +15,12 @@ function fixture({g1=true,g2=true,isolated=true,g2Active=true,failG1=false}={}) 
     "@/lib/desktop-api-auth":{isDesktopApiRequestAllowed:()=>true},
     "@/lib/bounded-form-data":{parseJsonWithinLimit:async r=>{bodyReads++;return r.json();},RequestBodyTooLargeError:class extends Error{}},
     "@/lib/edupi-core-snapshot":{resolveEduPiBridgeRoots:()=>({dataRoot:{root:"/synthetic-root"}})},
-    "@/lib/safe-mode":{canStartEduPiStudentFollowup:()=>isolated},
+    "@/lib/safe-mode":{canStartEduPiProactivity:()=>true,canStartEduPiStudentFollowup:()=>isolated},
     "@/lib/edupi-proactivity-config":{readEduPiProactivityActivation:({domain})=>({enabled:domain==="student_followup"?g2:g1,grantId:domain,scope:{classId:"class-1",subject:"数学"}})},
     "@/lib/session-reader":{resolveSessionPath:async()=>"synthetic-session"},
     "@/lib/edupi-ambient-session-lock":{withEduPiAmbientSessionLock:async(_id,operation)=>operation()},
     "@/lib/edupi-proactivity-runtime":{readProactivityOwnerContext:async()=>({status:"active"})},
-    "@/lib/edupi-runtime-supervisor":{ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2Active?"active":"activation_pending"}}})})},
+    "@/lib/edupi-runtime-supervisor":{ensureEduPiRuntime:async()=>({call:async()=>({ok:true,result:{data_root_fingerprint:`sha256:${"a".repeat(64)}`,capabilities:{ambient_planning:"active",owner_intent:"active",g2_processor:g2Active?"active":"activation_pending",owner_message_registration:registeredPrompt?"active":"activation_pending"}}})})},
     "@/lib/edupi-ambient-message-ledger":{
       prepareEduPiAmbientMessageBinding:value=>prepared.push(value),
       confirmEduPiAmbientMessageBinding:(sessionId,messageId,messageRef)=>confirmed.push({sessionId,messageId,messageRef}),
@@ -52,6 +52,14 @@ test("one message keeps independent G1/G2 receipts under the same session withdr
   assert.equal(new Set(f.prepared.map(x=>x.messageId)).size,2);
   assert.ok(f.prepared.every(x=>x.sessionId==="session-1"));
   assert.equal(f.confirmed.length,2);
+});
+
+test("legacy direct capture is refused once Core registration is active", async () => {
+  const f=fixture({registeredPrompt:true});
+  const response=await f.route.POST(f.request());
+  assert.equal(response.status,409);
+  assert.equal((await response.json()).status,"registered_prompt_required");
+  assert.equal(f.captured.length,0);
 });
 
 test("G2 cannot capture outside an isolated root or while its processor is off",async()=>{

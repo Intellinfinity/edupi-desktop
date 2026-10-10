@@ -380,6 +380,11 @@ jobs:
           npm run test:staged-docx
           EDUPI_STAGED_NODE="$helper" npm run test:staged-openconnector
 
+      - name: Install signed Windows candidate with isolated Core data
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test-windows-route1-preview.ps1
+
       - name: Verify packaged macOS updater key
         if: runner.os == 'macOS'
         run: >

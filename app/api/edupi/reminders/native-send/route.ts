@@ -10,7 +10,7 @@ import { notificationClaimsAreCurrent, readCurrentReminderEducation, reminderNot
 import { updateReminderStore } from "@/lib/edupi-reminder-store";
 
 export const dynamic = "force-dynamic";
-export const NOTIFICATION_DISPATCH_ID_HEADER = "x-pi-reminder-dispatch-id";
+const NOTIFICATION_DISPATCH_ID_HEADER = "x-pi-reminder-dispatch-id";
 
 /** Atomically cross the native-send boundary. A timeout after this point is unknown, never retryable. */
 export async function POST(request: Request) {

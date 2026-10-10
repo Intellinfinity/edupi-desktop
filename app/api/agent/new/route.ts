@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { allowFileRoot } from "@/lib/file-access";
 import { invalidateSessionListCache } from "@/lib/session-reader";
 import { startHarnessSession } from "@/lib/harness/runtime";
+import { eduPiDirectPromptGate } from "@/lib/edupi-direct-prompt-gate";
 
 const THINKING_LEVELS = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
@@ -40,6 +41,11 @@ export async function POST(req: Request) {
     if (accessMode !== undefined && accessMode !== "approval" && accessMode !== "workspace" && accessMode !== "full") {
       throw new Error("Invalid access mode");
     }
+    if (["prompt", "steer", "follow_up", "mobile_prompt"].includes(String(promptCommand.type))) {
+      const gate = eduPiDirectPromptGate();
+      if (gate !== "allowed") return NextResponse.json({ error: gate === "core_first_required"
+        ? "主动运行期间请先停止当前回复，再发送新消息" : "Core 状态暂不可用，消息未发送" }, { status: gate === "core_first_required" ? 409 : 503 });
+    }
 
     // Must be unique per request: the Pi runtime coalesces concurrent callers
     // that share a key onto one session. Date.now() (ms resolution) collides for
@@ -73,6 +79,12 @@ export async function POST(req: Request) {
           : null,
         thinkingLevel: state.thinkingLevel,
       });
+    }
+
+    if (["prompt", "steer", "follow_up", "mobile_prompt"].includes(String(promptCommand.type))) {
+      const gate = eduPiDirectPromptGate();
+      if (gate !== "allowed") return NextResponse.json({ error: gate === "core_first_required"
+        ? "主动运行期间请先停止当前回复，再发送新消息" : "Core 状态暂不可用，消息未发送" }, { status: gate === "core_first_required" ? 409 : 503 });
     }
 
     const result = await session.send(promptCommand);

@@ -467,6 +467,20 @@
 .edupi-admin-runtime > div > button:hover { background: var(--bg-hover); }
 .edupi-admin-runtime > .is-empty { display: flex; justify-content: center; color: var(--text-muted); font-size: 11px; }
 
+.edupi-prompt-outbox > summary { padding: 13px 18px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.edupi-prompt-outbox > p { margin: 0; padding: 8px 18px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 11px; }
+.edupi-prompt-outbox__refresh { margin: 0 18px 10px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-panel); color: var(--text-muted); cursor: pointer; font-size: 11px; }
+.edupi-prompt-outbox > ul { margin: 0; padding: 0; list-style: none; }
+.edupi-prompt-outbox li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--border); font-size: 11px; }
+.edupi-prompt-outbox li > span:nth-child(2) { color: var(--text-muted); }
+.edupi-prompt-outbox__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.edupi-prompt-outbox__actions button { padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-panel); color: var(--accent); cursor: pointer; font-size: 11px; }
+.edupi-prompt-outbox__actions button:disabled { opacity: .55; cursor: default; }
+.edupi-prompt-outbox__detail { grid-column: 1 / -1; min-width: 0; }
+.edupi-prompt-outbox__detail pre { max-height: 180px; overflow: auto; margin: 0 0 6px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-hover); color: var(--text); font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.edupi-prompt-outbox__detail button { padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-panel); color: var(--accent); cursor: pointer; font-size: 11px; }
+.edupi-prompt-outbox__more { width: 100%; padding: 10px 18px; border: 0; border-top: 1px solid var(--border); background: var(--bg-panel); color: var(--accent); cursor: pointer; text-align: left; font-size: 11px; }
+
 .edupi-admin-primary {
   margin-top: 18px;
   border-color: var(--text) !important;
@@ -536,6 +550,9 @@
   .edupi-admin-metrics > div:last-child { border-bottom: 0; }
   .edupi-admin-runtime > div { grid-template-columns: 8px minmax(0, 1fr) auto; }
   .edupi-admin-runtime time { display: none; }
+  .edupi-prompt-outbox li { grid-template-columns: minmax(0, 1fr) auto; }
+  .edupi-prompt-outbox li > span:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .edupi-prompt-outbox__actions { grid-column: 2; grid-row: 1 / 3; }
   .edupi-proactivity-canary > label { align-items: stretch; flex-direction: column; }
   .edupi-proactivity-canary select { width: 100%; min-width: 0; max-width: none; }
   .edupi-proactivity-canary > button { justify-self: stretch; }

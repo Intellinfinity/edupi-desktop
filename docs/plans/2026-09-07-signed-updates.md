@@ -1,5 +1,14 @@
 # 自动下载安装
 
+## 2026-10-10 新 Core pin 后的发布门
+
+只读 `EDUPI_CORE_READ_TOKEN` 已更新到迁仓后的 Desktop Actions Secret；`.57` Draft `408319110` 的 0 资产失败保留历史，不用旧 pin 重试。当前开发分支固定 Core `57093b` 并增加发送前 intent、持久消息 outbox、G2/DOCX 消费；`.58` 源码构建通过，三平台签名包和安装尚未验。发送点击后到 intent 落盘前的瞬时崩溃跨端口草稿仍缺恢复证据，不能称“零丢失”。下一签名候选须绑定精确源码，通过三平台资产/摘要、Apple 签名公证、安装版双系统隔离验收后，再决定 Release/feed。公开 `.56` 与唯一安装应用保持不变。
+
+## 2026-10-10 v0.3.57 Draft 构建阻塞
+
+- [run 37987228603](https://github.com/PIGU-PPPgu/edupi-desktop/actions/runs/37987228603) 的 Release 准备成功，但三平台 build 均在私有 Core checkout 的 HTTPS 403 失败；Draft Release `408319110` 仍为 0 资产。Apple 签名、公证、Windows/Linux 安装包和 `draft-proof` 未执行，不计三平台通过。
+- 迁仓后的旧 Core 读取 token 不再有访问 `PIGU-PPPgu/edupi` 的权限；新范围仅限该私有仓库的只读凭据到位后，保持源码 `7faa74fd`、版本 `.57` 和现有 Draft 不变，先有界重试失败 job，再核对资产/签名与安装安全门。公开 `.56` Release/feed 与唯一已安装 `.56` 保持原状，绝不手动发布 0 资产 Draft。
+
 ## 2026-10-10 v0.3.57 发布准备
 
 - 公开 v0.3.56、七键 feed 和已安装应用保持不变。迁仓后新 Raw feed 和 Release/API 路径可读；新客户端将新 Raw 地址置首位并保留旧地址为迁移回退。

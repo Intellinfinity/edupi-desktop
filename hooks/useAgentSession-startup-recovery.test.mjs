@@ -38,10 +38,12 @@ function draftHarness() {
   return { store, cold: key => plain(coldStore().getDraft(key)), writable: value => { writable = value; } };
 }
 
-function startupHarness({ input = true, acceptRestore = false, promptError = null, creationGate = null, modelGate = null, initialSid = null, selectedModel = null } = {}) {
+function startupHarness({ input = true, acceptRestore = false, promptError = null, desktopPromptError = null,
+  desktopDelivery = "disabled", desktopPromptSequence = null, desktop = false, intentStatus = "ready", intentGate = null,
+  holdingSubmission = false, creationGate = null, modelGate = null, initialSid = null, selectedModel = null } = {}) {
   const drafts = draftHarness();
   const draftKey = "new:/synthetic/startup";
-  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [];
+  const timers = new Map(), sources = [], commands = [], notices = [], promoted = [], recoveries = [], settlements = [], events = [], desktopPrompts = [];
   let timerId = 0, creates = 0, active = false, history = emptyMessageHistory();
   class FakeEventSource {
     static CONNECTING = 0;
@@ -59,6 +61,15 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     clearTimeout: id => timers.delete(id),
     console: { error: noop },
     sessionIdentity: draftKey, isNew: true, newSessionCwd: "/synthetic/startup", newSessionModel: selectedModel, session: null,
+    getDraft: drafts.store.getDraft, setDraft: drafts.store.setDraft,
+    stagePendingPrompt: drafts.store.stagePendingPrompt, acknowledgePendingPrompt: drafts.store.acknowledgePendingPrompt,
+    isTauriDesktop: () => desktop, reconcileEduPiCapturedPrompt: async () => "uncertain",
+    persistEduPiPromptIntent: async () => { if (intentGate) await intentGate; return intentStatus; }, resolveEduPiPromptIntentClient: async () => {
+      if (!desktop) throw new Error("desktop_only_intent_resolution");
+    },
+    settleUiStage: () => { context.agentRunningRef.current = false; active = false; },
+    loadSession: async sid => { events.push(["reload", sid]); return { sessionId: sid }; },
+    releasePendingPromptForNewMessage: drafts.store.releasePendingPromptForNewMessage,
     sessionIdRef: { current: initialSid }, sessionGenerationRef: { current: 0 },
     ensuringNewSessionRef: { current: null }, newSessionPromotedRef: { current: false },
     newSessionModelOverrideRef: { current: null }, thinkingLevelOverrideRef: { current: null },
@@ -75,9 +86,17 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
     eventStreamGraceGenerationRef: { current: 0 }, eventStreamGraceActiveRef: { current: false }, eventStreamGraceTimerRef: { current: null },
     eventSourceRef: { current: null }, eventSourceSessionIdRef: { current: null }, eventConnectionAttemptRef: { current: null },
     handleAgentEventRef: { current: event => events.push(event) }, waitForPromptSettlement: (sid, runId) => settlements.push({ sid, runId }),
-    proactivityNoticeAtRef: { current: 0 }, captureEduPiAmbientMessage: async () => ({ status: "unavailable" }),
+    sendEduPiCapturedPrompt: async request => {
+      desktopPrompts.push(plain(request));
+      if (desktopPromptError) throw desktopPromptError;
+      const next = desktopPromptSequence?.shift() ?? desktopDelivery;
+      if (next instanceof Error) throw next;
+      return next;
+    },
     addNotice: notice => notices.push(notice), restoreFailedMessageDraft: drafts.store.restoreFailedMessageDraft,
     chatInputRef: { current: input ? {
+      isHoldingSubmission: () => holdingSubmission,
+      acknowledgeSubmittedMessage: (key, value) => { recoveries.push({ type: "acknowledge", key, value }); return true; },
       preserveContextForSession: noop,
       replaceMessage: message => { recoveries.push({ type: "replace", message: plain(message), durableBeforeRestore: drafts.cold(draftKey) }); return acceptRestore; },
       refreshPendingFailedMessages: key => recoveries.push({ type: "pending", key, messages: plain(drafts.store.getDraft(key)?.pendingFailedMessages) }),
@@ -89,7 +108,7 @@ function startupHarness({ input = true, acceptRestore = false, promptError = nul
   const connection = source.slice(source.indexOf("  const cancelEventStreamGrace = useCallback"), source.indexOf("  const respondToExtensionUi = useCallback"));
   const sending = source.slice(source.indexOf("  const handleSend = useCallback"), source.indexOf("  const executeBash = useCallback"));
   const api = new Function(...Object.keys(context), compile(`${constants}\n${connectionError}\n${creation}\n${connection}\n${sending}\nreturn { handleSend, ensureEventsConnected };`))(...Object.values(context));
-  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events,
+  return { ...drafts, context, draftKey, sources, commands, notices, promoted, recoveries, settlements, events, desktopPrompts,
     send: api.handleSend, state: () => ({ creates, active, history }),
     expire: async ms => { const timer = [...timers.entries()].find(([, timer]) => timer.ms === ms); assert.ok(timer, `expected ${ms}ms deadline`); timers.delete(timer[0]); timer[1].callback(); await flush(); },
     timerDelays: () => [...timers.values()].map(timer => timer.ms),
@@ -130,6 +149,95 @@ test("a cold SSE deadline retries only the connection once and posts the origina
   assert.deepEqual(f.commands[0].images, [{ type: "image", data: "AQID", mimeType: "image/png" }]);
   assert.equal(f.promoted.length, 1);
   assert.equal(f.state().history.messages.length, 1);
+});
+
+test("a lost Desktop response reuses the durable Core request identity instead of sending a new prompt", async () => {
+  const f = startupHarness({ desktop: true, desktopPromptSequence: [new Error("synthetic lost response"), "accepted"] });
+  f.store.setDraft(f.draftKey, { value: "合成消息", images: [] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const first = f.send("合成消息");
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await first, false);
+  const pending = f.cold(f.draftKey)?.pendingPrompt;
+  assert.ok(pending);
+  assert.equal(f.cold("created-session")?.pendingPrompt?.clientRequestId, pending.clientRequestId);
+  f.context.agentRunningRef.current = false;
+  const second = f.send("合成消息");
+  assert.equal(await second, true);
+  assert.equal(f.desktopPrompts.length, 2);
+  assert.equal(f.desktopPrompts[0].command.clientRequestId, f.desktopPrompts[1].command.clientRequestId);
+  assert.equal(f.desktopPrompts[0].messageId, f.desktopPrompts[1].messageId);
+  assert.equal(f.desktopPrompts[0].occurredAt, f.desktopPrompts[1].occurredAt);
+  assert.equal(f.state().creates, 1);
+  assert.equal(f.cold(f.draftKey)?.pendingPrompt, undefined);
+});
+
+test("disabled proactive capture still sends a long Desktop prompt directly to Pi once", async () => {
+  const f = startupHarness({ desktop: true, desktopDelivery: "disabled" });
+  const text = "合成上下文".repeat(900);
+  f.store.setDraft(f.draftKey, { value: text, images: [] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const sent = f.send(text);
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await sent, true);
+  assert.equal(f.desktopPrompts.length, 1);
+  assert.equal(f.commands.filter(item => item.type === "prompt").length, 1);
+  assert.equal(f.cold(f.draftKey)?.pendingPrompt, undefined);
+});
+
+test("an extension slash command is captured before Pi while active and runs directly when disabled", async () => {
+  for (const delivery of ["accepted", "disabled"]) {
+    const f = startupHarness({ desktop: true, desktopDelivery: delivery });
+    f.store.setDraft(f.draftKey, { value: "/synthetic-skill", images: [] });
+    assert.equal(f.store.flushDraftNow(f.draftKey), true);
+    const sent = f.send("/synthetic-skill");
+    await flush();
+    f.sources[0].connected();
+    assert.equal(await sent, true);
+    assert.equal(f.desktopPrompts.length, 1);
+    assert.equal(f.commands.filter(item => item.type === "prompt").length, delivery === "disabled" ? 1 : 0);
+  }
+});
+
+test("a resolved intent retry clears its optimistic ghost and running state without a second send", async () => {
+  const f = startupHarness({ desktop: true, intentStatus: "resolved" });
+  const pendingPrompt = { sessionId: "created-session", clientRequestId: "66666666-6666-4666-8666-666666666666",
+    occurredAt: "2026-10-10T00:00:00.000Z", message: "已送达消息", draftValue: "已送达消息" };
+  f.store.setDraft(f.draftKey, { value: pendingPrompt.draftValue, images: [], pendingPrompt });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const sent = f.send(pendingPrompt.message);
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await sent, true);
+  assert.equal(f.desktopPrompts.length, 0);
+  assert.equal(f.commands.filter(item => item.type === "prompt").length, 0);
+  assert.equal(f.state().active, false);
+  assert.equal(f.state().history.messages.length, 0);
+  assert.deepEqual(f.events.filter(item => Array.isArray(item) && item[0] === "reload"), [["reload", "created-session"]]);
+  assert.equal(f.recoveries.some(item => item.type === "acknowledge"), true);
+});
+
+test("a session switch during a resolved-intent read never revives the delivered message as failed", async () => {
+  let finishIntent;
+  const intentGate = new Promise(resolve => { finishIntent = resolve; });
+  const f = startupHarness({ desktop: true, intentStatus: "resolved", intentGate });
+  const pendingPrompt = { sessionId: "created-session", clientRequestId: "77777777-7777-4777-8777-777777777777",
+    occurredAt: "2026-10-10T00:00:00.000Z", message: "已经送达", draftValue: "已经送达" };
+  f.store.setDraft(f.draftKey, { value: pendingPrompt.draftValue, images: [], pendingPrompt });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const sent = f.send(pendingPrompt.message);
+  await flush();
+  f.sources[0].connected();
+  await flush();
+  f.context.sessionGenerationRef.current++;
+  f.context.sessionIdRef.current = "another-session";
+  finishIntent();
+  assert.equal(await sent, true);
+  assert.equal(f.cold(f.draftKey), null);
+  assert.equal(f.recoveries.some(item => item.type === "pending" || item.type === "replace"), false);
+  assert.equal(f.desktopPrompts.length, 0);
 });
 
 test("complete startup failure keeps text, all references and images durable without a UI ref", async () => {
@@ -298,6 +406,33 @@ test("an ambiguous prompt response is never reposted or labeled as safely unsent
   assert.equal(f.state().history.messages.length, 1);
   assert.equal(f.cold(f.draftKey), null, "a possibly accepted POST must not offer an automatic resend draft");
   assert.equal(f.settlements.length, 1);
+});
+
+test("a connection failure before the Desktop outbox is created keeps the persisted composer draft", async () => {
+  const f = startupHarness({ desktopPromptError: new Error("synthetic pre-server connection failure"), holdingSubmission: true });
+  f.store.setDraft(f.draftKey, { value: teacherText, context: selectedContext,
+    images: [{ data: "AQID", mimeType: "image/png" }] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const pending = f.send(message, images);
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await pending, false);
+  assert.equal(f.commands.filter(item => item.type === "prompt").length, 0);
+  assert.equal(f.cold(f.draftKey)?.value, teacherText);
+  assert.equal(f.cold(f.draftKey)?.pendingFailedMessages?.length ?? 0, 0);
+});
+
+test("a Core-first uncertain result keeps the draft and starts idle reconciliation without resubmitting Pi", async () => {
+  const f = startupHarness({ desktopDelivery: "uncertain", holdingSubmission: true });
+  f.store.setDraft(f.draftKey, { value: teacherText, images: [] });
+  assert.equal(f.store.flushDraftNow(f.draftKey), true);
+  const pending = f.send(teacherText);
+  await flush();
+  f.sources[0].connected();
+  assert.equal(await pending, false);
+  assert.equal(f.settlements.length, 1);
+  assert.equal(f.commands.filter(item => item.type === "prompt").length, 0);
+  assert.equal(f.cold(f.draftKey)?.value, teacherText);
 });
 
 test("late packets from a replaced SSE connection are ignored without affecting the warm stream", async () => {

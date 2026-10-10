@@ -173,7 +173,7 @@ test("routes PDF and DOCX schedule revisions through a distinct bounded source c
   assert.doesNotMatch(source, /deleteDocument|removedDocumentEvent/);
 });
 
-async function materialRouteFixture(kind, proposal, oldSource = false) {
+async function materialRouteFixture(kind, proposal, oldSource = false, lessonProposal = undefined) {
   const require = createRequire(import.meta.url);
   const source = await readFile(new URL("./route.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -189,7 +189,8 @@ async function materialRouteFixture(kind, proposal, oldSource = false) {
     "@/lib/edupi-material-staging": { listStagedMaterials: () => [descriptor], settleStagedMaterial: (...args) => calls.push(["settle", ...args]) },
     "@/lib/edupi-material-intake-flow": { intakeRecognizedMaterial: async input => {
       calls.push(["intake", input]); assert.equal(input.recognize, false);
-      return { receipts: [receipt], data: {}, materialScheduleProposal: proposal, recognition: { eventCount: 0, slotCount: 0 }, scheduleNeedsReview: false };
+      return { receipts: [receipt], data: {}, materialScheduleProposal: proposal,
+        ...(lessonProposal ? { materialLessonProposal: lessonProposal } : {}), recognition: { eventCount: 0, slotCount: 0 }, scheduleNeedsReview: false };
     } },
     "@/lib/edupi-material-recognition": { MaterialRecognitionError: class extends Error {} },
     "@/lib/edupi-material-recognition-lock": { MaterialRecognitionAdmissionError: class extends Error {}, withMaterialRecognitionLock: async (_id, work) => work() },
@@ -226,6 +227,25 @@ test("initial ICS, DOCX and PDF intake retain the file receipt and separate prop
     assert.deepEqual(calls.map(item => item[0]), ["intake", "settle"]);
     assert.deepEqual(result.recognition, { eventCount: 0, slotCount: 0 });
   }
+});
+
+test("initial DOCX intake exposes a separate pending lesson suggestion without adopting it", async () => {
+  const schedule = { status: "unavailable", material_id: "synthetic-material", read_result: null,
+    reason_code: "material_schedule_unavailable", read_only: true, automatic_import: false, external_send: false };
+  const lesson = { status: "proposed", material_id: "synthetic-material", source_hash: `sha256:${"a".repeat(64)}`,
+    metadata_revision: 0, lesson_date: "2026-10-12", lesson_date_path: "word/document.xml/w:p[0]",
+    lesson: { slot_id: "synthetic-slot", task_id: "synthetic-task", source_event_date: "2026-10-12",
+      starts_at: "2026-10-12T01:00:00.000Z", time_zone: "Asia/Shanghai" },
+    basis_hash: `sha256:${"b".repeat(64)}`, reason_code: null,
+    read_only: true, automatic_prepare: false, external_send: false };
+  const { post, descriptor, calls } = await materialRouteFixture("word", schedule, false, lesson);
+  const response = await post(request({ kind: "material", stagingId: descriptor.staging_id, materialKind: "lesson_note", recognize: true }));
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.deepEqual(result.materialLessonProposal, lesson);
+  assert.deepEqual(result.materialScheduleProposal, schedule);
+  assert.equal(result.materialReceivedOnly, true);
+  assert.deepEqual(calls.map(item => item[0]), ["intake", "settle"]);
 });
 
 test("explicit old calendar and document source updates retain the original sync path", async () => {

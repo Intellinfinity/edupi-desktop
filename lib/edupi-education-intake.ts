@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { validateCoreEnvelopeSchema } from "./edupi-bridge-contract";
 import { activeBridgeIdentity, scheduleOccurrenceIdentity } from "./edupi-bridge-manifest";
-import { callEduPiCoreWithMetadata, EduPiCoreProcessError, isCoreWriterDenialCode, type EduPiCoreProcessResult, type EduPiMaterialScheduleProposal } from "./edupi-core-process-client";
+import { callEduPiCoreWithMetadata, EduPiCoreProcessError, isCoreWriterDenialCode, type EduPiCoreProcessResult,
+  type EduPiMaterialLessonProposal, type EduPiMaterialScheduleProposal } from "./edupi-core-process-client";
 import { readEduPiEducationSnapshot, validateScheduleOccurrenceV12Envelope, type CoreEducationSnapshotPayload, type EduPiBridgeRoots } from "./edupi-core-snapshot";
 
 type IntakeSource = {
@@ -254,6 +255,7 @@ export async function issueEducationIntake(command: EducationIntakeCommand, depe
   receipt: RawRecord;
   data: CoreEducationSnapshotPayload | null;
   materialScheduleProposal?: EduPiMaterialScheduleProposal;
+  materialLessonProposal?: EduPiMaterialLessonProposal;
 }> {
   const identity = activeBridgeIdentity();
   if (!identity.contract.supported_commands.includes(command.command_type)) {
@@ -274,10 +276,12 @@ export async function issueEducationIntake(command: EducationIntakeCommand, depe
   })));
   let rawReceipt: unknown;
   let materialScheduleProposal: EduPiMaterialScheduleProposal | undefined;
+  let materialLessonProposal: EduPiMaterialLessonProposal | undefined;
   try {
     const outcome = await dispatch(envelope, initial.roots);
     rawReceipt = outcome.response;
     materialScheduleProposal = outcome.runtimeMetadata.materialScheduleProposal;
+    materialLessonProposal = outcome.runtimeMetadata.materialLessonProposal;
   } catch (error) {
     if (error instanceof EduPiCoreProcessError && isCoreWriterDenialCode(error.code)) throw new EducationIntakeError(error.code, "Core 写入未获准，本次导入未确认。");
     throw new EducationIntakeError("unavailable", "Core 教育导入暂不可用。");
@@ -305,5 +309,9 @@ export async function issueEducationIntake(command: EducationIntakeCommand, depe
   const boundProposal = command.command_type === "intake_material" && materialScheduleProposal
     && materialScheduleProposal.read_only === true && materialScheduleProposal.automatic_import === false && materialScheduleProposal.external_send === false
     && Array.isArray(receipt.applied_ids) && receipt.applied_ids.length === 1 && receipt.applied_ids[0] === materialScheduleProposal.material_id;
-  return { receipt, data, ...(boundProposal ? { materialScheduleProposal } : {}) };
+  const boundLesson = command.command_type === "intake_material" && materialLessonProposal
+    && materialLessonProposal.read_only === true && materialLessonProposal.automatic_prepare === false && materialLessonProposal.external_send === false
+    && Array.isArray(receipt.applied_ids) && receipt.applied_ids.length === 1 && receipt.applied_ids[0] === materialLessonProposal.material_id;
+  return { receipt, data, ...(boundProposal ? { materialScheduleProposal } : {}),
+    ...(boundLesson ? { materialLessonProposal } : {}) };
 }

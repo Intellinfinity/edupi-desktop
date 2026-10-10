@@ -18,7 +18,7 @@ import type { DocumentPairingItem, DocumentPairingPreview, DocumentPairingSubmis
 import { documentPairingSubmission } from "@/lib/edupi-document-pairing-selection";
 import { hasUnboundSameNameClass, materialClassOptions } from "@/lib/edupi-material-class-options";
 import { materialScheduleUploadProposal } from "@/lib/edupi-material-schedule";
-import type { EduPiMaterialScheduleProposal as UploadScheduleProposal } from "@/lib/edupi-core-process-client";
+import type { EduPiMaterialLessonProposal as UploadLessonProposal, EduPiMaterialScheduleProposal as UploadScheduleProposal } from "@/lib/edupi-core-process-client";
 import { EduPiMaterialScheduleProposal } from "./EduPiMaterialScheduleProposal";
 
 const PAGE_SIZE = 8;
@@ -37,6 +37,53 @@ function shortDate(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+const LESSON_REASON_LABELS: Record<string, string> = {
+  lesson_scope_required: "班级或学科待核对",
+  lesson_date_required: "授课日期待核对",
+  lesson_date_unlabeled: "授课日期待核对",
+  lesson_date_ambiguous: "授课日期不唯一",
+  lesson_date_invalid: "授课日期待核对",
+  lesson_document_unresolved: "材料内容待核对",
+  lesson_ambiguous: "课次不唯一",
+  lesson_elapsed: "课次已过",
+  lesson_calendar_unresolved: "校历待核对",
+  lesson_permission_unavailable: "备课权限待核对",
+};
+
+function lessonProposalForDisplay(value: unknown, materialId: string, sourceHash: string): UploadLessonProposal {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid lesson proposal");
+  const proposal = value as UploadLessonProposal;
+  if (proposal.material_id !== materialId || proposal.read_only !== true || proposal.automatic_prepare !== false
+    || proposal.external_send !== false || !["proposed", "held", "unavailable"].includes(proposal.status)) throw new Error("invalid lesson proposal");
+  if (proposal.status === "proposed" && (proposal.source_hash !== sourceHash || !proposal.lesson?.slot_id
+    || !proposal.lesson.task_id || !/^\d{4}-\d{2}-\d{2}$/.test(proposal.lesson_date)
+    || !Number.isFinite(Date.parse(proposal.lesson.starts_at)) || !Number.isSafeInteger(proposal.metadata_revision))) {
+    throw new Error("invalid lesson proposal");
+  }
+  return proposal;
+}
+
+export function EduPiReceivedLessonProposal({ title, proposal, data, onTask }: {
+  title: string; proposal: UploadLessonProposal; data: Pick<EducationContract, "teacherMaterials" | "tasks">;
+  onTask: (task: TeacherTask) => void;
+}) {
+  const material = data.teacherMaterials?.find(item => item.material_id === proposal.material_id);
+  const sameMaterialRevision = proposal.status === "proposed" && material?.available !== false
+    && material?.metadata_revision === proposal.metadata_revision;
+  const task = sameMaterialRevision ? data.tasks.find(item => item.id === proposal.lesson.task_id) : null;
+  return <details className="edupi-material-inbox">
+    <summary>备课建议 <span>{sameMaterialRevision ? "待核对" : proposal.status === "proposed" ? "已失效" : "待核对"}</span></summary>
+    <div className="edupi-material-pairing__current">
+      <strong>{title}</strong>
+      {sameMaterialRevision ? <><p>{proposal.lesson_date} · {material?.subject} · {material?.class_id}</p>
+        {task ? <button type="button" onClick={() => onTask(task)}>查看课次任务</button> : null}
+        <small>未启动备课</small></>
+        : <p>{proposal.status === "proposed" ? "材料、课表或课次已变化，请重新核对。"
+          : LESSON_REASON_LABELS[proposal.reason_code] || "材料或课表待核对"}</p>}
+    </div>
+  </details>;
 }
 
 
@@ -68,6 +115,7 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pairingError, setPairingError] = useState("");
   const [receivedProposals, setReceivedProposals] = useState<Record<string, { title: string; proposal: UploadScheduleProposal }>>({});
+  const [receivedLessonProposals, setReceivedLessonProposals] = useState<Record<string, { title: string; proposal: UploadLessonProposal }>>({});
   const classOptions = useMemo(() => materialClassOptions(data.timetable, context?.classes || []), [context?.classes, data.timetable]);
   const classes = useMemo(() => classOptions.map(option => option.value), [classOptions]);
   const unboundSameNameClass = useMemo(() => hasUnboundSameNameClass(data.timetable), [data.timetable]);
@@ -261,6 +309,14 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
           setReceivedProposals(current => ({ ...current, [proposal.material_id]: { title: item.original_name, proposal } }));
         } catch { setOperationError("安排提案未确认，请重新读取"); }
       }
+      if (documentScheduleSource(item) && item.kind === "word" && received && typeof received === "object"
+        && "materialLessonProposal" in received && received.materialLessonProposal) {
+        try {
+          const proposal = lessonProposalForDisplay(received.materialLessonProposal,
+            `material-${item.staging_id.slice("stg_".length)}`, item.source_hash);
+          setReceivedLessonProposals(current => ({ ...current, [proposal.material_id]: { title: item.original_name, proposal } }));
+        } catch { setOperationError("备课建议未确认，请核对材料"); }
+      }
       setIntakeDraft(null);
       setPairingPreview(null);
       setPairingChoices({});
@@ -355,6 +411,8 @@ export function EduPiMaterialsWorkspace({ data, context, query, selectedObjectId
       <strong>{title}</strong><EduPiMaterialScheduleProposal materialId={proposal.material_id} initialProposal={proposal}
         onApplied={() => window.dispatchEvent(new Event("edupi-education-refresh"))}/>
     </section>)}
+    {Object.values(receivedLessonProposals).map(({ title, proposal }) => <EduPiReceivedLessonProposal key={`lesson:${proposal.material_id}`}
+      title={title} proposal={proposal} data={data} onTask={onTask} />)}
     {generatedError ? <p className="edupi-material-message" role="status">对话生成文件索引暂不可用</p> : null}
     {operationError ? <p role="alert">{operationError}</p> : null}
     {scheduleSourceError && sourceErrorRelevant ? <p className="edupi-material-message is-error" role="alert">{scheduleSourceError} <button type="button" className="native-button" onClick={() => void loadScheduleSources()}>重试</button></p> : null}

@@ -108,7 +108,7 @@ test("keeps the session event stream open through the idle grace window", () => 
   assert.match(promptDoneSource, /notifyPromptStage\(runId\)/);
   assert.match(promptDoneSource, /scheduleEventStreamClose\(sid\)/);
   assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?waitForPromptSettlement/);
-  assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?return;[\s\S]*?\}[\s\S]*?closeEvents\(\)/);
+  assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?return false;[\s\S]*?\}[\s\S]*?closeEvents\(\)/);
   assert.match(sendSource, /chatInputRef\?\.current\?\.replaceMessage\(userMsg, true\)/);
   assert.match(sendSource, /sendGeneration !== sessionGenerationRef\.current[\s\S]*restoreFailedMessageDraft\(originDraftKey, userMsg, \{/);
   assert.doesNotMatch(sendSource, /if \(e instanceof EventStreamConnectionError\)/);

@@ -211,6 +211,12 @@ export function readCapturedEduPiAmbientMessages(sessionId: string,
   return readLedger(stateDir, dataRoot).value.entries.filter((entry) => entry.session_id === sessionId && entry.status === "captured").map(publicEntry);
 }
 
+export function readEduPiAmbientMessagesForSession(sessionId: string,
+  { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding[] {
+  if (!ID.test(sessionId)) fail();
+  return readLedger(stateDir, dataRoot).value.entries.filter((entry) => entry.session_id === sessionId).map(publicEntry);
+}
+
 export function readWithdrawableEduPiAmbientMessages(sessionId: string,
   { stateDir = process.env.PI_DESKTOP_STATE_DIR, dataRoot }: { stateDir?: string; dataRoot: string }): EduPiAmbientMessageBinding[] {
   if (!ID.test(sessionId)) fail();

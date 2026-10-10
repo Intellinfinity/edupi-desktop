@@ -3,6 +3,7 @@ import { authorizeMobileRequest } from "@/lib/mobile-bridge";
 import { readMobileSession } from "@/lib/mobile-session";
 import { resolveSessionPath } from "@/lib/session-reader";
 import { startHarnessSession } from "@/lib/harness/runtime";
+import { eduPiDirectPromptGate } from "@/lib/edupi-direct-prompt-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +16,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (typeof body.message !== "string" || !body.message.trim() || body.message.length > 4_000) {
     return NextResponse.json({ error: "消息不能为空且不能超过 4000 字" }, { status: 400 });
   }
+  const gate = eduPiDirectPromptGate();
+  if (gate !== "allowed") return NextResponse.json({ error: gate === "core_first_required"
+    ? "主动运行期间请在桌面端发送消息" : "Core 状态暂不可用，消息未发送" }, { status: gate === "core_first_required" ? 409 : 503 });
   try {
     const filePath = await resolveSessionPath(id);
     if (!filePath || !(await readMobileSession(id))) return NextResponse.json({ error: "对话不存在" }, { status: 404 });
     const { session } = await startHarnessSession(id, filePath, undefined, { accessMode: "approval" });
     const state = await session.send({ type: "get_state" }) as { isStreaming?: boolean; isPromptRunning?: boolean };
     if (state.isStreaming || state.isPromptRunning) return NextResponse.json({ error: "对话正在生成，请稍后" }, { status: 409 });
+    const currentGate = eduPiDirectPromptGate();
+    if (currentGate !== "allowed") return NextResponse.json({ error: currentGate === "core_first_required"
+      ? "主动运行期间请在桌面端发送消息" : "Core 状态暂不可用，消息未发送" }, { status: currentGate === "core_first_required" ? 409 : 503 });
     await session.send({ type: "mobile_prompt", message: body.message.trim() });
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch {

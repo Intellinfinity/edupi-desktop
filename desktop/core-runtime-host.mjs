@@ -98,8 +98,10 @@ function validScope(scope) {
 
 export async function startCoreRuntimeHost({ coreRoot, options }, channel = process) {
   const hasModelScope = options?.g1Scope !== undefined || options?.g2Scope !== undefined;
-  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken", "g1Scope", "g2Scope"].includes(key))
+  if (!options || Object.keys(options).some(key => !["dataRoot", "token", "supervisorSessionId", "coreCommit", "componentManifestHash", "port", "ambientPlanning", "ownerControlToken", "ownerMessageRegistration", "g1Scope", "g2Scope"].includes(key))
     || (options.ambientPlanning !== undefined && typeof options.ambientPlanning !== "boolean")
+    || (options.ownerMessageRegistration !== undefined && (options.ownerMessageRegistration !== true
+      || options.ambientPlanning !== true || typeof options.ownerControlToken !== "string"))
     || hasModelScope && (options.ambientPlanning !== true || typeof options.ownerControlToken !== "string")
     || options.g1Scope !== undefined && !validScope(options.g1Scope)
     || options.g2Scope !== undefined && (!validScope(options.g2Scope) || options.g2Scope.subject !== "数学")) throw new Error("Invalid runtime bootstrap.");
@@ -123,18 +125,28 @@ export async function startCoreRuntimeHost({ coreRoot, options }, channel = proc
     }
     let g2Live;
     if (g2Scope) {
-      const { createStudentFollowUpModelAdapter } = await import(pathToFileURL(path.join(coreRoot, "scripts/student_followup_model_adapter.mjs")).href);
-      // Core owns prompt/output validation and its adapter brand. Credentials
-      // stay in the parent, which executes this prompt in the isolated worker.
-      g2Live = { modelAdapter: createStudentFollowUpModelAdapter({ runModel: ({ prompt, signal }) => hostExecutor.run({
-        model_kind: "student_followup", prompt, deadline_at: new Date(Date.now() + 120000).toISOString(),
-      }, { signal }) }), leaseMs: 120000 };
+      try {
+        const configuration = await hostExecutor.configuration({ signal: new AbortController().signal });
+        const { createIsolatedStudentFollowUpModelAdapter } = await import(pathToFileURL(path.join(coreRoot, "scripts/student_followup_model_adapter.mjs")).href);
+        // The factory and isolated worker must come from this exact Core
+        // process: the Live validator rejects generic or copied adapters.
+        g2Live = { modelAdapter: createIsolatedStudentFollowUpModelAdapter({ ...configuration, maxCalls: 4, timeoutMs: 120000 }),
+          leaseMs: 120000, binding: { grantId: g2Scope.grantId, classId: g2Scope.classId, subject: g2Scope.subject } };
+      } catch {
+        // No supported private model keeps G2 inactive. Core reads and
+        // revocation remain available without a permissive fallback.
+      }
+      if (!channel.connected) throw Object.assign(new Error("Model host unavailable."), { code: "model_unavailable" });
     }
     const daemon = await createCoreRuntimeDaemon({ ...daemonOptions,
+      ...(g1Runner || g2Live ? { ownerMessageContinuation: true } : {}),
       ...(g2Live ? { g2Live } : {}),
       ...(g1Runner ? { g1Live: { modelRunner: g1Runner, leaseMs: 300000,
         scope: { classId: g1Scope.classId, subject: g1Scope.subject }, grantId: g1Scope.grantId } } : {}) });
-    return { daemon, async close() { hostExecutor?.close(); try { await daemon.close(); } finally { await g1Runner?.waitForIdle(); } } };
+    return { daemon, async close() { hostExecutor?.close(); try { await daemon.close(); } finally {
+      await g1Runner?.waitForIdle();
+      await g2Live?.modelAdapter.waitForIdle();
+    } } };
   } catch (error) { hostExecutor?.close(); throw error; }
 }
 

@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect, useImperativeHandle, f
 import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
-import { clearDraft, flushDraftNow, getDraft, markQueueRecoveryUncertain, setDraft, subscribeDraftPersistence, type ChatDraft, type ChatDraftImage, type FailedDraftMessage } from "@/lib/draft-store";
+import { clearDraft, flushDraftNow, getDraft, markQueueRecoveryUncertain, releasePendingPromptForNewMessage, setDraft, subscribeDraftPersistence, type ChatDraft, type ChatDraftImage, type FailedDraftMessage } from "@/lib/draft-store";
 import { appendComposerResource, removeComposerResource, composerReferenceText, composeComposerMessage, contextHandoffMode, parseTeacherMessage, prepareQueueRecall, readableQueueBackup, visibleTeacherMessageText, type EduPiComposerContext } from "@/lib/edupi-composer-context";
 import { CHAT_RESOURCE_KINDS, type ChatResourceKind } from "@/lib/edupi-chat-resources";
 import { EduPiResourcePicker } from "./EduPiResourcePicker";
@@ -22,6 +22,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
 import { appendSpeechTranscript, useSpeechDictation } from "@/hooks/useSpeechDictation";
 import {
+  fetchDesktopApi,
   isTauriDesktop,
   readDesktopImageAttachments,
   selectFilesNative,
@@ -44,7 +45,7 @@ interface ModelOption {
 
 interface Props {
   teacherMode?: boolean;
-  onSend: (message: string, images?: AttachedImage[]) => void;
+  onSend: (message: string, images?: AttachedImage[]) => boolean | void | Promise<boolean | void>;
   onAbort: () => void;
   onSteer?: (message: string, images?: AttachedImage[]) => void | Promise<void>;
   onFollowUp?: (message: string, images?: AttachedImage[]) => void | Promise<void>;
@@ -109,6 +110,8 @@ export interface ChatInputHandle {
   refreshQueueRecoveryStatus: (draftKey: string) => void;
   markQueueRecoveryUncertain: (sessionId: string, recoveryId: string) => boolean;
   refreshPendingFailedMessages: (draftKey: string) => void;
+  isHoldingSubmission: (draftKey: string) => boolean;
+  acknowledgeSubmittedMessage: (draftKey: string, value: string, preserveContext: boolean) => boolean;
   replaceMessage: (message: UserMessage, allowPendingRecovery?: boolean) => boolean;
   prependText: (text: string) => void;
   addImages: (files: File[]) => void;
@@ -421,6 +424,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const [queueUncertain, setQueueUncertain] = useState(() => (draftKey ? getDraft(draftKey)?.pendingQueueUncertain ?? false : false));
   const [pendingFailedMessages, setPendingFailedMessages] = useState<FailedDraftMessage[]>(() => (draftKey ? getDraft(draftKey)?.pendingFailedMessages ?? [] : []));
   const [draftSaveFailed, setDraftSaveFailed] = useState(false);
+  const submittingRef = useRef(false);
   const [queueCopyStatus, setQueueCopyStatus] = useState("");
   const [failedCopyStatus, setFailedCopyStatus] = useState("");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
@@ -437,6 +441,24 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     draftKey ? draftImagesToAttachedImages(getDraft(draftKey)?.images) : []
   ));
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [streamingQueueAllowed, setStreamingQueueAllowed] = useState(() => !isTauriDesktop());
+  const pendingPrompt = draftKey ? getDraft(draftKey)?.pendingPrompt : undefined;
+  useEffect(() => {
+    if (!isTauriDesktop()) { setStreamingQueueAllowed(true); return; }
+    if (!isStreaming) { setStreamingQueueAllowed(false); return; }
+    let active = true;
+    const check = async () => {
+      try {
+        const response = await fetchDesktopApi("/api/edupi/proactivity/messages", { cache: "no-store" });
+        const data = await response.json().catch(() => null) as { status?: unknown } | null;
+        if (active) setStreamingQueueAllowed(response.ok && data?.status === "disabled");
+      } catch { if (active) setStreamingQueueAllowed(false); }
+    };
+    void check();
+    const timer = setInterval(() => { void check(); }, 5_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [isStreaming]);
+  useEffect(() => { if (!streamingQueueAllowed) setQueueMenuOpen(false); }, [streamingQueueAllowed]);
   const trimmedValue = value.trimStart();
   const bashMode = attachedImages.length === 0 && trimmedValue.startsWith("!");
   const bashExcluded = bashMode && trimmedValue.startsWith("!!");
@@ -530,6 +552,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   const abortDictation = dictation.abort;
 
   useImperativeHandle(ref, () => ({
+    isHoldingSubmission(key: string) { return submittingRef.current && draftKeyRef.current === key; },
+    acknowledgeSubmittedMessage(key: string, expectedValue: string, preserveContext: boolean) {
+      if (!submittingRef.current || draftKeyRef.current !== key || valueRef.current !== expectedValue
+        || attachedImagesRef.current.length > 0) return false;
+      valueRef.current = "";
+      setValue("");
+      if (!preserveContext) { contextRef.current = null; setContext(null); }
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      return true;
+    },
     offerContext(next: EduPiComposerContext) {
       const current = (textareaRef.current?.value ?? valueRef.current).trim();
       if (pendingTeacherTextRef.current || pendingQueueMessagesRef.current.length || pendingFailedMessagesRef.current.length) {
@@ -989,6 +1021,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   }, []);
 
   const handleSend = useCallback(async () => {
+    if (submittingRef.current) return;
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
@@ -1003,8 +1036,28 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         return;
       }
     }
-    onSend(composeComposerMessage(context, msg, attachedImages.length > 0), attachedImages.length ? attachedImages : undefined);
-    clearInput((msg.startsWith("!") || msg.startsWith("/")) && attachedImages.length === 0);
+    const originKey = draftKeyRef.current;
+    if (!originKey) { setAttachError("草稿尚未就绪，消息未发送"); return; }
+    const previous = getDraft(originKey) ?? { value: "", images: [] };
+    const pending = { ...previous, value: valueRef.current, images: attachedImagesRef.current.map(imageToDraftImage),
+      ...(contextRef.current ? { context: contextRef.current } : {}) };
+    if (!contextRef.current && "context" in pending) delete pending.context;
+    setDraft(originKey, pending);
+    if (!flushDraftNow(originKey)) { setAttachError("草稿未能保存，消息未发送"); return; }
+    const sentImages = attachedImagesRef.current;
+    submittingRef.current = true;
+    try {
+      const accepted = await onSend(composeComposerMessage(context, msg, attachedImages.length > 0),
+        attachedImages.length ? attachedImages : undefined);
+      if (accepted === false) { setAttachError("消息尚未确认，草稿已保留"); return; }
+      if (draftKeyRef.current === originKey && valueRef.current.trim() === msg && attachedImagesRef.current === sentImages) {
+        clearInput((msg.startsWith("!") || msg.startsWith("/")) && attachedImages.length === 0);
+      } else if (draftKeyRef.current !== originKey) {
+        const original = getDraft(originKey);
+        if (original?.value.trim() === msg && original.images.length === sentImages.length) clearDraft(originKey);
+      }
+    } catch { setAttachError("消息未发送，草稿已保留"); }
+    finally { submittingRef.current = false; }
   }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, isStreaming, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
 
   const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1))
@@ -1037,7 +1090,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     ? t(slashQuery ? "chat.match" : "chat.command")
     : t(slashQuery ? "chat.matches" : "chat.commands", { count: filteredSlashCommands.length });
   const hasInputText = Boolean(value.trim());
-  const canQueueStreamingMessage = hasInputText && attachedImages.length === 0 && !pendingTeacherText && !bashMode && !queueSubmitting && !queueRecoveryId && !queueUncertain;
+  const canQueueStreamingMessage = streamingQueueAllowed && hasInputText && attachedImages.length === 0 && !pendingTeacherText && !bashMode && !queueSubmitting && !queueRecoveryId && !queueUncertain;
+  const hasStreamingQueueActions = streamingQueueAllowed && Boolean(onSteer || onFollowUp);
   const canSendMessage = Boolean(hasInputText || attachedImages.length) && (!context || hasInputText) && !pendingTeacherText && !queueRecoveryId;
 
   // ── @ file autocomplete ──────────────────────────────────────────────────
@@ -1224,6 +1278,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
   const sendQueued = useCallback(async (mode: "steer" | "followup") => {
     if (queueSubmittingRef.current) return;
+    if (!streamingQueueAllowed) { setAttachError("主动运行期间，请等当前回复结束再发送"); return; }
     const msg = value.trim();
     if (!msg && !attachedImages.length) return;
     if (context && !msg) return;
@@ -1254,13 +1309,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         }
       }
     } catch (error) {
-      if (draftKeyRef.current === originKey) setAttachError("后续消息未入队，草稿已保留。");
+      if (draftKeyRef.current === originKey) setAttachError(error instanceof Error && error.message.includes("主动运行期间")
+        ? `${error.message}；草稿已保留` : "后续消息未入队，草稿已保留。");
       console.error("Failed to queue message:", error);
     } finally {
       queueSubmittingRef.current = false;
       setQueueSubmitting(false);
     }
-  }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock]);
+  }, [value, context, pendingTeacherText, queueRecoveryId, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock, streamingQueueAllowed]);
 
   const applyPendingQueue = useCallback((replace: boolean) => {
     if (!pendingQueueMessages.length || pendingFailedMessages.length || queueRecoveryId) return;
@@ -1495,7 +1551,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        if (isStreaming && (onSteer || onFollowUp)) {
+        if (isStreaming && hasStreamingQueueActions) {
           // Enter defaults to the non-interrupting follow-up; steering (which
           // aborts the current run) must be an explicit button click.
           sendQueued(onFollowUp ? "followup" : "steer");
@@ -1504,7 +1560,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         }
       }
     },
-    [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, queueMenuOpen, attachmentMenuOpen]
+    [isStreaming, hasStreamingQueueActions, onFollowUp, onAbort, slashMenuOpen, slashQuery, displayedSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, queueMenuOpen, attachmentMenuOpen]
   );
 
   const handleInput = useCallback(() => {
@@ -2242,6 +2298,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           })()}
           <div className="chat-composer">
           {draftSaveFailed ? <div className="chat-composer-save-error" role="alert">草稿暂未保存到本机，刷新前请复制内容。</div> : null}
+          {pendingPrompt && !isStreaming ? <div className="chat-composer-teacher-offer" role="status">
+            <span>上一条消息待核对</span>
+            <button type="button" onClick={() => {
+              if (!draftKey || !window.confirm("请先核对会话和管理中心的待核对消息。重置发送标识后再次发送，可能产生重复消息。")) return;
+              releasePendingPromptForNewMessage(draftKey, pendingPrompt.clientRequestId);
+              setAttachError("发送标识已重置；再次发送将作为新消息");
+            }}>已核对，作为新消息发送</button>
+          </div> : null}
           {pendingFailedMessages.length ? <div className="chat-composer-teacher-offer" role="status">
             <span>发送未完成 · {pendingFailedMessages.length} 条待恢复</span>
             <details><summary>查看消息</summary><ol>{pendingFailedMessages.map((message, index) => <li key={index}>{message.sourceLabel ? `${message.sourceLabel} · ` : ""}{message.value}{message.context ? ` · ${message.context.title}` : ""}{message.images.length ? ` · ${message.images.length} 张图片` : ""}</li>)}</ol></details>
@@ -2296,7 +2360,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               gap: 8,
               alignItems: "center",
               background: "var(--bg)",
-              border: `1px solid ${bashMode ? "var(--tool-bg)" : isStreaming && (onSteer || onFollowUp)
+              border: `1px solid ${bashMode ? "var(--tool-bg)" : isStreaming && hasStreamingQueueActions
                 ? "rgba(234,179,8,0.4)"
                 : "color-mix(in srgb, var(--border) 70%, transparent)"}`,
               borderRadius: 14,
@@ -2330,7 +2394,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             onInput={handleInput}
             onPaste={handlePaste}
             placeholder={
-              isStreaming && (onSteer || onFollowUp)
+              isStreaming && hasStreamingQueueActions
                 ? "继续补充教学任务，EduPi 会接着处理…"
                 : isStreaming ? "EduPi 正在处理任务…"
                 : context ? "说说你希望 EduPi 做什么…" : "描述教学目标，或继续当前任务…"
@@ -2381,7 +2445,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" /></svg>
           </button> : null}
 
-          {isStreaming ? (onSteer || onFollowUp ? (
+          {isStreaming ? (hasStreamingQueueActions ? (
             <div ref={queueMenuRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, alignSelf: "flex-end" }}>
               <button
                 type="button"

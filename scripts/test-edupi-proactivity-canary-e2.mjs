@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { createJiti } from "jiti";
@@ -22,10 +23,45 @@ const home = path.join(dataRoot, ".edupi");
 for (const directory of [stateDir, agentDir, path.join(home, "memory"), path.join(home, "output"), path.join(home, "locks")]) {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
 }
-// G1 can only become active with a private model configuration. Keep this
-// canary entirely on loopback with a synthetic key and no external provider.
+let modelCalls = 0;
+const modelServer = http.createServer(async (request, response) => {
+  if (request.method === "GET" && request.url === "/v1/models") {
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ data: [{ id: "local", object: "model", owned_by: "fixture" }] }));
+    return;
+  }
+  if (request.method !== "POST" || request.url !== "/v1/chat/completions") { response.writeHead(404); response.end(); return; }
+  let bytes = "";
+  for await (const chunk of request) {
+    bytes += chunk;
+    if (bytes.length > 1_000_000) { response.writeHead(413); response.end(); return; }
+  }
+  let input;
+  try { input = JSON.parse(bytes); } catch { response.writeHead(400); response.end(); return; }
+  modelCalls++;
+  const message = "合成验收回复";
+  const id = `canary-model-${modelCalls}`;
+  if (!input.stream) {
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ id, object: "chat.completion", model: "local", choices: [{ index: 0,
+      message: { role: "assistant", content: message }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } }));
+    return;
+  }
+  response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+  response.end(`data: ${JSON.stringify({ id, object: "chat.completion.chunk", model: "local", choices: [{ index: 0,
+    delta: { role: "assistant", content: message }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ id,
+    object: "chat.completion.chunk", model: "local", choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+    usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } })}\n\ndata: [DONE]\n\n`);
+});
+await new Promise((resolve, reject) => {
+  modelServer.once("error", reject);
+  modelServer.listen(0, "127.0.0.1", resolve);
+});
+const modelPort = modelServer.address().port;
+// G1 requires a private model configuration. No real provider is reachable.
 fs.writeFileSync(path.join(agentDir, "models.json"), JSON.stringify({ providers: { local: {
-  api: "openai-completions", apiKey: "synthetic-local-placeholder", baseUrl: "http://127.0.0.1:9/v1",
+  api: "openai-completions", apiKey: "synthetic-local-placeholder", baseUrl: `http://127.0.0.1:${modelPort}/v1`,
   models: [{ id: "local", name: "Synthetic local", input: ["text"], reasoning: false,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 32000, maxTokens: 2048 }],
 } } }), { mode: 0o600 });
@@ -34,7 +70,7 @@ fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultP
 const token = "proactivity-canary-test-token-012345678901234567890123";
 const keys = ["EDUPI_PROJECT_ROOT", "EDUPI_DATA_ROOT", "EDUPI_DATA_ALLOWED_ROOT", "EDUPI_CORE_ROOT", "EDUPI_CORE_ALLOWED_ROOT",
   "EDUPI_HOME", "EDUPI_MEMORY_DIR", "EDUPI_OUTPUT_DIR", "EDUPI_LOCK_DIR", "EDUPI_CORE_COMMIT", "EDUPI_AMBIENT_PLANNING",
-  "PI_DESKTOP_STATE_DIR", "PI_DESKTOP_API_TOKEN", "PI_CODING_AGENT_DIR"];
+  "PI_DESKTOP_STATE_DIR", "PI_DESKTOP_API_TOKEN", "PI_CODING_AGENT_DIR", "PI_OFFLINE"];
 const previous = new Map(keys.map((key) => [key, process.env[key]]));
 Object.assign(process.env, {
   EDUPI_PROJECT_ROOT: dataRoot,
@@ -50,6 +86,7 @@ Object.assign(process.env, {
   PI_DESKTOP_STATE_DIR: stateDir,
   PI_DESKTOP_API_TOKEN: token,
   PI_CODING_AGENT_DIR: agentDir,
+  PI_OFFLINE: "1",
 });
 delete process.env.EDUPI_AMBIENT_PLANNING;
 
@@ -76,6 +113,8 @@ try {
   const intake = await jiti.import("../lib/edupi-education-intake.ts");
   const proactivityRoute = await jiti.import("../app/api/edupi/proactivity/route.ts");
   const messageRoute = await jiti.import("../app/api/edupi/proactivity/messages/route.ts");
+  const promptIntentRoute = await jiti.import("../app/api/edupi/proactivity/prompt/intent/route.ts");
+  const promptRoute = await jiti.import("../app/api/edupi/proactivity/prompt/route.ts");
   const feedbackRoute = await jiti.import("../app/api/edupi/teacher-feedback/route.ts");
   const statusRoute = await jiti.import("../app/api/edupi/status/route.ts");
   const supervisor = await jiti.import("../lib/edupi-runtime-supervisor.ts");
@@ -85,6 +124,8 @@ try {
   const sessionReader = await jiti.import("../lib/session-reader.ts");
   const sessionRoute = await jiti.import("../app/api/sessions/[id]/route.ts");
   const ambientLedger = await jiti.import("../lib/edupi-ambient-message-ledger.ts");
+  const promptOutbox = await jiti.import("../lib/edupi-prompt-outbox.ts");
+  const promptReconciliation = await jiti.import("../lib/edupi-prompt-reconciliation.ts");
   const sessionId = "canary-session-1";
   const sessionDir = path.join(temp, "sessions");
   const sessionFile = path.join(sessionDir, "canary-session.jsonl");
@@ -283,6 +324,39 @@ try {
   const deletionBinding = (await bindings()).find(item => item.message_ref === deletionProof.messageRef);
   assert.ok(deletionBinding);
 
+  // Exercise the production Core-first route against this same real Core and
+  // a real Pi session; unit tests alone mock away this integration boundary.
+  const clientRequestId = crypto.randomUUID();
+  const routeMessage = "这是隔离验收的数学课对话";
+  const occurredAt = new Date().toISOString();
+  const preparedIntent = await promptIntentRoute.POST(request("http://localhost/api/edupi/proactivity/prompt/intent", "POST", {
+    sessionId, clientRequestId, occurredAt, message: routeMessage, draftValue: routeMessage, cwd: dataRoot,
+  }));
+  assert.equal(preparedIntent.status, 200, JSON.stringify(await preparedIntent.clone().json()));
+  assert.equal((await preparedIntent.json()).status, "ready");
+  const promptBody = { sessionId, messageId: "canary-route-message", occurredAt,
+    command: { type: "prompt", message: routeMessage, clientRequestId } };
+  const submitted = await promptRoute.POST(request("http://localhost/api/edupi/proactivity/prompt", "POST", promptBody));
+  assert.equal(submitted.status, 200, JSON.stringify(await submitted.clone().json()));
+  assert.equal((await submitted.json()).status, "accepted");
+  const persistedOutbox = promptOutbox.readEduPiPromptOutbox(sessionId, clientRequestId, { stateDir, dataRoot });
+  assert.equal(persistedOutbox.stage, "pi_accepted");
+  assert.equal(persistedOutbox.bindings.length, 1);
+  assert.equal(persistedOutbox.bindings[0].captured, true);
+  assert.equal(promptReconciliation.inspectEduPiPromptSession(persistedOutbox, sessionFile), "confirmed");
+  const replayed = await promptRoute.POST(request("http://localhost/api/edupi/proactivity/prompt", "POST", promptBody));
+  assert.equal(replayed.status, 200, JSON.stringify(await replayed.clone().json()));
+  assert.equal((await replayed.json()).status, "accepted");
+  assert.equal(fs.readFileSync(sessionFile, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line))
+    .filter(row => row.type === "message" && row.message?.role === "user").length, 1);
+  const rpcManager = await jiti.import("../lib/rpc-manager.ts");
+  const waitUntil = Date.now() + 10_000;
+  while (rpcManager.getRpcSession(sessionId)?.isRunning() && Date.now() < waitUntil) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.equal(rpcManager.getRpcSession(sessionId)?.isRunning(), false);
+  assert.equal(modelCalls, 1, "one accepted Pi prompt should reach only the synthetic loopback provider");
+
   await supervisor.closeAllEduPiRuntimes();
   const restarted = await statusRoute.GET(new Request("http://localhost/api/edupi/status?summary=1", { headers: { host: "localhost" } }));
   const restartedBody = await restarted.json();
@@ -303,7 +377,7 @@ try {
   assert.equal((await ignored.json()).status, "disabled");
   assert.equal(fs.existsSync(path.join(stateDir, "edupi-proactivity.json")), true);
   const capturedBindings = ambientLedger.readWithdrawableEduPiAmbientMessages(sessionId, { stateDir, dataRoot });
-  assert.equal(capturedBindings.length, 9);
+  assert.equal(capturedBindings.length, 10);
   ambientLedger.prepareEduPiAmbientMessageBinding({ sessionId, messageId: "canary-crash-before-capture",
     messageRef: `owner_message:${"f".repeat(64)}`, ownerId: capturedBindings[0].ownerId,
     grantId: capturedBindings[0].grantId, captureGrantVersion: capturedBindings[0].captureGrantVersion,
@@ -369,13 +443,20 @@ await closeAllEduPiRuntimes();`;
     correction_not_auto_applied: true, cancellation_not_auto_applied: true, replay_no_duplicate: true, restart_persistent: true,
     feedback_channel: true, synthetic_feedback_excluded: true, explicit_stop: true, session_delete_withdrawal: true,
     active_goal_delete_propagation: true, capture_crash_recovery: true, stop_durability_failure_fenced: true,
-    external_send: false }));
+    production_prompt_route: true, pi_session_confirmed: true, model_provider_calls: modelCalls, external_send: false }));
 } finally {
+  try {
+    const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
+    const rpcManager = await jiti.import("../lib/rpc-manager.ts");
+    await rpcManager.destroyRpcSessionsForCwd(dataRoot);
+  } catch { /* bounded cleanup */ }
   try {
     const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
     const supervisor = await jiti.import("../lib/edupi-runtime-supervisor.ts");
     await supervisor.closeAllEduPiRuntimes();
   } catch { /* bounded cleanup */ }
+  modelServer.closeAllConnections();
+  await new Promise(resolve => modelServer.close(resolve));
   if (keepArtifacts) console.log(JSON.stringify({ status: "retained", temporary_root: temp, data_root: dataRoot, state_dir: stateDir, agent_dir: agentDir }));
   else fs.rmSync(temp, { recursive: true, force: true });
   for (const [key, value] of previous) {

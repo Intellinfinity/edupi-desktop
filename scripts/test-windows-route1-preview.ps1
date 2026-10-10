@@ -4,10 +4,14 @@ $bundleDirectory = if ($env:EDUPI_PREVIEW_INSTALLER_DIR) { $env:EDUPI_PREVIEW_IN
 $installers = @(Get-ChildItem $bundleDirectory -Filter "*-setup.exe" -File)
 if ($installers.Count -ne 1) { throw "Expected exactly one Windows preview installer" }
 
-$testRoot = Join-Path $env:RUNNER_TEMP "edupi-route1-preview-$PID"
+$testRoot = Join-Path $env:USERPROFILE "edupi-route1-preview-$([guid]::NewGuid().ToString('N'))"
 $destination = Join-Path $testRoot "application"
 $dataRoot = Join-Path $testRoot "teacher-data"
 $agentDir = Join-Path $testRoot "agent"
+New-Item -ItemType Directory -Path $testRoot | Out-Null
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+& (Join-Path $env:SystemRoot "System32/icacls.exe") $testRoot "/inheritance:r" "/grant:r" "*${sid}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Isolated preview installation root ACL setup failed" }
 New-Item -ItemType Directory -Force -Path $destination, $dataRoot, $agentDir | Out-Null
 $env:EDUPI_PROJECT_ROOT = $dataRoot
 $env:EDUPI_DATA_ROOT = $dataRoot
@@ -117,7 +121,6 @@ try {
 # without enabling G1 or touching any teacher's configured data directory.
 $canaryRoot = Join-Path $env:USERPROFILE "edupi-route1-canary-preview-$([guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $canaryRoot | Out-Null
-$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 & (Join-Path $env:SystemRoot "System32/icacls.exe") $canaryRoot "/inheritance:r" "/grant:r" "*${sid}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Isolated canary root ACL setup failed" }
 foreach ($relative in @(".edupi/memory", ".edupi/output", ".edupi/locks")) {
@@ -191,5 +194,11 @@ try {
     Stop-InstalledPreviewProcesses
 }
 } finally {
-    Stop-InstalledPreviewProcesses
+    try { Stop-InstalledPreviewProcesses } finally {
+        foreach ($root in @($testRoot, $canaryRoot)) {
+            if ($root -and (Test-Path -LiteralPath $root)) {
+                Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
 }

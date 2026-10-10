@@ -603,6 +603,9 @@ test("Windows preview checks native bytes, normal refusal and isolated Safe Mode
   assert.match(smoke, /binary_sha256/u);
   assert.match(smoke, /native_attestation_required/u);
   assert.match(smoke, /g1Installed: false/u);
+  assert.match(smoke, /\$testRoot = Join-Path \$env:USERPROFILE "edupi-route1-preview-/u);
+  assert.match(smoke, /\$testRoot "\/inheritance:r"/u);
+  assert.ok(smoke.indexOf('$testRoot "/inheritance:r"') < smoke.indexOf('New-Item -ItemType Directory -Force -Path $destination'));
   assert.match(smoke, /EDUPI_ROUTE1_ISOLATED_CANARY = "1"/u);
   assert.match(smoke, /ArgumentList "--safe-mode"/u);
   assert.match(smoke, /api\/edupi\/status\?summary=1/u);
